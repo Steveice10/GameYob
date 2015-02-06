@@ -31,7 +31,7 @@ void clearConsole() {
     consoleClear();
 }
 
-PrintConsole* getDefaultConsole() {
+GYPrintConsole* getDefaultConsole() {
     return consoleGetDefault();
 }
 
@@ -190,14 +190,14 @@ void updateScreens(bool waitToFinish) {
 
 // Console helper functions
 
-PrintConsole* printConsole;
+GYPrintConsole* printConsole;
 
-void setPrintConsole(PrintConsole* console) {
+void setPrintConsole(GYPrintConsole* console) {
     printConsole = console;
     consoleSelect(console);
 }
 
-PrintConsole* getPrintConsole() {
+GYPrintConsole* getPrintConsole() {
     return printConsole;
 }
 
@@ -219,7 +219,7 @@ void iprintfColored(int palette, const char *format, ...) {
     va_list args;
     va_start(args, format);
 
-    PrintConsole* console = getPrintConsole();
+    GYPrintConsole* console = getPrintConsole();
     int x = console->cursorX;
     int y = console->cursorY;
 

@@ -12,9 +12,9 @@
 const u32 TEXT_COLOR = RGB24(0xff, 0xff, 0xff);
 const u32 BG_COLOR = RGB24(0x00, 0x00, 0x00);
 
-PrintConsole* currentConsole = NULL;
+GYPrintConsole* currentConsole = NULL;
 
-PrintConsole mainConsole;
+GYPrintConsole mainConsole;
 
 static void consoleCls(char);
 

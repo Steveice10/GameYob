@@ -17,7 +17,7 @@ void consoleFlush() {
     fflush(stdout);
 }
 
-PrintConsole* getDefaultConsole() {
+GYPrintConsole* getDefaultConsole() {
     return NULL;
 }
 
@@ -68,9 +68,9 @@ void enableSleepMode() {
 
 }
 
-void setPrintConsole(PrintConsole* console) {
+void setPrintConsole(GYPrintConsole* console) {
 
 }
-PrintConsole* getPrintConsole() {
+GYPrintConsole* getPrintConsole() {
     return NULL;
 }

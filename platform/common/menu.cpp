@@ -51,7 +51,7 @@ int stateNum=0;
 bool windowDisabled = false;
 bool hblankDisabled = false;
 
-PrintConsole* menuConsole;
+GYPrintConsole* menuConsole;
 
 
 int gbcModeOption = 0;
@@ -482,8 +482,8 @@ void setMenuDefaults() {
     }
 
 #ifdef DS
-    menuConsole = (PrintConsole*)malloc(sizeof(PrintConsole));
-    memcpy(menuConsole, getDefaultConsole(), sizeof(PrintConsole));
+    menuConsole = (GYPrintConsole*)malloc(sizeof(GYPrintConsole));
+    memcpy(menuConsole, getDefaultConsole(), sizeof(GYPrintConsole));
 #endif
 }
 
@@ -572,7 +572,7 @@ int menuGetNumRows() {
 }
 
 void redrawMenu() {
-    PrintConsole* oldConsole = getPrintConsole();
+    GYPrintConsole* oldConsole = getPrintConsole();
     setPrintConsole(menuConsole);
     clearConsole();
 

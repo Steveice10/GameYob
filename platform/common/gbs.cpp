@@ -24,9 +24,9 @@ u16 gbsPlayAddress;
 u8 gbsSelectedSong;
 int gbsPlayingSong;
 
-PrintConsole gbsConsole;
+GYPrintConsole gbsConsole;
 #ifdef DS
-extern PrintConsole defaultConsole; // Defined in libnds
+extern GYPrintConsole defaultConsole; // Defined in libnds
 #endif
 
 // private
@@ -34,7 +34,7 @@ extern PrintConsole defaultConsole; // Defined in libnds
 void gbsRedraw() {
     //consoleClear();
     
-    PrintConsole* oldPrintConsole = getPrintConsole();
+    GYPrintConsole* oldPrintConsole = getPrintConsole();
     setPrintConsole(&gbsConsole);
     printf("\33[0;0H"); // Cursor to upper-left corner
 
@@ -111,7 +111,7 @@ void gbsInit() {
     u8* romSlot0 = gameboy->getRomFile()->getRomBank(0);
 
 #ifdef DS
-    memcpy(&gbsConsole, &defaultConsole, sizeof(PrintConsole));
+    memcpy(&gbsConsole, &defaultConsole, sizeof(GYPrintConsole));
     videoSetMode(MODE_0_2D);
     consoleInit(&gbsConsole, gbsConsole.bgLayer, BgType_Text4bpp, BgSize_T_256x256, gbsConsole.mapBase, gbsConsole.gfxBase, true, true);
     setPrintConsole(&gbsConsole);

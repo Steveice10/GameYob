@@ -1,7 +1,7 @@
 #pragma once
 #include <3ds/gfx.h>
 
-struct PrintConsole {
+struct GYPrintConsole {
     int cursorX, cursorY;
     int prevCursorX, prevCursorY;
     int consoleWidth, consoleHeight;

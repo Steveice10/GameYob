@@ -21,7 +21,7 @@ extern int gameScreen;
 extern bool hblankDisabled;
 extern bool windowDisabled;
 
-extern PrintConsole* menuConsole;
+extern GYPrintConsole* menuConsole;
 
 extern bool fpsOutput;
 extern bool timeOutput;

@@ -18,9 +18,9 @@ int main(int argc, char* argv[])
 {
     srvInit();
 
-	aptInit();
-	hidInit(NULL);
-	gfxInit();
+    aptInit();
+    hidInit(NULL);
+    gfxInitDefault();
     fsInit();
 
     consoleInitBottom();

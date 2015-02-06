@@ -7,7 +7,7 @@
 #endif
 
 #ifdef SDL
-struct PrintConsole {
+struct GYPrintConsole {
 
 };
 #endif
@@ -16,7 +16,7 @@ struct PrintConsole {
 #include "printconsole.h"
 #endif
 
-extern PrintConsole* menuConsole;
+extern GYPrintConsole* menuConsole;
 
 extern volatile int consoleSelectedRow; // This line is given a different backdrop
 
@@ -25,7 +25,7 @@ bool isConsoleOn(); // Returns true if the sub-screen's console is set up.
 
 void clearConsole();
 void consoleFlush();
-PrintConsole* getDefaultConsole();
+GYPrintConsole* getDefaultConsole();
 int consoleGetWidth();
 int consoleGetHeight();
 
@@ -45,8 +45,8 @@ int checkRumble();
 void disableSleepMode();
 void enableSleepMode();
 
-void setPrintConsole(PrintConsole* console);
-PrintConsole* getPrintConsole();
+void setPrintConsole(GYPrintConsole* console);
+GYPrintConsole* getPrintConsole();
 
 
 enum {

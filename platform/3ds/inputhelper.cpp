@@ -105,44 +105,25 @@ int system_getMotionSensorY() {
 
 
 void system_checkPolls() {
-    APP_STATUS status;
-
-	while((status=aptGetStatus()) != APP_RUNNING) {
-
-        if(status == APP_SUSPENDING)
-        {
-            aptReturnToMenu();
-        }
-        else if(status == APP_PREPARE_SLEEPMODE)
-        {
-			aptSignalReadyForSleep();
-            aptWaitStatusEvent();
-        }
-        else if (status == APP_SLEEPMODE) {
-
-        }
-        else if (status == APP_EXITING) {
-            system_cleanup();
-            exit(0);
-        }
-
-        gspWaitForVBlank();
+    if(!aptMainLoop()) {
+        system_cleanup();
+        exit(0);
     }
-
-    gfxFlushBuffers();
-    gfxMySwapBuffers();
+     
     consoleCheckFramebuffers();
 }
 
 void system_waitForVBlank() {
+    gfxFlushBuffers();
     gspWaitForVBlank();
+    gfxMySwapBuffers();
 }
 
 void system_cleanup() {
     mgr_save();
     mgr_exit();
 
-    CSND_shutdown();
+    csndExit();
 
     fsExit();
     gfxExit();
