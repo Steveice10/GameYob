@@ -41,8 +41,6 @@ APP_ICON		:= $(TOPDIR)/icon.png
 
 EMBEDDED_ROM := false
 
-export	OUTPUT_FORMAT ?= 3dsx
-
 #---------------------------------------------------------------------------------
 # options for code generation
 #---------------------------------------------------------------------------------
@@ -77,6 +75,12 @@ LIBS	:= -lctru
 # include and lib
 #---------------------------------------------------------------------------------
 LIBDIRS	:= $(CTRULIB)
+
+ifeq ($(OS),Windows_NT)
+	MAKEROM = $(TOPDIR)/tools/makerom.exe
+else
+	MAKEROM = $(TOPDIR)/tools/makerom
+endif 
  
   
 #---------------------------------------------------------------------------------
@@ -85,7 +89,7 @@ LIBDIRS	:= $(CTRULIB)
 #---------------------------------------------------------------------------------
 ifneq ($(BUILD),$(notdir $(CURDIR))) # make not invoked from "build" directory
 #---------------------------------------------------------------------------------
- 
+
 export OUTPUT	:=	$(CURDIR)/$(TARGET)
 export TOPDIR	:=	$(CURDIR)
 
@@ -146,16 +150,6 @@ clean:
 	@echo clean ...
 	@rm -fr $(BUILD) $(TARGET).3dhb $(TARGET).elf $(TARGET).3ds $(TARGET).3dsx $(TARGET).cia
  
-
-cia:
-	@make $(MAKEFLAGS) OUTPUT_FORMAT=cia
-
-3ds:
-	@make $(MAKEFLAGS) OUTPUT_FORMAT=3ds
-
-3dsx:
-	@make $(MAKEFLAGS) OUTPUT_FORMAT=3dsx
- 
 #---------------------------------------------------------------------------------
 else # make invoked from "build" directory
  
@@ -167,7 +161,7 @@ DEPENDS	:=	$(OFILES:.o=.d)
 
 .PHONY: all
 
-all: $(OUTPUT).$(OUTPUT_FORMAT)
+all: $(OUTPUT).3dsx $(OUTPUT).3ds $(OUTPUT).cia
 
 $(OUTPUT).3dsx	:	$(OUTPUT).elf $(OUTPUT).smdh
 $(OUTPUT).elf	:	$(OFILES)
@@ -175,13 +169,13 @@ $(OUTPUT).elf	:	$(OFILES)
 $(OUTPUT).cia: $(OUTPUT).elf
 	@cp $(OUTPUT).elf $(TARGET)_stripped.elf
 	@$(PREFIX)strip $(TARGET)_stripped.elf
-	makerom -f cia -o $(OUTPUT).cia -rsf $(TOPDIR)/resources/build_cia.rsf -target t -exefslogo -elf $(TARGET)_stripped.elf -icon $(TOPDIR)/resources/icon.icn -banner $(TOPDIR)/resources/banner.bnr
+	$(MAKEROM) -f cia -o $(OUTPUT).cia -rsf $(TOPDIR)/resources/build_cia.rsf -target t -exefslogo -elf $(TARGET)_stripped.elf -icon $(TOPDIR)/resources/icon.icn -banner $(TOPDIR)/resources/banner.bnr
 	@echo "built ... $(notdir $@)"
 
 $(OUTPUT).3ds: $(OUTPUT).elf $(TOPDIR)/resources/gw_workaround.rsf $(TOPDIR)/resources/banner.bnr $(TOPDIR)/resources/icon.icn
 	@cp $(OUTPUT).elf $(TARGET)_stripped.elf
 	@$(PREFIX)strip $(TARGET)_stripped.elf
-	makerom -f cci -o $(OUTPUT).3ds -rsf $(TOPDIR)/resources/gw_workaround.rsf -target d -exefslogo -elf $(TARGET)_stripped.elf -icon $(TOPDIR)/resources/icon.icn -banner $(TOPDIR)/resources/banner.bnr
+	$(MAKEROM) -f cci -o $(OUTPUT).3ds -rsf $(TOPDIR)/resources/gw_workaround.rsf -target d -exefslogo -elf $(TARGET)_stripped.elf -icon $(TOPDIR)/resources/icon.icn -banner $(TOPDIR)/resources/banner.bnr
 	@echo "built ... $(notdir $@)"
 
 # Always rebuild version.cpp, smdh file
