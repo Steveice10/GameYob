@@ -21,11 +21,9 @@ u8 lfsr7NoiseSample[] = {
 
 bool csndInitialized = false;
 
-s16* bufferDat = (s16*)linearAlloc(2*CSND_BUFFER_SIZE*2);
+s16* playBuffer = (s16*)linearAlloc(2*CSND_BUFFER_SIZE);
+s16* recordBuffer = (s16*)linearAlloc(2*CSND_BUFFER_SIZE);
 
-s16* buffers[2];
-int playingBuffer = 0;
-int recordingBuffer = 1;
 int recordingPos = 0;
 int framecnt;
 
@@ -39,44 +37,27 @@ void csnd_init() {
 }
 
 void initSampler() {
-    buffers[0] = bufferDat;
-    buffers[1] = bufferDat+CSND_BUFFER_SIZE;
-
-    playingBuffer = 0;
-    recordingBuffer = 1;
     recordingPos = 0;
     framecnt = 0;
+}
+
+void swapBuffers() {
+    recordingPos = 0;
+
+    memcpy(playBuffer, recordBuffer, CSND_BUFFER_SIZE*2);
+
+    u32* addr = (u32*)playBuffer;
+    csndPlaySound(8, SOUND_FORMAT_16BIT | SOUND_ONE_SHOT, CSND_FREQUENCY, addr, addr, CSND_BUFFER_SIZE*2);
 }
 
 // Called once every 4 cycles
 void addSample(s16 sample) {
     if (recordingPos >= CSND_BUFFER_SIZE) {
-        printLog("RECORD LOOP\n");
+        swapBuffers();
         return;
     }
-    buffers[recordingBuffer][recordingPos++] = sample;
+    recordBuffer[recordingPos++] = sample;
 }
-
-void swapBuffers() {
-    if (!csndInitialized)
-        return;
-
-    if (--framecnt <= 0) {
-        framecnt = FRAMES_PER_BUFFER;
-
-        playingBuffer = !playingBuffer;
-        recordingBuffer = !recordingBuffer;
-
-        if (recordingPos != CSND_BUFFER_SIZE) {
-            printLog("recordingpos %d\n", recordingPos);
-        }
-        recordingPos = 0;
-
-        u32* addr = (u32*)buffers[playingBuffer];
-        csndPlaySound(8+playingBuffer, SOUND_FORMAT_16BIT | SOUND_ONE_SHOT, CSND_FREQUENCY, addr, addr, CSND_BUFFER_SIZE*2);
-    }
-}
-
 
 SoundEngine::SoundEngine(Gameboy* g)
 {
@@ -367,9 +348,6 @@ void SoundEngine::setSoundEventCycles(int cycles) {
 }
 
 void SoundEngine::soundUpdateVBlank() {
-    if (soundDisabled)
-        return;
-    swapBuffers();
 }
 
 void SoundEngine::updateSoundSample() {
