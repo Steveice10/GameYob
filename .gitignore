@@ -8,8 +8,11 @@
 *.3dsx
 *.cia
 *.smdh
+*.zip
 build/
+.idea/
 gameyob.nds
 gameyob
 gameyob.ini
 LOG
+CMakeLists.txt

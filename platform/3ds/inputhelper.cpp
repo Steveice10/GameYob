@@ -109,14 +109,13 @@ void system_checkPolls() {
         system_cleanup();
         exit(0);
     }
-     
-    consoleCheckFramebuffers();
 }
 
 void system_waitForVBlank() {
     gfxFlushBuffers();
     gspWaitForVBlank();
     gfxMySwapBuffers();
+    consoleCheckFramebuffers();
 }
 
 void system_cleanup() {
