@@ -55,7 +55,6 @@ void swapBuffers() {
         return;
 
     if (recordingPos < CSND_BUFFER_SIZE) {
-        printLog("recordingpos %d\n", recordingPos);
         return;
     }
     recordingPos = 0;
