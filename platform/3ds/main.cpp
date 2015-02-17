@@ -37,7 +37,7 @@ int main(int argc, char* argv[])
 
     mgr_selectRom();
 
-    for (;;) {
+    while(1) {
         mgr_runFrame();
         mgr_updateVBlank();
     }

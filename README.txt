@@ -2,20 +2,35 @@ GameYob v0.5
 Author: Drenn
 
 
-Basic list of features:
+General Features:
 
 - Gameboy, Gameboy Color, Super Gameboy emulation
-- Supports Gameboy Color Bios ("boot rom") for custom palettes
 - Auto SRAM saving
 - Save States
 - Cheat Codes
 - Remappable controls
-- Custom borders
-- Scale to fill the screen
 - Gameboy Printer emulation
 - GBS music playback
 
 
-See the GBAtemp thread for more information:
+DS and SDL Features:
 
-http://gbatemp.net/threads/gameyob-a-gameboy-emulator-for-ds.343407/
+- Scale to fill the screen
+
+
+DS Features:
+
+- Custom borders
+- WiFi connectivity
+
+
+Broken:
+
+- Supports Gameboy Color Bios ("boot rom") for custom palettes
+- Super Gameboy support isn't fully implemented graphically on the 3DS.
+
+
+See the GBAtemp threads for more information:
+
+DS: http://gbatemp.net/threads/gameyob-a-gameboy-emulator-for-ds.343407/
+3DS: http://gbatemp.net/threads/gameyob-3ds-gb-c-emu.372523/
