@@ -10,6 +10,7 @@
 *.smdh
 *.zip
 build/
+output/
 .idea/
 gameyob.nds
 gameyob

@@ -1,5 +1,3 @@
-# Type "make 3ds", "make cia", or "make [3dsx]" to build.
-
 #---------------------------------------------------------------------------------
 .SUFFIXES:
 #---------------------------------------------------------------------------------
@@ -11,86 +9,88 @@ endif
 TOPDIR ?= $(CURDIR)
 include $(DEVKITARM)/3ds_rules
 
+include $(TOPDIR)/resources/AppInfo
 
-ifeq ($(strip $(CTRULIB)),)
-# This directory should be set by 3ds_rules
-$(error "Please set CTRULIB in your environment. export CTRULIB=<path to>libctru")
-endif
-
+APP_TITLE := $(shell echo "$(APP_TITLE)" | cut -c1-128)
+APP_DESCRIPTION := $(shell echo "$(APP_DESCRIPTION)" | cut -c1-256)
+APP_AUTHOR := $(shell echo "$(APP_AUTHOR)" | cut -c1-128)
+APP_PRODUCT_CODE := $(shell echo $(APP_PRODUCT_CODE) | cut -c1-16)
+APP_UNIQUE_ID := $(shell echo $(APP_UNIQUE_ID) | cut -c1-7)
 
 #---------------------------------------------------------------------------------
-# TARGET is the name of the output
 # BUILD is the directory where object files & intermediate files will be placed
 # SOURCES is a list of directories containing source code
 # DATA is a list of directories containing data files
 # INCLUDES is a list of directories containing header files
-# SPECS is the directory containing the important build and link files
+#
+# NO_SMDH: if set to anything, no SMDH file is generated.
+# NO_CTRCOMMON: Do not look for or include ctrcommon.
+# APP_TITLE is the name of the app stored in the SMDH file (Optional)
+# APP_DESCRIPTION is the description of the app stored in the SMDH file (Optional)
+# APP_AUTHOR is the author of the app stored in the SMDH file (Optional)
+# ICON is the filename of the icon (.png), relative to the project folder.
+#   If not set, it attempts to use one of the following (in this order):
+#     - <Project name>.png
+#     - icon.png
+#     - <libctru folder>/default_icon.png
 #---------------------------------------------------------------------------------
-export TARGET		:=	gameyob
 BUILD		:=	build
-SOURCES		:=	. ../common
+SOURCES		:=	./ ../common
 DATA		:=	data
-INCLUDES	:=	include ../common/include
+INCLUDES	:=	./include ../common/include
 
+ICON            :=      resources/icon.png
 
-APP_TITLE		:= GameYob 3DS `git describe --always --abbrev=4`
-APP_DESCRIPTION := Gameboy & Gameboy Color emulator
-APP_AUTHOR		:= Drenn
-APP_ICON		:= $(TOPDIR)/icon.png
-
-
-EMBEDDED_ROM := false
+NO_CTRCOMMON    :=      1
 
 #---------------------------------------------------------------------------------
 # options for code generation
 #---------------------------------------------------------------------------------
-ARCH	:=	-marm
+ARCH	:=	-march=armv6k -mtune=mpcore -mfloat-abi=softfp
 
-CFLAGS	:=	-Wall -O3 -mthumb-interwork -save-temps \
-			-mcpu=mpcore -mtune=mpcore -fomit-frame-pointer \
-			-mfpu=vfp -ffast-math -mword-relocations \
+CFLAGS	:=	-g -Wall -Wno-strict-aliasing -O3 -mword-relocations \
+			-fomit-frame-pointer -ffast-math \
 			$(ARCH)
 
 CFLAGS	+=	-DVERSION_STRING=\"`git describe --always --abbrev=4`\"\
 			-include "3ds/types.h"
-
+			
 CFLAGS	+=	$(INCLUDE) -DARM11 -D_3DS
-
-ifeq ($(EMBEDDED_ROM), true)
-# Embedded rom from file "data/rom.gb"
-CFLAGS	+=	-DEMBEDDED_ROM
-endif
-
 
 CXXFLAGS	:= $(CFLAGS) -fno-rtti -fno-exceptions -std=gnu++11
 
+CFLAGS +=       -std=gnu99
+
 ASFLAGS	:=	-g $(ARCH)
-LDFLAGS	=	-specs=3dsx.specs -g $(ARCH) \
-			-Wl,-d,-q,--use-blx,-Map,$(TARGET).map
+LDFLAGS	=	-specs=3dsx.specs -g $(ARCH) -Wl,-Map,$(notdir $*.map)
 
-LIBS	:= -lctru
-
-#---------------------------------------------------------------------------------
-# list of directories containing libraries, this must be the top level containing
-# include and lib
-#---------------------------------------------------------------------------------
-LIBDIRS	:= $(CTRULIB)
+LIBS	:= -lctru -lm
+LIBDIRS	:= $(CTRULIB) ./lib
+ifeq ($(NO_CTRCOMMON),)
+	LIBS	:= -lctrcommon -lctru -lm
+	LIBDIRS	:= $(DEVKITPRO)/ctrcommon $(CTRULIB) ./lib
+endif
 
 ifeq ($(OS),Windows_NT)
 	MAKEROM = $(TOPDIR)/tools/makerom.exe
+	BANNERTOOL = $(TOPDIR)/tools/bannertool.exe
 else
 	MAKEROM = $(TOPDIR)/tools/makerom
-endif 
- 
-  
+	BANNERTOOL = $(TOPDIR)/tools/bannertool
+endif
+
+
 #---------------------------------------------------------------------------------
 # no real need to edit anything past this point unless you need to add additional
 # rules for different file extensions
 #---------------------------------------------------------------------------------
-ifneq ($(BUILD),$(notdir $(CURDIR))) # make not invoked from "build" directory
+ifneq ($(BUILD),$(notdir $(CURDIR)))
 #---------------------------------------------------------------------------------
 
-export OUTPUT	:=	$(CURDIR)/$(TARGET)
+null            :=
+SPACE           :=      $(null) $(null)
+export OUTPUT_D	:=	$(CURDIR)/output
+export OUTPUT	:=	$(OUTPUT_D)/$(subst $(SPACE),,$(APP_TITLE))
 export TOPDIR	:=	$(CURDIR)
 
 export VPATH	:=	$(foreach dir,$(SOURCES),$(CURDIR)/$(dir)) \
@@ -120,87 +120,93 @@ endif
 export OFILES	:=	$(addsuffix .o,$(BINFILES)) \
 			$(CPPFILES:.cpp=.o) $(CFILES:.c=.o) $(SFILES:.s=.o)
 
-ifeq ($(EMBEDDED_ROM), true)
-
-ifeq ($(filter rom.gb.o,$(OFILES)),)
-$(error $(CURDIR)/data/rom.gb not found)
-endif
-
-endif
-
 export INCLUDE	:=	$(foreach dir,$(INCLUDES),-I$(CURDIR)/$(dir)) \
 			$(foreach dir,$(LIBDIRS),-I$(dir)/include) \
 			-I$(CURDIR)/$(BUILD)
 
 export LIBPATHS	:=	$(foreach dir,$(LIBDIRS),-L$(dir)/lib)
 
+export APP_ICON := $(TOPDIR)/$(ICON)
+
 .PHONY: $(BUILD) clean all
- 
+
 #---------------------------------------------------------------------------------
 all: $(BUILD)
 
-# invoke make from the "build" directory to run the 2nd part of this makefile
 $(BUILD):
 	@[ -d $@ ] || mkdir -p $@
 	@make --no-print-directory -C $(BUILD) -f $(CURDIR)/Makefile
 
- 
 #---------------------------------------------------------------------------------
 clean:
 	@echo clean ...
-	@rm -fr $(BUILD) $(TARGET).3dhb $(TARGET).elf $(TARGET).3ds $(TARGET).3dsx $(TARGET).cia
- 
+	@rm -fr $(BUILD) $(OUTPUT_D)
+
+
 #---------------------------------------------------------------------------------
-else # make invoked from "build" directory
- 
+else
+
 DEPENDS	:=	$(OFILES:.o=.d)
- 
+
 #---------------------------------------------------------------------------------
 # main targets
 #---------------------------------------------------------------------------------
-
+ifeq ($(strip $(NO_SMDH)),)
 .PHONY: all
+all	:	$(OUTPUT_D) $(OUTPUT).3dsx $(OUTPUT).smdh $(OUTPUT).3ds $(OUTPUT).cia
+endif
+$(OUTPUT_D)     :
+	@[ -d $@ ] || mkdir -p $@
 
-all: $(OUTPUT).3dsx $(OUTPUT).3ds $(OUTPUT).cia
-
-$(OUTPUT).3dsx	:	$(OUTPUT).elf $(OUTPUT).smdh
+$(OUTPUT).3dsx	:	$(OUTPUT).elf
 $(OUTPUT).elf	:	$(OFILES)
 
-$(OUTPUT).cia: $(OUTPUT).elf
-	@cp $(OUTPUT).elf $(TARGET)_stripped.elf
-	@$(PREFIX)strip $(TARGET)_stripped.elf
-	$(MAKEROM) -f cia -o $(OUTPUT).cia -rsf $(TOPDIR)/resources/build_cia.rsf -target t -exefslogo -elf $(TARGET)_stripped.elf -icon $(TOPDIR)/resources/icon.icn -banner $(TOPDIR)/resources/banner.bnr
+banner.bnr: $(TOPDIR)/resources/banner.png $(TOPDIR)/resources/audio.wav
+	$(BANNERTOOL) makebanner -i $(TOPDIR)/resources/banner.png -a $(TOPDIR)/resources/audio.wav -o banner.bnr
+
+icon.icn: $(TOPDIR)/resources/icon.png
+	$(BANNERTOOL) makesmdh -s "$(APP_TITLE)" -l "$(APP_TITLE)" -p "$(APP_AUTHOR)" -i $(TOPDIR)/resources/icon.png -o icon.icn
+
+stripped.elf: $(OUTPUT).elf
+	@cp $(OUTPUT).elf stripped.elf
+	@$(PREFIX)strip stripped.elf
+
+$(OUTPUT).3ds: stripped.elf banner.bnr icon.icn 3ds.rsf
+	$(MAKEROM) -f cci -o $(OUTPUT).3ds -rsf 3ds.rsf -target d -exefslogo -elf stripped.elf -icon icon.icn -banner banner.bnr
 	@echo "built ... $(notdir $@)"
 
-$(OUTPUT).3ds: $(OUTPUT).elf $(TOPDIR)/resources/gw_workaround.rsf $(TOPDIR)/resources/banner.bnr $(TOPDIR)/resources/icon.icn
-	@cp $(OUTPUT).elf $(TARGET)_stripped.elf
-	@$(PREFIX)strip $(TARGET)_stripped.elf
-	$(MAKEROM) -f cci -o $(OUTPUT).3ds -rsf $(TOPDIR)/resources/gw_workaround.rsf -target d -exefslogo -elf $(TARGET)_stripped.elf -icon $(TOPDIR)/resources/icon.icn -banner $(TOPDIR)/resources/banner.bnr
+$(OUTPUT).cia: stripped.elf banner.bnr icon.icn cia.rsf
+	$(MAKEROM) -f cia -o $(OUTPUT).cia -rsf cia.rsf -target t -exefslogo -elf stripped.elf -icon icon.icn -banner banner.bnr
 	@echo "built ... $(notdir $@)"
-
-# Always rebuild version.cpp, smdh file
-.FORCE:
-
-version.o: .FORCE
-
-$(OUTPUT).smdh: .FORCE
+	
+3ds.rsf:
+	cat $(TOPDIR)/tools/template-3ds.rsf | sed 's/{APP_TITLE}/$(APP_TITLE)/' | sed 's/{APP_PRODUCT_CODE}/$(APP_PRODUCT_CODE)/' | sed 's/{APP_UNIQUE_ID}/$(APP_UNIQUE_ID)/' > 3ds.rsf
+	
+cia.rsf:
+	cat $(TOPDIR)/tools/template-cia.rsf | sed 's/{APP_TITLE}/$(APP_TITLE)/' | sed 's/{APP_PRODUCT_CODE}/$(APP_PRODUCT_CODE)/' | sed 's/{APP_UNIQUE_ID}/$(APP_UNIQUE_ID)/' > cia.rsf
 
 #---------------------------------------------------------------------------------
-# you need a rule like this for each extension you use as binary data 
+# you need a rule like this for each extension you use as binary data
 #---------------------------------------------------------------------------------
 %.bin.o	:	%.bin
 #---------------------------------------------------------------------------------
 	@echo $(notdir $<)
 	@$(bin2o)
 
-%.gb.o	:	%.gb
+# WARNING: This is not the right way to do this! TODO: Do it right!
+#---------------------------------------------------------------------------------
+%.vsh.o	:	%.vsh
 #---------------------------------------------------------------------------------
 	@echo $(notdir $<)
-	@$(bin2o)
+	@python $(AEMSTRO)/aemstro_as.py $< ../$(notdir $<).shbin
+	@bin2s ../$(notdir $<).shbin | $(PREFIX)as -o $@
+	@echo "extern const u8" `(echo $(notdir $<).shbin | sed -e 's/^\([0-9]\)/_\1/' | tr . _)`"_end[];" > `(echo $(notdir $<).shbin | tr . _)`.h
+	@echo "extern const u8" `(echo $(notdir $<).shbin | sed -e 's/^\([0-9]\)/_\1/' | tr . _)`"[];" >> `(echo $(notdir $<).shbin | tr . _)`.h
+	@echo "extern const u32" `(echo $(notdir $<).shbin | sed -e 's/^\([0-9]\)/_\1/' | tr . _)`_size";" >> `(echo $(notdir $<).shbin | tr . _)`.h
+	@rm ../$(notdir $<).shbin
 
 -include $(DEPENDS)
- 
+
 #---------------------------------------------------------------------------------------
 endif
 #---------------------------------------------------------------------------------------
-
