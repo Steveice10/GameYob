@@ -5,6 +5,7 @@ Author: Drenn
 General Features:
 
 - Gameboy, Gameboy Color, Super Gameboy emulation
+- Supports Gameboy Color Bios ("boot rom") for custom palettes
 - Auto SRAM saving
 - Save States
 - Cheat Codes
@@ -26,7 +27,6 @@ DS Features:
 
 Broken:
 
-- Supports Gameboy Color Bios ("boot rom") for custom palettes (almost, but causes graphical glitching)
 - Super Gameboy support isn't fully implemented graphically on the 3DS
 
 

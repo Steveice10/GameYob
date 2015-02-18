@@ -131,14 +131,14 @@ void drawScanline_P2(int scanline) {
 
     for (int i=0; i<8; i++) {
         if (bgPalettesModified[i]) {
-            if (gameboy->gbMode == GB)
+            if (gameboy->gbMode == GB && !biosExists)
                 updateBgPaletteDMG();
             else
                 updateBgPalette(i);
             bgPalettesModified[i] = false;
         }
         if (sprPalettesModified[i]) {
-            if (gameboy->gbMode == GB)
+            if (gameboy->gbMode == GB && !biosExists)
                 updateSprPaletteDMG(i);
             else
                 updateSprPalette(i);
