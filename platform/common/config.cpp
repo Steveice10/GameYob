@@ -122,10 +122,60 @@ void writeConfigFile() {
 #include <3ds.h>
 #endif
 
-const char* gbKeyNames[] = {"-","A","B","Left","Right","Up","Down","Start","Select",
-    "Menu","Menu/Pause","Save","Autofire A","Autofire B", "Fast Forward", "FF Toggle", "Scale","Reset"};
-const char* dsKeyNames[] = {"A","B","Select","Start","Right","Left","Up","Down",
-    "R","L","X","Y","","","ZL","ZR","","","","","","","","","C-Right","C-Left","C-Up","C-Down","Pad-Right","Pad-Left","Pad-Up","Pad-Down"};
+const char* gbKeyNames[] = {
+        "-",
+        "A",
+        "B",
+        "Left",
+        "Right",
+        "Up",
+        "Down",
+        "Start",
+        "Select",
+        "Menu",
+        "Menu/Pause",
+        "Save",
+        "Autofire A",
+        "Autofire B",
+        "Fast Forward",
+        "FF Toggle",
+        "Scale","Reset"
+};
+
+const char* dsKeyNames[] = {
+        "A",         // 0
+        "B",         // 1
+        "Select",    // 2
+        "Start",     // 3
+        "Right",     // 4
+        "Left",      // 5
+        "Up",        // 6
+        "Down",      // 7
+        "R",         // 8
+        "L",         // 9
+        "X",         // 10
+        "Y",         // 11
+        "",          // 12
+        "",          // 13
+        "ZL",        // 14
+        "ZR",        // 15
+        "",          // 16
+        "",          // 17
+        "",          // 18
+        "",          // 19
+        "",          // 20
+        "",          // 21
+        "",          // 22
+        "",          // 23
+        "C-Right",   // 24
+        "C-Left",    // 25
+        "C-Up",      // 26
+        "C-Down",    // 27
+        "Pad-Right", // 28
+        "Pad-Left",  // 29
+        "Pad-Up",    // 30
+        "Pad-Down"   // 31
+};
 
 int keyMapping[NUM_FUNC_KEYS];
 #if defined(DS)
@@ -145,17 +195,58 @@ struct KeyConfig {
 #if defined(DS)
 KeyConfig defaultKeyConfig = {
     "Main",
-    {FUNC_KEY_A,FUNC_KEY_B,FUNC_KEY_SELECT,FUNC_KEY_START,FUNC_KEY_RIGHT,FUNC_KEY_LEFT,FUNC_KEY_UP,FUNC_KEY_DOWN,
-        FUNC_KEY_MENU,FUNC_KEY_FAST_FORWARD,FUNC_KEY_START,FUNC_KEY_SELECT}
+    {
+            FUNC_KEY_A,            // 0 = KEY_A
+            FUNC_KEY_B,            // 1 = KEY_B
+            FUNC_KEY_SELECT,       // 2 = KEY_SELECT
+            FUNC_KEY_START,        // 3 = KEY_START
+            FUNC_KEY_RIGHT,        // 4 = KEY_RIGHT
+            FUNC_KEY_LEFT,         // 5 = KEY_LEFT
+            FUNC_KEY_UP,           // 6 = KEY_UP
+            FUNC_KEY_DOWN,         // 7 = KEY_DOWN
+            FUNC_KEY_MENU,         // 8 = KEY_R
+            FUNC_KEY_FAST_FORWARD, // 9 = KEY_L
+            FUNC_KEY_START,        // 10 = KEY_X
+            FUNC_KEY_SELECT        // 11 = KEY_Y
+    }
 };
 #elif defined(_3DS)
 KeyConfig defaultKeyConfig = {
     "Main",
-    {FUNC_KEY_A,FUNC_KEY_B,FUNC_KEY_SELECT,FUNC_KEY_START,FUNC_KEY_RIGHT,FUNC_KEY_LEFT,FUNC_KEY_UP,FUNC_KEY_DOWN,
-        FUNC_KEY_MENU,FUNC_KEY_FAST_FORWARD,FUNC_KEY_START,FUNC_KEY_SELECT,
-        FUNC_KEY_NONE,FUNC_KEY_NONE,
-        FUNC_KEY_NONE,FUNC_KEY_NONE,FUNC_KEY_NONE,FUNC_KEY_NONE,FUNC_KEY_NONE,FUNC_KEY_NONE,FUNC_KEY_NONE,FUNC_KEY_NONE,
-        FUNC_KEY_RIGHT,FUNC_KEY_LEFT,FUNC_KEY_UP,FUNC_KEY_DOWN,FUNC_KEY_RIGHT,FUNC_KEY_LEFT,FUNC_KEY_UP,FUNC_KEY_DOWN}
+    {
+            FUNC_KEY_A,            // 0 = KEY_A
+            FUNC_KEY_B,            // 1 = KEY_B
+            FUNC_KEY_SELECT,       // 2 = KEY_SELECT
+            FUNC_KEY_START,        // 3 = KEY_START
+            FUNC_KEY_RIGHT,        // 4 = KEY_DRIGHT
+            FUNC_KEY_LEFT,         // 5 = KEY_DLEFT
+            FUNC_KEY_UP,           // 6 = KEY_DUP
+            FUNC_KEY_DOWN,         // 7 = KEY_DDOWN
+            FUNC_KEY_MENU,         // 8 = KEY_R
+            FUNC_KEY_FAST_FORWARD, // 9 = KEY_L
+            FUNC_KEY_START,        // 10 = KEY_X
+            FUNC_KEY_SELECT,       // 11 = KEY_Y
+            FUNC_KEY_NONE,         // 12 = KEY_NONE
+            FUNC_KEY_NONE,         // 13 = KEY_NONE
+            FUNC_KEY_NONE,         // 14 = KEY_ZL
+            FUNC_KEY_NONE,         // 15 = KEY_ZR
+            FUNC_KEY_NONE,         // 16 = KEY_NONE
+            FUNC_KEY_NONE,         // 17 = KEY_NONE
+            FUNC_KEY_NONE,         // 18 = KEY_NONE
+            FUNC_KEY_NONE,         // 19 = KEY_NONE
+            FUNC_KEY_NONE,         // 20 = KEY_TOUCH
+            FUNC_KEY_NONE,         // 21 = KEY_NONE
+            FUNC_KEY_NONE,         // 22 = KEY_NONE
+            FUNC_KEY_NONE,         // 23 = KEY_NONE
+            FUNC_KEY_RIGHT,        // 24 = KEY_CSTICK_RIGHT
+            FUNC_KEY_LEFT,         // 25 = KEY_CSTICK_LEFT
+            FUNC_KEY_UP,           // 26 = KEY_CSTICK_UP
+            FUNC_KEY_DOWN,         // 27 = KEY_CSTICK_DOWN
+            FUNC_KEY_RIGHT,        // 28 = KEY_CPAD_RIGHT
+            FUNC_KEY_LEFT,         // 29 = KEY_CPAD_LEFT
+            FUNC_KEY_UP,           // 30 = KEY_CPAD_UP
+            FUNC_KEY_DOWN          // 31 = KEY_CPAD_DOWN
+    }
 };
 #endif
 
