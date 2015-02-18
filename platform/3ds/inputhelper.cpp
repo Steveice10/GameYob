@@ -113,7 +113,9 @@ void system_checkPolls() {
 
 void system_waitForVBlank() {
     gfxFlushBuffers();
-    gspWaitForVBlank();
+    if (!(fastForwardMode || fastForwardKey))
+        gspWaitForVBlank();
+
     gfxMySwapBuffers();
     consoleCheckFramebuffers();
 }

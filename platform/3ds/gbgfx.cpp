@@ -434,8 +434,7 @@ void drawSprite(int scanline, int spriteNum)
 
 void drawScreen()
 {
-    if (!(fastForwardMode || fastForwardKey))
-        system_waitForVBlank();
+    system_waitForVBlank();
 }
 
 
