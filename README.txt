@@ -5,18 +5,14 @@ Author: Drenn
 General Features:
 
 - Gameboy, Gameboy Color, Super Gameboy emulation
-- Supports Gameboy Color enhanced palettes.
+- Supports Gameboy Color enhanced palettes
+- Scale to fill the screen (currently slow on 3DS)
 - Auto SRAM saving
 - Save States
 - Cheat Codes
 - Remappable controls
 - Gameboy Printer emulation
 - GBS music playback
-
-
-DS and SDL Features:
-
-- Scale to fill the screen
 
 
 DS Features:

@@ -139,7 +139,8 @@ const char* gbKeyNames[] = {
         "Autofire B",
         "Fast Forward",
         "FF Toggle",
-        "Scale","Reset"
+        "Scale",
+        "Reset"
 };
 
 const char* dsKeyNames[] = {

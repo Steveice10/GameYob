@@ -407,7 +407,7 @@ SubMenu menuList[] = {
         {
             {"Game Screen", setScreenFunc, 2, {"Top","Bottom"}, 0, MENU_ALL},
             {"Single Screen", setSingleScreenFunc, 2, {"Off","On"}, 0, MENU_ALL},
-            {"Scaling", setScaleModeFunc, 3, {"Off","Aspect","Full"}, 0, MENU_DS},
+            {"Scaling", setScaleModeFunc, 3, {"Off","Aspect","Full"}, 0, MENU_DS | MENU_3DS},
             {"Scale Filter", setScaleFilterFunc, 2, {"Off","On"}, 1, MENU_DS},
             {"SGB Borders", sgbBorderEnableFunc, 2, {"Off","On"}, 1, MENU_ALL},
             {"Custom Border", customBorderEnableFunc, 2, {"Off","On"}, 1, MENU_ALL},
