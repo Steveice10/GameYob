@@ -89,6 +89,7 @@ void Gameboy::initMMU()
     readFunc = mbcReads[romFile->getMBC()];
     writeFunc = mbcWrites[romFile->getMBC()];
 
+    gameboy->getRomFile()->loadBios("gbc_bios.bin");
     biosOn = false;
     if (biosExists && !probingForBorder && !gbsMode) {
         if (biosEnabled == 2)
@@ -485,7 +486,7 @@ handleSoundReg:
             return;
             // Special register, used by the gameboy bios
         case 0x50:
-            biosOn = 0;
+            biosOn = false;
             memory[0x0] = romFile->romSlot0;
             initGameboyMode();
             return;

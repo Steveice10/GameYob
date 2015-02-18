@@ -181,11 +181,8 @@ void mgr_selectRom() {
     if (filename == NULL) {
         fatalerr("Filechooser error");
     }
-    mgr_loadRom(filename);
 
-    if (!biosExists) {
-        gameboy->getRomFile()->loadBios("gbc_bios.bin");
-    }
+    mgr_loadRom(filename);
 
     free(filename);
 

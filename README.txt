@@ -26,8 +26,8 @@ DS Features:
 
 Broken:
 
-- Supports Gameboy Color Bios ("boot rom") for custom palettes
-- Super Gameboy support isn't fully implemented graphically on the 3DS.
+- Supports Gameboy Color Bios ("boot rom") for custom palettes (almost, but causes graphical glitching)
+- Super Gameboy support isn't fully implemented graphically on the 3DS
 
 
 See the GBAtemp threads for more information:
