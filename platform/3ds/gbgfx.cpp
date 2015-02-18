@@ -12,6 +12,7 @@
 #include "3dsgfx.h"
 #include "menu.h"
 #include "inputhelper.h"
+#include "romfile.h"
 
 // public variables
 
@@ -79,18 +80,18 @@ void doAtVBlank(void (*func)(void)) {
 }
 void initGFX()
 {
-	bgPalettes[0][0] = RGB24(255, 255, 255);
-	bgPalettes[0][1] = RGB24(192, 192, 192);
-	bgPalettes[0][2] = RGB24(94, 94, 94);
-	bgPalettes[0][3] = RGB24(0, 0, 0);
-	sprPalettes[0][0] = RGB24(255, 255, 255);
-	sprPalettes[0][1] = RGB24(192, 192, 192);
-	sprPalettes[0][2] = RGB24(94, 94, 94);
-	sprPalettes[0][3] = RGB24(0, 0, 0);
-	sprPalettes[1][0] = RGB24(255, 255, 255);
-	sprPalettes[1][1] = RGB24(192, 192, 192);
-	sprPalettes[1][2] = RGB24(94, 94, 94);
-	sprPalettes[1][3] = RGB24(0, 0, 0);
+    bgPalettes[0][0] = RGB24(255, 255, 255);
+    bgPalettes[0][1] = RGB24(192, 192, 192);
+    bgPalettes[0][2] = RGB24(94, 94, 94);
+    bgPalettes[0][3] = RGB24(0, 0, 0);
+    sprPalettes[0][0] = RGB24(255, 255, 255);
+    sprPalettes[0][1] = RGB24(192, 192, 192);
+    sprPalettes[0][2] = RGB24(94, 94, 94);
+    sprPalettes[0][3] = RGB24(0, 0, 0);
+    sprPalettes[1][0] = RGB24(255, 255, 255);
+    sprPalettes[1][1] = RGB24(192, 192, 192);
+    sprPalettes[1][2] = RGB24(94, 94, 94);
+    sprPalettes[1][3] = RGB24(0, 0, 0);
 
 	for (int i=0; i<8; i++)
 	{
@@ -131,14 +132,14 @@ void drawScanline_P2(int scanline) {
 
     for (int i=0; i<8; i++) {
         if (bgPalettesModified[i]) {
-            if (gameboy->gbMode == GB && !biosExists)
+            if (gameboy->gbMode == GB)
                 updateBgPaletteDMG();
             else
                 updateBgPalette(i);
             bgPalettesModified[i] = false;
         }
         if (sprPalettesModified[i]) {
-            if (gameboy->gbMode == GB && !biosExists)
+            if (gameboy->gbMode == GB)
                 updateSprPaletteDMG(i);
             else
                 updateSprPalette(i);
@@ -448,7 +449,7 @@ void selectBorder() {
 }
 
 int loadBorder(const char* filename) {
-
+    return 0;
 }
 
 void checkBorder() {
@@ -537,11 +538,20 @@ void updateBgPalette(int paletteid)
 
 void updateBgPaletteDMG()
 {
-	u8 val = gameboy->ioRam[0x47];
-	u8 palette[] = {val&3, (val>>2)&3, (val>>4)&3, (val>>6)};
+    u8 val = gameboy->ioRam[0x47];
+    u8 palette[] = {val&3, (val>>2)&3, (val>>4)&3, (val>>6)};
 
-	for (int i=0; i<4; i++)
-		bgPalettesRef[0][i] = &bgPalettes[0][palette[i]];
+    int paletteid = 0;
+    int multiplier = 8;
+    for (int i=0; i<4; i++) {
+        u8 col = palette[i];
+        int red = (gameboy->bgPaletteData[(paletteid*8)+(col*2)]&0x1F)*multiplier;
+        int green = (((gameboy->bgPaletteData[(paletteid*8)+(col*2)]&0xE0) >> 5) |
+                ((gameboy->bgPaletteData[(paletteid*8)+(col*2)+1]) & 0x3) << 3)*multiplier;
+        int blue = ((gameboy->bgPaletteData[(paletteid*8)+(col*2)+1] >> 2) & 0x1F)*multiplier;
+
+        bgPalettes[0][i] = RGB24(red, green, blue);
+    }
 }
 
 void updateSprPalette(int paletteid)
@@ -560,10 +570,17 @@ void updateSprPalette(int paletteid)
 
 void updateSprPaletteDMG(int paletteid)
 {
-	int val = gameboy->ioRam[0x48+paletteid];
-	u8 palette[] = {val&3, (val>>2)&3, (val>>4)&3, (val>>6)};
+    u8 val = gameboy->ioRam[0x48+paletteid];
+    u8 palette[] = {val&3, (val>>2)&3, (val>>4)&3, (val>>6)};
 
-	for (int i=0; i<4; i++)
-		sprPalettesRef[paletteid][i] = &sprPalettes[paletteid][palette[i]];
+    int multiplier = 8;
+    for (int i=0; i<4; i++) {
+        u8 col = palette[i];
+        int red = (gameboy->sprPaletteData[(paletteid*8)+(col*2)]&0x1F)*multiplier;
+        int green = (((gameboy->sprPaletteData[(paletteid*8)+(col*2)]&0xE0) >> 5) |
+                ((gameboy->sprPaletteData[(paletteid*8)+(col*2)+1]) & 0x3) << 3)*multiplier;
+        int blue = ((gameboy->sprPaletteData[(paletteid*8)+(col*2)+1] >> 2) & 0x1F)*multiplier;
+        sprPalettes[paletteid][i] = RGB24(red, green, blue);
+    }
 }
 

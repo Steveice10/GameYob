@@ -5,7 +5,7 @@ Author: Drenn
 General Features:
 
 - Gameboy, Gameboy Color, Super Gameboy emulation
-- Supports Gameboy Color Bios ("boot rom") for custom palettes
+- Supports Gameboy Color enhanced palettes.
 - Auto SRAM saving
 - Save States
 - Cheat Codes

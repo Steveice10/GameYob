@@ -141,11 +141,6 @@ void mgr_loadRom(const char* filename) {
         else
             disableMenuOption("Exit without saving");
     }
-
-    if (biosExists)
-        enableMenuOption("GBC Bios");
-    else
-        disableMenuOption("GBC Bios");
 }
 
 void mgr_unloadRom() {

@@ -67,9 +67,6 @@ bool autoSavingEnabled = false;
 
 bool printerEnabled = false;
 
-// how/when the bios should be used
-int biosEnabled = false;
-
 void (*subMenuUpdateFunc)();
 
 bool fpsOutput = false;
@@ -227,10 +224,6 @@ void gbaModeFunc(int value) {
 
 void sgbModeFunc(int value) {
     sgbModeOption = value;
-}
-
-void biosEnableFunc(int value) {
-    biosEnabled = value;
 }
 
 void setScreenFunc(int value) {
@@ -425,7 +418,6 @@ SubMenu menuList[] = {
         "GB Modes",
         4,
         {
-            {"GBC Bios", biosEnableFunc, 3, {"Off","GB Only","On"}, 1, MENU_ALL},
             {"Detect GBA", gbaModeFunc, 2, {"Off","On"}, 0, MENU_ALL},
             {"GBC Mode", gameboyModeFunc, 3, {"Off","If Needed","On"}, 2, MENU_ALL},
             {"SGB Mode", sgbModeFunc, 3, {"Off","Prefer GBC","Prefer SGB"}, 0, MENU_ALL}

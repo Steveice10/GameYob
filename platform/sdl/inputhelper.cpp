@@ -33,7 +33,6 @@ u8 buttonsPressed;
 bool fastForwardMode = false; // controlled by the toggle hotkey
 bool fastForwardKey = false;  // only while its hotkey is pressed
 
-bool biosExists = false;
 int rumbleInserted = 0;
 
 

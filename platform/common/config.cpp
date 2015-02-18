@@ -20,17 +20,12 @@
 #define INI_PATH "/gameyob.ini"
 #endif
 
-
-char biosPath[MAX_FILENAME_LEN] = "";
 char borderPath[MAX_FILENAME_LEN] = "";
 char romPath[MAX_FILENAME_LEN] = "";
-
 
 void controlsParseConfig(char* line);
 void controlsPrintConfig(FileHandle* f);
 void controlsCheckConfig();
-
-
 
 void generalParseConfig(char* line) {
     char* equalsPos;
@@ -43,9 +38,6 @@ void generalParseConfig(char* line) {
             strcpy(romPath, value);
             romChooserState.directory = romPath;
         }
-        else if (strcasecmp(parameter, "biosfile") == 0) {
-            strcpy(biosPath, value);
-        }
         else if (strcasecmp(parameter, "borderfile") == 0) {
             strcpy(borderPath, value);
         }
@@ -57,7 +49,6 @@ void generalParseConfig(char* line) {
 
 void generalPrintConfig(FileHandle* file) {
         file_printf(file, "rompath=%s\n", romPath);
-        file_printf(file, "biosfile=%s\n", biosPath);
         file_printf(file, "borderfile=%s\n", borderPath);
 }
 

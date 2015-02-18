@@ -34,7 +34,6 @@ class RomFile {
         const char* getBasename();
 
         char* getRomTitle();
-        void loadBios(const char* filename);
 
         void saveState(int num);
         int loadState(int num);
@@ -51,7 +50,7 @@ class RomFile {
         u8* romSlot0;
         u8* romSlot1;
 
-        u8 bios[0x900];
+        const u16* gbPalette;
 
     private:
         u8* romBankSlots = NULL; // Each 0x4000 bytes = one slot

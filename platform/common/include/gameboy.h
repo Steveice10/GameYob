@@ -285,9 +285,6 @@ class Gameboy {
 
         int resultantGBMode;
 
-        // whether the bios is mapped to memory
-        bool biosOn;
-
         // memory[x][yyy] = ram value at xyyy
         u8* memory[0x10];
 

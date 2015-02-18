@@ -205,7 +205,7 @@ void Gameboy::initSND() {
     soundEngine->init();
 }
 
-// Called either from startup, or when the BIOS writes to FF50.
+// Called either from startup, or when FF50 is written to.
 void Gameboy::initGameboyMode() {
     gbRegs.af.b.l = 0xB0;
     gbRegs.bc.w = 0x0013;
@@ -216,7 +216,7 @@ void Gameboy::initGameboyMode() {
             gbRegs.af.b.h = 0x01;
             gbMode = GB;
             if (romFile->romSlot0[0x143] == 0x80 || romFile->romSlot0[0x143] == 0xC0)
-                // Init the palette in case the bios overwrote it, since it 
+                // Init the palette in case it was overwritten, since it
                 // assumed it was starting in GBC mode.
                 initGFXPalette();
             break;
@@ -515,30 +515,8 @@ int Gameboy::runEmul()
 void Gameboy::initGFXPalette() {
     memset(bgPaletteData, 0xff, 0x40);
     if (gbMode == GB) {
-        sprPaletteData[0] = 0xff;
-        sprPaletteData[1] = 0xff;
-        sprPaletteData[2] = 0x15|((0x15&7)<<5);
-        sprPaletteData[3] = (0x15>>3)|(0x15<<2);
-        sprPaletteData[4] = 0xa|((0xa&7)<<5);
-        sprPaletteData[5] = (0xa>>3)|(0xa<<2);
-        sprPaletteData[6] = 0;
-        sprPaletteData[7] = 0;
-        sprPaletteData[8] = 0xff;
-        sprPaletteData[9] = 0xff;
-        sprPaletteData[10] = 0x15|((0x15&7)<<5);
-        sprPaletteData[11] = (0x15>>3)|(0x15<<2);
-        sprPaletteData[12] = 0xa|((0xa&7)<<5);
-        sprPaletteData[13] = (0xa>>3)|(0xa<<2);
-        sprPaletteData[14] = 0;
-        sprPaletteData[15] = 0;
-        bgPaletteData[0] = 0xff;
-        bgPaletteData[1] = 0xff;
-        bgPaletteData[2] = 0x15|((0x15&7)<<5);
-        bgPaletteData[3] = (0x15>>3)|(0x15<<2);
-        bgPaletteData[4] = 0xa|((0xa&7)<<5);
-        bgPaletteData[5] = (0xa>>3)|(0xa<<2);
-        bgPaletteData[6] = 0;
-        bgPaletteData[7] = 0;
+        memcpy(bgPaletteData, gameboy->getRomFile()->gbPalette, 4 * sizeof(u16));
+        memcpy(sprPaletteData, gameboy->getRomFile()->gbPalette + 4, 8 * sizeof(u16));
     }
 }
 
@@ -979,7 +957,7 @@ struct StateStruct {
     // sram
     Registers regs;
     int halt, ime;
-    bool doubleSpeed, biosOn;
+    bool doubleSpeed, deprecated_biosOn;
     int gbMode;
     int romBank, ramBank, wramBank, vramBank;
     int memoryModel;
@@ -1024,7 +1002,6 @@ void Gameboy::saveState(int stateNum) {
     state.halt = halt;
     state.ime = ime;
     state.doubleSpeed = doubleSpeed;
-    state.biosOn = biosOn;
     state.gbMode = gbMode;
     state.romBank = romBank;
     state.ramBank = currentRamBank;
@@ -1154,9 +1131,6 @@ int Gameboy::loadState(int stateNum) {
     halt = state.halt;
     ime = state.ime;
     doubleSpeed = state.doubleSpeed;
-    biosOn = state.biosOn;
-    if (!biosExists)
-        biosOn = false;
     gbMode = state.gbMode;
     romBank = state.romBank;
     currentRamBank = state.ramBank;

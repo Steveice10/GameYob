@@ -7,7 +7,6 @@ extern bool consoleDebugOutput;
 extern int gbcModeOption;
 extern bool gbaModeOption;
 extern int sgbModeOption;
-extern int biosEnabled;
 extern bool soundDisabled;
 extern bool hyperSound;
 extern bool customBordersEnabled;

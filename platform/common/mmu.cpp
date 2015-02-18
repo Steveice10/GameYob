@@ -89,15 +89,6 @@ void Gameboy::initMMU()
     readFunc = mbcReads[romFile->getMBC()];
     writeFunc = mbcWrites[romFile->getMBC()];
 
-    gameboy->getRomFile()->loadBios("gbc_bios.bin");
-    biosOn = false;
-    if (biosExists && !probingForBorder && !gbsMode) {
-        if (biosEnabled == 2)
-            biosOn = true;
-        else if (biosEnabled == 1 && resultantGBMode == 0)
-            biosOn = true;
-    }
-
     mapMemory();
     for (int i=0; i<8; i++)
         memset(wram[i], 0, 0x1000);
@@ -122,15 +113,11 @@ void Gameboy::initMMU()
 
     memset(dirtySectors, 0, sizeof(dirtySectors));
 
-    if (!biosOn)
-        initGameboyMode();
+    initGameboyMode();
 }
 
 void Gameboy::mapMemory() {
-    if (biosOn)
-        memory[0x0] = romFile->bios;
-    else
-        memory[0x0] = romFile->romSlot0;
+    memory[0x0] = romFile->romSlot0;
     memory[0x1] = romFile->romSlot0+0x1000;
     memory[0x2] = romFile->romSlot0+0x2000;
     memory[0x3] = romFile->romSlot0+0x3000;
@@ -484,9 +471,7 @@ handleSoundReg:
             }
             ioRam[ioReg] = val&1;
             return;
-            // Special register, used by the gameboy bios
-        case 0x50:
-            biosOn = false;
+        case 0x50: // BIOS Lockdown
             memory[0x0] = romFile->romSlot0;
             initGameboyMode();
             return;

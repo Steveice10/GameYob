@@ -1,6 +1,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <gbcpalette.h>
 #include "main.h"
 #include "romfile.h"
 #include "gbs.h"
@@ -125,6 +126,11 @@ RomFile::RomFile(const char* f) {
         romTitle[i] = (char)romSlot0[i+0x134];
     romTitle[nameLength] = '\0';
 
+    gbPalette = findGbcTitlePal(romTitle);
+    if (!gbPalette) {
+        gbPalette = findGbcDirPal("GBC - Grayscale");
+    }
+
     if (gbsMode) {
         MBC = MBC5;
     }
@@ -211,8 +217,6 @@ void RomFile::loadRomBank(int romBank) {
     gameboy->getCheatEngine()->applyGGCheatsToBank(romBank);
 
     romSlot1 = romBankSlots+slot*0x4000;
-
-    loadBios("\0");
 }
 
 bool RomFile::isRomBankLoaded(int bank) {
@@ -226,28 +230,6 @@ u8* RomFile::getRomBank(int bank) {
 
 const char* RomFile::getBasename() {
     return basename;
-}
-
-
-void RomFile::loadBios(const char* filename) {
-    FileHandle* file;
-
-    if (biosExists)
-        goto load;
-
-    file = file_open(filename, "rb");
-    biosExists = file != NULL;
-    if (biosExists) {
-        file_read(bios, 1, 0x900, file);
-        file_close(file);
-    }
-    else
-        return;
-load:
-    // Little hack to preserve "quickread" from gbcpu.cpp.
-    for (int i=0x100; i<0x150; i++)
-        bios[i] = romSlot0[i];
-
 }
 
 char* RomFile::getRomTitle() {
