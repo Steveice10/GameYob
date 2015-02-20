@@ -1,6 +1,7 @@
 #pragma once
 #include <stdio.h>
 #include <vector>
+#include <stdarg.h>
 #include "time.h"
 #include "gbgfx.h"
 #include "io.h"
@@ -387,24 +388,34 @@ class Gameboy {
 
         u8 sgbMap[20*18];
 
-        // SGB packet commands
-        void sgbDoVramTransfer(u8* dest);
         void setBackdrop(u16 val);
         void sgbLoadAttrFile(int index);
+        void sgbDoVramTransfer(u8* dest);
+
+        // Begin commands
         void sgbPalXX(int block);
         void sgbAttrBlock(int block);
         void sgbAttrLin(int block);
         void sgbAttrDiv(int block);
         void sgbAttrChr(int block);
+        void sgbSound(int block);
+        void sgbSouTrn(int block);
         void sgbPalSet(int block);
         void sgbPalTrn(int block);
+        void sgbAtrcEn(int block);
+        void sgbTestEn(int block);
+        void sgbIconEn(int block);
         void sgbDataSnd(int block);
+        void sgbDataTrn(int block);
         void sgbMltReq(int block);
+        void sgbJump(int block);
         void sgbChrTrn(int block);
         void sgbPctTrn(int block);
         void sgbAttrTrn(int block);
         void sgbAttrSet(int block);
-        void sgbMask(int block);
+        void sgbMaskEn(int block);
+        void sgbObjTrn(int block);
+        // End commands
 
     private:
 

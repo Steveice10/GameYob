@@ -341,7 +341,7 @@ void drawScanline_P2(int scanline) {
         currScreen = GFX_BOTTOM;
     }
 
-    u8* framebuffer = gfxGetInactiveFramebuffer(currScreen, GFX_LEFT);;
+    u8* framebuffer = gfxGetInactiveFramebuffer(currScreen, GFX_LEFT);
     int fbWidth = currScreen == GFX_TOP ? TOP_SCREEN_WIDTH : BOTTOM_SCREEN_WIDTH;
     int fbHeight = currScreen == GFX_TOP ? TOP_SCREEN_HEIGHT : BOTTOM_SCREEN_HEIGHT;
 

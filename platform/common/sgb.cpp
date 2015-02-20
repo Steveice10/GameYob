@@ -8,6 +8,13 @@
 #define sgbPalettes (vram[1])
 #define sgbAttrFiles (vram[1]+0x1000)
 
+void (Gameboy::*sgbCommands[])(int) = {
+        &Gameboy::sgbPalXX,&Gameboy::sgbPalXX,&Gameboy::sgbPalXX,&Gameboy::sgbPalXX,&Gameboy::sgbAttrBlock,&Gameboy::sgbAttrLin,&Gameboy::sgbAttrDiv,&Gameboy::sgbAttrChr,
+        &Gameboy::sgbSound,&Gameboy::sgbSouTrn,&Gameboy::sgbPalSet,&Gameboy::sgbPalTrn,&Gameboy::sgbAtrcEn,&Gameboy::sgbTestEn,&Gameboy::sgbIconEn,&Gameboy::sgbDataSnd,
+        &Gameboy::sgbDataTrn,&Gameboy::sgbMltReq,&Gameboy::sgbJump,&Gameboy::sgbChrTrn,&Gameboy::sgbPctTrn,&Gameboy::sgbAttrTrn,&Gameboy::sgbAttrSet,&Gameboy::sgbMaskEn,
+        &Gameboy::sgbObjTrn,NULL,NULL,NULL,NULL,NULL,NULL,NULL
+};
+
 void Gameboy::sgbInit() {
     sgbPacketLength=0;
     sgbNumControllers=1;
@@ -19,21 +26,87 @@ void Gameboy::sgbInit() {
     memset(sgbMap, 0, 20*18);
 }
 
-void Gameboy::sgbDoVramTransfer(u8* dest) {
-    int map = 0x1800+((ioRam[0x40]>>3)&1)*0x400;
-    int index=0;
-    for (int y=0; y<18; y++) {
-        for (int x=0; x<20; x++) {
-            if (index == 0x1000)
-                return;
-            int tile = vram[0][map+y*32+x];
-            if (ioRam[0x40] & 0x10)
-                memcpy(dest+index, vram[0]+tile*16, 16);
-            else
-                memcpy(dest+index, vram[0]+0x1000+((s8)tile)*16, 16);
-            index += 16;
+void Gameboy::sgbHandleP1(u8 val) {
+    if ((val&0x30) == 0) {
+        // Start packet transfer
+        sgbPacketBit = 0;
+        ioRam[0x00] = 0xcf;
+        return;
+    }
+    if (sgbPacketBit != -1) {
+        u8 oldVal = ioRam[0x00];
+        ioRam[0x00] = val;
+
+        int shift = sgbPacketBit%8;
+        int byte = (sgbPacketBit/8)%16;
+        if (shift == 0)
+            sgbPacket[byte] = 0;
+
+        int bit;
+        if ((oldVal & 0x30) == 0 && (val & 0x30) != 0x30) { // A bit of speculation here. Fixes castlevania.
+            sgbPacketBit = -1;
+            return;
+        }
+        if (!(val & 0x10))
+            bit = 0;
+        else if (!(val & 0x20))
+            bit = 1;
+        else
+            return;
+
+        sgbPacket[byte] |= bit<<shift;
+        sgbPacketBit++;
+        if (sgbPacketBit == 128) {
+            if (sgbPacketsTransferred == 0) {
+                sgbCommand = sgbPacket[0]/8;
+                sgbPacketLength = sgbPacket[0]&7;
+                //printLog("CMD %x\n", sgbCommand);
+            }
+            if (sgbCommands[sgbCommand] != 0)
+                (this->*sgbCommands[sgbCommand])(sgbPacketsTransferred);
+
+            sgbPacketBit = -1;
+            sgbPacketsTransferred++;
+            if (sgbPacketsTransferred == sgbPacketLength) {
+                sgbPacketLength = 0;
+                sgbPacketsTransferred = 0;
+            }
         }
     }
+    else {
+        if ((val&0x30) == 0x30) {
+            if (sgbButtonsChecked == 3) {
+                sgbSelectedController++;
+                if (sgbSelectedController >= sgbNumControllers)
+                    sgbSelectedController = 0;
+                sgbButtonsChecked = 0;
+            }
+            ioRam[0x00] = 0xff - sgbSelectedController;
+        }
+        else {
+            ioRam[0x00] = val|0xcf;
+            if ((val&0x30) == 0x10)
+                sgbButtonsChecked |= 1;
+            else if ((val&0x30) == 0x20)
+                sgbButtonsChecked |= 2;
+        }
+    }
+}
+
+u8 Gameboy::sgbReadP1() {
+    u8 p1 = ioRam[0x00];
+
+    if (sgbMode) {
+        if ((p1 & 0x30) == 0x30)
+            return 0xff - sgbSelectedController;
+    }
+
+    if (!(p1&0x20))
+        return 0xc0 | (p1 & 0xF0) | (controllers[sgbSelectedController] & 0xF);
+    else if (!(p1&0x10))
+        return 0xc0 | (p1 & 0xF0) | ((controllers[sgbSelectedController] & 0xF0)>>4);
+    else
+        return p1 | 0xcf;
 }
 
 void Gameboy::setBackdrop(u16 val) {
@@ -69,6 +142,25 @@ void Gameboy::sgbLoadAttrFile(int index) {
     }
 }
 
+void Gameboy::sgbDoVramTransfer(u8* dest) {
+    int map = 0x1800+((ioRam[0x40]>>3)&1)*0x400;
+    int index=0;
+    for (int y=0; y<18; y++) {
+        for (int x=0; x<20; x++) {
+            if (index == 0x1000)
+                return;
+            int tile = vram[0][map+y*32+x];
+            if (ioRam[0x40] & 0x10)
+                memcpy(dest+index, vram[0]+tile*16, 16);
+            else
+                memcpy(dest+index, vram[0]+0x1000+((s8)tile)*16, 16);
+            index += 16;
+        }
+    }
+}
+
+// Begin commands
+
 void Gameboy::sgbPalXX(int block) {
     int s1,s2;
     switch(sgbCommand) {
@@ -91,6 +183,7 @@ void Gameboy::sgbPalXX(int block) {
         default:
             return;
     }
+
     memcpy(bgPaletteData+s1*8+2, sgbPacket+3, 6);
     memcpy(sprPaletteData+s1*8+2, sgbPacket+3, 6);
 
@@ -270,6 +363,14 @@ void Gameboy::sgbAttrChr(int block) {
     }
 }
 
+void Gameboy::sgbSound(int block) {
+    // TODO
+}
+
+void Gameboy::sgbSouTrn(int block) {
+    // TODO
+}
+
 void Gameboy::sgbPalSet(int block) {
     for (int i=0; i<4; i++) {
         int paletteid = (sgbPacket[i*2+1] | (sgbPacket[i*2+2]<<8))&0x1ff;
@@ -286,12 +387,29 @@ void Gameboy::sgbPalSet(int block) {
     if (sgbPacket[9]&0x40)
         setSgbMask(0);
 }
+
 void Gameboy::sgbPalTrn(int block) {
     sgbDoVramTransfer(sgbPalettes);
 }
 
+void Gameboy::sgbAtrcEn(int block) {
+    // TODO
+}
+
+void Gameboy::sgbTestEn(int block) {
+    // TODO
+}
+
+void Gameboy::sgbIconEn(int block) {
+    // TODO
+}
+
 void Gameboy::sgbDataSnd(int block) {
-    //printLog("SND %.2x -> %.2x:%.2x%.2x\n", sgbPacket[4], sgbPacket[3], sgbPacket[2], sgbPacket[1]);
+    // TODO
+}
+
+void Gameboy::sgbDataTrn(int block) {
+    // TODO
 }
 
 void Gameboy::sgbMltReq(int block) {
@@ -300,6 +418,10 @@ void Gameboy::sgbMltReq(int block) {
         sgbSelectedController = 1;
     else
         sgbSelectedController = 0;
+}
+
+void Gameboy::sgbJump(int block) {
+    // TODO
 }
 
 void Gameboy::sgbChrTrn(int blonk) {
@@ -326,96 +448,12 @@ void Gameboy::sgbAttrSet(int block) {
         setSgbMask(0);
 }
 
-void Gameboy::sgbMask(int block) {
+void Gameboy::sgbMaskEn(int block) {
     setSgbMask(sgbPacket[1]&3);
 }
 
-void (Gameboy::*sgbCommands[])(int) = {
-    &Gameboy::sgbPalXX,&Gameboy::sgbPalXX,&Gameboy::sgbPalXX,&Gameboy::sgbPalXX,&Gameboy::sgbAttrBlock,&Gameboy::sgbAttrLin,&Gameboy::sgbAttrDiv,&Gameboy::sgbAttrChr,
-    NULL,NULL,&Gameboy::sgbPalSet,&Gameboy::sgbPalTrn,NULL,NULL,NULL,&Gameboy::sgbDataSnd,
-    NULL,&Gameboy::sgbMltReq,NULL,&Gameboy::sgbChrTrn,&Gameboy::sgbPctTrn,&Gameboy::sgbAttrTrn,&Gameboy::sgbAttrSet,&Gameboy::sgbMask,
-    NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL
-};
-
-void Gameboy::sgbHandleP1(u8 val) {
-    if ((val&0x30) == 0) {
-        // Start packet transfer
-        sgbPacketBit = 0;
-        ioRam[0x00] = 0xcf;
-        return;
-    }
-    if (sgbPacketBit != -1) {
-        u8 oldVal = ioRam[0x00];
-        ioRam[0x00] = val;
-
-        int shift = sgbPacketBit%8;
-        int byte = (sgbPacketBit/8)%16;
-        if (shift == 0)
-            sgbPacket[byte] = 0;
-
-        int bit;
-        if ((oldVal & 0x30) == 0 && (val & 0x30) != 0x30) { // A bit of speculation here. Fixes castlevania.
-            sgbPacketBit = -1;
-            return;
-        }
-        if (!(val & 0x10))
-            bit = 0;
-        else if (!(val & 0x20))
-            bit = 1;
-        else
-            return;
-
-        sgbPacket[byte] |= bit<<shift;
-        sgbPacketBit++;
-        if (sgbPacketBit == 128) {
-            if (sgbPacketsTransferred == 0) {
-                sgbCommand = sgbPacket[0]/8;
-                sgbPacketLength = sgbPacket[0]&7;
-                //printLog("CMD %x\n", sgbCommand);
-            }
-            if (sgbCommands[sgbCommand] != 0)
-                (this->*sgbCommands[sgbCommand])(sgbPacketsTransferred);
-
-            sgbPacketBit = -1;
-            sgbPacketsTransferred++;
-            if (sgbPacketsTransferred == sgbPacketLength) {
-                sgbPacketLength = 0;
-                sgbPacketsTransferred = 0;
-            }
-        }
-    }
-    else {
-        if ((val&0x30) == 0x30) {
-            if (sgbButtonsChecked == 3) {
-                sgbSelectedController++;
-                if (sgbSelectedController >= sgbNumControllers)
-                    sgbSelectedController = 0;
-                sgbButtonsChecked = 0;
-            }
-            ioRam[0x00] = 0xff - sgbSelectedController;
-        }
-        else {
-            ioRam[0x00] = val|0xcf;
-            if ((val&0x30) == 0x10)
-                sgbButtonsChecked |= 1;
-            else if ((val&0x30) == 0x20)
-                sgbButtonsChecked |= 2;
-        }
-    }
+void Gameboy::sgbObjTrn(int block) {
+    // TODO
 }
 
-u8 Gameboy::sgbReadP1() {
-    u8 p1 = ioRam[0x00];
-
-    if (sgbMode) {
-        if ((p1 & 0x30) == 0x30)
-            return 0xff - sgbSelectedController;
-    }
-
-    if (!(p1&0x20))
-        return 0xc0 | (p1 & 0xF0) | (controllers[sgbSelectedController] & 0xF);
-    else if (!(p1&0x10))
-        return 0xc0 | (p1 & 0xF0) | ((controllers[sgbSelectedController] & 0xF0)>>4);
-    else
-        return p1 | 0xcf;
-}
+// End commands
