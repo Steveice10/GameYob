@@ -55,7 +55,7 @@ AccessControlInfo:
   FileSystemAccess:
    # - CategorySystemApplication
    # - CategoryHardwareCheck
-   # - CategoryFileSystemTool
+   - CategoryFileSystemTool
    - Debug
    # - TwlCardBackup
    # - TwlNandData
@@ -172,7 +172,6 @@ AccessControlInfo:
    - $hostio0
    - $hostio1
    - ac:u
-   - am:u
    - boss:U
    - cam:u
    - cecd:u
@@ -196,8 +195,9 @@ AccessControlInfo:
    - y2r:u
    - ldr:ro
    - ir:USER
-   - ir:u
+   - am:u
    - csnd:SND
+   - ns:s
   
    
 SystemControlInfo:
