@@ -11,32 +11,48 @@ int prevGameScreen = -1;
 
 u32 shader = 0;
 u32 texture = 0;
-u32 dispVbo = 0;
+u32 vbo = 0;
 
 void initGPU() {
+    // Initialize the GPU and setup the state.
     gpuInit();
     gpuCullMode(CULL_BACK_CCW);
 
+    // Load the shader.
     gpuCreateShader(&shader);
     gpuLoadShader(shader, shader_vsh_shbin, shader_vsh_shbin_size);
     gpuUseShader(shader);
 
+    // Create and bind the texture.
     gpuCreateTexture(&texture);
     gpuBindTexture(TEXUNIT0, texture);
 
-    gpuCreateVbo(&dispVbo);
-    gpuVboAttributes(dispVbo, ATTRIBUTE(0, 3, ATTR_FLOAT) | ATTRIBUTE(1, 2, ATTR_FLOAT), 2);
+    // Create the VBO.
+    gpuCreateVbo(&vbo);
+    gpuVboAttributes(vbo, ATTRIBUTE(0, 3, ATTR_FLOAT) | ATTRIBUTE(1, 2, ATTR_FLOAT), 2);
 
+    // Initialize the screen to black.
     gpuClear();
 }
 
 void deinitGPU() {
-    gpuFreeShader(shader);
-    gpuFreeTexture(texture);
-    gpuFreeVbo(dispVbo);
-    shader = 0;
-    texture = 0;
-    dispVbo = 0;
+    // Free shader.
+    if(shader != 0) {
+        gpuFreeShader(shader);
+        shader = 0;
+    }
+
+    // Free texture.
+    if(texture != 0) {
+        gpuFreeTexture(texture);
+        texture = 0;
+    }
+
+    // Free VBO.
+    if(vbo != 0) {
+        gpuFreeVbo(vbo);
+        vbo = 0;
+    }
 }
 
 void drawGPU(u8* screenBuffer, int scaleMode, int gameScreen) {
@@ -71,7 +87,7 @@ void drawGPU(u8* screenBuffer, int scaleMode, int gameScreen) {
         static float vertMod = (float) (256 - 144) / (float) 256;
 
         // Prepare new VBO data.
-        const float vbo[] = {
+        const float vboData[] = {
                 -vertExtent, -horizExtent, -0.1f, 1.0f - horizMod, 0.0f + vertMod,
                 vertExtent, -horizExtent, -0.1f, 1.0f - horizMod, 1.0f,
                 vertExtent, horizExtent, -0.1f, 0.0f, 1.0f,
@@ -81,7 +97,7 @@ void drawGPU(u8* screenBuffer, int scaleMode, int gameScreen) {
         };
 
         // Update the VBO with the new data.
-        gpuVboData(dispVbo, vbo, sizeof(vbo), sizeof(vbo) / (5 * 4), PRIM_TRIANGLES);
+        gpuVboData(vbo, vboData, sizeof(vboData), sizeof(vboData) / (5 * 4), PRIM_TRIANGLES);
 
         prevScaleMode = scaleMode;
         prevGameScreen = gameScreen;
@@ -92,7 +108,7 @@ void drawGPU(u8* screenBuffer, int scaleMode, int gameScreen) {
 
     // Draw the VBO.
     gpuClear();
-    gpuDrawVbo(dispVbo);
+    gpuDrawVbo(vbo);
     gpuFlush();
 
     // Swap buffers and wait for VBlank.
@@ -100,11 +116,6 @@ void drawGPU(u8* screenBuffer, int scaleMode, int gameScreen) {
 }
 
 u8 gfxBuffer = 0;
-
-u32 getPixel(u8* framebuffer, int x, int y) {
-    u8* ptr = framebuffer + (x*TOP_SCREEN_HEIGHT + y)*3;
-    return *ptr | *(ptr+1)<<8 | *(ptr+2)<<16;
-}
 
 void drawPixel(u8* framebuffer, int x, int y, u32 color) {
     y = TOP_SCREEN_HEIGHT - y - 1;
