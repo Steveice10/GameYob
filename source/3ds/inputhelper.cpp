@@ -75,10 +75,6 @@ void inputUpdateVBlank() {
         repeatStartTimer--;
 }
 
-void system_doRumble(bool rumbleVal)
-{
-}
-
 int system_getMotionSensorX() {
     return 0;
 }

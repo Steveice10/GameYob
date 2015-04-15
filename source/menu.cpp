@@ -25,7 +25,6 @@ void subMenuGenericUpdateFunc(); // Private function here
 
 bool consoleDebugOutput = false;
 bool menuOn = false;
-bool consoleInitialized = false;
 int menu=0;
 int option = -1;
 char printMessage[33];
@@ -33,16 +32,11 @@ int gameScreen=0;
 int singleScreenMode=0;
 int stateNum=0;
 
-bool windowDisabled = false;
-bool hblankDisabled = false;
-
-
 int gbcModeOption = 0;
 bool gbaModeOption = 0;
 int sgbModeOption = 0;
 
 bool soundDisabled = false;
-bool hyperSound = false;
 
 bool customBordersEnabled = false;
 bool sgbBordersEnabled = false;
@@ -55,12 +49,7 @@ void (*subMenuUpdateFunc)();
 bool fpsOutput = false;
 bool timeOutput = false;
 
-int rumbleStrength = 0;
-
-extern int interruptWaitMode;
 extern int halt;
-
-extern int rumbleInserted;
 
 
 // Private function used for simple submenus
@@ -255,32 +244,15 @@ void sgbBorderEnableFunc(int value) {
     checkBorder();
 }
 
-void vblankWaitFunc(int value) {
-    interruptWaitMode = value;
-}
-void hblankEnableFunc(int value) {
-    hblankDisabled = !value;
-}
-void windowEnableFunc(int value) {
-    windowDisabled = !value;
-#ifdef DS
-    if (windowDisabled)
-        REG_DISPCNT &= ~DISPLAY_WIN0_ON;
-    else
-        REG_DISPCNT |= DISPLAY_WIN0_ON;
-#endif
-}
 void soundEnableFunc(int value) {
     soundDisabled = !value;
-#ifdef DS
-    sharedData->fifosSent++;
-    fifoSendValue32(FIFO_USER_01, GBSND_MUTE_COMMAND<<20);
-#endif
 }
+
 void romInfoFunc(int value) {
     displaySubMenu(subMenuGenericUpdateFunc);
     gameboy->printRomInfo();
 }
+
 void versionInfoFunc(int value) {
     displaySubMenu(subMenuGenericUpdateFunc);
     printVersionInfo();
@@ -292,32 +264,21 @@ void setChanEnabled(int chan, int value) {
     else
         enableChannel(chan);
 }
+
 void chan1Func(int value) {
     setChanEnabled(0, value);
 }
+
 void chan2Func(int value) {
     setChanEnabled(1, value);
 }
+
 void chan3Func(int value) {
     setChanEnabled(2, value);
 }
+
 void chan4Func(int value) {
     setChanEnabled(3, value);
-}
-
-void setRumbleFunc(int value) {
-    rumbleStrength = value;
-
-    rumbleInserted = checkRumble();
-}
-
-void hyperSoundFunc(int value) {
-    hyperSound = value;
-#ifdef DS
-    sharedData->hyperSound = value;
-    sharedData->fifosSent++;
-    fifoSendValue32(FIFO_USER_01, GBSND_HYPERSOUND_ENABLE_COMMAND<<20 | hyperSound);
-#endif
 }
 
 void setAutoSaveFunc(int value) {
@@ -373,11 +334,10 @@ SubMenu menuList[] = {
     },
     {
         "Settings",
-        7,
+        6,
         {
             {"Button Mapping", keyConfigFunc, 0, {}, 0, MENU_ALL},
             {"Manage Cheats", cheatFunc, 0, {}, 0, MENU_ALL},
-            {"Rumble Pak", setRumbleFunc, 4, {"Off","Low","Mid","High"}, 2, MENU_NONE},
             {"Console Output", consoleOutputFunc, 4, {"Off","Time","FPS+Time","Debug"}, 0, MENU_ALL},
             {"GB Printer", printerEnableFunc, 2, {"Off","On"}, 1, MENU_ALL},
             {"Autosaving", setAutoSaveFunc, 1, {"Off","On"}, 1, MENU_NONE},
@@ -391,7 +351,7 @@ SubMenu menuList[] = {
             {"Game Screen", setScreenFunc, 2, {"Top","Bottom"}, 0, MENU_ALL},
             {"Single Screen", setSingleScreenFunc, 2, {"Off","On"}, 0, MENU_ALL},
             {"Scaling", setScaleModeFunc, 3, {"Off","Aspect","Full"}, 0, MENU_ALL},
-            {"Scale Filter", setScaleFilterFunc, 2, {"Off","On"}, 1, MENU_NONE},
+            {"Scale Filter", setScaleFilterFunc, 2, {"Off","On"}, 1, MENU_ALL},
             {"SGB Borders", sgbBorderEnableFunc, 2, {"Off","On"}, 1, MENU_ALL},
             {"Custom Border", customBorderEnableFunc, 2, {"Off","On"}, 1, MENU_ALL},
             {"Select Border", (void (*)(int))selectBorder, 0, {}, 0, MENU_ALL},
@@ -408,13 +368,9 @@ SubMenu menuList[] = {
     },
     {
         "Debug",
-        7,
+        3,
         {
-            {"Wait for Vblank", vblankWaitFunc, 2, {"Off","On"}, 0, MENU_NONE},
-            {"Hblank", hblankEnableFunc, 2, {"Off","On"}, 1, MENU_NONE},
-            {"Window", windowEnableFunc, 2, {"Off","On"}, 1, MENU_NONE},
             {"Sound", soundEnableFunc, 2, {"Off","On"}, 1, MENU_ALL},
-            {"Sound Timing Fix", hyperSoundFunc, 2, {"Off","On"}, 1, MENU_NONE},
             {"ROM Info", romInfoFunc, 0, {}, 0, MENU_ALL},
             {"Version Info", versionInfoFunc, 0, {}, 0, MENU_ALL}
         }
@@ -434,8 +390,8 @@ SubMenu menuList[] = {
         "Linking",
         2,
         {
-            {"Link to DS", (void (*)(int))nifiInterLinkMenu, 0, {}, 0, MENU_DS},
-            {"Swap Focus", (void (*)(int))mgr_swapFocus, 0, {}, 0, MENU_DS}
+            {"Link to DS", (void (*)(int))nifiInterLinkMenu, 0, {}, 0, MENU_NONE},
+            {"Swap Focus", (void (*)(int))mgr_swapFocus, 0, {}, 0, MENU_NONE}
         }
     }
 #endif
@@ -464,11 +420,6 @@ void setMenuDefaults() {
 
 void displayMenu() {
     menuOn = true;
-    if (checkRumble())
-        enableMenuOption("Rumble Pak");
-    else
-        disableMenuOption("Rumble Pak");
-
     updateScreens();
     doAtVBlank(redrawMenu);
 }
@@ -746,7 +697,7 @@ void printMenuMessage(const char* s) {
         printf(" ");
     printf("%s", printMessage);
 
-    consoleFlush();
+    fflush(stdout);
 }
 
 void displaySubMenu(void (*updateFunc)()) {

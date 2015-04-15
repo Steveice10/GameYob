@@ -224,7 +224,7 @@ void mgr_updateVBlank() {
 #ifndef SDL
     fps++;
 
-    if (isConsoleOn() && !isMenuOn() && !consoleDebugOutput && (rawTime > lastRawTime))
+    if (!isMenuOn() && !consoleDebugOutput && (rawTime > lastRawTime))
     {
         int line=0;
         if (fpsOutput) {

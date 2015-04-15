@@ -15,7 +15,6 @@ extern volatile int dsFrameCounter;
 
 extern bool probingForBorder;
 
-extern int interruptWaitMode;
 extern int scaleMode;
 extern int scaleFilter;
 extern u8 gfxMask;

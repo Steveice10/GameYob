@@ -36,14 +36,6 @@ int consoleGetHeight() {
     return console->consoleHeight;
 }
 
-void consoleFlush() {
-    fflush(stdout);
-}
-
-bool isConsoleOn() {
-    return true;
-}
-
 void clearConsole() {
 	consoleClear();
 }
@@ -85,17 +77,13 @@ void iprintfColored(int palette, const char* format, ...) {
 }
 
 void printLog(const char* format, ...) {
-    if (consoleDebugOutput) {
+    if(consoleDebugOutput) {
         va_list args;
         va_start(args, format);
 
         vprintf(format, args);
         va_end(args);
     }
-}
-
-int checkRumble() {
-    return 0;
 }
 
 void disableSleepMode() {

@@ -6,10 +6,7 @@ extern volatile int consoleSelectedRow; // This line is given a different backdr
 
 void consoleInitScreens();
 
-bool isConsoleOn(); // Returns true if the sub-screen's console is set up.
-
 void clearConsole();
-void consoleFlush();
 int consoleGetWidth();
 int consoleGetHeight();
 
@@ -17,8 +14,6 @@ void updateScreens();
 
 void iprintfColored(int palette, const char* format, ...);
 void printLog(const char* format, ...);
-
-int checkRumble();
 
 void disableSleepMode();
 void enableSleepMode();

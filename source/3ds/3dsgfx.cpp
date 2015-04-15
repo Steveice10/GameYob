@@ -1,7 +1,8 @@
 #include <3ds.h>
 
-#include "inputhelper.h"
 #include "3ds/3dsgfx.h"
+#include "gbgfx.h"
+#include "inputhelper.h"
 
 #include <ctrcommon/gpu.hpp>
 
@@ -105,7 +106,8 @@ void gfxDrawScreen(u8 *screenBuffer, int scaleMode, int gameScreen) {
     }
 
     // Update the texture with the new frame.
-    gpuTextureData(texture, screenBuffer, 256, 256, PIXEL_RGB8, 256, 256, PIXEL_RGB8, TEXTURE_MIN_FILTER(FILTER_LINEAR) | TEXTURE_MAG_FILTER(FILTER_LINEAR));
+    TextureFilter filter = scaleFilter == 1 ? FILTER_LINEAR : FILTER_NEAREST;
+    gpuTextureData(texture, screenBuffer, 256, 256, PIXEL_RGB8, 256, 256, PIXEL_RGB8, TEXTURE_MIN_FILTER(filter) | TEXTURE_MAG_FILTER(filter));
 
     // Draw the VBO.
     gpuClear();

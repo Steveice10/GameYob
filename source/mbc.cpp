@@ -262,17 +262,6 @@ void Gameboy::m5w (u16 addr, u8 val) {
             /* MBC5 might have a rumble motor, which is triggered by the
              * 4th bit of the value written */
             if (romFile->hasRumble()) {
-                if (rumbleStrength) {
-                    if (rumbleInserted) {
-                        rumbleValue = (val & 0x8) ? 1 : 0;
-                        if (rumbleValue != lastRumbleValue)
-                        {
-                            system_doRumble(rumbleValue);
-                            lastRumbleValue = rumbleValue;
-                        }
-                    }
-                }
-
                 val &= 0x07;
             }
 

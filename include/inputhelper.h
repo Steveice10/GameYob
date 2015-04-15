@@ -28,7 +28,6 @@ extern bool fastForwardKey;  // only while its hotkey is pressed
 extern u8 buttonsPressed;
 
 extern char borderPath[MAX_FILENAME_LEN];
-extern int rumbleInserted;
 
 void initInput();
 void flushFatCache();
@@ -41,7 +40,6 @@ void forceReleaseKey(int key);
 
 void inputUpdateVBlank();
 
-void system_doRumble(bool rumbleVal);
 int system_getMotionSensorX();
 int system_getMotionSensorY();
 
