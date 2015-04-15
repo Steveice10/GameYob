@@ -226,7 +226,6 @@ void mgr_updateVBlank() {
 
     if (isConsoleOn() && !isMenuOn() && !consoleDebugOutput && (rawTime > lastRawTime))
     {
-        setPrintConsole(menuConsole);
         int line=0;
         if (fpsOutput) {
             clearConsole();

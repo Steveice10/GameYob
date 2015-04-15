@@ -11,6 +11,8 @@
 #include "3ds/3dsgfx.h"
 #include "menu.h"
 
+#define RGB24(r, g, b) ((r) << 16 | (g) << 8 | (b))
+
 // public variables
 
 bool probingForBorder;
@@ -428,7 +430,7 @@ void drawSprite(int scanline, int spriteNum)
 
 void drawScreen()
 {
-    drawGPU(screenBuffer, scaleMode, gameScreen);
+    gfxDrawScreen(screenBuffer, scaleMode, gameScreen);
 }
 
 

@@ -14,11 +14,7 @@
 #include "cheats.h"
 #include "romfile.h"
 
-#ifdef SDL
-#define INI_PATH "gameyob.ini"
-#else
 #define INI_PATH "/gameyob.ini"
-#endif
 
 char borderPath[MAX_FILENAME_LEN] = "";
 char romPath[MAX_FILENAME_LEN] = "";
@@ -63,9 +59,11 @@ bool readConfigFile() {
     while (file_tell(file) < file_getSize(file)) {
         file_gets(line, 100, file);
         char c=0;
-        while (*line != '\0' && ((c = line[strlen(line)-1]) == ' ' || c == '\n' || c == '\r'))
-            line[strlen(line)-1] = '\0';
-        if (line[0] == '[') {
+        while (*line != '\0' && ((c = line[strlen(line)-1]) == ' ' || c == '\n' || c == '\r')) {
+            line[strlen(line) - 1] = '\0';
+        }
+
+        if(line[0] == '[') {
             char* endBrace;
             if ((endBrace = strrchr(line, ']')) != 0) {
                 *endBrace = '\0';
@@ -80,9 +78,9 @@ bool readConfigFile() {
                     configParser = controlsParseConfig;
                 }
             }
-        }
-        else
+        } else {
             configParser(line);
+        }
     }
     file_close(file);
 end:
@@ -343,7 +341,7 @@ void redrawKeyConfigChooser() {
 
     iprintf("Config: ");
     if (option == -1)
-        iprintfColored(CONSOLE_COLOR_LIGHT_YELLOW, "* %s *\n\n", config->name);
+        iprintfColored(CONSOLE_COLOR_BRIGHT_YELLOW, "* %s *\n\n", config->name);
     else
         iprintf("  %s  \n\n", config->name);
 
@@ -362,7 +360,7 @@ void redrawKeyConfigChooser() {
             len--;
         }
         if (option == i) 
-            iprintfColored(CONSOLE_COLOR_LIGHT_YELLOW, "* %s | %s *\n", dsKeyNames[i], gbKeyNames[config->funcKeys[i]]);
+            iprintfColored(CONSOLE_COLOR_BRIGHT_YELLOW, "* %s | %s *\n", dsKeyNames[i], gbKeyNames[config->funcKeys[i]]);
         else
             iprintf("  %s | %s  \n", dsKeyNames[i], gbKeyNames[config->funcKeys[i]]);
     }

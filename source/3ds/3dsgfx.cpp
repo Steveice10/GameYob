@@ -1,5 +1,6 @@
 #include <3ds.h>
-#include <inputhelper.h>
+
+#include "inputhelper.h"
 #include "3ds/3dsgfx.h"
 
 #include <ctrcommon/gpu.hpp>
@@ -13,7 +14,7 @@ u32 shader = 0;
 u32 texture = 0;
 u32 vbo = 0;
 
-void initGPU() {
+void gfxInit() {
     // Initialize the GPU and setup the state.
     gpuInit();
     gpuCullMode(CULL_BACK_CCW);
@@ -35,7 +36,7 @@ void initGPU() {
     gpuClear();
 }
 
-void deinitGPU() {
+void gfxCleanup() {
     // Free shader.
     if(shader != 0) {
         gpuFreeShader(shader);
@@ -55,15 +56,15 @@ void deinitGPU() {
     }
 }
 
-void drawGPU(u8* screenBuffer, int scaleMode, int gameScreen) {
+void gfxDrawScreen(u8 *screenBuffer, int scaleMode, int gameScreen) {
     // Update VBO data if the size has changed.
     if(prevScaleMode != scaleMode || prevGameScreen != gameScreen) {
-        int fbWidth = gameScreen == 0 ? TOP_SCREEN_WIDTH : BOTTOM_SCREEN_WIDTH;
-        int fbHeight = gameScreen == 0 ? TOP_SCREEN_HEIGHT : BOTTOM_SCREEN_HEIGHT;
+        u32 fbWidth = gameScreen == 0 ? TOP_SCREEN_WIDTH : BOTTOM_SCREEN_WIDTH;
+        u32 fbHeight = gameScreen == 0 ? TOP_SCREEN_HEIGHT : BOTTOM_SCREEN_HEIGHT;
 
         if(prevGameScreen != gameScreen) {
             // Update the viewport.
-            gpuViewport(gameScreen == 0 ? TOP_SCREEN : BOTTOM_SCREEN, 0, 0, (u32) fbHeight, (u32) fbWidth);
+            gpuViewport(gameScreen == 0 ? TOP_SCREEN : BOTTOM_SCREEN, 0, 0, fbHeight, fbWidth);
         }
 
         // Calculate the VBO dimensions.
@@ -112,39 +113,9 @@ void drawGPU(u8* screenBuffer, int scaleMode, int gameScreen) {
     gpuFlush();
 
     // Swap buffers and wait for VBlank.
-    system_waitForVBlank();
-}
-
-u8 gfxBuffer = 0;
-
-void drawPixel(u8* framebuffer, int x, int y, u32 color) {
-    y = TOP_SCREEN_HEIGHT - y - 1;
-
-    u8* ptr = framebuffer + (x*TOP_SCREEN_HEIGHT + y)*3;
-
-    *(u16*)ptr = color;
-    *(ptr+2) = color>>16;
-}
-
-u8* gfxGetActiveFramebuffer(gfxScreen_t screen, gfx3dSide_t side) {
-    u8** buf;
-    if (screen == GFX_TOP)
-        buf = gfxTopLeftFramebuffers;
-    else
-        buf = gfxBottomFramebuffers;
-    return buf[gfxBuffer];
-}
-
-u8* gfxGetInactiveFramebuffer(gfxScreen_t screen, gfx3dSide_t side) {
-    u8** buf;
-    if (screen == GFX_TOP)
-        buf = gfxTopLeftFramebuffers;
-    else
-        buf = gfxBottomFramebuffers;
-    return buf[!gfxBuffer];
-}
-
-void gfxMySwapBuffers() {
-    gfxBuffer ^= 1;
     gpuSwapBuffers(!(fastForwardMode || fastForwardKey));
+}
+
+void gfxWaitForVBlank() {
+    gspWaitForVBlank();
 }

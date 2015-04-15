@@ -1,7 +1,8 @@
 #include <stdio.h>
+
 #include "3ds/3dsgfx.h"
-#include "inputhelper.h"
 #include "console.h"
+#include "inputhelper.h"
 #include "menu.h"
 #include "gbmanager.h"
 
@@ -13,9 +14,9 @@ int main(int argc, char* argv[])
         return 0;
     }
 
-    initGPU();
+    gfxInit();
 
-    consoleInitBottom();
+    consoleInitScreens();
 
     fs_init();
     mgr_init();

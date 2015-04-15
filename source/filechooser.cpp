@@ -10,8 +10,7 @@
 #include "error.h"
 #ifdef _3DS
 #include <3ds.h>
-#include "3dsgfx.h"
-#include "printconsole.h"
+#include "3ds/3dsgfx.h"
 #endif
 
 #define FLAG_DIRECTORY  1
@@ -220,7 +219,7 @@ template <class Data, class Metadata> void quickSort(std::vector<Data>& data, st
  */
 char* startFileChooser(const char* extensions[], bool romExtensions, bool canQuit) {
 #ifdef _3DS
-    filesPerPage = TOP_SCREEN_HEIGHT / CHAR_HEIGHT;
+    filesPerPage = TOP_SCREEN_HEIGHT / 8;
 #else
     filesPerPage = 24;
 #endif
@@ -230,9 +229,8 @@ char* startFileChooser(const char* extensions[], bool romExtensions, bool canQui
     if (canQuit)
         filesPerPage--;
 
-    setPrintConsole(menuConsole);
     fileChooserOn = true;
-    updateScreens(true); // Screen may need to be enabled
+    updateScreens(); // Screen may need to be enabled
 
     /*
 #ifdef _3DS
@@ -380,10 +378,10 @@ char* startFileChooser(const char* extensions[], bool romExtensions, bool canQui
                 strncpy(buffer, filenames[i].c_str(), stringLen);
                 buffer[stringLen] = '\0';
                 if (flags[i] & FLAG_DIRECTORY) {
-                    iprintfColored(CONSOLE_COLOR_LIGHT_YELLOW, "%s/", buffer);
+                    iprintfColored(CONSOLE_COLOR_BRIGHT_YELLOW, "%s/", buffer);
                 }
                 else if (flags[i] & FLAG_SUSPENDED)
-                    iprintfColored(CONSOLE_COLOR_LIGHT_MAGENTA, "%s", buffer);
+                    iprintfColored(CONSOLE_COLOR_BRIGHT_MAGENTA, "%s", buffer);
                 else
                     iprintfColored(CONSOLE_COLOR_WHITE, "%s", buffer);
                 for (uint j=0; j<stringLen-strlen(buffer); j++)

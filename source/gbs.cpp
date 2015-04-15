@@ -24,7 +24,6 @@ u16 gbsPlayAddress;
 u8 gbsSelectedSong;
 int gbsPlayingSong;
 
-GYPrintConsole gbsConsole;
 #ifdef DS
 extern GYPrintConsole defaultConsole; // Defined in libnds
 #endif
@@ -33,9 +32,7 @@ extern GYPrintConsole defaultConsole; // Defined in libnds
 
 void gbsRedraw() {
     //consoleClear();
-    
-    GYPrintConsole* oldPrintConsole = getPrintConsole();
-    setPrintConsole(&gbsConsole);
+
     printf("\33[0;0H"); // Cursor to upper-left corner
 
     printf("Song %d of %d\33[0K\n", gbsSelectedSong+1, gbsNumSongs);
@@ -55,7 +52,6 @@ void gbsRedraw() {
         }
         printf("\n");
     }
-    setPrintConsole(oldPrintConsole);
 }
 
 void gbsLoadSong() {

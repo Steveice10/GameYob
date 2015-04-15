@@ -238,24 +238,24 @@ void redrawCheatMenu() {
     printf("          Cheat Menu      ");
     printf("%d/%d\n\n", page+1, numPages);
     for (int i=page*cheatsPerPage; i<numCheats && i < (page+1)*cheatsPerPage; i++) {
-        int nameColor = (cheatMenuSelection == i ? CONSOLE_COLOR_LIGHT_YELLOW : CONSOLE_COLOR_WHITE);
+        int nameColor = (cheatMenuSelection == i ? CONSOLE_COLOR_BRIGHT_YELLOW : CONSOLE_COLOR_WHITE);
         iprintfColored(nameColor, ch->cheats[i].name);
         for (unsigned int j=0; j<25-strlen(ch->cheats[i].name); j++)
             printf(" ");
         if (ch->isCheatEnabled(i)) {
             if (cheatMenuSelection == i) {
-                iprintfColored(CONSOLE_COLOR_LIGHT_YELLOW, "* ");
-                iprintfColored(CONSOLE_COLOR_LIGHT_GREEN, "On");
-                iprintfColored(CONSOLE_COLOR_LIGHT_YELLOW, " * ");
+                iprintfColored(CONSOLE_COLOR_BRIGHT_YELLOW, "* ");
+                iprintfColored(CONSOLE_COLOR_BRIGHT_GREEN, "On");
+                iprintfColored(CONSOLE_COLOR_BRIGHT_YELLOW, " * ");
             }
             else
                 iprintfColored(CONSOLE_COLOR_WHITE, "  On   ");
         }
         else {
             if (cheatMenuSelection == i) {
-                iprintfColored(CONSOLE_COLOR_LIGHT_YELLOW, "* ");
-                iprintfColored(CONSOLE_COLOR_LIGHT_GREEN, "Off");
-                iprintfColored(CONSOLE_COLOR_LIGHT_YELLOW, " *");
+                iprintfColored(CONSOLE_COLOR_BRIGHT_YELLOW, "* ");
+                iprintfColored(CONSOLE_COLOR_BRIGHT_GREEN, "Off");
+                iprintfColored(CONSOLE_COLOR_BRIGHT_YELLOW, " *");
             }
             else
                 iprintfColored(CONSOLE_COLOR_WHITE, "  Off  ");

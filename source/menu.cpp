@@ -1,37 +1,22 @@
-#ifdef DS
-#include "common.h"
-#endif
-
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+
 #include "menu.h"
 #include "gbprinter.h"
-#include "console.h"
 #include "inputhelper.h"
-#include "filechooser.h"
 #include "soundengine.h"
-#include "main.h"
 #include "gameboy.h"
-#include "nifi.h"
 #include "cheats.h"
-#include "gbgfx.h"
 #include "gbs.h"
 #include "gbmanager.h"
 
-const int MENU_DS   = 1;
+const int MENU_NONE   = 1;
 const int MENU_3DS  = 2;
-const int MENU_SDL  = 4;
 
-const int MENU_ALL = MENU_DS | MENU_3DS | MENU_SDL;
+const int MENU_ALL = MENU_3DS;
 
-#if defined(DS)
-const int MENU_BITMASK = MENU_DS;
-#elif defined(_3DS)
 const int MENU_BITMASK = MENU_3DS;
-#elif defined(SDL)
-const int MENU_BITMASK = MENU_SDL;
-#endif
 
 void printVersionInfo(); // Defined in version.cpp
 
@@ -50,8 +35,6 @@ int stateNum=0;
 
 bool windowDisabled = false;
 bool hblankDisabled = false;
-
-GYPrintConsole* menuConsole;
 
 
 int gbcModeOption = 0;
@@ -383,7 +366,7 @@ SubMenu menuList[] = {
             {"Save State", stateSaveFunc, 0, {}, 0, MENU_ALL},
             {"Load State", stateLoadFunc, 0, {}, 0, MENU_ALL},
             {"Delete State", stateDeleteFunc, 0, {}, 0, MENU_ALL},
-            {"Quit to Launcher", returnToLauncherFunc, 0, {}, 0, MENU_DS | MENU_3DS},
+            {"Quit to Launcher", returnToLauncherFunc, 0, {}, 0, MENU_ALL},
             {"Exit without saving", exitNoSaveFunc, 0, {}, 0, MENU_ALL},
             {"Suspend", suspendFunc, 0, {}, 0, MENU_ALL}
         }
@@ -394,10 +377,10 @@ SubMenu menuList[] = {
         {
             {"Button Mapping", keyConfigFunc, 0, {}, 0, MENU_ALL},
             {"Manage Cheats", cheatFunc, 0, {}, 0, MENU_ALL},
-            {"Rumble Pak", setRumbleFunc, 4, {"Off","Low","Mid","High"}, 2, MENU_DS},
+            {"Rumble Pak", setRumbleFunc, 4, {"Off","Low","Mid","High"}, 2, MENU_NONE},
             {"Console Output", consoleOutputFunc, 4, {"Off","Time","FPS+Time","Debug"}, 0, MENU_ALL},
             {"GB Printer", printerEnableFunc, 2, {"Off","On"}, 1, MENU_ALL},
-            {"Autosaving", setAutoSaveFunc, 1, {"Off","On"}, 1, MENU_DS},
+            {"Autosaving", setAutoSaveFunc, 1, {"Off","On"}, 1, MENU_NONE},
             {"Save Settings", saveSettingsFunc, 0, {}, 0, MENU_ALL}
         }
     },
@@ -407,8 +390,8 @@ SubMenu menuList[] = {
         {
             {"Game Screen", setScreenFunc, 2, {"Top","Bottom"}, 0, MENU_ALL},
             {"Single Screen", setSingleScreenFunc, 2, {"Off","On"}, 0, MENU_ALL},
-            {"Scaling", setScaleModeFunc, 3, {"Off","Aspect","Full"}, 0, MENU_DS | MENU_3DS},
-            {"Scale Filter", setScaleFilterFunc, 2, {"Off","On"}, 1, MENU_DS},
+            {"Scaling", setScaleModeFunc, 3, {"Off","Aspect","Full"}, 0, MENU_ALL},
+            {"Scale Filter", setScaleFilterFunc, 2, {"Off","On"}, 1, MENU_NONE},
             {"SGB Borders", sgbBorderEnableFunc, 2, {"Off","On"}, 1, MENU_ALL},
             {"Custom Border", customBorderEnableFunc, 2, {"Off","On"}, 1, MENU_ALL},
             {"Select Border", (void (*)(int))selectBorder, 0, {}, 0, MENU_ALL},
@@ -416,7 +399,7 @@ SubMenu menuList[] = {
     },
     {
         "GB Modes",
-        4,
+        3,
         {
             {"Detect GBA", gbaModeFunc, 2, {"Off","On"}, 0, MENU_ALL},
             {"GBC Mode", gameboyModeFunc, 3, {"Off","If Needed","On"}, 2, MENU_ALL},
@@ -427,11 +410,11 @@ SubMenu menuList[] = {
         "Debug",
         7,
         {
-            {"Wait for Vblank", vblankWaitFunc, 2, {"Off","On"}, 0, MENU_DS},
-            {"Hblank", hblankEnableFunc, 2, {"Off","On"}, 1, MENU_DS},
-            {"Window", windowEnableFunc, 2, {"Off","On"}, 1, MENU_DS},
+            {"Wait for Vblank", vblankWaitFunc, 2, {"Off","On"}, 0, MENU_NONE},
+            {"Hblank", hblankEnableFunc, 2, {"Off","On"}, 1, MENU_NONE},
+            {"Window", windowEnableFunc, 2, {"Off","On"}, 1, MENU_NONE},
             {"Sound", soundEnableFunc, 2, {"Off","On"}, 1, MENU_ALL},
-            {"Sound Timing Fix", hyperSoundFunc, 2, {"Off","On"}, 1, MENU_DS},
+            {"Sound Timing Fix", hyperSoundFunc, 2, {"Off","On"}, 1, MENU_NONE},
             {"ROM Info", romInfoFunc, 0, {}, 0, MENU_ALL},
             {"Version Info", versionInfoFunc, 0, {}, 0, MENU_ALL}
         }
@@ -491,7 +474,6 @@ void displayMenu() {
 }
 void closeMenu() {
     menuOn = false;
-    setPrintConsole(menuConsole);
     clearConsole();
     gameboy->unpause();
 }
@@ -564,8 +546,6 @@ int menuGetNumRows() {
 }
 
 void redrawMenu() {
-    GYPrintConsole* oldConsole = getPrintConsole();
-    setPrintConsole(menuConsole);
     clearConsole();
 
     int width = consoleGetWidth();
@@ -576,7 +556,7 @@ void redrawMenu() {
     int nameStart = (width-strlen(menuList[menu].name)-2)/2;
     if (option == -1) {
         nameStart-=2;
-        iprintfColored(CONSOLE_COLOR_LIGHT_GREEN, "<");
+        iprintfColored(CONSOLE_COLOR_BRIGHT_GREEN, "<");
     }
     else
         printf("<");
@@ -584,22 +564,22 @@ void redrawMenu() {
     for (; pos<nameStart; pos++)
         printf(" ");
     if (option == -1) {
-        iprintfColored(CONSOLE_COLOR_LIGHT_YELLOW, "* ");
+        iprintfColored(CONSOLE_COLOR_BRIGHT_YELLOW, "* ");
         pos += 2;
     }
     {
-        int color = (option == -1 ? CONSOLE_COLOR_LIGHT_YELLOW : CONSOLE_COLOR_WHITE);
+        int color = (option == -1 ? CONSOLE_COLOR_BRIGHT_YELLOW : CONSOLE_COLOR_WHITE);
         iprintfColored(color, "[%s]", menuList[menu].name);
     }
     pos += 2 + strlen(menuList[menu].name);
     if (option == -1) {
-        iprintfColored(CONSOLE_COLOR_LIGHT_YELLOW, " *");
+        iprintfColored(CONSOLE_COLOR_BRIGHT_YELLOW, " *");
         pos += 2;
     }
     for (; pos < width-1; pos++)
         printf(" ");
     if (option == -1)
-        iprintfColored(CONSOLE_COLOR_LIGHT_GREEN, ">");
+        iprintfColored(CONSOLE_COLOR_BRIGHT_GREEN, ">");
     else
         printf(">");
     printf("\n");
@@ -611,9 +591,9 @@ void redrawMenu() {
 
         int option_color;
         if (!menuList[menu].options[i].enabled)
-            option_color = CONSOLE_COLOR_GREY;
+            option_color = CONSOLE_COLOR_FAINT_WHITE;
         else if (option == i)
-            option_color = CONSOLE_COLOR_LIGHT_YELLOW;
+            option_color = CONSOLE_COLOR_BRIGHT_YELLOW;
         else
             option_color = CONSOLE_COLOR_WHITE;
 
@@ -632,7 +612,7 @@ void redrawMenu() {
             if (i == option) {
                 iprintfColored(option_color, "* ");
                 iprintfColored(option_color, "%s  ", menuList[menu].options[i].name);
-                iprintfColored(menuList[menu].options[i].enabled ? CONSOLE_COLOR_LIGHT_GREEN : option_color,
+                iprintfColored(menuList[menu].options[i].enabled ? CONSOLE_COLOR_BRIGHT_GREEN : option_color,
                         "%s", menuList[menu].options[i].values[menuList[menu].options[i].selection]);
                 iprintfColored(option_color, " *");
             }
@@ -658,8 +638,6 @@ void redrawMenu() {
 
         printMessage[0] = '\0';
     }
-
-    setPrintConsole(oldConsole);
 }
 
 // Called each vblank while the menu is on
@@ -825,7 +803,7 @@ void disableMenuOption(const char* optionName) {
 }
 
 void menuParseConfig(char* line) {
-    char* equalsPos = (char*)strchr(line, '=');
+    char* equalsPos = strchr(line, '=');
     if (equalsPos == 0)
         return;
     *equalsPos = '\0';

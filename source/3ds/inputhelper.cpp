@@ -95,14 +95,13 @@ void system_checkPolls() {
 }
 
 void system_waitForVBlank() {
-    gfxMySwapBuffers();
-    consoleCheckFramebuffers();
+    gfxWaitForVBlank();
 }
 
 void system_cleanup() {
     mgr_save();
     mgr_exit();
 
-    deinitGPU();
+    gfxCleanup();
     platformCleanup();
 }
