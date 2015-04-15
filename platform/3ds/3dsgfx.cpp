@@ -40,11 +40,13 @@ void deinitGPU() {
 void drawGPU(u8* screenBuffer, int scaleMode, int gameScreen) {
     // Update VBO data if the size has changed.
     if(prevScaleMode != scaleMode || prevGameScreen != gameScreen) {
-        prevScaleMode = scaleMode;
-        prevGameScreen = gameScreen;
-
         int fbWidth = gameScreen == 0 ? TOP_SCREEN_WIDTH : BOTTOM_SCREEN_WIDTH;
         int fbHeight = gameScreen == 0 ? TOP_SCREEN_HEIGHT : BOTTOM_SCREEN_HEIGHT;
+
+        if(prevGameScreen != gameScreen) {
+            // Update the viewport.
+            gpuViewport(gameScreen == 0 ? TOP_SCREEN : BOTTOM_SCREEN, 0, 0, (u32) fbHeight, (u32) fbWidth);
+        }
 
         // Calculate the VBO dimensions.
         u32 vboWidth = 160;
@@ -79,8 +81,8 @@ void drawGPU(u8* screenBuffer, int scaleMode, int gameScreen) {
         // Update the VBO with the new data.
         gpuVboData(dispVbo, vbo, sizeof(vbo), sizeof(vbo) / (5 * 4), PRIM_TRIANGLES);
 
-        // Update the viewport.
-        gpuViewport(gameScreen == 0 ? TOP_SCREEN : BOTTOM_SCREEN, 0, 0, (u32) fbHeight, (u32) fbWidth);
+        prevScaleMode = scaleMode;
+        prevGameScreen = gameScreen;
     }
 
     // Update the texture with the new frame.
