@@ -110,15 +110,9 @@ void writeConfigFile() {
 }
 
 
-// Keys: DS and 3DS specific code
+// Keys: 3DS specific code
 
-#if defined(DS) || defined(_3DS)
-
-#if defined(DS)
-#include <nds.h>
-#elif defined(_3DS)
 #include <3ds.h>
-#endif
 
 const char* gbKeyNames[] = {
         "-",
@@ -177,39 +171,12 @@ const char* dsKeyNames[] = {
 };
 
 int keyMapping[NUM_FUNC_KEYS];
-#if defined(DS)
-#define NUM_BINDABLE_BUTTONS 12
-struct KeyConfig {
-    char name[32];
-    int funcKeys[12];
-};
-#elif defined(_3DS)
 #define NUM_BINDABLE_BUTTONS 32
 struct KeyConfig {
     char name[32];
     int funcKeys[32];
 };
-#endif
 
-#if defined(DS)
-KeyConfig defaultKeyConfig = {
-    "Main",
-    {
-            FUNC_KEY_A,            // 0 = KEY_A
-            FUNC_KEY_B,            // 1 = KEY_B
-            FUNC_KEY_SELECT,       // 2 = KEY_SELECT
-            FUNC_KEY_START,        // 3 = KEY_START
-            FUNC_KEY_RIGHT,        // 4 = KEY_RIGHT
-            FUNC_KEY_LEFT,         // 5 = KEY_LEFT
-            FUNC_KEY_UP,           // 6 = KEY_UP
-            FUNC_KEY_DOWN,         // 7 = KEY_DOWN
-            FUNC_KEY_MENU,         // 8 = KEY_R
-            FUNC_KEY_FAST_FORWARD, // 9 = KEY_L
-            FUNC_KEY_START,        // 10 = KEY_X
-            FUNC_KEY_SELECT        // 11 = KEY_Y
-    }
-};
-#elif defined(_3DS)
 KeyConfig defaultKeyConfig = {
     "Main",
     {
@@ -247,8 +214,6 @@ KeyConfig defaultKeyConfig = {
             FUNC_KEY_DOWN          // 31 = KEY_CPAD_DOWN
     }
 };
-#endif
-
 
 std::vector<KeyConfig> keyConfigs;
 unsigned int selectedKeyConfig=0;
@@ -348,11 +313,9 @@ void redrawKeyConfigChooser() {
     iprintf("       Button   Function\n\n");
 
     for (int i=0; i<NUM_BINDABLE_BUTTONS; i++) {
-#if defined(_3DS)
        // These button bits aren't assigned to anything, so no strings for them
        if((i > 15 && i < 24) || i == 12 || i == 13)
             continue;
-#endif
 
         int len = 11-strlen(dsKeyNames[i]);
         while (len > 0) {
@@ -400,12 +363,10 @@ void updateKeyConfigChooser() {
     else if (keyPressedAutoRepeat(KEY_DOWN)) {
         if (option == NUM_BINDABLE_BUTTONS-1)
             option = -1;
-#if defined(_3DS)
         else if(option == 11) //Skip nonexistant keys
             option = 14;
         else if(option == 15)
             option = 24;
-#endif
         else
             option++;
         redraw = true;
@@ -413,12 +374,10 @@ void updateKeyConfigChooser() {
     else if (keyPressedAutoRepeat(KEY_UP)) {
         if (option == -1)
             option = NUM_BINDABLE_BUTTONS-1;
-#if defined(_3DS)
         else if(option == 14) //Skip nonexistant keys
             option = 11;
         else if(option == 24)
             option = 15;
-#endif
         else
             option--;
         redraw = true;
@@ -489,85 +448,3 @@ int mapMenuKey(int menuKey) {
     }
     return 0;
 }
-
-#elif defined(SDL)
-
-#include <SDL.h>
-
-// Stub functions for SDL
-
-void controlsParseConfig(char* line2) {
-}
-void controlsPrintConfig(FileHandle* file) {
-}
-void controlsCheckConfig() {
-}
-
-void startKeyConfigChooser() {
-}
-
-int mapFuncKey(int funcKey) {
-    switch(funcKey) {
-        case FUNC_KEY_NONE:
-            return 0;
-        case FUNC_KEY_A:
-            return SDLK_SEMICOLON;
-        case FUNC_KEY_B:
-            return SDLK_q;
-        case FUNC_KEY_LEFT:
-            return SDLK_LEFT;
-        case FUNC_KEY_RIGHT:
-            return SDLK_RIGHT;
-        case FUNC_KEY_UP:
-            return SDLK_UP;
-        case FUNC_KEY_DOWN:
-            return SDLK_DOWN;
-        case FUNC_KEY_START:
-            return SDLK_RETURN;
-        case FUNC_KEY_SELECT:
-            return SDLK_BACKSLASH;
-        case FUNC_KEY_MENU:
-            return SDLK_o;
-        case FUNC_KEY_MENU_PAUSE:
-            return 0;
-        case FUNC_KEY_SAVE:
-            return 0;
-        case FUNC_KEY_AUTO_A:
-            return 0;
-        case FUNC_KEY_AUTO_B:
-            return 0;
-        case FUNC_KEY_FAST_FORWARD:
-            return SDLK_SPACE;
-        case FUNC_KEY_FAST_FORWARD_TOGGLE:
-            return 0;
-        case FUNC_KEY_SCALE:
-            return 0;
-        case FUNC_KEY_RESET:
-            return 0;
-    }
-    return 0;
-}
-
-int mapMenuKey(int menuKey) {
-    switch (menuKey) {
-        case MENU_KEY_A:
-            return SDLK_SEMICOLON;
-        case MENU_KEY_B:
-            return SDLK_q;
-        case MENU_KEY_UP:
-            return SDLK_UP;
-        case MENU_KEY_DOWN:
-            return SDLK_DOWN;
-        case MENU_KEY_LEFT:
-            return SDLK_LEFT;
-        case MENU_KEY_RIGHT:
-            return SDLK_RIGHT;
-        case MENU_KEY_L:
-            return SDLK_a;
-        case MENU_KEY_R:
-            return SDLK_o;
-    }
-    return 0;
-}
-
-#endif

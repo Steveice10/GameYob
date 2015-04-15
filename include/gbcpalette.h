@@ -1,3 +1,5 @@
+#pragma once
+
 /***************************************************************************
 *   Copyright (C) 2007 by Sindre Aamås                                    *
 *   sinamas@users.sourceforge.net                                         *

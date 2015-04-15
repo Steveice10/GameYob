@@ -401,6 +401,9 @@ char* startFileChooser(const char* extensions[], bool romExtensions, bool canQui
                 iprintfColored(CONSOLE_COLOR_WHITE, "                Press Y to exit");
             }
 
+            gfxFlushBuffers();
+            system_waitForVBlank();
+
             // Wait for input
             while (true) {
                 system_checkPolls();

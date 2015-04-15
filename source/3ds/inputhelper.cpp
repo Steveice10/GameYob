@@ -1,11 +1,12 @@
-#include <3ds.h>
 #include <stdlib.h>
-#include <ctrcommon/platform.hpp>
 
 #include "inputhelper.h"
 #include "console.h"
 #include "gbmanager.h"
 #include "3ds/3dsgfx.h"
+
+#include <3ds.h>
+#include <ctrcommon/platform.hpp>
 
 u32 lastKeysPressed = 0;
 u32 keysPressed = 0;
@@ -56,23 +57,27 @@ void forceReleaseKey(int key) {
 
 void inputUpdateVBlank() {
     hidScanInput();
+
     lastKeysPressed = keysPressed;
     keysPressed = hidKeysHeld();
-
-    for (int i=0; i<32; i++) {
-        if (keysForceReleased & (1<<i)) {
-            if (!(keysPressed & (1<<i)))
-                keysForceReleased &= ~(1<<i);
+    for(int i = 0; i < 32; i++) {
+        if(keysForceReleased & (1 << i)) {
+            if(!(keysPressed & (1 << i))) {
+                keysForceReleased &= ~(1 << i);
+            }
         }
     }
-    keysPressed &= ~keysForceReleased;
 
+    keysPressed &= ~keysForceReleased;
     keysJustPressed = (lastKeysPressed ^ keysPressed) & keysPressed;
 
-    if (repeatTimer > 0)
+    if(repeatTimer > 0) {
         repeatTimer--;
-    if (repeatStartTimer > 0)
+    }
+
+    if(repeatStartTimer > 0) {
         repeatStartTimer--;
+    }
 }
 
 int system_getMotionSensorX() {
@@ -84,7 +89,7 @@ int system_getMotionSensorY() {
 
 
 void system_checkPolls() {
-    if(!aptMainLoop()) {
+    if(!platformIsRunning()) {
         system_cleanup();
         exit(0);
     }

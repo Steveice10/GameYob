@@ -1,16 +1,11 @@
-#ifdef DS
-#include "libfat_fake.h"
-#include "common.h"
-#endif
-#ifdef _3DS
 #include <3ds.h>
-#endif
 
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <dirent.h>
 #include <unistd.h>
+#include "gbcpalette.h"
 #include "gbprinter.h"
 #include "gameboy.h"
 #include "gbgfx.h"
@@ -514,9 +509,15 @@ int Gameboy::runEmul()
 
 void Gameboy::initGFXPalette() {
     memset(bgPaletteData, 0xff, 0x40);
-    if (gbMode == GB) {
-        memcpy(bgPaletteData, gameboy->getRomFile()->gbPalette, 4 * sizeof(u16));
-        memcpy(sprPaletteData, gameboy->getRomFile()->gbPalette + 4, 8 * sizeof(u16));
+    if(gbMode == GB) {
+        if(gbcModeOption == 2 && gameboy->getRomFile() != NULL) {
+            memcpy(bgPaletteData, gameboy->getRomFile()->gbPalette, 4 * sizeof(u16));
+            memcpy(sprPaletteData, gameboy->getRomFile()->gbPalette + 4, 8 * sizeof(u16));
+        } else {
+            const unsigned short *palette = findGbcDirPal("GBC - Grayscale");
+            memcpy(bgPaletteData, palette, 4 * sizeof(u16));
+            memcpy(sprPaletteData, palette + 4, 8 * sizeof(u16));
+        }
     }
 }
 
