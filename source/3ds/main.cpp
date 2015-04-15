@@ -1,5 +1,5 @@
 #include <stdio.h>
-#include "3dsgfx.h"
+#include "3ds/3dsgfx.h"
 #include "inputhelper.h"
 #include "console.h"
 #include "menu.h"

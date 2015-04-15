@@ -2,7 +2,8 @@
 #include "soundengine.h"
 #include "gameboy.h"
 #include "menu.h"
-#include "noise.h"
+
+#include "3ds/noise.h"
 
 #include <ctrcommon/sound.hpp>
 

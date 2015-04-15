@@ -8,7 +8,7 @@
 #include <string.h>
 #include "gbgfx.h"
 #include "gameboy.h"
-#include "3dsgfx.h"
+#include "3ds/3dsgfx.h"
 #include "menu.h"
 
 // public variables

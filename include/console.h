@@ -2,18 +2,8 @@
 #include <stdarg.h>
 #include <stdio.h>
 
-#ifdef DS
-#include <nds/arm9/console.h>
-#endif
-
-#ifdef SDL
-struct GYPrintConsole {
-
-};
-#endif
-
 #ifdef _3DS
-#include "printconsole.h"
+#include "3ds/printconsole.h"
 #endif
 
 extern GYPrintConsole* menuConsole;

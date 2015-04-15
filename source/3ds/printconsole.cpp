@@ -3,9 +3,10 @@
 #include <3ds.h>
 #include <stdio.h>
 #include <sys/iosupport.h>
-#include "3dsgfx.h"
-#include "printconsole.h"
 #include "menu.h"
+
+#include "3ds/3dsgfx.h"
+#include "3ds/printconsole.h"
 
 #include "default_font_bin.h"
 

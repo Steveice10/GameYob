@@ -1,6 +1,6 @@
 #include <3ds.h>
 #include <inputhelper.h>
-#include "3dsgfx.h"
+#include "3ds/3dsgfx.h"
 
 #include <ctrcommon/gpu.hpp>
 
@@ -63,8 +63,8 @@ void drawGPU(u8* screenBuffer, int scaleMode, int gameScreen) {
         }
 
         // Calculate VBO extents.
-        float horizExtent = vboWidth < 400 ? (float) vboWidth / 400.0f : 1;
-        float vertExtent = vboHeight < 240 ? (float) vboHeight / 240.0f : 1;
+        float horizExtent = vboWidth < fbWidth ? (float) vboWidth / (float) fbWidth : 1;
+        float vertExtent = vboHeight < fbHeight ? (float) vboHeight / (float) fbHeight : 1;
 
         // Adjust for power-of-two textures.
         static float horizMod = (float) (256 - 160) / (float) 256;

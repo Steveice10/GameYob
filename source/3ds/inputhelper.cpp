@@ -5,7 +5,7 @@
 #include "inputhelper.h"
 #include "console.h"
 #include "gbmanager.h"
-#include "3dsgfx.h"
+#include "3ds/3dsgfx.h"
 
 u32 lastKeysPressed = 0;
 u32 keysPressed = 0;
