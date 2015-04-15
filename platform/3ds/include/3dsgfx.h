@@ -2,6 +2,8 @@
 #include <3ds/gfx.h>
 
 void initGPU();
+void deinitGPU();
+void drawGPU(u8* screenBuffer, int scaleMode, int gameScreen);
 
 u32 getPixel(u8* framebuffer, int x, int y);
 void drawPixel(u8* framebuffer, int x, int y, u32 color);

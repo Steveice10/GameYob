@@ -18,13 +18,6 @@ void csnd_init();
 
 int main(int argc, char* argv[])
 {
-    //srvInit();
-
-    //aptInit();
-    //hidInit(NULL);
-    //gfxInitDefault();
-    //fsInit();
-
     if(!platformInit()) {
         return 0;
     }

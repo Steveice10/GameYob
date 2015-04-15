@@ -112,10 +112,6 @@ void system_checkPolls() {
 }
 
 void system_waitForVBlank() {
-    gfxFlushBuffers();
-    if (!(fastForwardMode || fastForwardKey))
-        gspWaitForVBlank();
-
     gfxMySwapBuffers();
     consoleCheckFramebuffers();
 }
@@ -126,10 +122,6 @@ void system_cleanup() {
 
     csndExit();
 
-    //fsExit();
-    //gfxExit();
-    //hidExit();
-    //aptExit();
-    //srvExit();
+    deinitGPU();
     platformCleanup();
 }
