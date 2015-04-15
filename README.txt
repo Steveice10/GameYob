@@ -6,7 +6,7 @@ General Features:
 
 - Gameboy, Gameboy Color, Super Gameboy emulation
 - Supports Gameboy Color enhanced palettes
-- Scale to fill the screen (currently slow on 3DS)
+- Scale to fill the screen
 - Auto SRAM saving
 - Save States
 - Cheat Codes
