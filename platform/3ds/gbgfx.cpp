@@ -14,6 +14,11 @@
 #include "inputhelper.h"
 #include "romfile.h"
 
+#include <ctrcommon/gpu.hpp>
+#include <ctrcommon/platform.hpp>
+
+#include "shader_vsh_shbin.h"
+
 // public variables
 
 bool probingForBorder;
@@ -63,7 +68,14 @@ u32 bgPixelsTrueLow[256];
 bool bgPalettesModified[8];
 bool sprPalettesModified[8];
 
-int prevScaleMode = scaleMode;
+int prevScaleMode = -1;
+int prevGameScreen = -1;
+
+static u8 screenBuffer[256 * 256 * 3];
+
+u32 shader = 0;
+u32 texture = 0;
+u32 dispVbo = 0;
 
 
 // Private functions
@@ -80,6 +92,22 @@ void updateSprPaletteDMG(int paletteid);
 void doAtVBlank(void (*func)(void)) {
     func();
 }
+
+void initGPU() {
+    gpuInit();
+    gpuCullMode(CULL_BACK_CCW);
+
+    gpuCreateShader(&shader);
+    gpuLoadShader(shader, shader_vsh_shbin, shader_vsh_shbin_size);
+    gpuUseShader(shader);
+
+    gpuCreateTexture(&texture);
+    gpuBindTexture(TEXUNIT0, texture);
+
+    gpuCreateVbo(&dispVbo);
+    gpuVboAttributes(dispVbo, ATTRIBUTE(0, 3, ATTR_FLOAT) | ATTRIBUTE(1, 2, ATTR_FLOAT), 2);
+}
+
 void initGFX()
 {
     bgPalettes[0][0] = RGB24(255, 255, 255);
@@ -334,38 +362,7 @@ void drawScanline_P2(int scanline) {
 
     // TODO: bg priority cancellation
 
-    gfxScreen_t currScreen;
-    if(gameScreen == 0) {
-        currScreen = GFX_TOP;
-    } else {
-        currScreen = GFX_BOTTOM;
-    }
-
-    u8* framebuffer = gfxGetInactiveFramebuffer(currScreen, GFX_LEFT);
-    int fbWidth = currScreen == GFX_TOP ? TOP_SCREEN_WIDTH : BOTTOM_SCREEN_WIDTH;
-    int fbHeight = currScreen == GFX_TOP ? TOP_SCREEN_HEIGHT : BOTTOM_SCREEN_HEIGHT;
-
-    if(prevScaleMode != scaleMode) {
-        memset(framebuffer, 0, fbWidth * fbHeight * 3);
-        memset(gfxGetActiveFramebuffer(currScreen, GFX_LEFT), 0, fbWidth * fbHeight * 3);
-        prevScaleMode = scaleMode;
-    }
-
-    float wScale = 1;
-    float hScale = 1;
-    if(scaleMode == 1) {
-        float scale = fbHeight / (float) 144;
-        wScale = scale;
-        hScale = scale;
-    } else if(scaleMode == 2) {
-        wScale = fbWidth / (float) 160;
-        hScale = fbHeight / (float) 144;
-    }
-
-    int offsetX = fbWidth / 2 - (int)(160 * wScale)/2;
-    int offsetY = fbHeight / 2 - (int)(144 * hScale)/2;
-
-    int y = offsetY + (int) (scanline * hScale);
+    int y = scanline;
     for (int i=0; i<160; i++)
     {
         u32 pixel;
@@ -378,16 +375,8 @@ void drawScanline_P2(int scanline) {
         else
             pixel = spritePixelsTrueLow[i];
 
-        if(wScale == 1 && hScale == 1) {
-            drawPixel(framebuffer, offsetX + i, y, pixel);
-        } else {
-            int bx = offsetX + (int) (i * wScale);
-            for(int xx = bx; xx < bx + wScale; xx++) {
-                for(int yy = y; yy < y + hScale; yy++) {
-                    drawPixel(framebuffer, xx, yy, pixel);
-                }
-            }
-        }
+        *(u16*) &screenBuffer[(y * 256 + i) * 3] = (u16) pixel;
+        screenBuffer[(y * 256 + i) * 3 + 2] = (u8) (pixel >> 16);
     }
 }
 
@@ -468,9 +457,66 @@ void drawSprite(int scanline, int spriteNum)
     }
 }
 
+extern u8 gfxBuffer;
+
 void drawScreen()
 {
-    system_waitForVBlank();
+    int fbWidth = gameScreen == 0 ? TOP_SCREEN_WIDTH : BOTTOM_SCREEN_WIDTH;
+    int fbHeight = gameScreen == 0 ? TOP_SCREEN_HEIGHT : BOTTOM_SCREEN_HEIGHT;
+
+    float wScale = 1;
+    float hScale = 1;
+    if(scaleMode == 1) {
+        float scale = fbHeight / (float) 144;
+        wScale = scale;
+        hScale = scale;
+    } else if(scaleMode == 2) {
+        wScale = fbWidth / (float) 160;
+        hScale = fbHeight / (float) 144;
+    }
+
+    // Update VBO data if the size has changed.
+    if(prevScaleMode != scaleMode || prevGameScreen != gameScreen) {
+        prevScaleMode = scaleMode;
+        prevGameScreen = gameScreen;
+
+        u32 vboWidth = (u32) (160 * wScale);
+        u32 vboHeight = (u32) (144 * hScale);
+
+        // Calculate VBO extents.
+        float horizExtent = vboWidth < 400 ? (float) vboWidth / 400.0f : 1;
+        float vertExtent = vboHeight < 240 ? (float) vboHeight / 240.0f : 1;
+
+        // Adjust for power-of-two textures.
+        static float horizMod = (float) (256 - 160) / (float) 256;
+        static float vertMod = (float) (256 - 144) / (float) 256;
+
+        // Prepare new VBO data.
+        const float vbo[] = {
+                -vertExtent, -horizExtent, -0.1f, 1.0f - horizMod, 0.0f + vertMod,
+                vertExtent, -horizExtent, -0.1f, 1.0f - horizMod, 1.0f,
+                vertExtent, horizExtent, -0.1f, 0.0f, 1.0f,
+                vertExtent, horizExtent, -0.1f, 0.0f, 1.0f,
+                -vertExtent, horizExtent, -0.1f, 0.0f, 0.0f + vertMod,
+                -vertExtent, -horizExtent, -0.1f, 1.0f - horizMod, 0.0f + vertMod,
+        };
+
+        // Update the VBO with the new data.
+        gpuVboData(dispVbo, vbo, sizeof(vbo), sizeof(vbo) / (5 * 4), PRIM_TRIANGLES);
+    }
+
+    gpuViewport(gameScreen == 0 ? TOP_SCREEN : BOTTOM_SCREEN, 0, 0, (u32) fbHeight, (u32) fbWidth);
+
+    // Update the texture with the new frame.
+    gpuTextureData(texture, screenBuffer, 256, 256, PIXEL_RGB8, 256, 256, PIXEL_RGB8, TEXTURE_MIN_FILTER(FILTER_LINEAR) | TEXTURE_MAG_FILTER(FILTER_LINEAR));
+
+    gpuClear();
+    gpuDrawVbo(dispVbo);
+    gpuFlush();
+    gpuSwapBuffers(true);
+
+    gfxBuffer ^= 1;
+    consoleCheckFramebuffers();
 }
 
 

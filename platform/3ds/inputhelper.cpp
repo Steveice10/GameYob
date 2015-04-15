@@ -6,6 +6,7 @@
 #include <dirent.h>
 #include <unistd.h>
 #include <string>
+#include <ctrcommon/platform.hpp>
 
 #include "inputhelper.h"
 #include "gameboy.h"
@@ -125,9 +126,10 @@ void system_cleanup() {
 
     csndExit();
 
-    fsExit();
-    gfxExit();
-    hidExit();
-    aptExit();
-    srvExit();
+    //fsExit();
+    //gfxExit();
+    //hidExit();
+    //aptExit();
+    //srvExit();
+    platformCleanup();
 }

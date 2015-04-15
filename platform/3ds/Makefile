@@ -41,7 +41,7 @@ INCLUDES	:=	./include ../common/include
 
 ICON            :=      resources/icon.png
 
-NO_CTRCOMMON    :=      1
+# NO_CTRCOMMON    :=      1
 
 #---------------------------------------------------------------------------------
 # options for code generation

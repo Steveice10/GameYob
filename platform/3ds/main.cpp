@@ -1,6 +1,8 @@
 #include <3ds.h>
 #include <stdio.h>
 #include <cwchar>
+#include <3dsgfx.h>
+#include <ctrcommon/platform.hpp>
 #include "gbgfx.h"
 #include "soundengine.h"
 #include "inputhelper.h"
@@ -16,18 +18,24 @@ void csnd_init();
 
 int main(int argc, char* argv[])
 {
-    srvInit();
+    //srvInit();
 
-    aptInit();
-    hidInit(NULL);
-    gfxInitDefault();
-    fsInit();
+    //aptInit();
+    //hidInit(NULL);
+    //gfxInitDefault();
+    //fsInit();
+
+    if(!platformInit()) {
+        return 0;
+    }
+
+    initGPU();
 
     consoleInitBottom();
 
-    csnd_init();
     fs_init();
     mgr_init();
+    csnd_init();
 
 	initInput();
     setMenuDefaults();
