@@ -14,8 +14,6 @@
 #include "gbmanager.h"
 #include "printconsole.h"
 
-void csnd_init();
-
 int main(int argc, char* argv[])
 {
     if(!platformInit()) {
@@ -28,7 +26,6 @@ int main(int argc, char* argv[])
 
     fs_init();
     mgr_init();
-    csnd_init();
 
 	initInput();
     setMenuDefaults();
