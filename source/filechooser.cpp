@@ -408,7 +408,7 @@ char* startFileChooser(const char* extensions[], bool romExtensions, bool canQui
             while (true) {
                 system_checkPolls();
                 system_waitForVBlank();
-                inputUpdateVBlank();
+                inputUpdate();
 
                 if (keyJustPressed(mapMenuKey(MENU_KEY_A))) {
                     if (flags[fileSelection] & FLAG_DIRECTORY) {

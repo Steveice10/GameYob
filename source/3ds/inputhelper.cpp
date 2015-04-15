@@ -5,12 +5,8 @@
 #include "gbmanager.h"
 #include "3ds/3dsgfx.h"
 
-#include <3ds.h>
+#include <ctrcommon/input.hpp>
 #include <ctrcommon/platform.hpp>
-
-u32 lastKeysPressed = 0;
-u32 keysPressed = 0;
-u32 keysJustPressed = 0;
 
 u32 keysForceReleased=0;
 u32 repeatStartTimer=0;
@@ -21,20 +17,17 @@ u8 buttonsPressed;
 bool fastForwardMode = false; // controlled by the toggle hotkey
 bool fastForwardKey = false;  // only while its hotkey is pressed
 
-int rumbleInserted = 0;
-
-
-void initInput()
-{
-}
-
 void flushFatCache() {
 }
 
-
 bool keyPressed(int key) {
-    return keysPressed & key;
+    return inputIsHeld((Button) key) && !(keysForceReleased & key);
 }
+
+bool keyJustPressed(int key) {
+    return inputIsPressed((Button) key) && !(keysForceReleased & key);
+}
+
 bool keyPressedAutoRepeat(int key) {
     if (keyJustPressed(key)) {
         repeatStartTimer = 14;
@@ -46,30 +39,18 @@ bool keyPressedAutoRepeat(int key) {
     }
     return false;
 }
-bool keyJustPressed(int key) {
-    return keysJustPressed & key;
-}
 
 void forceReleaseKey(int key) {
     keysForceReleased |= key;
-    keysPressed &= ~key;
 }
 
-void inputUpdateVBlank() {
-    hidScanInput();
-
-    lastKeysPressed = keysPressed;
-    keysPressed = hidKeysHeld();
+void inputUpdate() {
+    inputPoll();
     for(int i = 0; i < 32; i++) {
-        if(keysForceReleased & (1 << i)) {
-            if(!(keysPressed & (1 << i))) {
-                keysForceReleased &= ~(1 << i);
-            }
+        if(!inputIsPressed((Button) (1 << i))) {
+            keysForceReleased &= ~(1 << i);
         }
     }
-
-    keysPressed &= ~keysForceReleased;
-    keysJustPressed = (lastKeysPressed ^ keysPressed) & keysPressed;
 
     if(repeatTimer > 0) {
         repeatTimer--;
@@ -83,10 +64,10 @@ void inputUpdateVBlank() {
 int system_getMotionSensorX() {
     return 0;
 }
+
 int system_getMotionSensorY() {
     return 0;
 }
-
 
 void system_checkPolls() {
     if(!platformIsRunning()) {

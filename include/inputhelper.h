@@ -29,7 +29,6 @@ extern u8 buttonsPressed;
 
 extern char borderPath[MAX_FILENAME_LEN];
 
-void initInput();
 void flushFatCache();
 
 bool keyPressed(int key);
@@ -38,7 +37,7 @@ bool keyJustPressed(int key);
 // Consider this key unpressed until released and pressed again
 void forceReleaseKey(int key);
 
-void inputUpdateVBlank();
+void inputUpdate();
 
 int system_getMotionSensorX();
 int system_getMotionSensorY();

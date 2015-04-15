@@ -21,7 +21,6 @@ int main(int argc, char* argv[])
     fs_init();
     mgr_init();
 
-	initInput();
     setMenuDefaults();
     readConfigFile();
 

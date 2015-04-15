@@ -2,17 +2,17 @@
 #include <stdlib.h>
 #include <vector>
 #include <string.h>
-#include <stdlib.h>
 #include "io.h"
 #include "config.h"
 #include "inputhelper.h"
 #include "gbgfx.h"
 #include "menu.h"
-#include "console.h"
 #include "filechooser.h"
 #include "gameboy.h"
 #include "cheats.h"
 #include "romfile.h"
+
+#include <ctrcommon/input.hpp>
 
 #define INI_PATH "/gameyob.ini"
 
@@ -112,8 +112,6 @@ void writeConfigFile() {
 
 // Keys: 3DS specific code
 
-#include <3ds.h>
-
 const char* gbKeyNames[] = {
         "-",
         "A",
@@ -180,38 +178,38 @@ struct KeyConfig {
 KeyConfig defaultKeyConfig = {
     "Main",
     {
-            FUNC_KEY_A,            // 0 = KEY_A
-            FUNC_KEY_B,            // 1 = KEY_B
-            FUNC_KEY_SELECT,       // 2 = KEY_SELECT
-            FUNC_KEY_START,        // 3 = KEY_START
-            FUNC_KEY_RIGHT,        // 4 = KEY_DRIGHT
-            FUNC_KEY_LEFT,         // 5 = KEY_DLEFT
-            FUNC_KEY_UP,           // 6 = KEY_DUP
-            FUNC_KEY_DOWN,         // 7 = KEY_DDOWN
-            FUNC_KEY_MENU,         // 8 = KEY_R
-            FUNC_KEY_FAST_FORWARD, // 9 = KEY_L
-            FUNC_KEY_START,        // 10 = KEY_X
-            FUNC_KEY_SELECT,       // 11 = KEY_Y
-            FUNC_KEY_NONE,         // 12 = KEY_NONE
-            FUNC_KEY_NONE,         // 13 = KEY_NONE
-            FUNC_KEY_NONE,         // 14 = KEY_ZL
-            FUNC_KEY_NONE,         // 15 = KEY_ZR
-            FUNC_KEY_NONE,         // 16 = KEY_NONE
-            FUNC_KEY_NONE,         // 17 = KEY_NONE
-            FUNC_KEY_NONE,         // 18 = KEY_NONE
-            FUNC_KEY_NONE,         // 19 = KEY_NONE
-            FUNC_KEY_NONE,         // 20 = KEY_TOUCH
-            FUNC_KEY_NONE,         // 21 = KEY_NONE
-            FUNC_KEY_NONE,         // 22 = KEY_NONE
-            FUNC_KEY_NONE,         // 23 = KEY_NONE
-            FUNC_KEY_RIGHT,        // 24 = KEY_CSTICK_RIGHT
-            FUNC_KEY_LEFT,         // 25 = KEY_CSTICK_LEFT
-            FUNC_KEY_UP,           // 26 = KEY_CSTICK_UP
-            FUNC_KEY_DOWN,         // 27 = KEY_CSTICK_DOWN
-            FUNC_KEY_RIGHT,        // 28 = KEY_CPAD_RIGHT
-            FUNC_KEY_LEFT,         // 29 = KEY_CPAD_LEFT
-            FUNC_KEY_UP,           // 30 = KEY_CPAD_UP
-            FUNC_KEY_DOWN          // 31 = KEY_CPAD_DOWN
+            FUNC_KEY_A,            // 0 = BUTTON_A
+            FUNC_KEY_B,            // 1 = BUTTON_B
+            FUNC_KEY_SELECT,       // 2 = BUTTON_SELECT
+            FUNC_KEY_START,        // 3 = BUTTON_START
+            FUNC_KEY_RIGHT,        // 4 = BUTTON_DRIGHT
+            FUNC_KEY_LEFT,         // 5 = BUTTON_DLEFT
+            FUNC_KEY_UP,           // 6 = BUTTON_DUP
+            FUNC_KEY_DOWN,         // 7 = BUTTON_DDOWN
+            FUNC_KEY_MENU,         // 8 = BUTTON_R
+            FUNC_KEY_FAST_FORWARD, // 9 = BUTTON_L
+            FUNC_KEY_START,        // 10 = BUTTON_X
+            FUNC_KEY_SELECT,       // 11 = BUTTON_Y
+            FUNC_KEY_NONE,         // 12 = BUTTON_NONE
+            FUNC_KEY_NONE,         // 13 = BUTTON_NONE
+            FUNC_KEY_NONE,         // 14 = BUTTON_ZL
+            FUNC_KEY_NONE,         // 15 = BUTTON_ZR
+            FUNC_KEY_NONE,         // 16 = BUTTON_NONE
+            FUNC_KEY_NONE,         // 17 = BUTTON_NONE
+            FUNC_KEY_NONE,         // 18 = BUTTON_NONE
+            FUNC_KEY_NONE,         // 19 = BUTTON_NONE
+            FUNC_KEY_NONE,         // 20 = BUTTON_TOUCH
+            FUNC_KEY_NONE,         // 21 = BUTTON_NONE
+            FUNC_KEY_NONE,         // 22 = BUTTON_NONE
+            FUNC_KEY_NONE,         // 23 = BUTTON_NONE
+            FUNC_KEY_RIGHT,        // 24 = BUTTON_CSTICK_RIGHT
+            FUNC_KEY_LEFT,         // 25 = BUTTON_CSTICK_LEFT
+            FUNC_KEY_UP,           // 26 = BUTTON_CSTICK_UP
+            FUNC_KEY_DOWN,         // 27 = BUTTON_CSTICK_DOWN
+            FUNC_KEY_RIGHT,        // 28 = BUTTON_CPAD_RIGHT
+            FUNC_KEY_LEFT,         // 29 = BUTTON_CPAD_LEFT
+            FUNC_KEY_UP,           // 30 = BUTTON_CPAD_UP
+            FUNC_KEY_DOWN          // 31 = BUTTON_CPAD_DOWN
     }
 };
 
@@ -220,9 +218,11 @@ unsigned int selectedKeyConfig=0;
 
 void loadKeyConfig() {
     KeyConfig* keyConfig = &keyConfigs[selectedKeyConfig];
-    for (int i=0; i<NUM_FUNC_KEYS; i++)
-        keyMapping[i] = 0;
-    for (int i=0; i<NUM_BINDABLE_BUTTONS; i++) {
+    for(int i = 0; i < NUM_FUNC_KEYS; i++) {
+        keyMapping[i] = BUTTON_NONE;
+    }
+
+    for(int i = 0; i < NUM_BINDABLE_BUTTONS; i++) {
         keyMapping[keyConfig->funcKeys[i]] |= BIT(i);
     }
 }
@@ -339,11 +339,11 @@ void updateKeyConfigChooser() {
     int& option = keyConfigChooser_option;
     KeyConfig* config = &keyConfigs[selectedKeyConfig];
 
-    if (keyJustPressed(KEY_B)) {
+    if (keyJustPressed(BUTTON_B)) {
         loadKeyConfig();
         closeSubMenu();
     }
-    else if (keyJustPressed(KEY_X)) {
+    else if (keyJustPressed(BUTTON_X)) {
         keyConfigs.push_back(KeyConfig(*config));
         selectedKeyConfig = keyConfigs.size()-1;
         char name[32];
@@ -352,7 +352,7 @@ void updateKeyConfigChooser() {
         option = -1;
         redraw = true;
     }
-    else if (keyJustPressed(KEY_Y)) {
+    else if (keyJustPressed(BUTTON_Y)) {
         if (selectedKeyConfig != 0) /* can't erase the default */ {
             keyConfigs.erase(keyConfigs.begin() + selectedKeyConfig);
             if (selectedKeyConfig >= keyConfigs.size())
@@ -360,7 +360,7 @@ void updateKeyConfigChooser() {
             redraw = true;
         }
     }
-    else if (keyPressedAutoRepeat(KEY_DOWN)) {
+    else if (keyPressedAutoRepeat(BUTTON_DOWN)) {
         if (option == NUM_BINDABLE_BUTTONS-1)
             option = -1;
         else if(option == 11) //Skip nonexistant keys
@@ -371,7 +371,7 @@ void updateKeyConfigChooser() {
             option++;
         redraw = true;
     }
-    else if (keyPressedAutoRepeat(KEY_UP)) {
+    else if (keyPressedAutoRepeat(BUTTON_UP)) {
         if (option == -1)
             option = NUM_BINDABLE_BUTTONS-1;
         else if(option == 14) //Skip nonexistant keys
@@ -382,7 +382,7 @@ void updateKeyConfigChooser() {
             option--;
         redraw = true;
     }
-    else if (keyPressedAutoRepeat(KEY_LEFT)) {
+    else if (keyPressedAutoRepeat(BUTTON_LEFT)) {
         if (option == -1) {
             if (selectedKeyConfig == 0)
                 selectedKeyConfig = keyConfigs.size()-1;
@@ -396,7 +396,7 @@ void updateKeyConfigChooser() {
         }
         redraw = true;
     }
-    else if (keyPressedAutoRepeat(KEY_RIGHT)) {
+    else if (keyPressedAutoRepeat(BUTTON_RIGHT)) {
         if (option == -1) {
             selectedKeyConfig++;
             if (selectedKeyConfig >= keyConfigs.size())
@@ -426,25 +426,25 @@ int mapFuncKey(int funcKey) {
 int mapMenuKey(int menuKey) {
     switch (menuKey) {
         case MENU_KEY_A:
-            return KEY_A;
+            return BUTTON_A;
         case MENU_KEY_B:
-            return KEY_B;
+            return BUTTON_B;
         case MENU_KEY_LEFT:
-            return KEY_LEFT;
+            return BUTTON_LEFT;
         case MENU_KEY_RIGHT:
-            return KEY_RIGHT;
+            return BUTTON_RIGHT;
         case MENU_KEY_UP:
-            return KEY_UP;
+            return BUTTON_UP;
         case MENU_KEY_DOWN:
-            return KEY_DOWN;
+            return BUTTON_DOWN;
         case MENU_KEY_R:
-            return KEY_R;
+            return BUTTON_R;
         case MENU_KEY_L:
-            return KEY_L;
+            return BUTTON_L;
         case MENU_KEY_X:
-            return KEY_X;
+            return BUTTON_X;
         case MENU_KEY_Y:
-            return KEY_Y;
+            return BUTTON_Y;
     }
     return 0;
 }

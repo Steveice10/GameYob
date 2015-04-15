@@ -300,10 +300,7 @@ void Gameboy::gameboyCheckInput() {
         autoFireCounterB--;
     }
 
-#ifndef DS
     controllers[0] = buttonsPressed;
-#endif
-
 
     if (keyJustPressed(mapFuncKey(FUNC_KEY_SAVE))) {
         if (!autoSavingEnabled) {
@@ -315,11 +312,7 @@ void Gameboy::gameboyCheckInput() {
     if (keyJustPressed(mapFuncKey(FUNC_KEY_FAST_FORWARD_TOGGLE)))
         fastForwardMode = !fastForwardMode;
 
-    if (keyJustPressed(mapFuncKey(FUNC_KEY_MENU) | mapFuncKey(FUNC_KEY_MENU_PAUSE)
-#if defined(DS) || defined(_3DS)
-                | KEY_TOUCH
-#endif
-                )) {
+    if (keyJustPressed(mapFuncKey(FUNC_KEY_MENU) | mapFuncKey(FUNC_KEY_MENU_PAUSE) | KEY_TOUCH)) {
         if (singleScreenMode || keyJustPressed(mapFuncKey(FUNC_KEY_MENU_PAUSE)))
             pause();
 
@@ -330,17 +323,8 @@ void Gameboy::gameboyCheckInput() {
     }
 
     if (keyJustPressed(mapFuncKey(FUNC_KEY_SCALE))) {
-        setMenuOption("Scaling", !getMenuOption("Scaling"));
+        setMenuOption("Scaling", (getMenuOption("Scaling") + 1) % 3);
     }
-
-#ifdef DS
-    if (fastForwardKey || fastForwardMode) {
-        sharedData->hyperSound = false;
-    }
-    else {
-        sharedData->hyperSound = hyperSound;
-    }
-#endif
 
     if (keyJustPressed(mapFuncKey(FUNC_KEY_RESET)))
         resetGameboy();

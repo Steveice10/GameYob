@@ -199,7 +199,7 @@ void mgr_updateVBlank() {
     if (gameboy && !gameboy->isGameboyPaused())
         gameboy->getSoundEngine()->soundUpdateVBlank();
 
-    inputUpdateVBlank();
+    inputUpdate();
 
     buttonsPressed = 0xff;
     if (isMenuOn())
