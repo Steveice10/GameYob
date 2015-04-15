@@ -26,6 +26,8 @@ void initGPU() {
 
     gpuCreateVbo(&dispVbo);
     gpuVboAttributes(dispVbo, ATTRIBUTE(0, 3, ATTR_FLOAT) | ATTRIBUTE(1, 2, ATTR_FLOAT), 2);
+
+    gpuClear();
 }
 
 void deinitGPU() {
