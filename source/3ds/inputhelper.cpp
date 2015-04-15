@@ -98,6 +98,7 @@ void system_cleanup() {
     mgr_save();
     mgr_exit();
 
+    consoleCleanup();
     gfxCleanup();
     platformCleanup();
 }

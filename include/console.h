@@ -5,6 +5,7 @@
 extern volatile int consoleSelectedRow; // This line is given a different backdrop
 
 void consoleInitScreens();
+void consoleCleanup();
 
 void clearConsole();
 int consoleGetWidth();

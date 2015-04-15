@@ -26,6 +26,11 @@ void consoleInitScreens() {
     currConsole = GFX_BOTTOM;
 }
 
+void consoleCleanup() {
+    free(topConsole);
+    free(bottomConsole);
+}
+
 int consoleGetWidth() {
     PrintConsole* console = !gameScreen == 0 ? topConsole : bottomConsole;
     return console->consoleWidth;
