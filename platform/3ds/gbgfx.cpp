@@ -63,7 +63,7 @@ u32 bgPixelsTrueLow[256];
 bool bgPalettesModified[8];
 bool sprPalettesModified[8];
 
-static u8 screenBuffer[256 * 256 * 3];
+static u8* screenBuffer = (u8*) linearMemAlign(256 * 256 * 3, 0x80);
 
 // Private functions
 void drawSprite(int scanline, int spriteNum);
