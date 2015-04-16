@@ -485,53 +485,53 @@ int Gameboy::runEmul() {
 
 void Gameboy::initGFXPalette() {
     memset(bgPaletteData, 0xff, 0x40);
-    const unsigned short* palette;
-    switch(gbColorize) {
-        case 0:
-            palette = findGbcDirPal("GBC - Grayscale");
-            break;
-        case 1:
-            palette = gameboy->getRomFile()->gbPalette;
-            break;
-        case 2:
-            palette = findGbcDirPal("GBC - Inverted");
-            break;
-        case 3:
-            palette = findGbcDirPal("GBC - Pastel Mix");
-            break;
-        case 4:
-            palette = findGbcDirPal("GBC - Red");
-            break;
-        case 5:
-            palette = findGbcDirPal("GBC - Orange");
-            break;
-        case 6:
-            palette = findGbcDirPal("GBC - Yellow");
-            break;
-        case 7:
-            palette = findGbcDirPal("GBC - Green");
-            break;
-        case 8:
-            palette = findGbcDirPal("GBC - Blue");
-            break;
-        case 9:
-            palette = findGbcDirPal("GBC - Brown");
-            break;
-        case 10:
-            palette = findGbcDirPal("GBC - Dark Green");
-            break;
-        case 11:
-            palette = findGbcDirPal("GBC - Dark Blue");
-            break;
-        case 12:
-            palette = findGbcDirPal("GBC - Dark Brown");
-            break;
-        default:
-            palette = gameboy->getRomFile()->gbPalette;
-            break;
-    }
-
     if(gbMode == GB) {
+        const unsigned short* palette;
+        switch(gbColorize) {
+            case 0:
+                palette = findGbcDirPal("GBC - Grayscale");
+                break;
+            case 1:
+                palette = gameboy->getRomFile()->gbPalette;
+                break;
+            case 2:
+                palette = findGbcDirPal("GBC - Inverted");
+                break;
+            case 3:
+                palette = findGbcDirPal("GBC - Pastel Mix");
+                break;
+            case 4:
+                palette = findGbcDirPal("GBC - Red");
+                break;
+            case 5:
+                palette = findGbcDirPal("GBC - Orange");
+                break;
+            case 6:
+                palette = findGbcDirPal("GBC - Yellow");
+                break;
+            case 7:
+                palette = findGbcDirPal("GBC - Green");
+                break;
+            case 8:
+                palette = findGbcDirPal("GBC - Blue");
+                break;
+            case 9:
+                palette = findGbcDirPal("GBC - Brown");
+                break;
+            case 10:
+                palette = findGbcDirPal("GBC - Dark Green");
+                break;
+            case 11:
+                palette = findGbcDirPal("GBC - Dark Blue");
+                break;
+            case 12:
+                palette = findGbcDirPal("GBC - Dark Brown");
+                break;
+            default:
+                palette = gameboy->getRomFile()->gbPalette;
+                break;
+        }
+
         memcpy(bgPaletteData, palette, 4 * sizeof(u16));
         memcpy(sprPaletteData, palette + 4, 8 * sizeof(u16));
     }
