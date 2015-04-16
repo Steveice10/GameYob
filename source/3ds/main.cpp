@@ -1,9 +1,10 @@
 #include <stdio.h>
 
 #include "console.h"
-#include "inputhelper.h"
-#include "menu.h"
 #include "gbmanager.h"
+#include "inputhelper.h"
+#include "gfx.h"
+#include "menu.h"
 
 #include <ctrcommon/platform.hpp>
 
@@ -13,19 +14,16 @@ int main(int argc, char* argv[]) {
     }
 
     gfxInit();
-
     consoleInitScreens();
 
     mgr_init();
-
     setMenuDefaults();
     readConfigFile();
 
     printf("GameYob 3DS\n\n");
 
     mgr_selectRom();
-
-    while(1) {
+    while(true) {
         mgr_runFrame();
         mgr_updateVBlank();
     }

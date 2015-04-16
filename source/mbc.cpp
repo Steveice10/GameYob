@@ -37,13 +37,13 @@ u8 Gameboy::m7r(u16 addr) {
         case 0xa070:
             return 0;
         case 0xa020:
-            return system_getMotionSensorX() & 0xff;
+            return inputGetMotionSensorX() & 0xff;
         case 0xa030:
-            return system_getMotionSensorX() >> 8;
+            return inputGetMotionSensorX() >> 8;
         case 0xa040:
-            return system_getMotionSensorY() & 0xff;
+            return inputGetMotionSensorY() & 0xff;
         case 0xa050:
-            return system_getMotionSensorY() >> 8;
+            return inputGetMotionSensorY() >> 8;
             /*
         case 0xa080:
             return mbc7RA | 0x7e;

@@ -1,7 +1,7 @@
-#include <3ds.h>
-
 #include "gbgfx.h"
 #include "inputhelper.h"
+
+#include <3ds.h>
 
 #include <ctrcommon/gpu.hpp>
 
@@ -9,6 +9,8 @@
 
 int prevScaleMode = -1;
 int prevGameScreen = -1;
+
+bool fastForward = false;
 
 u32 shader = 0;
 u32 texture = 0;
@@ -51,6 +53,14 @@ void gfxCleanup() {
         gpuFreeVbo(vbo);
         vbo = 0;
     }
+}
+
+void gfxToggleFastForward() {
+    fastForward = !fastForward;
+}
+
+void gfxSetFastForward(bool fastforward) {
+    fastForward = fastforward;
 }
 
 void gfxDrawScreen(u8* screenBuffer, int scaleMode, int gameScreen) {
@@ -112,7 +122,7 @@ void gfxDrawScreen(u8* screenBuffer, int scaleMode, int gameScreen) {
     gpuFlush();
 
     // Swap buffers and wait for VBlank.
-    gpuSwapBuffers(!(fastForwardMode || fastForwardKey));
+    gpuSwapBuffers(!(fastForward || keyPressed(mapFuncKey(FUNC_KEY_FAST_FORWARD))));
 }
 
 void gfxFlush() {

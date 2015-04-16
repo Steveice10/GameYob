@@ -21,13 +21,9 @@
 #define MOTION_SENSOR_MAX 2197
 #define MOTION_SENSOR_MIN 1897
 */
-#define MOTION_SENSOR_RANGE 256
+//#define MOTION_SENSOR_RANGE 256
+#define MOTION_SENSOR_RANGE 128
 #define MOTION_SENSOR_MID 0
-
-
-extern bool fastForwardMode; // controlled by the toggle hotkey
-extern bool fastForwardKey;  // only while its hotkey is pressed
-extern u8 buttonsPressed;
 
 extern char borderPath[256];
 
@@ -41,9 +37,8 @@ void forceReleaseKey(int key);
 
 void inputUpdate();
 
-int system_getMotionSensorX();
-int system_getMotionSensorY();
+int inputGetMotionSensorX();
+int inputGetMotionSensorY();
 
-void system_checkPolls();
-void system_waitForVBlank();
-void system_cleanup();
+void systemCheckPolls();
+void systemCleanup();

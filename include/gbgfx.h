@@ -16,7 +16,6 @@ extern volatile int loadedBorderType;
 extern bool customBorderExists;
 extern bool sgbBorderLoaded;
 
-
 void doAtVBlank(void (* func)(void));
 
 void initGFX();

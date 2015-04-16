@@ -5,9 +5,10 @@
 #include <string>
 #include <vector>
 
-#include "filechooser.h"
-#include "inputhelper.h"
 #include "console.h"
+#include "filechooser.h"
+#include "gfx.h"
+#include "inputhelper.h"
 
 #include <ctrcommon/fs.hpp>
 
@@ -218,11 +219,6 @@ char* startFileChooser(const char* extensions[], bool romExtensions, bool canQui
     fileChooserOn = true;
     updateScreens(); // Screen may need to be enabled
 
-    /*
-#ifdef _3DS
-    consoleSetScreen(GFX_TOP);
-#endif
-*/
     int numExtensions = sizeof(extensions) / sizeof(const char*);
     char* retval;
     char buffer[256];
@@ -233,13 +229,11 @@ char* startFileChooser(const char* extensions[], bool romExtensions, bool canQui
         std::vector<string> filenames;
         std::vector<int> flags;
         std::vector<string> unmatchedStates;
-#ifdef _3DS
         if(currDirectory.compare("/") != 0) {
             filenames.push_back(string(".."));
             flags.push_back(FLAG_DIRECTORY);
             numFiles++;
         }
-#endif
 
         DIR* dir = opendir(currDirectory.c_str());
         if(dir != NULL) {
@@ -384,12 +378,12 @@ char* startFileChooser(const char* extensions[], bool romExtensions, bool canQui
             }
 
             gfxFlush();
-            system_waitForVBlank();
+            gfxWaitForVBlank();
 
             // Wait for input
             while(true) {
-                system_checkPolls();
-                system_waitForVBlank();
+                systemCheckPolls();
+                gfxWaitForVBlank();
                 inputUpdate();
 
                 if(keyJustPressed(mapMenuKey(MENU_KEY_A))) {
@@ -400,8 +394,7 @@ char* startFileChooser(const char* extensions[], bool romExtensions, bool canQui
                         readDirectory = true;
                         fileSelection = 1;
                         break;
-                    }
-                    else {
+                    } else {
                         // Copy the result to a new allocation, as the
                         // filename would become unavailable when freed.
                         retval = (char*) malloc(
@@ -410,8 +403,7 @@ char* startFileChooser(const char* extensions[], bool romExtensions, bool canQui
                         strcpy(retval + (currDirectory.length() * sizeof(char)), filenames[fileSelection].c_str());
                         goto end;
                     }
-                }
-                else if(keyJustPressed(mapMenuKey(MENU_KEY_B))) {
+                } else if(keyJustPressed(mapMenuKey(MENU_KEY_B))) {
                     lowerDirectory:
                     // Select this directory when going up
                     std::string currDir = currDirectory;
@@ -427,32 +419,27 @@ char* startFileChooser(const char* extensions[], bool romExtensions, bool canQui
                     //chdir("..");
                     readDirectory = true;
                     break;
-                }
-                else if(keyPressedAutoRepeat(mapMenuKey(MENU_KEY_UP))) {
+                } else if(keyPressedAutoRepeat(mapMenuKey(MENU_KEY_UP))) {
                     if(fileSelection > 0) {
                         fileSelection--;
                         updateScrollUp();
                         break;
                     }
-                }
-                else if(keyPressedAutoRepeat(mapMenuKey(MENU_KEY_DOWN))) {
+                } else if(keyPressedAutoRepeat(mapMenuKey(MENU_KEY_DOWN))) {
                     if(fileSelection < numFiles - 1) {
                         fileSelection++;
                         updateScrollDown();
                         break;
                     }
-                }
-                else if(keyPressedAutoRepeat(mapMenuKey(MENU_KEY_RIGHT))) {
+                } else if(keyPressedAutoRepeat(mapMenuKey(MENU_KEY_RIGHT))) {
                     fileSelection += filesPerPage / 2;
                     updateScrollDown();
                     break;
-                }
-                else if(keyPressedAutoRepeat(mapMenuKey(MENU_KEY_LEFT))) {
+                } else if(keyPressedAutoRepeat(mapMenuKey(MENU_KEY_LEFT))) {
                     fileSelection -= filesPerPage / 2;
                     updateScrollUp();
                     break;
-                }
-                else if(keyJustPressed(mapMenuKey(MENU_KEY_Y))) {
+                } else if(keyJustPressed(mapMenuKey(MENU_KEY_Y))) {
                     if(canQuit) {
                         retval = NULL;
                         goto end;

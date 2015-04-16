@@ -4,11 +4,15 @@
  * Needs white screen on LCD disable
  */
 
-#include <3ds.h>
-#include <string.h>
 #include "gbgfx.h"
+
+#include <string.h>
+
 #include "gameboy.h"
+#include "gfx.h"
 #include "menu.h"
+
+#include <ctrcommon/gpu.hpp>
 
 #define RGB24(r, g, b) ((r) << 16 | (g) << 8 | (b))
 
@@ -61,7 +65,7 @@ u32 bgPixelsTrueLow[256];
 bool bgPalettesModified[8];
 bool sprPalettesModified[8];
 
-static u8* screenBuffer = (u8*) linearMemAlign(256 * 256 * 3, 0x80);
+static u8* screenBuffer = (u8*) gpuAlloc(256 * 256 * 3);
 
 // Private functions
 void drawSprite(int scanline, int spriteNum);
@@ -424,14 +428,7 @@ int loadBorder(const char* filename) {
 void checkBorder() {
     if(lastGameScreen != gameScreen) {
         lastGameScreen = gameScreen;
-        u8** buffers;
-        if(gameScreen == 0)
-            buffers = gfxTopLeftFramebuffers;
-        else
-            buffers = gfxBottomFramebuffers;
-        for(int fb = 0; fb < 2; fb++) {
-            memset(buffers[fb], 0, gameScreen == 0 ? (400 * 240 * 3) : (320 * 240 * 3));
-        }
+        screenClearBuffers(gameScreen == 0 ? TOP_SCREEN : BOTTOM_SCREEN, 0, 0, 0);
     }
 }
 

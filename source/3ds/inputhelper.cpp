@@ -9,13 +9,7 @@
 #include <ctrcommon/platform.hpp>
 
 u32 keysForceReleased = 0;
-u32 repeatStartTimer = 0;
-int repeatTimer = 0;
-
-u8 buttonsPressed;
-
-bool fastForwardMode = false; // controlled by the toggle hotkey
-bool fastForwardKey = false;  // only while its hotkey is pressed
+u64 nextRepeat = 0;
 
 void flushFatCache() {
 }
@@ -30,13 +24,15 @@ bool keyJustPressed(int key) {
 
 bool keyPressedAutoRepeat(int key) {
     if(keyJustPressed(key)) {
-        repeatStartTimer = 14;
+        nextRepeat = platformGetTime() + 250;
         return true;
     }
-    if(keyPressed(key) && repeatStartTimer == 0 && repeatTimer == 0) {
-        repeatTimer = 2;
+
+    if(keyPressed(key) && platformGetTime() >= nextRepeat) {
+        nextRepeat = platformGetTime() + 50;
         return true;
     }
+
     return false;
 }
 
@@ -51,36 +47,28 @@ void inputUpdate() {
             keysForceReleased &= ~(1 << i);
         }
     }
-
-    if(repeatTimer > 0) {
-        repeatTimer--;
-    }
-
-    if(repeatStartTimer > 0) {
-        repeatStartTimer--;
-    }
 }
 
-int system_getMotionSensorX() {
-    return 0;
+int inputGetMotionSensorX() {
+    int px = keyPressed(BUTTON_TOUCH) ? inputGetTouch().x : 128;
+    double val = (128 - px) * ((double) MOTION_SENSOR_RANGE / 256) + MOTION_SENSOR_MID;
+    return (int) val + 0x8000;
 }
 
-int system_getMotionSensorY() {
-    return 0;
+int inputGetMotionSensorY() {
+    int py = keyPressed(BUTTON_TOUCH) ? inputGetTouch().y : 96;
+    double val = (96 - py) * ((double) MOTION_SENSOR_RANGE / 192) + MOTION_SENSOR_MID - 80;
+    return (int) val;
 }
 
-void system_checkPolls() {
+void systemCheckPolls() {
     if(!platformIsRunning()) {
-        system_cleanup();
+        systemCleanup();
         exit(0);
     }
 }
 
-void system_waitForVBlank() {
-    gfxWaitForVBlank();
-}
-
-void system_cleanup() {
+void systemCleanup() {
     mgr_save();
     mgr_exit();
 

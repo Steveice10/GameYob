@@ -111,7 +111,7 @@ void consoleOutputFunc(int value) {
 }
 
 void returnToLauncherFunc(int value) {
-    system_cleanup();
+    systemCleanup();
     exit(0);
 }
 

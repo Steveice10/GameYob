@@ -16,6 +16,7 @@
 
 #include <ctrcommon/fs.hpp>
 #include <ctrcommon/input.hpp>
+#include <gfx.h>
 
 const int maxWaitCycles = 1000000;
 
@@ -26,9 +27,6 @@ Gameboy::Gameboy() : hram(highram + 0xe00), ioRam(highram + 0xf00) {
 
     fpsOutput = true;
     timeOutput = true;
-
-    fastForwardMode = false;
-    fastForwardKey = false;
 
     cyclesSinceVBlank = 0;
     probingForBorder = false;
@@ -230,7 +228,7 @@ void Gameboy::initGameboyMode() {
 void Gameboy::gameboyCheckInput() {
     static int autoFireCounterA = 0, autoFireCounterB = 0;
 
-    buttonsPressed = 0xff;
+    u8 buttonsPressed = 0xff;
 
     if(probingForBorder)
         return;
@@ -303,17 +301,16 @@ void Gameboy::gameboyCheckInput() {
         }
     }
 
-    fastForwardKey = keyPressed(mapFuncKey(FUNC_KEY_FAST_FORWARD));
-    if(keyJustPressed(mapFuncKey(FUNC_KEY_FAST_FORWARD_TOGGLE)))
-        fastForwardMode = !fastForwardMode;
+    if(keyJustPressed(mapFuncKey(FUNC_KEY_FAST_FORWARD_TOGGLE))) {
+        gfxToggleFastForward();
+    }
 
     if(keyJustPressed(mapFuncKey(FUNC_KEY_MENU) | mapFuncKey(FUNC_KEY_MENU_PAUSE) | BUTTON_TOUCH)) {
         if(singleScreenMode || keyJustPressed(mapFuncKey(FUNC_KEY_MENU_PAUSE)))
             pause();
 
         forceReleaseKey(0xffffffff);
-        fastForwardKey = false;
-        fastForwardMode = false;
+        gfxSetFastForward(false);
         displayMenu();
     }
 
