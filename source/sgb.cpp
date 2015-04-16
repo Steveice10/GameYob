@@ -1,9 +1,8 @@
 #include <stdlib.h>
 #include <string.h>
-#include "gameboy.h"
+
 #include "console.h"
-#include "mmu.h"
-#include "gbgfx.h"
+#include "gameboy.h"
 
 #define sgbPalettes (vram[1])
 #define sgbAttrFiles (vram[1]+0x1000)

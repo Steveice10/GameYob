@@ -1,5 +1,7 @@
 #pragma once
 
+#include <ctrcommon/types.hpp>
+
 extern volatile int linkReceivedData;
 extern volatile int linkSendData;
 extern volatile bool transferWaiting;

@@ -1,11 +1,11 @@
 #include <stdio.h>
-#include <3ds.h>
-#include <3ds/3dsgfx.h>
 #include <malloc.h>
+
 #include "console.h"
-#include "menu.h"
 #include "gbgfx.h"
-#include "inputhelper.h"
+#include "menu.h"
+
+#include <3ds.h>
 
 gfxScreen_t currConsole;
 

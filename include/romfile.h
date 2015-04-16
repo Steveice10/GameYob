@@ -1,10 +1,9 @@
 #pragma once
-#ifdef DS
-#include <nds.h>
-#endif
 
 #include <stdio.h>
 #include <vector>
+
+#include <ctrcommon/types.hpp>
 
 #define MAX_ROM_BANKS   0x200
 

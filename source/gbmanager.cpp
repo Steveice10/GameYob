@@ -1,15 +1,13 @@
 #include <stdlib.h>
+
 #include "gbmanager.h"
 #include "inputhelper.h"
 #include "gameboy.h"
-#include "nifi.h"
 #include "gbs.h"
 #include "menu.h"
 #include "romfile.h"
 #include "filechooser.h"
 #include "soundengine.h"
-#include "error.h"
-#include "timer.h"
 
 Gameboy* gameboy = NULL;
 Gameboy* gb2 = NULL;
@@ -37,7 +35,7 @@ void mgr_init() {
 void mgr_runFrame() {
     int ret1=0,ret2=0;
 
-    bool paused;
+    bool paused = false;
     while (!paused && !((ret1 & RET_VBLANK) && (ret2 & RET_VBLANK))) {
         paused = false;
         if (gbUno && gbUno->isGameboyPaused())
@@ -174,7 +172,12 @@ void mgr_selectRom() {
     saveFileChooserState(&romChooserState);
 
     if (filename == NULL) {
-        fatalerr("Filechooser error");
+        printf("Filechooser error");
+        printf("\n\nPlease restart GameYob.\n");
+        while(true) {
+            system_checkPolls();
+            system_waitForVBlank();
+        }
     }
 
     mgr_loadRom(filename);
@@ -217,46 +220,17 @@ void mgr_updateVBlank() {
     REG_IME = oldIME;
 #endif
 
-#ifndef DS
-    rawTime = getTime();
-#endif
-
-#ifndef SDL
+    time(&rawTime);
     fps++;
-
-    if (!isMenuOn() && !consoleDebugOutput && (rawTime > lastRawTime))
-    {
-        int line=0;
-        if (fpsOutput) {
+    if(!isMenuOn() && !consoleDebugOutput && rawTime > lastRawTime) {
+        if(fpsOutput) {
             clearConsole();
             iprintf("FPS: %d\n", fps);
-            line++;
         }
-        fps = 0;
-#ifdef DS
-        if (timeOutput) {
-            for (; line<23-1; line++)
-                iprintf("\n");
-            char *timeString = ctime(&rawTime);
-            for (int i=0;; i++) {
-                if (timeString[i] == ':') {
-                    timeString += i-2;
-                    break;
-                }
-            }
-            char s[50];
-            strncpy(s, timeString, 50);
-            s[5] = '\0';
-            int spaces = 31-strlen(s);
-            for (int i=0; i<spaces; i++)
-                iprintf(" ");
 
-            iprintf("%s\n", s);
-        }
-#endif
+        fps = 0;
         lastRawTime = rawTime;
     }
-#endif
 }
 
 void mgr_exit() {

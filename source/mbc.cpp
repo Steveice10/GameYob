@@ -1,10 +1,9 @@
-#include "gameboy.h"
 #include "console.h"
+#include "gameboy.h"
+#include "gbmanager.h"
 #include "inputhelper.h"
 #include "menu.h"
 #include "romfile.h"
-#include "timer.h"
-
 
 /* MBC read handlers */
 

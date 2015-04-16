@@ -3,7 +3,7 @@
 #include "inputhelper.h"
 #include "console.h"
 #include "gbmanager.h"
-#include "3ds/3dsgfx.h"
+#include "gfx.h"
 
 #include <ctrcommon/input.hpp>
 #include <ctrcommon/platform.hpp>

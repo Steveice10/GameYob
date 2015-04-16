@@ -1,36 +1,22 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <gbcpalette.h>
-#include "main.h"
-#include "romfile.h"
-#include "gbs.h"
-#include "console.h"
-#include "inputhelper.h"
-#include "gameboy.h"
+#include <inputhelper.h>
+
 #include "cheats.h"
-#include "error.h"
+#include "console.h"
+#include "gameboy.h"
+#include "gbcpalette.h"
+#include "gbs.h"
 
 #ifdef EMBEDDED_ROM
 #include "rom_gb.h"
 #endif
 
-
-#ifdef DS
-extern bool __dsimode;
-#endif
-
 RomFile::RomFile(const char* f) {
 
     romFile=NULL;
-#ifdef DS
-        if (__dsimode)
-            maxLoadedRomBanks = 512; // 8 megabytes
-        else
-            maxLoadedRomBanks = 128; // 2 megabytes
-#else
-        maxLoadedRomBanks = 512;
-#endif
+    maxLoadedRomBanks = 512;
 
     strcpy(filename, f);
 
@@ -52,9 +38,14 @@ RomFile::RomFile(const char* f) {
     gbsMode = (strcasecmp(strrchr(filename, '.'), ".gbs") == 0);
 
     romFile = fopen(filename, "rb");
-    if (romFile == NULL)
-    {
-        fatalerr("Error opening %s.", filename);
+    if (romFile == NULL) {
+        printf("Error opening %s.", filename);
+        printf("\n\nPlease restart GameYob.\n");
+        while(true) {
+            system_checkPolls();
+            system_waitForVBlank();
+        }
+
         return;
     }
 

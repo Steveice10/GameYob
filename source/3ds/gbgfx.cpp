@@ -8,7 +8,7 @@
 #include <string.h>
 #include "gbgfx.h"
 #include "gameboy.h"
-#include "3ds/3dsgfx.h"
+#include "gfx.h"
 #include "menu.h"
 
 #define RGB24(r, g, b) ((r) << 16 | (g) << 8 | (b))
@@ -456,7 +456,7 @@ void checkBorder() {
         else
             buffers = gfxBottomFramebuffers;
         for (int fb=0; fb<2; fb++) {
-            memset(buffers[fb], 0, framebufferSizes[gameScreen]);
+            memset(buffers[fb], 0, gameScreen == 0 ? (400 * 240 * 3) : (320 * 240 * 3));
         }
     }
 }
@@ -476,10 +476,10 @@ void setSgbMask(int mask) {
 void setSgbTiles(u8* src, u8 flags) {
 
 }
+
 void setSgbMap(u8* src) {
 
 }
-
 
 void writeVram(u16 addr, u8 val) {
 }

@@ -1,9 +1,8 @@
-#include <3ds.h>
-
-#include <string.h>
-#include <stdlib.h>
-#include <stdio.h>
 #include <dirent.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
 #include "gbcpalette.h"
 #include "gbprinter.h"
 #include "gameboy.h"
@@ -17,6 +16,7 @@
 #include "gbmanager.h"
 
 #include <ctrcommon/fs.hpp>
+#include <ctrcommon/input.hpp>
 
 const int maxWaitCycles=1000000;
 
@@ -308,7 +308,7 @@ void Gameboy::gameboyCheckInput() {
     if (keyJustPressed(mapFuncKey(FUNC_KEY_FAST_FORWARD_TOGGLE)))
         fastForwardMode = !fastForwardMode;
 
-    if (keyJustPressed(mapFuncKey(FUNC_KEY_MENU) | mapFuncKey(FUNC_KEY_MENU_PAUSE) | KEY_TOUCH)) {
+    if (keyJustPressed(mapFuncKey(FUNC_KEY_MENU) | mapFuncKey(FUNC_KEY_MENU_PAUSE) | BUTTON_TOUCH)) {
         if (singleScreenMode || keyJustPressed(mapFuncKey(FUNC_KEY_MENU_PAUSE)))
             pause();
 

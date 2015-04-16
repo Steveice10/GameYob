@@ -2,14 +2,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "menu.h"
-#include "gbprinter.h"
-#include "inputhelper.h"
-#include "soundengine.h"
-#include "gameboy.h"
 #include "cheats.h"
-#include "gbs.h"
+#include "gameboy.h"
 #include "gbmanager.h"
+#include "gbprinter.h"
+#include "gbs.h"
+#include "inputhelper.h"
+#include "menu.h"
+#include "soundengine.h"
 
 const int MENU_NONE   = 1;
 const int MENU_3DS  = 2;
@@ -18,10 +18,7 @@ const int MENU_ALL = MENU_3DS;
 
 const int MENU_BITMASK = MENU_3DS;
 
-void printVersionInfo(); // Defined in version.cpp
-
 void subMenuGenericUpdateFunc(); // Private function here
-
 
 bool consoleDebugOutput = false;
 bool menuOn = false;
@@ -255,7 +252,8 @@ void romInfoFunc(int value) {
 
 void versionInfoFunc(int value) {
     displaySubMenu(subMenuGenericUpdateFunc);
-    printVersionInfo();
+    clearConsole();
+    printf("GameYob %s\n", VERSION_STRING);
 }
 
 void setChanEnabled(int chan, int value) {

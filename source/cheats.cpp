@@ -1,14 +1,12 @@
 #include <string.h>
 #include <algorithm>
 #include <sys/stat.h>
+
 #include "gameboy.h"
-#include "mmu.h"
 #include "console.h"
 #include "menu.h"
-#include "main.h"
 #include "cheats.h"
 #include "inputhelper.h"
-#include "gbgfx.h"
 #include "romfile.h"
 
 #define TO_INT(a) ( (a) >= 'a' ? (a) - 'a' + 10 : (a) >= 'A' ? (a) - 'A' + 10 : (a) - '0')

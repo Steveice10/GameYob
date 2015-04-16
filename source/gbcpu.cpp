@@ -1,16 +1,10 @@
-#ifndef DS
-#include <string.h>
-#endif
 #include <stddef.h>
 #include <stdio.h>
-#include "mmu.h"
+#include <string.h>
+
+#include "gameboy.h"
 #include "gbgfx.h"
 #include "soundengine.h"
-#include "gameboy.h"
-#include "main.h"
-#ifdef DS
-#include <nds.h>
-#endif
 
 #define FLAG_Z 0x80
 #define FLAG_N 0x40

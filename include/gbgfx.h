@@ -1,8 +1,6 @@
 #pragma once
 
-#ifdef DS
-#include <nds.h>
-#endif
+#include <ctrcommon/types.hpp>
 
 enum Icons {
     ICON_NULL=0,

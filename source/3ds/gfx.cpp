@@ -1,6 +1,6 @@
 #include <3ds.h>
 
-#include "3ds/3dsgfx.h"
+#include "gfx.h"
 #include "gbgfx.h"
 #include "inputhelper.h"
 
@@ -57,8 +57,8 @@ void gfxCleanup() {
 void gfxDrawScreen(u8 *screenBuffer, int scaleMode, int gameScreen) {
     // Update VBO data if the size has changed.
     if(prevScaleMode != scaleMode || prevGameScreen != gameScreen) {
-        u32 fbWidth = gameScreen == 0 ? TOP_SCREEN_WIDTH : BOTTOM_SCREEN_WIDTH;
-        u32 fbHeight = gameScreen == 0 ? TOP_SCREEN_HEIGHT : BOTTOM_SCREEN_HEIGHT;
+        u32 fbWidth = gameScreen == 0 ? 400 : 320;
+        u32 fbHeight = 240;
 
         if(prevGameScreen != gameScreen) {
             // Update the viewport.
@@ -113,6 +113,10 @@ void gfxDrawScreen(u8 *screenBuffer, int scaleMode, int gameScreen) {
 
     // Swap buffers and wait for VBlank.
     gpuSwapBuffers(!(fastForwardMode || fastForwardKey));
+}
+
+void gfxFlush() {
+    gfxFlushBuffers();
 }
 
 void gfxWaitForVBlank() {

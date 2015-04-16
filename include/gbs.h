@@ -1,3 +1,7 @@
+#pragma once
+
+#include <ctrcommon/types.hpp>
+
 extern bool gbsMode;
 extern u8 gbsHeader[0x70];
 

@@ -1,6 +1,9 @@
 #pragma once
+
 #include <stdio.h>
 #include "config.h"
+
+#include <ctrcommon/types.hpp>
 
 #define FAT_CACHE_SIZE 16
 

@@ -1,8 +1,10 @@
 #include <sys/stat.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <vector>
 #include <string.h>
+
+#include <vector>
+
 #include "config.h"
 #include "inputhelper.h"
 #include "gbgfx.h"
@@ -222,7 +224,7 @@ void loadKeyConfig() {
     KeyConfig* keyConfig = &keyConfigs[selectedKeyConfig];
     memset(keyMapping, 0, NUM_FUNC_KEYS * sizeof(int));
     for(int i = 0; i < NUM_BINDABLE_BUTTONS; i++) {
-        keyMapping[keyConfig->funcKeys[i]] |= BIT(i);
+        keyMapping[keyConfig->funcKeys[i]] |= (1 << i);
     }
 }
 

@@ -1,14 +1,16 @@
 #include <sys/dirent.h>
 #include <stdlib.h>
-#include <vector>
-#include <string>
 #include <string.h>
+
+#include <string>
+#include <vector>
+
 #include "filechooser.h"
 #include "inputhelper.h"
 #include "console.h"
 
-#include <3ds.h>
-#include "3ds/3dsgfx.h"
+#include "gfx.h"
+
 #include <ctrcommon/fs.hpp>
 
 #define FLAG_DIRECTORY  1
@@ -18,8 +20,8 @@
 using namespace std;
 
 // Public "states"
-FileChooserState romChooserState = {0,"/gb/"};
-FileChooserState borderChooserState = {0,"/"};
+FileChooserState romChooserState = {0, "/gb/"};
+FileChooserState borderChooserState = {0, "/"};
 
 // Private stuff
 int filesPerPage = 24;
@@ -208,11 +210,7 @@ template <class Data, class Metadata> void quickSort(std::vector<Data>& data, st
  * for free()ing it.
  */
 char* startFileChooser(const char* extensions[], bool romExtensions, bool canQuit) {
-#ifdef _3DS
-    filesPerPage = TOP_SCREEN_HEIGHT / 8;
-#else
-    filesPerPage = 24;
-#endif
+    filesPerPage = consoleGetHeight();
 
     filesPerPage--;
 
@@ -393,7 +391,7 @@ char* startFileChooser(const char* extensions[], bool romExtensions, bool canQui
                 iprintfColored(CONSOLE_COLOR_WHITE, "                Press Y to exit");
             }
 
-            gfxFlushBuffers();
+            gfxFlush();
             system_waitForVBlank();
 
             // Wait for input

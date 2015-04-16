@@ -1,10 +1,11 @@
+#pragma once
+
 class Gameboy;
 
 #define CHAN_1 1
 #define CHAN_2 2
 #define CHAN_3 4
 #define CHAN_4 8
-
 
 class SoundEngine {
     public:

@@ -1,9 +1,13 @@
 #pragma once
+
 #include <stdio.h>
 #include <vector>
 #include <stdarg.h>
+
 #include "time.h"
 #include "gbgfx.h"
+
+#include <ctrcommon/types.hpp>
 
 #define MAX_SRAM_SIZE   0x20000
 

@@ -1,7 +1,14 @@
+#pragma once
+
+#include <time.h>
+
 class Gameboy;
 
 extern Gameboy* gameboy;
 extern Gameboy* gb2;
+
+extern time_t rawTime;
+extern time_t lastRawTime;
 
 void mgr_init();
 void mgr_runFrame();

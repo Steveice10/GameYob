@@ -1,9 +1,10 @@
 #pragma once
+
 #include <vector>
 
-#ifdef DS
-#include <nds.h>
-#endif
+#include "romfile.h"
+
+#include <ctrcommon/types.hpp>
 
 class Gameboy;
 

@@ -1,4 +1,5 @@
 #pragma once
+
 #include "console.h"
 
 extern bool consoleDebugOutput;

@@ -1,3 +1,5 @@
+#include "nifi.h"
+
 volatile int linkReceivedData;
 volatile int linkSendData;
 volatile bool transferWaiting;

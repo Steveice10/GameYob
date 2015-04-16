@@ -1,6 +1,6 @@
 #include <stdio.h>
 
-#include "3ds/3dsgfx.h"
+#include "gfx.h"
 #include "console.h"
 #include "inputhelper.h"
 #include "menu.h"

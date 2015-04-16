@@ -1,14 +1,11 @@
 // GBS files contain music ripped from a game.
 #include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+
 #include "gbs.h"
 #include "inputhelper.h"
 #include "gameboy.h"
-#include "main.h"
 #include "soundengine.h"
 #include "console.h"
-#include "menu.h"
 #include "romfile.h"
 
 #define READ16(src) (*(src) | *(src+1)<<8)

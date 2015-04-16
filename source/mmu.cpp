@@ -1,22 +1,11 @@
-#ifdef DS
-#include "libfat_fake.h"
-#endif
-
 #include <stdio.h>
-#include <cstdlib>
 #include <string.h>
-#include "mmu.h"
-#include "gameboy.h"
-#include "gbgfx.h"
-#include "soundengine.h"
-#include "inputhelper.h"
-#include "nifi.h"
-#include "console.h"
-#include "menu.h"
-#include "gbs.h"
-#include "timer.h"
-#include "romfile.h"
 
+#include "console.h"
+#include "gameboy.h"
+#include "menu.h"
+#include "romfile.h"
+#include "soundengine.h"
 
 #define refreshVramBank() { \
     memory[0x8] = vram[vramBank]; \
