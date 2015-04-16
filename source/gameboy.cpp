@@ -305,7 +305,7 @@ void Gameboy::gameboyCheckInput() {
         gfxToggleFastForward();
     }
 
-    if(keyJustPressed(mapFuncKey(FUNC_KEY_MENU) | mapFuncKey(FUNC_KEY_MENU_PAUSE) | BUTTON_TOUCH)) {
+    if(keyJustPressed(mapFuncKey(FUNC_KEY_MENU) | mapFuncKey(FUNC_KEY_MENU_PAUSE) | BUTTON_TOUCH) && !accelPadMode) {
         if(singleScreenMode || keyJustPressed(mapFuncKey(FUNC_KEY_MENU_PAUSE)))
             pause();
 

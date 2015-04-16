@@ -39,15 +39,13 @@ u8 Gameboy::m7r(u16 addr) {
         case 0xa020:
             return inputGetMotionSensorX() & 0xff;
         case 0xa030:
-            return inputGetMotionSensorX() >> 8;
+            return (inputGetMotionSensorX() >> 8) | 0x80;
         case 0xa040:
             return inputGetMotionSensorY() & 0xff;
         case 0xa050:
             return inputGetMotionSensorY() >> 8;
-            /*
         case 0xa080:
-            return mbc7RA | 0x7e;
-            */
+            return mbc7RA;
         default:
             return 0xff;
     }
@@ -307,22 +305,141 @@ void Gameboy::m7w(u16 addr, u8 val) {
         case 0xa: /* a000 - bfff */
         case 0xb:
             if(addr == 0xa080) {
-                bool finalize = val & 0x80;
-                bool oldFinalize = mbc7RA & 0x80;
-                bool sendBit = val & 0x40;
-                bool oldSendBit = mbc7RA & 0x40;
+                int oldCs = mbc7Cs;
+                int oldSk = mbc7Sk;
 
-                if(!oldFinalize && finalize) {
-                    if(mbc7State == MBC7_RA_READY) {
+                mbc7Cs = val >> 7;
+                mbc7Sk = (u8) ((val >> 6) & 1);
 
+                if(!oldCs && mbc7Cs) {
+                    if(mbc7State == 5) {
+                        if(mbc7WriteEnable) {
+                            *(externRam + mbc7Addr * 2) = (u8) (mbc7Buffer >> 8);
+                            *(externRam + mbc7Addr * 2 + 1) = (u8) (mbc7Buffer & 0xff);
+                        }
+
+                        mbc7State = 0;
+                        mbc7RA = 1;
+                    } else {
+                        mbc7Idle = true;
+                        mbc7State = 0;
                     }
                 }
 
-                if(!oldSendBit && sendBit) {
+                if(!oldSk && mbc7Sk) {
+                    if(mbc7Idle) {
+                        if(val & 0x02) {
+                            mbc7Idle = false;
+                            mbc7Count = 0;
+                            mbc7State = 1;
+                        }
+                    } else {
+                        switch(mbc7State) {
+                            case 1:
+                                mbc7Buffer <<= 1;
+                                mbc7Buffer |= (val & 0x02) ? 1 : 0;
+                                mbc7Count++;
+                                if(mbc7Count == 2) {
+                                    mbc7State = 2;
+                                    mbc7Count = 0;
+                                    mbc7OpCode = (u8) (mbc7Buffer & 3);
+                                }
+                                break;
+                            case 2:
+                                mbc7Buffer <<= 1;
+                                mbc7Buffer |= (val & 0x02) ? 1 : 0;
+                                mbc7Count++;
+                                if(mbc7Count == 8) {
+                                    mbc7State = 3;
+                                    mbc7Count = 0;
+                                    mbc7Addr = (u8) (mbc7Buffer & 0xff);
+                                    if(mbc7OpCode == 0) {
+                                        if((mbc7Addr >> 6) == 0) {
+                                            mbc7WriteEnable = false;
+                                            mbc7State = 0;
+                                        } else if((mbc7Addr >> 6) == 3) {
+                                            mbc7WriteEnable = true;
+                                            mbc7State = 0;
+                                        }
+                                    }
+                                }
+                                break;
+                            case 3:
+                                mbc7Buffer <<= 1;
+                                mbc7Buffer |= (val & 0x02) ? 1 : 0;
+                                mbc7Count++;
+                                switch(mbc7OpCode) {
+                                    case 0:
+                                        if(mbc7Count == 16) {
+                                            if((mbc7Addr >> 6) == 0) {
+                                                mbc7WriteEnable = false;
+                                                mbc7State = 0;
+                                            } else if((mbc7Addr >> 6) == 1) {
+                                                if(mbc7WriteEnable) {
+                                                    for(int i = 0; i < 256; i++) {
+                                                        *(externRam + i * 2) = (u8) (mbc7Buffer >> 8);
+                                                        *(externRam + i * 2) = (u8) (mbc7Buffer & 0xff);
+                                                    }
+                                                }
 
+                                                mbc7State = 5;
+                                            } else if((mbc7Addr >> 6) == 2) {
+                                                if(mbc7WriteEnable) {
+                                                    for(int i = 0; i < 256; i++)
+                                                        *(u16*) (externRam + i * 2) = 0xffff;
+                                                }
+
+                                                mbc7State = 5;
+                                            } else if((mbc7Addr >> 6) == 3) {
+                                                mbc7WriteEnable = true;
+                                                mbc7State = 0;
+                                            }
+
+                                            mbc7Count = 0;
+                                        }
+                                        break;
+                                    case 1:
+                                        if(mbc7Count == 16) {
+                                            mbc7Count = 0;
+                                            mbc7State = 5;
+                                            mbc7RA = 0;
+                                        }
+
+                                        break;
+                                    case 2:
+                                        if(mbc7Count == 1) {
+                                            mbc7State = 4;
+                                            mbc7Count = 0;
+                                            mbc7Buffer = (externRam[mbc7Addr * 2] << 8) | (externRam[mbc7Addr * 2 + 1]);
+                                        }
+
+                                        break;
+                                    case 3:
+                                        if(mbc7Count == 16) {
+                                            mbc7Count = 0;
+                                            mbc7State = 5;
+                                            mbc7RA = 0;
+                                            mbc7Buffer = 0xffff;
+                                        }
+
+                                        break;
+                                }
+                                break;
+                        }
+                    }
                 }
 
-                mbc7RA = val;
+                if(oldSk && !mbc7Sk) {
+                    if(mbc7State == 4) {
+                        mbc7RA = (u8) ((mbc7Buffer & 0x8000) ? 1 : 0);
+                        mbc7Buffer <<= 1;
+                        mbc7Count++;
+                        if(mbc7Count == 16) {
+                            mbc7Count = 0;
+                            mbc7State = 0;
+                        }
+                    }
+                }
             }
             break;
     }

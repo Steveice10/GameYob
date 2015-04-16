@@ -41,6 +41,8 @@ bool autoSavingEnabled = false;
 
 bool printerEnabled = false;
 
+bool accelPadMode = false;
+
 void (* subMenuUpdateFunc)();
 
 bool fpsOutput = false;
@@ -180,6 +182,15 @@ void stateDeleteFunc(int value) {
     stateSelectFunc(stateNum);
     if(!gameboy->isGameboyPaused())
         unmuteSND();
+}
+
+void accelPadFunc(int value) {
+    accelPadMode = true;
+    forceReleaseKey(mapMenuKey(MENU_KEY_A));
+    closeMenu();
+    updateScreens();
+
+    printf("Exit");
 }
 
 void resetFunc(int value) {
@@ -329,7 +340,7 @@ struct SubMenu {
 SubMenu menuList[] = {
         {
                 "ROM",
-                9,
+                10,
                 {
                         {"Exit", exitFunc, 0, {}, 0, MENU_ALL},
                         {"Reset", resetFunc, 0, {}, 0, MENU_ALL},
@@ -338,6 +349,7 @@ SubMenu menuList[] = {
                         {"Save State", stateSaveFunc, 0, {}, 0, MENU_ALL},
                         {"Load State", stateLoadFunc, 0, {}, 0, MENU_ALL},
                         {"Delete State", stateDeleteFunc, 0, {}, 0, MENU_ALL},
+                        {"Accelerometer Pad", accelPadFunc, 0, {}, 0, MENU_ALL},
                         {"Quit to Launcher", returnToLauncherFunc, 0, {}, 0, MENU_ALL},
                         {"Exit without saving", exitNoSaveFunc, 0, {}, 0, MENU_ALL},
                         {"Suspend", suspendFunc, 0, {}, 0, MENU_ALL}

@@ -16,15 +16,6 @@
 #define GB_UP            0x40
 #define GB_DOWN            0x80
 
-
-/*
-#define MOTION_SENSOR_MAX 2197
-#define MOTION_SENSOR_MIN 1897
-*/
-//#define MOTION_SENSOR_RANGE 256
-#define MOTION_SENSOR_RANGE 128
-#define MOTION_SENSOR_MID 0
-
 extern char borderPath[256];
 
 void flushFatCache();

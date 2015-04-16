@@ -139,6 +139,12 @@ void mgr_loadRom(const char* filename) {
         else
             disableMenuOption("Exit without saving");
     }
+
+    if(gameboy->getRomFile()->getMBC() == MBC7) {
+        enableMenuOption("Accelerometer Pad");
+    } else {
+        disableMenuOption("Accelerometer Pad");
+    }
 }
 
 void mgr_unloadRom() {

@@ -14,6 +14,7 @@ extern bool printerEnabled;
 extern int singleScreenMode;
 extern int stateNum;
 extern int gameScreen;
+extern bool accelPadMode;
 
 extern bool fpsOutput;
 extern bool timeOutput;

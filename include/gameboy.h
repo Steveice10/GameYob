@@ -345,6 +345,13 @@ public:
     u8 HuC3Shift;
 
     // MBC7
+    bool mbc7WriteEnable;
+    bool mbc7Idle;
+    u8 mbc7Cs;
+    u8 mbc7Sk;
+    u8 mbc7OpCode;
+    u8 mbc7Addr;
+    u8 mbc7Count;
     u8 mbc7State;
     u16 mbc7Buffer;
     u8 mbc7RA; // Ram Access register 0xa080

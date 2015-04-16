@@ -1,12 +1,16 @@
 #include <stdlib.h>
 
-#include "inputhelper.h"
 #include "console.h"
 #include "gbmanager.h"
 #include "gfx.h"
+#include "inputhelper.h"
+#include "menu.h"
+
+#include <3ds.h>
 
 #include <ctrcommon/input.hpp>
 #include <ctrcommon/platform.hpp>
+#include <ctrcommon/screen.hpp>
 
 u32 keysForceReleased = 0;
 u64 nextRepeat = 0;
@@ -47,18 +51,21 @@ void inputUpdate() {
             keysForceReleased &= ~(1 << i);
         }
     }
+
+    if(accelPadMode && inputIsPressed(BUTTON_TOUCH) && inputGetTouch().x <= screenGetStrWidth("Exit") && inputGetTouch().y <= screenGetStrHeight("Exit")) {
+        accelPadMode = false;
+        consoleClear();
+    }
 }
 
 int inputGetMotionSensorX() {
-    int px = keyPressed(BUTTON_TOUCH) ? inputGetTouch().x : 128;
-    double val = (128 - px) * ((double) MOTION_SENSOR_RANGE / 256) + MOTION_SENSOR_MID;
-    return (int) val + 0x8000;
+    int accelX = accelPadMode ? (inputIsHeld(BUTTON_TOUCH) ? 160 - inputGetTouch().x : 0) : 0;
+    return 2047 + accelX;
 }
 
 int inputGetMotionSensorY() {
-    int py = keyPressed(BUTTON_TOUCH) ? inputGetTouch().y : 96;
-    double val = (96 - py) * ((double) MOTION_SENSOR_RANGE / 192) + MOTION_SENSOR_MID - 80;
-    return (int) val;
+    int accelY = accelPadMode ? (inputIsHeld(BUTTON_TOUCH) ? 120 - inputGetTouch().y : 0) : 0;
+    return 2047 + accelY;
 }
 
 void systemCheckPolls() {
