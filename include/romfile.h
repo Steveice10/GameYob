@@ -53,8 +53,6 @@ public:
     u8* romSlot0;
     u8* romSlot1;
 
-    const u16* gbPalette;
-
 private:
     u8* romBankSlots = NULL; // Each 0x4000 bytes = one slot
 

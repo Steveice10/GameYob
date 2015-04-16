@@ -6,7 +6,6 @@
 #include "cheats.h"
 #include "console.h"
 #include "gameboy.h"
-#include "gbcpalette.h"
 #include "gbs.h"
 
 #ifdef EMBEDDED_ROM
@@ -112,11 +111,6 @@ RomFile::RomFile(const char* f) {
     for(int i = 0; i < nameLength; i++)
         romTitle[i] = (char) romSlot0[i + 0x134];
     romTitle[nameLength] = '\0';
-
-    gbPalette = findGbcTitlePal(romTitle);
-    if(!gbPalette) {
-        gbPalette = findGbcDirPal("GBC - Grayscale");
-    }
 
     if(gbsMode) {
         MBC = MBC5;

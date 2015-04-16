@@ -492,7 +492,11 @@ void Gameboy::initGFXPalette() {
                 palette = findGbcDirPal("GBC - Grayscale");
                 break;
             case 1:
-                palette = gameboy->getRomFile()->gbPalette;
+                palette = findGbcTitlePal(romFile->getRomTitle());
+                if(!palette) {
+                    palette = findGbcDirPal("GBC - Grayscale");
+                }
+
                 break;
             case 2:
                 palette = findGbcDirPal("GBC - Inverted");
@@ -528,7 +532,7 @@ void Gameboy::initGFXPalette() {
                 palette = findGbcDirPal("GBC - Dark Brown");
                 break;
             default:
-                palette = gameboy->getRomFile()->gbPalette;
+                palette = findGbcDirPal("GBC - Grayscale");
                 break;
         }
 
