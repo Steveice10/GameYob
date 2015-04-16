@@ -18,7 +18,6 @@ int main(int argc, char* argv[])
 
     consoleInitScreens();
 
-    fs_init();
     mgr_init();
 
     setMenuDefaults();

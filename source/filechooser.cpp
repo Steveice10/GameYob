@@ -1,3 +1,4 @@
+#include <sys/dirent.h>
 #include <stdlib.h>
 #include <vector>
 #include <string>
@@ -5,13 +6,10 @@
 #include "filechooser.h"
 #include "inputhelper.h"
 #include "console.h"
-#include "io.h"
-#include "menu.h"
-#include "error.h"
-#ifdef _3DS
+
 #include <3ds.h>
 #include "3ds/3dsgfx.h"
-#endif
+#include <ctrcommon/fs.hpp>
 
 #define FLAG_DIRECTORY  1
 #define FLAG_SUSPENDED  2
@@ -20,18 +18,8 @@
 using namespace std;
 
 // Public "states"
-#ifdef DS
-FileChooserState romChooserState = {0,"/lameboy"};
-FileChooserState borderChooserState = {0,"/"};
-#endif
-#ifdef _3DS
 FileChooserState romChooserState = {0,"/gb"};
 FileChooserState borderChooserState = {0,"/"};
-#endif
-#ifdef SDL
-FileChooserState romChooserState = {0,"."};
-FileChooserState borderChooserState = {0,"."};
-#endif
 
 // Private stuff
 int filesPerPage = 24;
@@ -40,6 +28,8 @@ int scrollY=0;
 int fileSelection=0;
 bool fileChooserOn=false;
 string matchFile;
+
+string currDirectory = "/";
 
 void updateScrollDown() {
     if (fileSelection >= numFiles)
@@ -239,96 +229,98 @@ char* startFileChooser(const char* extensions[], bool romExtensions, bool canQui
 */
     int numExtensions = sizeof(extensions)/sizeof(const char*);
     char* retval;
-    char buffer[MAX_FILENAME_LEN];
-    char cwd[MAX_FILENAME_LEN];
-    fs_getcwd(cwd, MAX_FILENAME_LEN);
+    char buffer[256];
     struct dirent *entry;
 
     while (true) {
-        fs_getcwd(cwd, MAX_FILENAME_LEN);
-
         numFiles=0;
         std::vector<string> filenames;
         std::vector<int> flags;
         std::vector<string> unmatchedStates;
 #ifdef _3DS
-        if (strcmp(cwd, "/") != 0) {
+        if (currDirectory.compare("/") != 0) {
             filenames.push_back(string(".."));
             flags.push_back(FLAG_DIRECTORY);
             numFiles++;
         }
 #endif
 
-        // Read file list
-        while ((entry = fs_readdir()) != NULL) {
-            char* ext = strrchr(entry->d_name, '.')+1;
-            if (strrchr(entry->d_name, '.') == 0)
-                ext = 0;
-            bool isValidExtension = false;
-            bool isRomFile = false;
-            if (!(entry->d_type & DT_DIR)) {
-                if (ext) {
-                    for (int i=0; i<numExtensions; i++) {
-                        if (strcasecmp(ext, extensions[i]) == 0) {
-                            isValidExtension = true;
-                            break;
+        DIR* dir = opendir(currDirectory.c_str());
+        if(dir != NULL) {
+            // Read file list
+            while((entry = readdir(dir)) != NULL) {
+                char *ext = strrchr(entry->d_name, '.') + 1;
+                if(strrchr(entry->d_name, '.') == 0)
+                    ext = 0;
+                bool isValidExtension = false;
+                bool isRomFile = false;
+                if(!(entry->d_type & DT_DIR)) {
+                    if(ext) {
+                        for(int i = 0; i < numExtensions; i++) {
+                            if(strcasecmp(ext, extensions[i]) == 0) {
+                                isValidExtension = true;
+                                break;
+                            }
+                        }
+                        if(romExtensions) {
+                            isRomFile = strcasecmp(ext, "cgb") == 0 || strcasecmp(ext, "gbc") == 0 ||
+                                                                       strcasecmp(ext, "gb") == 0 || strcasecmp(ext, "sgb") == 0;
+                            if(isRomFile)
+                                isValidExtension = true;
                         }
                     }
-                    if (romExtensions) {
-                        isRomFile = strcasecmp(ext, "cgb") == 0 || strcasecmp(ext, "gbc") == 0 || strcasecmp(ext, "gb") == 0 || strcasecmp(ext, "sgb") == 0;
-                        if (isRomFile)
-                            isValidExtension = true;
-                    }
                 }
-            }
 
-            if (entry->d_type & DT_DIR || isValidExtension) {
-                if (!(strcmp(".", entry->d_name) == 0)) {
-                    int flag = 0;
-                    if (entry->d_type & DT_DIR)
-                        flag |= FLAG_DIRECTORY;
-                    if (isRomFile)
-                        flag |= FLAG_ROM;
+                if(entry->d_type & DT_DIR || isValidExtension) {
+                    if(!(strcmp(".", entry->d_name) == 0)) {
+                        int flag = 0;
+                        if(entry->d_type & DT_DIR)
+                            flag |= FLAG_DIRECTORY;
+                        if(isRomFile)
+                            flag |= FLAG_ROM;
 
-                    // Check for suspend state
-                    if (isRomFile) {
-                        if (!unmatchedStates.empty()) {
-                            strcpy(buffer, entry->d_name);
-                            *(strrchr(buffer, '.')) = '\0';
-                            for (uint i=0; i<unmatchedStates.size(); i++) {
-                                if (strcmp(buffer, unmatchedStates[i].c_str()) == 0) {
-                                    flag |= FLAG_SUSPENDED;
-                                    unmatchedStates.erase(unmatchedStates.begin()+i);
-                                    break;
+                        // Check for suspend state
+                        if(isRomFile) {
+                            if(!unmatchedStates.empty()) {
+                                strcpy(buffer, entry->d_name);
+                                *(strrchr(buffer, '.')) = '\0';
+                                for(uint i = 0; i < unmatchedStates.size(); i++) {
+                                    if(strcmp(buffer, unmatchedStates[i].c_str()) == 0) {
+                                        flag |= FLAG_SUSPENDED;
+                                        unmatchedStates.erase(unmatchedStates.begin() + i);
+                                        break;
+                                    }
                                 }
                             }
                         }
-                    }
 
-                    flags.push_back(flag);
-                    filenames.push_back(string(entry->d_name));
-                    numFiles++;
+                        flags.push_back(flag);
+                        filenames.push_back(string(entry->d_name));
+                        numFiles++;
+                    }
                 }
-            }
-            else if (ext && strcasecmp(ext, "yss") == 0 && !(entry->d_type & DT_DIR)) {
-                bool matched = false;
-                char buffer2[MAX_FILENAME_LEN];
-                strcpy(buffer2, entry->d_name);
-                *(strrchr(buffer2, '.')) = '\0';
-                for (int i=0; i<numFiles; i++) {
-                    if (flags[i] & FLAG_ROM) {
-                        strcpy(buffer, filenames[i].c_str());
-                        *(strrchr(buffer, '.')) = '\0';
-                        if (strcmp(buffer, buffer2) == 0) {
-                            flags[i] |= FLAG_SUSPENDED;
-                            matched = true;
-                            break;
+                else if(ext && strcasecmp(ext, "yss") == 0 && !(entry->d_type & DT_DIR)) {
+                    bool matched = false;
+                    char buffer2[256];
+                    strcpy(buffer2, entry->d_name);
+                    *(strrchr(buffer2, '.')) = '\0';
+                    for(int i = 0; i < numFiles; i++) {
+                        if(flags[i] & FLAG_ROM) {
+                            strcpy(buffer, filenames[i].c_str());
+                            *(strrchr(buffer, '.')) = '\0';
+                            if(strcmp(buffer, buffer2) == 0) {
+                                flags[i] |= FLAG_SUSPENDED;
+                                matched = true;
+                                break;
+                            }
                         }
                     }
+                    if(!matched)
+                        unmatchedStates.push_back(string(buffer2));
                 }
-                if (!matched)
-                    unmatchedStates.push_back(string(buffer2));
             }
+
+            closedir(dir);
         }
 
         quickSort(filenames, flags, nameSortFunction, 0, numFiles - 1);
@@ -356,7 +348,7 @@ char* startFileChooser(const char* extensions[], bool romExtensions, bool canQui
             int screenLen = consoleGetWidth();
             // Draw the screen
             clearConsole();
-            strncpy(buffer, cwd, screenLen);
+            strncpy(buffer, currDirectory.c_str(), screenLen);
             buffer[screenLen] = '\0';
             iprintfColored(CONSOLE_COLOR_WHITE, "%s", buffer);
             for (uint j=0; j<screenLen-strlen(buffer); j++)
@@ -414,7 +406,7 @@ char* startFileChooser(const char* extensions[], bool romExtensions, bool canQui
                     if (flags[fileSelection] & FLAG_DIRECTORY) {
                         if (strcmp(filenames[fileSelection].c_str(), "..") == 0)
                             goto lowerDirectory;
-                        fs_chdir(filenames[fileSelection].c_str());
+                        currDirectory += filenames[fileSelection] + "/";
                         readDirectory = true;
                         fileSelection = 1;
                         break;
@@ -430,12 +422,17 @@ char* startFileChooser(const char* extensions[], bool romExtensions, bool canQui
                 else if (keyJustPressed(mapMenuKey(MENU_KEY_B))) {
 lowerDirectory:
                     // Select this directory when going up
-                    fs_getcwd(cwd, MAX_FILENAME_LEN);
-                    if (strlen(cwd) != 1 && strrchr(cwd, '/') == cwd+strlen(cwd)-1)
-                        *(strrchr(cwd, '/')) = '\0';
-                    matchFile = string(strrchr(cwd, '/')+1);
+                    std::string currDir = currDirectory;
+                    std::string::size_type slash = currDir.find_last_of('/');
+                    if (currDir.length() != 1 && slash == currDir.length() - 1) {
+                        currDir = currDir.substr(0, slash);
+                        slash = currDir.find_last_of('/');
+                    }
 
-                    fs_chdir("..");
+                    matchFile = currDir.substr(0, slash);
+
+                    currDirectory = matchFile + "/";
+                    //chdir("..");
                     readDirectory = true;
                     break;
                 }
@@ -498,12 +495,13 @@ void setFileChooserMatchFile(const char* filename) {
 
 
 void saveFileChooserState(FileChooserState* state) {
-    char cwd[MAX_FILENAME_LEN];
-    fs_getcwd(cwd, MAX_FILENAME_LEN);
     state->selection = fileSelection;
-    state->directory = cwd;
+    state->directory = currDirectory;
 }
 void loadFileChooserState(FileChooserState* state) {
     fileSelection = state->selection;
-    fs_chdir(state->directory.c_str());
+    currDirectory = state->directory;
+    if(!fsExists(currDirectory)) {
+        currDirectory = "/";
+    }
 }

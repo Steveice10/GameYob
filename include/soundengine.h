@@ -1,15 +1,3 @@
-#ifdef DS
-#include "common.h" // ARM7/ARM9 common stuff
-#endif
-
-#ifdef SDL
-#include "Sync_Audio.h"
-#include "Blip_Buffer.h"
-
-#define BUFFERSIZE 2048
-#define FREQUENCY 44100
-#endif
-
 class Gameboy;
 
 #define CHAN_1 1
@@ -29,11 +17,7 @@ class SoundEngine {
         void mute();
         void unmute();
 
-        void updateSound(int cycles)
-#ifdef DS
-            ITCM_CODE
-#endif
-            ;
+        void updateSound(int cycles);
 
         void setSoundEventCycles(int cycles); // Should be moved out of here
         void soundUpdateVBlank();
@@ -68,14 +52,6 @@ class SoundEngine {
         int chanEnvDir[4];
         int chanEnvCounter[4];
         int chanEnvSweep[4];
-
-#ifdef DS
-        int pcmVals[16];
-        u8* sampleData;
-
-        volatile SharedData* sharedPtr;
-#endif
-#ifndef DS
         u16 lfsr;
         int noiseVal;
         int chan3WavPos;
@@ -91,23 +67,8 @@ class SoundEngine {
 
         int SO1Vol;
         int SO2Vol;
-#endif
 
-#ifdef SDL
-        int bufferPosition;
-        float updateBufferLimit;
-        int updateBufferCount;
-        int panic;
-        int timePassed;
-
-        Sync_Audio audio;
-        Blip_Buffer buf;
-        Blip_Synth<blip_low_quality,20> synth;
-#endif
-
-#ifdef _3DS
         int cyclesUntilSample;
-#endif
 
         bool muted;
 

@@ -1,8 +1,8 @@
+#include <sys/stat.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <vector>
 #include <string.h>
-#include "io.h"
 #include "config.h"
 #include "inputhelper.h"
 #include "gbgfx.h"
@@ -16,11 +16,11 @@
 
 #define INI_PATH "/gameyob.ini"
 
-char borderPath[MAX_FILENAME_LEN] = "";
-char romPath[MAX_FILENAME_LEN] = "";
+char borderPath[256] = "";
+char romPath[256] = "";
 
 void controlsParseConfig(char* line);
-void controlsPrintConfig(FileHandle* f);
+void controlsPrintConfig(FILE * f);
 void controlsCheckConfig();
 
 void generalParseConfig(char* line) {
@@ -43,21 +43,23 @@ void generalParseConfig(char* line) {
     }
 }
 
-void generalPrintConfig(FileHandle* file) {
-        file_printf(file, "rompath=%s\n", romPath);
-        file_printf(file, "borderfile=%s\n", borderPath);
+void generalPrintConfig(FILE * file) {
+    fprintf(file, "rompath=%s\n", romPath);
+    fprintf(file, "borderfile=%s\n", borderPath);
 }
 
 bool readConfigFile() {
-    FileHandle* file = file_open(INI_PATH, "r");
+    FILE * file = fopen(INI_PATH, "r");
     char line[100];
     void (*configParser)(char*) = generalParseConfig;
 
     if (file == NULL)
         goto end;
 
-    while (file_tell(file) < file_getSize(file)) {
-        file_gets(line, 100, file);
+    struct stat s;
+    fstat(fileno(file), &s);
+    while(ftell(file) < s.st_size) {
+        fgets(line, 100, file);
         char c=0;
         while (*line != '\0' && ((c = line[strlen(line)-1]) == ' ' || c == '\n' || c == '\r')) {
             line[strlen(line) - 1] = '\0';
@@ -82,7 +84,7 @@ bool readConfigFile() {
             configParser(line);
         }
     }
-    file_close(file);
+    fclose(file);
 end:
     controlsCheckConfig();
 
@@ -90,21 +92,21 @@ end:
 }
 
 void writeConfigFile() {
-    FileHandle* file = file_open(INI_PATH, "w");
+    FILE * file = fopen(INI_PATH, "w");
     if (file == NULL) {
         printMenuMessage("Error opening gameyob.ini.");
         return;
     }
 
-    file_printf(file, "[general]\n");
+    fprintf(file, "[general]\n");
     generalPrintConfig(file);
-    file_printf(file, "[console]\n");
+    fprintf(file, "[console]\n");
     menuPrintConfig(file);
-    file_printf(file, "[controls]\n");
+    fprintf(file, "[controls]\n");
     controlsPrintConfig(file);
-    file_close(file);
+    fclose(file);
 
-    char nameBuf[MAX_FILENAME_LEN];
+    char nameBuf[256];
     sprintf(nameBuf, "%s.cht", gameboy->getRomFile()->getBasename());
     gameboy->getCheatEngine()->saveCheats(nameBuf);
 }
@@ -286,12 +288,12 @@ void controlsCheckConfig() {
     loadKeyConfig();
 }
 
-void controlsPrintConfig(FileHandle* file) {
-    file_printf(file, "config=%d\n", selectedKeyConfig);
+void controlsPrintConfig(FILE * file) {
+    fprintf(file, "config=%d\n", selectedKeyConfig);
     for (unsigned int i=0; i<keyConfigs.size(); i++) {
-        file_printf(file, "(%s)\n", keyConfigs[i].name);
+        fprintf(file, "(%s)\n", keyConfigs[i].name);
         for (int j=0; j<NUM_BINDABLE_BUTTONS; j++) {
-            file_printf(file, "%s=%s\n", dsKeyNames[j], gbKeyNames[keyConfigs[i].funcKeys[j]]);
+            fprintf(file, "%s=%s\n", dsKeyNames[j], gbKeyNames[keyConfigs[i].funcKeys[j]]);
         }
     }
 }

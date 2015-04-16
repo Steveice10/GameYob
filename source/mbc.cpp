@@ -236,8 +236,8 @@ void Gameboy::m3w(u16 addr, u8 val) {
 
 void Gameboy::writeClockStruct() {
     if (autoSavingEnabled) {
-        file_seek(saveFile, numRamBanks*0x2000, SEEK_SET);
-        file_write(&gbClock, 1, sizeof(gbClock), saveFile);
+        fseek(saveFile, numRamBanks * 0x2000, SEEK_SET);
+        fwrite(&gbClock, 1, sizeof(gbClock), saveFile);
         saveModified = true;
     }
 }

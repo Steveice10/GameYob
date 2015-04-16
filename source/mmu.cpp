@@ -55,8 +55,8 @@ void Gameboy::writeSram(u16 addr, u8 val) {
         externRam[pos] = val;
         if (autoSavingEnabled) {
             /*
-            file_seek(saveFile, currentRamBank*0x2000+addr, SEEK_SET);
-            file_putc(val, saveFile);
+            fseek(saveFile, currentRamBank*0x2000+addr, SEEK_SET);
+            fputc(val, saveFile);
             */
             saveModified = true;
             dirtySectors[pos/512] = true;

@@ -1,5 +1,6 @@
 #include <string.h>
 #include <algorithm>
+#include <sys/stat.h>
 #include "gameboy.h"
 #include "mmu.h"
 #include "console.h"
@@ -9,7 +10,6 @@
 #include "inputhelper.h"
 #include "gbgfx.h"
 #include "romfile.h"
-#include "io.h"
 
 #define TO_INT(a) ( (a) >= 'a' ? (a) - 'a' + 10 : (a) >= 'A' ? (a) - 'A' + 10 : (a) - '0')
 
@@ -176,17 +176,19 @@ void CheatEngine::loadCheats(const char* filename) {
     numCheats = 0;
 
     // Begin loading new cheat file
-    FileHandle* file = file_open(filename, "r");
+    FILE* file = fopen(filename, "r");
     if (file == NULL) {
         disableMenuOption("Manage Cheats");
         return;
     }
 
-    while (file_tell(file) < file_getSize(file)) {
+    struct stat s;
+    fstat(fileno(file), &s);
+    while(ftell(file) < s.st_size) {
         int i = numCheats;
 
         char line[100];
-        file_gets(line, 100, file);
+        fgets(line, 100, file);
 
         if (*line != '\0') {
             char* spacePos = strchr(line, ' ');
@@ -204,7 +206,7 @@ void CheatEngine::loadCheats(const char* filename) {
         }
     }
 
-    file_close(file);
+    fclose(file);
 
     enableMenuOption("Manage Cheats");
 }
@@ -212,11 +214,11 @@ void CheatEngine::loadCheats(const char* filename) {
 void CheatEngine::saveCheats(const char* filename) {
     if (numCheats == 0)
         return;
-    FileHandle* file = file_open(filename, "w");
+    FILE * file = fopen(filename, "w");
     for (int i=0; i<numCheats; i++) {
-        file_printf(file, "%s %d%s\n", cheats[i].cheatString, !!(cheats[i].flags & CHEAT_FLAG_ENABLED), cheats[i].name);
+        fprintf(file, "%s %d%s\n", cheats[i].cheatString, !!(cheats[i].flags & CHEAT_FLAG_ENABLED), cheats[i].name);
     }
-    file_close(file);
+    fclose(file);
 }
 
 // Menu code

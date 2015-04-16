@@ -6,6 +6,7 @@
 #include "3ds/noise.h"
 
 #include <ctrcommon/sound.hpp>
+#include <string.h>
 
 // 127 bytes
 u8 lfsr7NoiseSample[] = {

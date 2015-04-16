@@ -10,7 +10,6 @@
 #include "gameboy.h"
 #include "cheats.h"
 #include "error.h"
-#include "io.h"
 
 #ifdef EMBEDDED_ROM
 #include "rom_gb.h"
@@ -52,7 +51,7 @@ RomFile::RomFile(const char* f) {
     // Check if this is a GBS file
     gbsMode = (strcasecmp(strrchr(filename, '.'), ".gbs") == 0);
 
-    romFile = file_open(filename, "rb");
+    romFile = fopen(filename, "rb");
     if (romFile == NULL)
     {
         fatalerr("Error opening %s.", filename);
@@ -60,15 +59,15 @@ RomFile::RomFile(const char* f) {
     }
 
     if (gbsMode) {
-        file_read(gbsHeader, 1, 0x70, romFile);
+        fread(gbsHeader, 1, 0x70, romFile);
         gbsReadHeader();
-        file_seek(romFile, 0, SEEK_END);
-        numRomBanks = (file_tell(romFile)-0x70+0x3fff)/0x4000; // Get number of banks, rounded up
+        fseek(romFile, 0, SEEK_END);
+        numRomBanks = (ftell(romFile)-0x70+0x3fff)/0x4000; // Get number of banks, rounded up
         printf("%.2x\n", numRomBanks);
     }
     else {
-        file_seek(romFile, 0, SEEK_END);
-        numRomBanks = (file_tell(romFile)+0x3fff)/0x4000; // Get number of banks, rounded up
+        fseek(romFile, 0, SEEK_END);
+        numRomBanks = (ftell(romFile)+0x3fff)/0x4000; // Get number of banks, rounded up
     }
 
     // Round numRomBanks to a power of 2
@@ -76,8 +75,8 @@ RomFile::RomFile(const char* f) {
     while (n < numRomBanks) n*=2;
     numRomBanks = n;
 
-    //int rawRomSize = file_tell(romFile);
-    file_seek(romFile, 0, SEEK_SET);
+    //int rawRomSize = ftell(romFile);
+    fseek(romFile, 0, SEEK_SET);
 
     if (numRomBanks <= maxLoadedRomBanks)
         numLoadedRomBanks = numRomBanks;
@@ -93,18 +92,18 @@ RomFile::RomFile(const char* f) {
     // Read bank 0
     if (gbsMode) {
         bankSlotIDs[0] = 0;
-        file_seek(romFile, 0x70, SEEK_SET);
-        file_read(romBankSlots+gbsLoadAddress, 1, 0x4000-gbsLoadAddress, romFile);
+        fseek(romFile, 0x70, SEEK_SET);
+        fread(romBankSlots + gbsLoadAddress, 1, 0x4000 - gbsLoadAddress, romFile);
     }
     else {
         bankSlotIDs[0] = 0;
-        file_seek(romFile, 0, SEEK_SET);
-        file_read(romBankSlots, 1, 0x4000, romFile);
+        fseek(romFile, 0, SEEK_SET);
+        fread(romBankSlots, 1, 0x4000, romFile);
     }
     // Read the rest of the banks
     for (int i=1; i<numLoadedRomBanks; i++) {
         bankSlotIDs[i] = i;
-        file_read(romBankSlots+0x4000*i, 1, 0x4000, romFile);
+        fread(romBankSlots + 0x4000 * i, 1, 0x4000, romFile);
         lastBanksUsed.push_back(i);
     }
 
@@ -183,7 +182,7 @@ RomFile::RomFile(const char* f) {
 #ifndef EMBEDDED_ROM
     // If we've loaded everything, close the rom file
     if (numRomBanks <= numLoadedRomBanks) {
-        file_close(romFile);
+        fclose(romFile);
         romFile = NULL;
     }
 #endif
@@ -191,7 +190,7 @@ RomFile::RomFile(const char* f) {
 
 RomFile::~RomFile() {
     if (romFile != NULL)
-        file_close(romFile);
+        fclose(romFile);
 #ifndef EMBEDDED_ROM
     free(romBankSlots);
 #endif
@@ -209,8 +208,8 @@ void RomFile::loadRomBank(int romBank) {
     bankSlotIDs[bankToUnload] = -1;
     bankSlotIDs[romBank] = slot;
 
-    file_seek(romFile, 0x4000*romBank, SEEK_SET);
-    file_read(romBankSlots+slot*0x4000, 1, 0x4000, romFile);
+    fseek(romFile, 0x4000 * romBank, SEEK_SET);
+    fread(romBankSlots + slot * 0x4000, 1, 0x4000, romFile);
 
     lastBanksUsed.insert(lastBanksUsed.begin(), romBank);
 

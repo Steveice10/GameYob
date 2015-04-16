@@ -1,6 +1,5 @@
 #pragma once
 #include <stdio.h>
-#include "io.h"
 #include "config.h"
 
 #define FAT_CACHE_SIZE 16
@@ -27,7 +26,7 @@ extern bool fastForwardMode; // controlled by the toggle hotkey
 extern bool fastForwardKey;  // only while its hotkey is pressed
 extern u8 buttonsPressed;
 
-extern char borderPath[MAX_FILENAME_LEN];
+extern char borderPath[256];
 
 void flushFatCache();
 

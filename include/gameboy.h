@@ -4,11 +4,6 @@
 #include <stdarg.h>
 #include "time.h"
 #include "gbgfx.h"
-#include "io.h"
-
-#ifdef DS
-#include <nds.h>
-#endif
 
 #define MAX_SRAM_SIZE   0x20000
 
@@ -192,8 +187,8 @@ class Gameboy {
         SoundEngine* soundEngine;
         RomFile* romFile;
 
-        FileHandle* saveFile;
-        char savename[MAX_FILENAME_LEN];
+        FILE * saveFile;
+        char savename[256];
 
         // gbcpu.cpp
 
