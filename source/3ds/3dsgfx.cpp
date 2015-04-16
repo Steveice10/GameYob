@@ -32,9 +32,6 @@ void gfxInit() {
     // Create the VBO.
     gpuCreateVbo(&vbo);
     gpuVboAttributes(vbo, ATTRIBUTE(0, 3, ATTR_FLOAT) | ATTRIBUTE(1, 2, ATTR_FLOAT), 2);
-
-    // Initialize the screen to black.
-    gpuClear();
 }
 
 void gfxCleanup() {
