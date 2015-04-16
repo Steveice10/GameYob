@@ -14,7 +14,7 @@ int systemGetConsoleWidth();
 int systemGetConsoleHeight();
 void systemUpdateConsole();
 
-void systemCheckPolls();
+void systemCheckRunning();
 
 void systemDisableSleepMode();
 void systemEnableSleepMode();

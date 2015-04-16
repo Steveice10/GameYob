@@ -385,7 +385,7 @@ char* startFileChooser(const char* extensions[], bool romExtensions, bool canQui
 
             // Wait for input
             while(true) {
-                systemCheckPolls();
+                systemCheckRunning();
                 gfxWaitForVBlank();
                 inputUpdate();
 

@@ -42,7 +42,7 @@ RomFile::RomFile(const char* f) {
         printf("Error opening %s.", filename);
         printf("\n\nPlease restart GameYob.\n");
         while(true) {
-            systemCheckPolls();
+            systemCheckRunning();
         }
     }
 

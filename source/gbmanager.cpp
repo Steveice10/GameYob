@@ -178,7 +178,7 @@ void mgr_selectRom() {
         printf("Filechooser error");
         printf("\n\nPlease restart GameYob.\n");
         while(true) {
-            systemCheckPolls();
+            systemCheckRunning();
         }
     }
 
@@ -199,7 +199,7 @@ void mgr_save() {
 void mgr_updateVBlank() {
     drawScreen();
 
-    systemCheckPolls();
+    systemCheckRunning();
 
     if(gameboy && !gameboy->isGameboyPaused())
         gameboy->getSoundEngine()->soundUpdateVBlank();

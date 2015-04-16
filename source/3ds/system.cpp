@@ -88,7 +88,7 @@ void systemUpdateConsole() {
     }
 }
 
-void systemCheckPolls() {
+void systemCheckRunning() {
     if(!platformIsRunning()) {
         systemCleanup();
         exit(0);
