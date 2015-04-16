@@ -15,7 +15,7 @@ enum {
     MBC3,
     MBC4, // Unsupported
     MBC5,
-    MBC7, // Unsupported
+    MBC7,
     HUC1,
     HUC3,
     MBC_MAX,

@@ -441,6 +441,7 @@ void Gameboy::m7w(u16 addr, u8 val) {
                     }
                 }
             }
+
             break;
     }
 }
@@ -459,11 +460,11 @@ void Gameboy::h1w(u16 addr, u8 val) {
         case 0x4: /* 4000 - 5fff */
         case 0x5:
             val &= 3;
-            /* ROM mode */
             if(memoryModel == 0)
+                /* ROM mode */
                 refreshRomBank(val);
-                /* RAM mode */
             else
+                /* RAM mode */
                 refreshRamBank(val);
             break;
         case 0x6: /* 6000 - 7fff */

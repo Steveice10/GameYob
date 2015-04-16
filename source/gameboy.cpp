@@ -485,15 +485,13 @@ int Gameboy::runEmul() {
 
 void Gameboy::initGFXPalette() {
     memset(bgPaletteData, 0xff, 0x40);
-    if(gbMode == GB) {
-        if(gbcModeOption == 2 && gameboy->getRomFile() != NULL) {
-            memcpy(bgPaletteData, gameboy->getRomFile()->gbPalette, 4 * sizeof(u16));
-            memcpy(sprPaletteData, gameboy->getRomFile()->gbPalette + 4, 8 * sizeof(u16));
-        } else {
-            const unsigned short* palette = findGbcDirPal("GBC - Grayscale");
-            memcpy(bgPaletteData, palette, 4 * sizeof(u16));
-            memcpy(sprPaletteData, palette + 4, 8 * sizeof(u16));
-        }
+    if(gbcModeOption == 0 || (gbMode == GB && gbcModeOption == 1)) {
+        const unsigned short* palette = findGbcDirPal("GBC - Grayscale");
+        memcpy(bgPaletteData, palette, 4 * sizeof(u16));
+        memcpy(sprPaletteData, palette + 4, 8 * sizeof(u16));
+    } else {
+        memcpy(bgPaletteData, gameboy->getRomFile()->gbPalette, 4 * sizeof(u16));
+        memcpy(sprPaletteData, gameboy->getRomFile()->gbPalette + 4, 8 * sizeof(u16));
     }
 }
 
