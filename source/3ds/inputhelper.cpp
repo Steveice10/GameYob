@@ -8,9 +8,9 @@
 #include <ctrcommon/input.hpp>
 #include <ctrcommon/platform.hpp>
 
-u32 keysForceReleased=0;
-u32 repeatStartTimer=0;
-int repeatTimer=0;
+u32 keysForceReleased = 0;
+u32 repeatStartTimer = 0;
+int repeatTimer = 0;
 
 u8 buttonsPressed;
 

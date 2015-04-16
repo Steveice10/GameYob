@@ -220,10 +220,7 @@ unsigned int selectedKeyConfig=0;
 
 void loadKeyConfig() {
     KeyConfig* keyConfig = &keyConfigs[selectedKeyConfig];
-    for(int i = 0; i < NUM_FUNC_KEYS; i++) {
-        keyMapping[i] = BUTTON_NONE;
-    }
-
+    memset(keyMapping, 0, NUM_FUNC_KEYS * sizeof(int));
     for(int i = 0; i < NUM_BINDABLE_BUTTONS; i++) {
         keyMapping[keyConfig->funcKeys[i]] |= BIT(i);
     }

@@ -18,7 +18,7 @@
 using namespace std;
 
 // Public "states"
-FileChooserState romChooserState = {0,"/gb"};
+FileChooserState romChooserState = {0,"/gb/"};
 FileChooserState borderChooserState = {0,"/"};
 
 // Private stuff
@@ -414,8 +414,9 @@ char* startFileChooser(const char* extensions[], bool romExtensions, bool canQui
                     else {
                         // Copy the result to a new allocation, as the
                         // filename would become unavailable when freed.
-                        retval = (char*) malloc(sizeof(char) * (strlen(filenames[fileSelection].c_str()) + 1));
-                        strcpy(retval, filenames[fileSelection].c_str());
+                        retval = (char*) malloc(sizeof(char) * (currDirectory.length() + strlen(filenames[fileSelection].c_str()) + 1));
+                        strcpy(retval, currDirectory.c_str());
+                        strcpy(retval + (currDirectory.length() * sizeof(char)), filenames[fileSelection].c_str());
                         goto end;
                     }
                 }
