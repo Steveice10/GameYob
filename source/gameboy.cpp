@@ -3,15 +3,16 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "gbprinter.h"
-#include "gameboy.h"
-#include "sound.h"
-#include "input.h"
-#include "console.h"
+#include "config.h"
 #include "cheats.h"
-#include "gbs.h"
-#include "menu.h"
+#include "gameboy.h"
 #include "gbmanager.h"
+#include "gbprinter.h"
+#include "gbs.h"
+#include "input.h"
+#include "menu.h"
+#include "sound.h"
+#include "system.h"
 
 #include <ctrcommon/fs.hpp>
 #include <ctrcommon/input.hpp>
@@ -503,7 +504,7 @@ Gameboy::~Gameboy() {
 }
 
 void Gameboy::init() {
-    enableSleepMode();
+    systemEnableSleepMode();
 
     if(gbsMode) {
         resultantGBMode = 1; // GBC
@@ -681,48 +682,48 @@ void Gameboy::gameboyCheckInput() {
     if(probingForBorder)
         return;
 
-    if(keyPressed(mapFuncKey(FUNC_KEY_UP))) {
+    if(inputKeyHeld(mapFuncKey(FUNC_KEY_UP))) {
         buttonsPressed &= (0xFF ^ GB_UP);
         if(!(ioRam[0x00] & 0x10))
             requestInterrupt(INT_JOYPAD);
     }
-    if(keyPressed(mapFuncKey(FUNC_KEY_DOWN))) {
+    if(inputKeyHeld(mapFuncKey(FUNC_KEY_DOWN))) {
         buttonsPressed &= (0xFF ^ GB_DOWN);
         if(!(ioRam[0x00] & 0x10))
             requestInterrupt(INT_JOYPAD);
     }
-    if(keyPressed(mapFuncKey(FUNC_KEY_LEFT))) {
+    if(inputKeyHeld(mapFuncKey(FUNC_KEY_LEFT))) {
         buttonsPressed &= (0xFF ^ GB_LEFT);
         if(!(ioRam[0x00] & 0x10))
             requestInterrupt(INT_JOYPAD);
     }
-    if(keyPressed(mapFuncKey(FUNC_KEY_RIGHT))) {
+    if(inputKeyHeld(mapFuncKey(FUNC_KEY_RIGHT))) {
         buttonsPressed &= (0xFF ^ GB_RIGHT);
         if(!(ioRam[0x00] & 0x10))
             requestInterrupt(INT_JOYPAD);
     }
-    if(keyPressed(mapFuncKey(FUNC_KEY_A))) {
+    if(inputKeyHeld(mapFuncKey(FUNC_KEY_A))) {
         buttonsPressed &= (0xFF ^ GB_A);
         if(!(ioRam[0x00] & 0x20))
             requestInterrupt(INT_JOYPAD);
     }
-    if(keyPressed(mapFuncKey(FUNC_KEY_B))) {
+    if(inputKeyHeld(mapFuncKey(FUNC_KEY_B))) {
         buttonsPressed &= (0xFF ^ GB_B);
         if(!(ioRam[0x00] & 0x20))
             requestInterrupt(INT_JOYPAD);
     }
-    if(keyPressed(mapFuncKey(FUNC_KEY_START))) {
+    if(inputKeyHeld(mapFuncKey(FUNC_KEY_START))) {
         buttonsPressed &= (0xFF ^ GB_START);
         if(!(ioRam[0x00] & 0x20))
             requestInterrupt(INT_JOYPAD);
     }
-    if(keyPressed(mapFuncKey(FUNC_KEY_SELECT))) {
+    if(inputKeyHeld(mapFuncKey(FUNC_KEY_SELECT))) {
         buttonsPressed &= (0xFF ^ GB_SELECT);
         if(!(ioRam[0x00] & 0x20))
             requestInterrupt(INT_JOYPAD);
     }
 
-    if(keyPressed(mapFuncKey(FUNC_KEY_AUTO_A))) {
+    if(inputKeyHeld(mapFuncKey(FUNC_KEY_AUTO_A))) {
         if(autoFireCounterA <= 0) {
             buttonsPressed &= (0xFF ^ GB_A);
             if(!(ioRam[0x00] & 0x20))
@@ -731,7 +732,7 @@ void Gameboy::gameboyCheckInput() {
         }
         autoFireCounterA--;
     }
-    if(keyPressed(mapFuncKey(FUNC_KEY_AUTO_B))) {
+    if(inputKeyHeld(mapFuncKey(FUNC_KEY_AUTO_B))) {
         if(autoFireCounterB <= 0) {
             buttonsPressed &= (0xFF ^ GB_B);
             if(!(ioRam[0x00] & 0x20))
@@ -743,30 +744,30 @@ void Gameboy::gameboyCheckInput() {
 
     controllers[0] = buttonsPressed;
 
-    if(keyJustPressed(mapFuncKey(FUNC_KEY_SAVE))) {
+    if(inputKeyPressed(mapFuncKey(FUNC_KEY_SAVE))) {
         if(!autoSavingEnabled) {
             saveGame();
         }
     }
 
-    if(keyJustPressed(mapFuncKey(FUNC_KEY_FAST_FORWARD_TOGGLE))) {
+    if(inputKeyPressed(mapFuncKey(FUNC_KEY_FAST_FORWARD_TOGGLE))) {
         gfxToggleFastForward();
     }
 
-    if(keyJustPressed(mapFuncKey(FUNC_KEY_MENU) | mapFuncKey(FUNC_KEY_MENU_PAUSE) | BUTTON_TOUCH) && !accelPadMode) {
-        if(singleScreenMode || keyJustPressed(mapFuncKey(FUNC_KEY_MENU_PAUSE)))
+    if(inputKeyPressed(mapFuncKey(FUNC_KEY_MENU) | mapFuncKey(FUNC_KEY_MENU_PAUSE) | BUTTON_TOUCH) && !accelPadMode) {
+        if(singleScreenMode || inputKeyPressed(mapFuncKey(FUNC_KEY_MENU_PAUSE)))
             pause();
 
-        forceReleaseKey(0xffffffff);
+        inputKeyRelease(0xffffffff);
         gfxSetFastForward(false);
         displayMenu();
     }
 
-    if(keyJustPressed(mapFuncKey(FUNC_KEY_SCALE))) {
+    if(inputKeyPressed(mapFuncKey(FUNC_KEY_SCALE))) {
         setMenuOption("Scaling", (getMenuOption("Scaling") + 1) % 3);
     }
 
-    if(keyJustPressed(mapFuncKey(FUNC_KEY_RESET)))
+    if(inputKeyPressed(mapFuncKey(FUNC_KEY_RESET)))
         resetGameboy();
 }
 
@@ -1201,7 +1202,7 @@ void Gameboy::unloadRom() {
 const char* mbcNames[] = {"ROM", "MBC1", "MBC2", "MBC3", "MBC4", "MBC5", "MBC7", "HUC1", "HUC3"};
 
 void Gameboy::printRomInfo() {
-    clearConsole();
+    iprintf("\x1b[2J");
     printf("ROM Title: \"%s\"\n", romFile->getRomTitle());
     printf("Cartridge type: %.2x (%s)\n", romFile->getMapper(), mbcNames[romFile->getMBC()]);
     printf("ROM Size: %.2x (%d banks)\n", romFile->romSlot0[0x148], romFile->getNumRomBanks());
@@ -1241,7 +1242,10 @@ int Gameboy::loadSave(int saveId) {
                 numRamBanks = 16;
                 break;
             default:
-                printLog("Invalid RAM bank number: %x\nDefaulting to 4 banks\n", romFile->getRamSize());
+                if(consoleDebugOutput) {
+                    printf("Invalid RAM bank number: %x\nDefaulting to 4 banks\n", romFile->getRamSize());
+                }
+
                 numRamBanks = 4;
                 break;
         }
@@ -1343,7 +1347,7 @@ int Gameboy::saveGame() {
             break;
     }
 
-    flushFatCache();
+    systemFlushFatCache();
 
     return 0;
 }
@@ -1375,8 +1379,12 @@ void Gameboy::gameboySyncAutosave() {
             }
         }
     }
-    printLog("SAVE %d sectors\n", numSectors);
-    flushFatCache(); // This should do nothing, unless the RTC was written to.
+
+    if(consoleDebugOutput) {
+        printf("SAVE %d sectors\n", numSectors);
+    }
+
+    systemFlushFatCache(); // This should do nothing, unless the RTC was written to.
 
     framesSinceAutosaveStarted = 0;
     autosaveStarted = false;

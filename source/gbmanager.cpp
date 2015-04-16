@@ -1,13 +1,14 @@
 #include <stdlib.h>
 
-#include "gbmanager.h"
-#include "input.h"
+#include "filechooser.h"
 #include "gameboy.h"
+#include "gbmanager.h"
 #include "gbs.h"
+#include "input.h"
 #include "menu.h"
 #include "romfile.h"
-#include "filechooser.h"
 #include "sound.h"
+#include "system.h"
 
 Gameboy* gameboy = NULL;
 Gameboy* gb2 = NULL;
@@ -185,7 +186,7 @@ void mgr_selectRom() {
 
     free(filename);
 
-    updateScreens();
+    systemUpdateConsole();
 }
 
 void mgr_save() {
@@ -217,7 +218,7 @@ void mgr_updateVBlank() {
     fps++;
     if(!isMenuOn() && !consoleDebugOutput && rawTime > lastRawTime) {
         if(fpsOutput) {
-            clearConsole();
+            iprintf("\x1b[2J");
             iprintf("FPS: %d\n", fps);
         }
 

@@ -1,11 +1,6 @@
 #pragma once
 
-#include <stdio.h>
-#include "config.h"
-
 #include <ctrcommon/types.hpp>
-
-#define FAT_CACHE_SIZE 16
 
 #define GB_A            0x01
 #define GB_B            0x02
@@ -16,20 +11,10 @@
 #define GB_UP            0x40
 #define GB_DOWN            0x80
 
-extern char borderPath[256];
-
-void flushFatCache();
-
-bool keyPressed(int key);
-bool keyPressedAutoRepeat(int key);
-bool keyJustPressed(int key);
-// Consider this key unpressed until released and pressed again
-void forceReleaseKey(int key);
-
 void inputUpdate();
-
+bool inputKeyHeld(int key);
+bool inputKeyRepeat(int key);
+bool inputKeyPressed(int key);
+void inputKeyRelease(int key);
 int inputGetMotionSensorX();
 int inputGetMotionSensorY();
-
-void systemCheckPolls();
-void systemCleanup();

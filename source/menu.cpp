@@ -2,7 +2,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include <string>
+
 #include "cheats.h"
+#include "config.h"
 #include "gameboy.h"
 #include "gbmanager.h"
 #include "gbprinter.h"
@@ -10,6 +13,7 @@
 #include "input.h"
 #include "menu.h"
 #include "sound.h"
+#include "system.h"
 
 const int MENU_NONE = 1;
 const int MENU_3DS = 2;
@@ -55,7 +59,7 @@ extern int halt;
 
 // Private function used for simple submenus
 void subMenuGenericUpdateFunc() {
-    if(keyJustPressed(mapMenuKey(MENU_KEY_A)) || keyJustPressed(mapMenuKey(MENU_KEY_B)))
+    if(inputKeyPressed(mapMenuKey(MENU_KEY_A)) || inputKeyPressed(mapMenuKey(MENU_KEY_B)))
         closeSubMenu();
 }
 
@@ -172,7 +176,7 @@ void stateLoadFunc(int value) {
     muteSND();
     if(gameboy->loadState(stateNum) == 0) {
         closeMenu();
-        updateScreens();
+        systemUpdateConsole();
         printMessage[0] = '\0';
     }
 }
@@ -188,22 +192,22 @@ void stateDeleteFunc(int value) {
 
 void accelPadFunc(int value) {
     accelPadMode = true;
-    forceReleaseKey(mapMenuKey(MENU_KEY_A));
+    inputKeyRelease(mapMenuKey(MENU_KEY_A));
     closeMenu();
-    updateScreens();
+    systemUpdateConsole();
 
     printf("Exit");
 }
 
 void resetFunc(int value) {
     closeMenu();
-    updateScreens();
+    systemUpdateConsole();
     gameboy->init();
 }
 
 void returnFunc(int value) {
     closeMenu();
-    updateScreens();
+    systemUpdateConsole();
 }
 
 void gameboyModeFunc(int value) {
@@ -220,7 +224,7 @@ void sgbModeFunc(int value) {
 
 void setScreenFunc(int value) {
     gameScreen = value;
-    updateScreens();
+    systemUpdateConsole();
 }
 
 void setSingleScreenFunc(int value) {
@@ -231,7 +235,7 @@ void setSingleScreenFunc(int value) {
 
         if(isMenuOn()) {
             // Swap game screen
-            // This will invoke updateScreens, incidentally.
+            // This will invoke systemUpdateConsole, incidentally.
             setMenuOption("Game Screen", !gameScreen);
         }
     }
@@ -240,7 +244,7 @@ void setSingleScreenFunc(int value) {
 void setScaleModeFunc(int value) {
     scaleMode = value;
     if(!isMenuOn()) {
-        updateScreens();
+        systemUpdateConsole();
     }
     if(value == 0) {
         doAtVBlank(checkBorder);
@@ -280,7 +284,7 @@ void romInfoFunc(int value) {
 
 void versionInfoFunc(int value) {
     displaySubMenu(subMenuGenericUpdateFunc);
-    clearConsole();
+    iprintf("\x1b[2J");
     printf("GameYob %s\n", VERSION_STRING);
 }
 
@@ -438,13 +442,13 @@ void setMenuDefaults() {
 
 void displayMenu() {
     menuOn = true;
-    updateScreens();
+    systemUpdateConsole();
     doAtVBlank(redrawMenu);
 }
 
 void closeMenu() {
     menuOn = false;
-    clearConsole();
+    iprintf("\x1b[2J");
     gameboy->unpause();
 }
 
@@ -529,17 +533,17 @@ int menuGetNumRows() {
 }
 
 void redrawMenu() {
-    clearConsole();
+    iprintf("\x1b[2J");
 
-    int width = consoleGetWidth();
-    int height = consoleGetHeight();
+    int width = systemGetConsoleWidth();
+    int height = systemGetConsoleHeight();
 
     // Top line: submenu
     int pos = 0;
     int nameStart = (width - strlen(menuList[menu].name) - 2) / 2;
     if(option == -1) {
         nameStart -= 2;
-        iprintfColored(CONSOLE_COLOR_BRIGHT_GREEN, "<");
+        printf("\x1b[1m\x1b[32m<\x1b[0m");
     } else {
         printf("<");
     }
@@ -550,15 +554,15 @@ void redrawMenu() {
     }
 
     if(option == -1) {
-        iprintfColored(CONSOLE_COLOR_BRIGHT_YELLOW, "* ");
+        printf("\x1b[1m\x1b[33m* \x1b[0m");
         pos += 2;
     }
 
-    int color = (option == -1 ? CONSOLE_COLOR_BRIGHT_YELLOW : CONSOLE_COLOR_WHITE);
-    iprintfColored(color, "[%s]", menuList[menu].name);
+    std::string color = (option == -1 ? "\x1b[1m\x1b[33m" : "");
+    printf((color + "[%s]\x1b[0m").c_str(), menuList[menu].name);
     pos += 2 + strlen(menuList[menu].name);
     if(option == -1) {
-        iprintfColored(CONSOLE_COLOR_BRIGHT_YELLOW, " *");
+        printf("\x1b[1m\x1b[33m *\x1b[0m");
         pos += 2;
     }
 
@@ -567,7 +571,7 @@ void redrawMenu() {
     }
 
     if(option == -1) {
-        iprintfColored(CONSOLE_COLOR_BRIGHT_GREEN, ">");
+        printf("\x1b[1m\x1b[32m>\x1b[0m");
     } else {
         printf(">");
     }
@@ -580,13 +584,13 @@ void redrawMenu() {
             continue;
         }
 
-        int option_color;
+        std::string option_color;
         if(!menuList[menu].options[i].enabled) {
-            option_color = CONSOLE_COLOR_FAINT_WHITE;
+            option_color = "\x1b[2m";
         } else if(option == i) {
-            option_color = CONSOLE_COLOR_BRIGHT_YELLOW;
+            option_color = "\x1b[1m\x1b[33m";
         } else {
-            option_color = CONSOLE_COLOR_WHITE;
+            option_color = "";
         }
 
         if(menuList[menu].options[i].numValues == 0) {
@@ -595,9 +599,9 @@ void redrawMenu() {
             }
 
             if(i == option) {
-                iprintfColored(option_color, "* %s *\n\n", menuList[menu].options[i].name);
+                printf((option_color + "* %s *\n\n\x1b[0m").c_str(), menuList[menu].options[i].name);
             } else {
-                iprintfColored(option_color, "  %s  \n\n", menuList[menu].options[i].name);
+                printf((option_color + "  %s  \n\n\x1b[0m").c_str(), menuList[menu].options[i].name);
             }
         } else {
             for(unsigned int j = 0; j < width / 2 - strlen(menuList[menu].options[i].name); j++) {
@@ -605,14 +609,14 @@ void redrawMenu() {
             }
 
             if(i == option) {
-                iprintfColored(option_color, "* ");
-                iprintfColored(option_color, "%s  ", menuList[menu].options[i].name);
-                iprintfColored(menuList[menu].options[i].enabled ? CONSOLE_COLOR_BRIGHT_GREEN : option_color, "%s", menuList[menu].options[i].values[menuList[menu].options[i].selection]);
-                iprintfColored(option_color, " *");
+                printf((option_color + "* \x1b[0m").c_str());
+                printf((option_color + "%s  \x1b[0m").c_str(), menuList[menu].options[i].name);
+                printf(((menuList[menu].options[i].enabled ? "\x1b[1m\x1b[32m" : option_color) + "%s\x1b[0m").c_str(), menuList[menu].options[i].values[menuList[menu].options[i].selection]);
+                printf((option_color + " *\x1b[0m").c_str());
             } else {
                 printf("  ");
-                iprintfColored(option_color, "%s  ", menuList[menu].options[i].name);
-                iprintfColored(option_color, "%s", menuList[menu].options[i].values[menuList[menu].options[i].selection]);
+                printf((option_color + "%s  \x1b[0m").c_str(), menuList[menu].options[i].name);
+                printf((option_color + "%s\x1b[0m").c_str(), menuList[menu].options[i].values[menuList[menu].options[i].selection]);
             }
 
             printf("\n\n");
@@ -646,15 +650,15 @@ void updateMenu() {
 
     bool redraw = false;
     // Get input
-    if(keyPressedAutoRepeat(mapMenuKey(MENU_KEY_UP))) {
+    if(inputKeyRepeat(mapMenuKey(MENU_KEY_UP))) {
         menuCursorUp();
         redraw = true;
     }
-    else if(keyPressedAutoRepeat(mapMenuKey(MENU_KEY_DOWN))) {
+    else if(inputKeyRepeat(mapMenuKey(MENU_KEY_DOWN))) {
         menuCursorDown();
         redraw = true;
     }
-    else if(keyPressedAutoRepeat(mapMenuKey(MENU_KEY_LEFT))) {
+    else if(inputKeyRepeat(mapMenuKey(MENU_KEY_LEFT))) {
         if(option == -1) {
             menu--;
             if(menu < 0)
@@ -669,7 +673,7 @@ void updateMenu() {
         }
         redraw = true;
     }
-    else if(keyPressedAutoRepeat(mapMenuKey(MENU_KEY_RIGHT))) {
+    else if(inputKeyRepeat(mapMenuKey(MENU_KEY_RIGHT))) {
         if(option == -1) {
             menu++;
             if(menu >= numMenus)
@@ -684,19 +688,19 @@ void updateMenu() {
         }
         redraw = true;
     }
-    else if(keyJustPressed(mapMenuKey(MENU_KEY_A))) {
-        forceReleaseKey(mapMenuKey(MENU_KEY_A));
+    else if(inputKeyPressed(mapMenuKey(MENU_KEY_A))) {
+        inputKeyRelease(mapMenuKey(MENU_KEY_A));
         if(option >= 0 && menuList[menu].options[option].numValues == 0 && menuList[menu].options[option].enabled) {
             menuList[menu].options[option].function(menuList[menu].options[option].selection);
         }
         redraw = true;
     }
-    else if(keyJustPressed(mapMenuKey(MENU_KEY_B))) {
-        forceReleaseKey(mapMenuKey(MENU_KEY_B));
+    else if(inputKeyPressed(mapMenuKey(MENU_KEY_B))) {
+        inputKeyRelease(mapMenuKey(MENU_KEY_B));
         closeMenu();
-        updateScreens();
+        systemUpdateConsole();
     }
-    else if(keyJustPressed(mapMenuKey(MENU_KEY_L))) {
+    else if(inputKeyPressed(mapMenuKey(MENU_KEY_L))) {
         int row = menuGetOptionRow();
         menu--;
         if(menu < 0)
@@ -704,7 +708,7 @@ void updateMenu() {
         menuSetOptionRow(row);
         redraw = true;
     }
-    else if(keyJustPressed(mapMenuKey(MENU_KEY_R))) {
+    else if(inputKeyPressed(mapMenuKey(MENU_KEY_R))) {
         int row = menuGetOptionRow();
         menu++;
         if(menu >= numMenus)
@@ -720,8 +724,8 @@ void updateMenu() {
 // Message will be printed immediately, but also stored in case it's overwritten 
 // right away.
 void printMenuMessage(const char* s) {
-    int width = consoleGetWidth();
-    int height = consoleGetHeight();
+    int width = systemGetConsoleWidth();
+    int height = systemGetConsoleHeight();
     int rows = menuGetNumRows();
 
     bool hadPreviousMessage = printMessage[0] != '\0';

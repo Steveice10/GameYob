@@ -2,7 +2,7 @@
 
 #include <ctrcommon/types.hpp>
 
-void gfxInit();
+bool gfxInit();
 void gfxCleanup();
 void gfxToggleFastForward();
 void gfxSetFastForward(bool fastforward);

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "console.h"
+#include <stdio.h>
 
 extern bool consoleDebugOutput;
 extern int gbcModeOption;

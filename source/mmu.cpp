@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "console.h"
+#include "system.h"
 #include "gameboy.h"
 #include "menu.h"
 #include "romfile.h"
@@ -21,9 +21,9 @@ void Gameboy::refreshRomBank(int bank) {
         memory[0x5] = romFile->romSlot1 + 0x1000;
         memory[0x6] = romFile->romSlot1 + 0x2000;
         memory[0x7] = romFile->romSlot1 + 0x3000;
+    } else if(consoleDebugOutput) {
+        printf("Tried to access bank %x\n", bank);
     }
-    else
-        printLog("Tried to access bank %x\n", bank);
 }
 
 void Gameboy::refreshRamBank(int bank) {
@@ -31,9 +31,9 @@ void Gameboy::refreshRamBank(int bank) {
         currentRamBank = bank;
         memory[0xa] = externRam + currentRamBank * 0x2000;
         memory[0xb] = externRam + currentRamBank * 0x2000 + 0x1000;
+    } else if(consoleDebugOutput) {
+        printf("Tried to access ram bank %x\n", bank);
     }
-    else
-        printLog("Tried to access ram bank %x\n", bank);
 }
 
 void Gameboy::writeSram(u16 addr, u8 val) {
@@ -426,7 +426,10 @@ void Gameboy::writeIO(u8 ioReg, u8 val) {
             return;
         case 0x44:
             //ioRam[0x44] = 0;
-            printLog("LY Write %d\n", val);
+            if(consoleDebugOutput) {
+                printf("LY Write %d\n", val);
+            }
+
             return;
         case 0x45:
             ioRam[ioReg] = val;

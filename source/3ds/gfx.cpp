@@ -1,3 +1,4 @@
+#include "config.h"
 #include "gbgfx.h"
 #include "input.h"
 
@@ -18,9 +19,12 @@ static u32 shader = 0;
 static u32 texture = 0;
 static u32 vbo = 0;
 
-void gfxInit() {
+bool gfxInit() {
     // Initialize the GPU and setup the state.
-    gpuInit();
+    if(!gpuInit()) {
+        return false;
+    }
+
     gpuCullMode(CULL_BACK_CCW);
 
     // Load the shader.
@@ -129,7 +133,7 @@ void gfxDrawScreen(int gameScreen, int scaleMode) {
     gpuFlush();
 
     // Swap buffers and wait for VBlank.
-    gpuSwapBuffers(!(fastForward || keyPressed(mapFuncKey(FUNC_KEY_FAST_FORWARD))));
+    gpuSwapBuffers(!(fastForward || inputKeyHeld(mapFuncKey(FUNC_KEY_FAST_FORWARD))));
 }
 
 void gfxFlush() {

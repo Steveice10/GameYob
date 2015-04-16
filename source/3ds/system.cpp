@@ -1,18 +1,27 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <malloc.h>
 
-#include "console.h"
+#include "config.h"
+#include "system.h"
 #include "gbgfx.h"
+#include "gbmanager.h"
+#include "gfx.h"
 #include "menu.h"
 
 #include <3ds.h>
+#include <ctrcommon/platform.hpp>
 
 gfxScreen_t currConsole;
 
 PrintConsole* topConsole;
 PrintConsole* bottomConsole;
 
-void consoleInitScreens() {
+bool systemInit() {
+    if(!platformInit() || !gfxInit()) {
+        return 0;
+    }
+
     topConsole = (PrintConsole*) calloc(1, sizeof(PrintConsole));
     consoleInit(GFX_TOP, topConsole);
 
@@ -24,28 +33,39 @@ void consoleInitScreens() {
 
     consoleSelect(bottomConsole);
     currConsole = GFX_BOTTOM;
+
+    mgr_init();
+
+    setMenuDefaults();
+    readConfigFile();
+
+    printf("GameYob 3DS\n\n");
+
+    return true;
 }
 
-void consoleCleanup() {
+void systemCleanup() {
+    mgr_save();
+    mgr_exit();
+
     free(topConsole);
     free(bottomConsole);
+
+    gfxCleanup();
+    platformCleanup();
 }
 
-int consoleGetWidth() {
+int systemGetConsoleWidth() {
     PrintConsole* console = !gameScreen == 0 ? topConsole : bottomConsole;
     return console->consoleWidth;
 }
 
-int consoleGetHeight() {
+int systemGetConsoleHeight() {
     PrintConsole* console = !gameScreen == 0 ? topConsole : bottomConsole;
     return console->consoleHeight;
 }
 
-void clearConsole() {
-    consoleClear();
-}
-
-void updateScreens() {
+void systemUpdateConsole() {
     gfxScreen_t screen = !gameScreen == 0 ? GFX_TOP : GFX_BOTTOM;
     if(currConsole != screen) {
         currConsole = screen;
@@ -68,31 +88,18 @@ void updateScreens() {
     }
 }
 
-void iprintfColored(int palette, const char* format, ...) {
-    PrintConsole* console = !gameScreen == 0 ? topConsole : bottomConsole;
-    console->fg = palette;
-
-    va_list args;
-    va_start(args, format);
-
-    vprintf(format, args);
-    va_end(args);
-
-    console->fg = CONSOLE_COLOR_WHITE;
-}
-
-void printLog(const char* format, ...) {
-    if(consoleDebugOutput) {
-        va_list args;
-        va_start(args, format);
-
-        vprintf(format, args);
-        va_end(args);
+void systemCheckPolls() {
+    if(!platformIsRunning()) {
+        systemCleanup();
+        exit(0);
     }
 }
 
-void disableSleepMode() {
+void systemDisableSleepMode() {
 }
 
-void enableSleepMode() {
+void systemEnableSleepMode() {
+}
+
+void systemFlushFatCache() {
 }

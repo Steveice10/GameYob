@@ -1,7 +1,5 @@
 #include <stdlib.h>
 
-#include "console.h"
-#include "gbmanager.h"
 #include "gfx.h"
 #include "input.h"
 #include "menu.h"
@@ -14,35 +12,6 @@
 
 u32 keysForceReleased = 0;
 u64 nextRepeat = 0;
-
-void flushFatCache() {
-}
-
-bool keyPressed(int key) {
-    return inputIsHeld((Button) key) && !(keysForceReleased & key);
-}
-
-bool keyJustPressed(int key) {
-    return inputIsPressed((Button) key) && !(keysForceReleased & key);
-}
-
-bool keyPressedAutoRepeat(int key) {
-    if(keyJustPressed(key)) {
-        nextRepeat = platformGetTime() + 250;
-        return true;
-    }
-
-    if(keyPressed(key) && platformGetTime() >= nextRepeat) {
-        nextRepeat = platformGetTime() + 50;
-        return true;
-    }
-
-    return false;
-}
-
-void forceReleaseKey(int key) {
-    keysForceReleased |= key;
-}
 
 void inputUpdate() {
     inputPoll();
@@ -58,6 +27,32 @@ void inputUpdate() {
     }
 }
 
+bool inputKeyHeld(int key) {
+    return inputIsHeld((Button) key) && !(keysForceReleased & key);
+}
+
+bool inputKeyPressed(int key) {
+    return inputIsPressed((Button) key) && !(keysForceReleased & key);
+}
+
+bool inputKeyRepeat(int key) {
+    if(inputKeyPressed(key)) {
+        nextRepeat = platformGetTime() + 250;
+        return true;
+    }
+
+    if(inputKeyHeld(key) && platformGetTime() >= nextRepeat) {
+        nextRepeat = platformGetTime() + 50;
+        return true;
+    }
+
+    return false;
+}
+
+void inputKeyRelease(int key) {
+    keysForceReleased |= key;
+}
+
 int inputGetMotionSensorX() {
     int accelX = accelPadMode ? (inputIsHeld(BUTTON_TOUCH) ? 160 - inputGetTouch().x : 0) : 0;
     return 2047 + accelX;
@@ -66,20 +61,4 @@ int inputGetMotionSensorX() {
 int inputGetMotionSensorY() {
     int accelY = accelPadMode ? (inputIsHeld(BUTTON_TOUCH) ? 120 - inputGetTouch().y : 0) : 0;
     return 2047 + accelY;
-}
-
-void systemCheckPolls() {
-    if(!platformIsRunning()) {
-        systemCleanup();
-        exit(0);
-    }
-}
-
-void systemCleanup() {
-    mgr_save();
-    mgr_exit();
-
-    consoleCleanup();
-    gfxCleanup();
-    platformCleanup();
 }

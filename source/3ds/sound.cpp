@@ -2679,7 +2679,10 @@ void SoundEngine::handleSoundRegister(u8 ioReg, u8 val) {
             if(chan4FreqRatio == 0)
                 chan4FreqRatio = 0.5;
             chan4Width = !!(val & 0x8);
-            printLog("Freq %x\n", chanFreq[3]);
+            if(consoleDebugOutput) {
+                printf("Freq %x\n", chanFreq[3]);
+            }
+
             break;
             // Start
         case 0x23:

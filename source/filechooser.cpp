@@ -5,10 +5,11 @@
 #include <string>
 #include <vector>
 
-#include "console.h"
+#include "config.h"
 #include "filechooser.h"
 #include "gfx.h"
 #include "input.h"
+#include "system.h"
 
 #include <ctrcommon/fs.hpp>
 
@@ -209,7 +210,7 @@ template<class Data, class Metadata> void quickSort(std::vector<Data> &data, std
  * for free()ing it.
  */
 char* startFileChooser(const char* extensions[], bool romExtensions, bool canQuit) {
-    filesPerPage = consoleGetHeight();
+    filesPerPage = systemGetConsoleHeight();
 
     filesPerPage--;
 
@@ -217,7 +218,7 @@ char* startFileChooser(const char* extensions[], bool romExtensions, bool canQui
         filesPerPage--;
 
     fileChooserOn = true;
-    updateScreens(); // Screen may need to be enabled
+    systemUpdateConsole(); // Screen may need to be enabled
 
     int numExtensions = sizeof(extensions) / sizeof(const char*);
     char* retval;
@@ -335,14 +336,14 @@ char* startFileChooser(const char* extensions[], bool romExtensions, bool canQui
         updateScrollDown();
         bool readDirectory = false;
         while(!readDirectory) {
-            int screenLen = consoleGetWidth();
+            int screenLen = systemGetConsoleWidth();
             // Draw the screen
-            clearConsole();
+            iprintf("\x1b[2J");
             strncpy(buffer, currDirectory.c_str(), screenLen);
             buffer[screenLen] = '\0';
-            iprintfColored(CONSOLE_COLOR_WHITE, "%s", buffer);
+            printf("%s", buffer);
             for(uint j = 0; j < screenLen - strlen(buffer); j++)
-                iprintfColored(CONSOLE_COLOR_WHITE, " ");
+                printf(" ");
 
             for(int i = scrollY; i < scrollY + filesPerPage && i < numFiles; i++) {
                 if(i == fileSelection)
@@ -360,21 +361,23 @@ char* startFileChooser(const char* extensions[], bool romExtensions, bool canQui
                 strncpy(buffer, filenames[i].c_str(), stringLen);
                 buffer[stringLen] = '\0';
                 if(flags[i] & FLAG_DIRECTORY) {
-                    iprintfColored(CONSOLE_COLOR_BRIGHT_YELLOW, "%s/", buffer);
+                    printf("\x1b[1m\x1b[33m%s/\x1b[0m", buffer);
                 }
                 else if(flags[i] & FLAG_SUSPENDED)
-                    iprintfColored(CONSOLE_COLOR_BRIGHT_MAGENTA, "%s", buffer);
+                    printf("\x1b[1m\x1b[35m%s\x1b[0m", buffer);
                 else
-                    iprintfColored(CONSOLE_COLOR_WHITE, "%s", buffer);
+                    printf("%s", buffer);
                 for(uint j = 0; j < stringLen - strlen(buffer); j++)
-                    iprintfColored(CONSOLE_COLOR_WHITE, " ");
+                    printf(" ");
             }
             if(canQuit) {
                 if(numFiles < filesPerPage) {
-                    for(int i = numFiles; i < filesPerPage; i++)
-                        iprintfColored(CONSOLE_COLOR_WHITE, "\n");
+                    for(int i = numFiles; i < filesPerPage; i++) {
+                        printf("\n");
+                    }
                 }
-                iprintfColored(CONSOLE_COLOR_WHITE, "                Press Y to exit");
+
+                printf("                Press Y to exit");
             }
 
             gfxFlush();
@@ -386,7 +389,7 @@ char* startFileChooser(const char* extensions[], bool romExtensions, bool canQui
                 gfxWaitForVBlank();
                 inputUpdate();
 
-                if(keyJustPressed(mapMenuKey(MENU_KEY_A))) {
+                if(inputKeyPressed(mapMenuKey(MENU_KEY_A))) {
                     if(flags[fileSelection] & FLAG_DIRECTORY) {
                         if(strcmp(filenames[fileSelection].c_str(), "..") == 0)
                             goto lowerDirectory;
@@ -403,7 +406,7 @@ char* startFileChooser(const char* extensions[], bool romExtensions, bool canQui
                         strcpy(retval + (currDirectory.length() * sizeof(char)), filenames[fileSelection].c_str());
                         goto end;
                     }
-                } else if(keyJustPressed(mapMenuKey(MENU_KEY_B))) {
+                } else if(inputKeyPressed(mapMenuKey(MENU_KEY_B))) {
                     lowerDirectory:
                     // Select this directory when going up
                     std::string currDir = currDirectory;
@@ -419,27 +422,27 @@ char* startFileChooser(const char* extensions[], bool romExtensions, bool canQui
                     //chdir("..");
                     readDirectory = true;
                     break;
-                } else if(keyPressedAutoRepeat(mapMenuKey(MENU_KEY_UP))) {
+                } else if(inputKeyRepeat(mapMenuKey(MENU_KEY_UP))) {
                     if(fileSelection > 0) {
                         fileSelection--;
                         updateScrollUp();
                         break;
                     }
-                } else if(keyPressedAutoRepeat(mapMenuKey(MENU_KEY_DOWN))) {
+                } else if(inputKeyRepeat(mapMenuKey(MENU_KEY_DOWN))) {
                     if(fileSelection < numFiles - 1) {
                         fileSelection++;
                         updateScrollDown();
                         break;
                     }
-                } else if(keyPressedAutoRepeat(mapMenuKey(MENU_KEY_RIGHT))) {
+                } else if(inputKeyRepeat(mapMenuKey(MENU_KEY_RIGHT))) {
                     fileSelection += filesPerPage / 2;
                     updateScrollDown();
                     break;
-                } else if(keyPressedAutoRepeat(mapMenuKey(MENU_KEY_LEFT))) {
+                } else if(inputKeyRepeat(mapMenuKey(MENU_KEY_LEFT))) {
                     fileSelection -= filesPerPage / 2;
                     updateScrollUp();
                     break;
-                } else if(keyJustPressed(mapMenuKey(MENU_KEY_Y))) {
+                } else if(inputKeyPressed(mapMenuKey(MENU_KEY_Y))) {
                     if(canQuit) {
                         retval = NULL;
                         goto end;
@@ -449,7 +452,7 @@ char* startFileChooser(const char* extensions[], bool romExtensions, bool canQui
         }
     }
     end:
-    clearConsole();
+    iprintf("\x1b[2J");
     fileChooserOn = false;
 
     return retval;

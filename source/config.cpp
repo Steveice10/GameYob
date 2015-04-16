@@ -302,15 +302,15 @@ void redrawKeyConfigChooser() {
     int &option = keyConfigChooser_option;
     KeyConfig* config = &keyConfigs[selectedKeyConfig];
 
-    clearConsole();
+    iprintf("\x1b[2J");
 
-    iprintf("Config: ");
+    printf("Config: ");
     if(option == -1)
-        iprintfColored(CONSOLE_COLOR_BRIGHT_YELLOW, "* %s *\n\n", config->name);
+        printf("\x1b[1m\x1b[33m* %s *\n\n\x1b[0m", config->name);
     else
-        iprintf("  %s  \n\n", config->name);
+        printf("  %s  \n\n", config->name);
 
-    iprintf("       Button   Function\n\n");
+    printf("       Button   Function\n\n");
 
     for(int i = 0; i < NUM_BINDABLE_BUTTONS; i++) {
         // These button bits aren't assigned to anything, so no strings for them
@@ -319,18 +319,19 @@ void redrawKeyConfigChooser() {
 
         int len = 11 - strlen(dsKeyNames[i]);
         while(len > 0) {
-            iprintf(" ");
+            printf(" ");
             len--;
         }
-        if(option == i)
-            iprintfColored(CONSOLE_COLOR_BRIGHT_YELLOW, "* %s | %s *\n", dsKeyNames[i],
-                           gbKeyNames[config->funcKeys[i]]);
-        else
-            iprintf("  %s | %s  \n", dsKeyNames[i], gbKeyNames[config->funcKeys[i]]);
+
+        if(option == i) {
+            printf("\x1b[1m\x1b[33m* %s | %s *\n\x1b[0m", dsKeyNames[i], gbKeyNames[config->funcKeys[i]]);
+        } else {
+            printf("  %s | %s  \n", dsKeyNames[i], gbKeyNames[config->funcKeys[i]]);
+        }
     }
-    iprintf("\nPress X to make a new config.");
+    printf("\nPress X to make a new config.");
     if(selectedKeyConfig != 0) /* can't erase the default */ {
-        iprintf("\n\nPress Y to delete this config.");
+        printf("\n\nPress Y to delete this config.");
     }
 }
 
@@ -340,11 +341,11 @@ void updateKeyConfigChooser() {
     int &option = keyConfigChooser_option;
     KeyConfig* config = &keyConfigs[selectedKeyConfig];
 
-    if(keyJustPressed(BUTTON_B)) {
+    if(inputKeyPressed(BUTTON_B)) {
         loadKeyConfig();
         closeSubMenu();
     }
-    else if(keyJustPressed(BUTTON_X)) {
+    else if(inputKeyPressed(BUTTON_X)) {
         keyConfigs.push_back(KeyConfig(*config));
         selectedKeyConfig = keyConfigs.size() - 1;
         char name[32];
@@ -353,7 +354,7 @@ void updateKeyConfigChooser() {
         option = -1;
         redraw = true;
     }
-    else if(keyJustPressed(BUTTON_Y)) {
+    else if(inputKeyPressed(BUTTON_Y)) {
         if(selectedKeyConfig != 0) /* can't erase the default */ {
             keyConfigs.erase(keyConfigs.begin() + selectedKeyConfig);
             if(selectedKeyConfig >= keyConfigs.size())
@@ -361,7 +362,7 @@ void updateKeyConfigChooser() {
             redraw = true;
         }
     }
-    else if(keyPressedAutoRepeat(BUTTON_DOWN)) {
+    else if(inputKeyRepeat(BUTTON_DOWN)) {
         if(option == NUM_BINDABLE_BUTTONS - 1)
             option = -1;
         else if(option == 11) //Skip nonexistant keys
@@ -372,7 +373,7 @@ void updateKeyConfigChooser() {
             option++;
         redraw = true;
     }
-    else if(keyPressedAutoRepeat(BUTTON_UP)) {
+    else if(inputKeyRepeat(BUTTON_UP)) {
         if(option == -1)
             option = NUM_BINDABLE_BUTTONS - 1;
         else if(option == 14) //Skip nonexistant keys
@@ -383,7 +384,7 @@ void updateKeyConfigChooser() {
             option--;
         redraw = true;
     }
-    else if(keyPressedAutoRepeat(BUTTON_LEFT)) {
+    else if(inputKeyRepeat(BUTTON_LEFT)) {
         if(option == -1) {
             if(selectedKeyConfig == 0)
                 selectedKeyConfig = keyConfigs.size() - 1;
@@ -397,7 +398,7 @@ void updateKeyConfigChooser() {
         }
         redraw = true;
     }
-    else if(keyPressedAutoRepeat(BUTTON_RIGHT)) {
+    else if(inputKeyRepeat(BUTTON_RIGHT)) {
         if(option == -1) {
             selectedKeyConfig++;
             if(selectedKeyConfig >= keyConfigs.size())

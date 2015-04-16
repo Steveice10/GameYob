@@ -5,7 +5,7 @@
 
 #include "gbprinter.h"
 #include "gameboy.h"
-#include "console.h"
+#include "menu.h"
 #include "romfile.h"
 
 #define PRINTER_STATUS_READY        0x08
@@ -190,7 +190,9 @@ u8 sendGbPrinterByte(u8 dat) {
         case 10: // Status
             if(printerChecksum != printerExpectedChecksum) {
                 printerStatus |= PRINTER_STATUS_CHECKSUM;
-                printLog("Checksum %.4x, expected %.4x\n", printerChecksum, printerExpectedChecksum);
+                if(consoleDebugOutput) {
+                    printf("Checksum %.4x, expected %.4x\n", printerChecksum, printerExpectedChecksum);
+                }
             }
             else
                 printerStatus &= ~PRINTER_STATUS_CHECKSUM;
@@ -265,7 +267,10 @@ void printerSaveFile() {
             if(appending && access(filename, R_OK) != 0) {
                 // This is a failsafe, this shouldn't happen
                 appending = false;
-                printLog("The image to be appended to doesn't exist!");
+                if(consoleDebugOutput) {
+                    printf("The image to be appended to doesn't exist!");
+                }
+
                 continue;
             }
             else

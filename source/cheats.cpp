@@ -2,11 +2,11 @@
 #include <algorithm>
 #include <sys/stat.h>
 
-#include "gameboy.h"
-#include "console.h"
-#include "menu.h"
 #include "cheats.h"
+#include "config.h"
+#include "gameboy.h"
 #include "input.h"
+#include "menu.h"
 
 #define TO_INT(a) ( (a) >= 'a' ? (a) - 'a' + 10 : (a) >= 'A' ? (a) - 'A' + 10 : (a) - '0')
 
@@ -54,7 +54,9 @@ bool CheatEngine::addCheat(const char* str) {
         cheats[i].compare = (cheats[i].compare >> 2) | (cheats[i].compare & 0x3) << 6;
         cheats[i].compare ^= 0xba;
 
-        printLog("GG %04x / %02x -> %02x\n", cheats[i].address, cheats[i].data, cheats[i].compare);
+        if(consoleDebugOutput) {
+            printf("GG %04x / %02x -> %02x\n", cheats[i].address, cheats[i].data, cheats[i].compare);
+        }
     }
         // GameGenie (6digit version) AAA-BBB
     else if(len == 7) {
@@ -64,7 +66,9 @@ bool CheatEngine::addCheat(const char* str) {
         cheats[i].address = TO_INT(str[6]) << 12 | TO_INT(str[2]) << 8 |
                             TO_INT(str[4]) << 4 | TO_INT(str[5]);
 
-        printLog("GG1 %04x / %02x\n", cheats[i].address, cheats[i].data);
+        if(consoleDebugOutput) {
+            printf("GG1 %04x / %02x\n", cheats[i].address, cheats[i].data);
+        }
     }
         // Gameshark AAAAAAAA
     else if(len == 8) {
@@ -75,7 +79,9 @@ bool CheatEngine::addCheat(const char* str) {
         cheats[i].address = TO_INT(str[6]) << 12 | TO_INT(str[7]) << 8 |
                             TO_INT(str[4]) << 4 | TO_INT(str[5]);
 
-        printLog("GS (%02x)%04x/ %02x\n", cheats[i].bank, cheats[i].address, cheats[i].data);
+        if(consoleDebugOutput) {
+            printf("GS (%02x)%04x/ %02x\n", cheats[i].bank, cheats[i].address, cheats[i].data);
+        }
     }
     else { // dafuq did i just read ?
         return false;
@@ -235,32 +241,32 @@ void redrawCheatMenu() {
 
     int page = cheatMenuSelection / cheatsPerPage;
 
-    clearConsole();
+    iprintf("\x1b[2J");
 
     printf("          Cheat Menu      ");
     printf("%d/%d\n\n", page + 1, numPages);
     for(int i = page * cheatsPerPage; i < numCheats && i < (page + 1) * cheatsPerPage; i++) {
-        int nameColor = (cheatMenuSelection == i ? CONSOLE_COLOR_BRIGHT_YELLOW : CONSOLE_COLOR_WHITE);
-        iprintfColored(nameColor, ch->cheats[i].name);
+        std::string nameColor = (cheatMenuSelection == i ? "\x1b[1m\x1b[33m" : "");
+        printf((nameColor + ch->cheats[i].name + "\x1b[0m").c_str());
         for(unsigned int j = 0; j < 25 - strlen(ch->cheats[i].name); j++)
             printf(" ");
         if(ch->isCheatEnabled(i)) {
             if(cheatMenuSelection == i) {
-                iprintfColored(CONSOLE_COLOR_BRIGHT_YELLOW, "* ");
-                iprintfColored(CONSOLE_COLOR_BRIGHT_GREEN, "On");
-                iprintfColored(CONSOLE_COLOR_BRIGHT_YELLOW, " * ");
+                printf("\x1b[1m\x1b[33m* \x1b[0m");
+                printf("\x1b[1m\x1b[32mOn\x1b[0m");
+                printf("\x1b[1m\x1b[33m * \x1b[0m");
+            } else {
+                printf("  On   ");
             }
-            else
-                iprintfColored(CONSOLE_COLOR_WHITE, "  On   ");
         }
         else {
             if(cheatMenuSelection == i) {
-                iprintfColored(CONSOLE_COLOR_BRIGHT_YELLOW, "* ");
-                iprintfColored(CONSOLE_COLOR_BRIGHT_GREEN, "Off");
-                iprintfColored(CONSOLE_COLOR_BRIGHT_YELLOW, " *");
+                printf("\x1b[1m\x1b[33m* \x1b[0m");
+                printf("\x1b[1m\x1b[32mOff\x1b[0m");
+                printf("\x1b[1m\x1b[33m *\x1b[0m");
+            } else {
+                printf("  Off  ");
             }
-            else
-                iprintfColored(CONSOLE_COLOR_WHITE, "  Off  ");
         }
     }
 
@@ -274,36 +280,36 @@ void updateCheatMenu() {
         cheatMenuSelection = 0;
     }
 
-    if(keyPressedAutoRepeat(mapMenuKey(MENU_KEY_UP))) {
+    if(inputKeyRepeat(mapMenuKey(MENU_KEY_UP))) {
         if(cheatMenuSelection > 0) {
             cheatMenuSelection--;
             redraw = true;
         }
     }
-    else if(keyPressedAutoRepeat(mapMenuKey(MENU_KEY_DOWN))) {
+    else if(inputKeyRepeat(mapMenuKey(MENU_KEY_DOWN))) {
         if(cheatMenuSelection < numCheats - 1) {
             cheatMenuSelection++;
             redraw = true;
         }
     }
-    else if(keyJustPressed(mapMenuKey(MENU_KEY_RIGHT)) |
-            keyJustPressed(mapMenuKey(MENU_KEY_LEFT))) {
+    else if(inputKeyPressed(mapMenuKey(MENU_KEY_RIGHT)) |
+            inputKeyPressed(mapMenuKey(MENU_KEY_LEFT))) {
         ch->toggleCheat(cheatMenuSelection, !ch->isCheatEnabled(cheatMenuSelection));
         redraw = true;
     }
-    else if(keyJustPressed(mapMenuKey(MENU_KEY_R))) {
+    else if(inputKeyPressed(mapMenuKey(MENU_KEY_R))) {
         cheatMenuSelection += cheatsPerPage;
         if(cheatMenuSelection >= numCheats)
             cheatMenuSelection = 0;
         redraw = true;
     }
-    else if(keyJustPressed(mapMenuKey(MENU_KEY_L))) {
+    else if(inputKeyPressed(mapMenuKey(MENU_KEY_L))) {
         cheatMenuSelection -= cheatsPerPage;
         if(cheatMenuSelection < 0)
             cheatMenuSelection = numCheats - 1;
         redraw = true;
     }
-    if(keyJustPressed(mapMenuKey(MENU_KEY_B))) {
+    if(inputKeyPressed(mapMenuKey(MENU_KEY_B))) {
         closeSubMenu();
         if(!cheatMenu_gameboyWasPaused)
             gameboy->unpause();

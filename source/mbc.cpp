@@ -1,4 +1,4 @@
-#include "console.h"
+#include "system.h"
 #include "gameboy.h"
 #include "gbmanager.h"
 #include "input.h"
@@ -558,7 +558,9 @@ void Gameboy::handleHuC3Command(u8 cmd) {
             HuC3Value = 1;
             break;
         default:
-            printLog("unhandled HuC3 cmd %02x\n", cmd);
+            if(consoleDebugOutput) {
+                printf("unhandled HuC3 cmd %02x\n", cmd);
+            }
     }
 }
 

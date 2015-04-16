@@ -4,9 +4,10 @@
 #include "input.h"
 
 #include "cheats.h"
-#include "console.h"
 #include "gameboy.h"
 #include "gbs.h"
+#include "menu.h"
+#include "system.h"
 
 #ifdef EMBEDDED_ROM
 #include "rom_gb.h"
@@ -167,7 +168,10 @@ RomFile::RomFile(const char* f) {
                 MBC = HUC1;
                 break;
             default:
-                printLog("Unsupported MBC %02x\n", getMapper());
+                if(consoleDebugOutput) {
+                    printf("Unsupported MBC %02x\n", getMapper());
+                }
+
                 MBC = MBC5;
                 break;
         }

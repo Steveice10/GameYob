@@ -1,12 +1,13 @@
 // GBS files contain music ripped from a game.
 #include <stdio.h>
 
+#include "config.h"
+#include "gameboy.h"
 #include "gbs.h"
 #include "input.h"
-#include "gameboy.h"
-#include "sound.h"
-#include "console.h"
 #include "romfile.h"
+#include "sound.h"
+#include "system.h"
 
 #define READ16(src) (*(src) | *(src+1)<<8)
 
@@ -126,21 +127,21 @@ void gbsInit() {
 
 // Called at vblank each frame
 void gbsCheckInput() {
-    if(keyPressedAutoRepeat(mapMenuKey(MENU_KEY_LEFT))) {
+    if(inputKeyRepeat(mapMenuKey(MENU_KEY_LEFT))) {
         if(gbsSelectedSong == 0)
             gbsSelectedSong = gbsNumSongs - 1;
         else
             gbsSelectedSong--;
     }
-    if(keyPressedAutoRepeat(mapMenuKey(MENU_KEY_RIGHT))) {
+    if(inputKeyRepeat(mapMenuKey(MENU_KEY_RIGHT))) {
         gbsSelectedSong++;
         if(gbsSelectedSong == gbsNumSongs)
             gbsSelectedSong = 0;
     }
-    if(keyJustPressed(mapMenuKey(MENU_KEY_A))) {
+    if(inputKeyPressed(mapMenuKey(MENU_KEY_A))) {
         gbsLoadSong();
     }
-    if(keyJustPressed(mapMenuKey(MENU_KEY_B))) { // Stop playing music
+    if(inputKeyPressed(mapMenuKey(MENU_KEY_B))) { // Stop playing music
         gbsPlayingSong = -1;
         gameboy->ime = 0;
         gameboy->writeIO(0xff, 0);
@@ -149,7 +150,7 @@ void gbsCheckInput() {
     gbsRedraw();
 
     if(gbsPlayingSong != -1)
-        disableSleepMode();
+        systemDisableSleepMode();
     else
-        enableSleepMode();
+        systemEnableSleepMode();
 }
