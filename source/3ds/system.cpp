@@ -44,7 +44,7 @@ bool systemInit() {
     return true;
 }
 
-void systemCleanup() {
+void systemExit() {
     mgr_save();
     mgr_exit();
 
@@ -53,6 +53,8 @@ void systemCleanup() {
 
     gfxCleanup();
     platformCleanup();
+
+    exit(0);
 }
 
 void systemRun() {
@@ -98,8 +100,7 @@ void systemUpdateConsole() {
 
 void systemCheckRunning() {
     if(!platformIsRunning()) {
-        systemCleanup();
-        exit(0);
+        systemExit();
     }
 }
 

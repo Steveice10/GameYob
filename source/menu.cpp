@@ -119,8 +119,7 @@ void consoleOutputFunc(int value) {
 }
 
 void returnToLauncherFunc(int value) {
-    systemCleanup();
-    exit(0);
+    systemExit();
 }
 
 void printerEnableFunc(int value) {

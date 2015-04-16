@@ -8,7 +8,7 @@
 extern char borderPath[256];
 
 bool systemInit();
-void systemCleanup();
+void systemExit();
 void systemRun();
 
 int systemGetConsoleWidth();
