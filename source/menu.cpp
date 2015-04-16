@@ -418,17 +418,7 @@ SubMenu menuList[] = {
                         {"Channel 3", chan3Func, 2, {"Off", "On"}, 1, MENU_ALL},
                         {"Channel 4", chan4Func, 2, {"Off", "On"}, 1, MENU_ALL}
                 }
-        },
-#ifdef NIFI
-    {
-        "Linking",
-        2,
-        {
-            {"Link to DS", (void (*)(int))nifiInterLinkMenu, 0, {}, 0, MENU_NONE},
-            {"Swap Focus", (void (*)(int))mgr_swapFocus, 0, {}, 0, MENU_NONE}
         }
-    }
-#endif
 };
 const int numMenus = sizeof(menuList) / sizeof(SubMenu);
 

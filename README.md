@@ -22,14 +22,9 @@ General Features
 * GBS music playback
 
 
-DS-Only Features
-----------------
+TODO
+----
 
 * Custom borders
 * WiFi connectivity
-
-
-Further Notes
--------------
-
 * Super Gameboy support isn't fully implemented graphically on the 3DS

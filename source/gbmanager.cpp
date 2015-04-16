@@ -148,10 +148,6 @@ void mgr_loadRom(const char* filename) {
 }
 
 void mgr_unloadRom() {
-#ifdef NIFI
-    nifiStop();
-#endif
-
     gameboy->unloadRom();
     gameboy->linkedGameboy = NULL;
     gbUno = gameboy;
@@ -216,13 +212,6 @@ void mgr_updateVBlank() {
         if(gbsMode)
             gbsCheckInput();
     }
-
-#ifdef DS
-    int oldIME = REG_IME;
-    REG_IME = 0;
-    nifiUpdateInput();
-    REG_IME = oldIME;
-#endif
 
     time(&rawTime);
     fps++;
