@@ -1,7 +1,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <inputhelper.h>
+#include "input.h"
 
 #include "cheats.h"
 #include "console.h"

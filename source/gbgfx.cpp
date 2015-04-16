@@ -4,15 +4,12 @@
  * Needs white screen on LCD disable
  */
 
-#include "gbgfx.h"
-
 #include <string.h>
 
 #include "gameboy.h"
+#include "gbgfx.h"
 #include "gfx.h"
 #include "menu.h"
-
-#include <ctrcommon/gpu.hpp>
 
 #define RGB24(r, g, b) ((r) << 16 | (g) << 8 | (b))
 
@@ -27,8 +24,6 @@ u8 gfxMask;
 volatile int loadedBorderType;
 bool customBorderExists;
 bool sgbBorderLoaded;
-
-
 
 // private variables
 
@@ -47,7 +42,6 @@ u32* sprPalettesRef[8][4];
 int dmaLine;
 bool lineModified;
 
-
 // For drawScanline / drawSprite
 
 u8 spritePixels[256];
@@ -61,11 +55,8 @@ u32 bgPixelsTrue[256];
 u8 bgPixelsLow[256];
 u32 bgPixelsTrueLow[256];
 
-
 bool bgPalettesModified[8];
 bool sprPalettesModified[8];
-
-static u8* screenBuffer = (u8*) gpuAlloc(256 * 256 * 3);
 
 // Private functions
 void drawSprite(int scanline, int spriteNum);
@@ -74,7 +65,6 @@ void updateBgPalette(int paletteid);
 void updateBgPaletteDMG();
 void updateSprPalette(int paletteid);
 void updateSprPaletteDMG(int paletteid);
-
 
 // Function definitions
 
@@ -333,8 +323,7 @@ void drawScanline_P2(int scanline) {
         else
             pixel = spritePixelsTrueLow[i];
 
-        *(u16*) &screenBuffer[(y * 256 + i) * 3] = (u16) pixel;
-        screenBuffer[(y * 256 + i) * 3 + 2] = (u8) (pixel >> 16);
+        gfxDrawPixel(i, y, pixel);
     }
 }
 
@@ -408,7 +397,7 @@ void drawSprite(int scanline, int spriteNum) {
 }
 
 void drawScreen() {
-    gfxDrawScreen(screenBuffer, scaleMode, gameScreen);
+    gfxDrawScreen(gameScreen, scaleMode);
 }
 
 
@@ -428,18 +417,8 @@ int loadBorder(const char* filename) {
 void checkBorder() {
     if(lastGameScreen != gameScreen) {
         lastGameScreen = gameScreen;
-        screenClearBuffers(gameScreen == 0 ? TOP_SCREEN : BOTTOM_SCREEN, 0, 0, 0);
+        gfxClearScreens();
     }
-}
-
-void refreshScaleMode() {
-
-}
-
-
-// SGB stub functions
-void refreshSgbPalette() {
-
 }
 
 void setSgbMask(int mask) {

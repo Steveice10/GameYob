@@ -6,7 +6,7 @@
 #include "console.h"
 #include "menu.h"
 #include "cheats.h"
-#include "inputhelper.h"
+#include "input.h"
 
 #define TO_INT(a) ( (a) >= 'a' ? (a) - 'a' + 10 : (a) >= 'A' ? (a) - 'A' + 10 : (a) - '0')
 

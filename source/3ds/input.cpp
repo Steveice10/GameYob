@@ -3,7 +3,7 @@
 #include "console.h"
 #include "gbmanager.h"
 #include "gfx.h"
-#include "inputhelper.h"
+#include "input.h"
 #include "menu.h"
 
 #include <3ds.h>

@@ -2,9 +2,9 @@
 #include <stdio.h>
 
 #include "gbs.h"
-#include "inputhelper.h"
+#include "input.h"
 #include "gameboy.h"
-#include "soundengine.h"
+#include "sound.h"
 #include "console.h"
 #include "romfile.h"
 

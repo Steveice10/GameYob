@@ -8,7 +8,7 @@
 #include "console.h"
 #include "filechooser.h"
 #include "gfx.h"
-#include "inputhelper.h"
+#include "input.h"
 
 #include <ctrcommon/fs.hpp>
 

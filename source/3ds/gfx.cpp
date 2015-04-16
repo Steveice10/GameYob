@@ -1,5 +1,5 @@
 #include "gbgfx.h"
-#include "inputhelper.h"
+#include "input.h"
 
 #include <3ds.h>
 
@@ -7,14 +7,16 @@
 
 #include "shader_vsh_shbin.h"
 
-int prevScaleMode = -1;
-int prevGameScreen = -1;
+static u8* screenBuffer = (u8*) gpuAlloc(256 * 256 * 3);
 
-bool fastForward = false;
+static int prevScaleMode = -1;
+static int prevGameScreen = -1;
 
-u32 shader = 0;
-u32 texture = 0;
-u32 vbo = 0;
+static bool fastForward = false;
+
+static u32 shader = 0;
+static u32 texture = 0;
+static u32 vbo = 0;
 
 void gfxInit() {
     // Initialize the GPU and setup the state.
@@ -63,7 +65,12 @@ void gfxSetFastForward(bool fastforward) {
     fastForward = fastforward;
 }
 
-void gfxDrawScreen(u8* screenBuffer, int scaleMode, int gameScreen) {
+void gfxDrawPixel(int x, int y, u32 pixel) {
+    *(u16*) &screenBuffer[(y * 256 + x) * 3] = (u16) pixel;
+    screenBuffer[(y * 256 + x) * 3 + 2] = (u8) (pixel >> 16);
+}
+
+void gfxDrawScreen(int gameScreen, int scaleMode) {
     // Update VBO data if the size has changed.
     if(prevScaleMode != scaleMode || prevGameScreen != gameScreen) {
         u32 fbWidth = gameScreen == 0 ? 400 : 320;
@@ -131,4 +138,8 @@ void gfxFlush() {
 
 void gfxWaitForVBlank() {
     gspWaitForVBlank();
+}
+
+void gfxClearScreens() {
+    screenClearAll(0, 0, 0);
 }

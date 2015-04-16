@@ -1,5 +1,5 @@
 #include <3ds.h>
-#include "soundengine.h"
+#include "sound.h"
 #include "gameboy.h"
 #include "menu.h"
 

@@ -6,7 +6,7 @@
 #include <vector>
 
 #include "config.h"
-#include "inputhelper.h"
+#include "input.h"
 #include "gbgfx.h"
 #include "menu.h"
 #include "filechooser.h"

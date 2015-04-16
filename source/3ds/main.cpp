@@ -2,7 +2,7 @@
 
 #include "console.h"
 #include "gbmanager.h"
-#include "inputhelper.h"
+#include "input.h"
 #include "gfx.h"
 #include "menu.h"
 

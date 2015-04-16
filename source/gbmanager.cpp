@@ -1,13 +1,13 @@
 #include <stdlib.h>
 
 #include "gbmanager.h"
-#include "inputhelper.h"
+#include "input.h"
 #include "gameboy.h"
 #include "gbs.h"
 #include "menu.h"
 #include "romfile.h"
 #include "filechooser.h"
-#include "soundengine.h"
+#include "sound.h"
 
 Gameboy* gameboy = NULL;
 Gameboy* gb2 = NULL;

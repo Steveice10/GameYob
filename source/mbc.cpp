@@ -1,7 +1,7 @@
 #include "console.h"
 #include "gameboy.h"
 #include "gbmanager.h"
-#include "inputhelper.h"
+#include "input.h"
 #include "menu.h"
 #include "romfile.h"
 

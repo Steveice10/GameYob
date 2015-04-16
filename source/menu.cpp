@@ -7,9 +7,9 @@
 #include "gbmanager.h"
 #include "gbprinter.h"
 #include "gbs.h"
-#include "inputhelper.h"
+#include "input.h"
 #include "menu.h"
-#include "soundengine.h"
+#include "sound.h"
 
 const int MENU_NONE = 1;
 const int MENU_3DS = 2;
@@ -309,17 +309,22 @@ void chan4Func(int value) {
 
 void setAutoSaveFunc(int value) {
     muteSND();
-    if(autoSavingEnabled)
+    if(autoSavingEnabled) {
         gameboy->gameboySyncAutosave();
-    else
+    } else {
         gameboy->saveGame(); // Synchronizes save file with filesystem
+    }
+
     autoSavingEnabled = value;
-    if(gameboy->isRomLoaded() && gameboy->getNumRamBanks() && !gbsMode && !autoSavingEnabled)
+    if(gameboy->isRomLoaded() && gameboy->getNumRamBanks() && !gbsMode && !autoSavingEnabled) {
         enableMenuOption("Exit without saving");
-    else
+    } else {
         disableMenuOption("Exit without saving");
-    if(!gameboy->isGameboyPaused())
+    }
+
+    if(!gameboy->isGameboyPaused()) {
         unmuteSND();
+    }
 }
 
 struct MenuOption {
@@ -350,8 +355,7 @@ SubMenu menuList[] = {
                 {
                         {"Exit", exitFunc, 0, {}, 0, MENU_ALL},
                         {"Reset", resetFunc, 0, {}, 0, MENU_ALL},
-                        {"State Slot", stateSelectFunc, 10, {"0", "1", "2", "3", "4", "5", "6", "7", "8", "9"}, 0,
-                         MENU_ALL},
+                        {"State Slot", stateSelectFunc, 10, {"0", "1", "2", "3", "4", "5", "6", "7", "8", "9"}, 0, MENU_ALL},
                         {"Save State", stateSaveFunc, 0, {}, 0, MENU_ALL},
                         {"Load State", stateLoadFunc, 0, {}, 0, MENU_ALL},
                         {"Delete State", stateDeleteFunc, 0, {}, 0, MENU_ALL},
@@ -434,8 +438,7 @@ void setMenuDefaults() {
         for(int j = 0; j < menuList[i].numOptions; j++) {
             menuList[i].options[j].selection = menuList[i].options[j].defaultSelection;
             menuList[i].options[j].enabled = true;
-            if(menuList[i].options[j].numValues != 0 &&
-               menuList[i].options[j].platforms & MENU_BITMASK) {
+            if(menuList[i].options[j].numValues != 0 && menuList[i].options[j].platforms & MENU_BITMASK) {
                 int selection = menuList[i].options[j].defaultSelection;
                 menuList[i].options[j].function(selection);
             }
@@ -462,35 +465,42 @@ bool isMenuOn() {
 // Some helper functions
 void menuCursorUp() {
     option--;
-    if(option == -1)
+    if(option == -1) {
         return;
-    if(option < -1)
-        option = menuList[menu].numOptions - 1;
+    }
 
-    if(!(menuList[menu].options[option].platforms & MENU_BITMASK))
+    if(option < -1) {
+        option = menuList[menu].numOptions - 1;
+    }
+
+    if(!(menuList[menu].options[option].platforms & MENU_BITMASK)) {
         menuCursorUp();
+    }
 }
 
 void menuCursorDown() {
     option++;
-    if(option >= menuList[menu].numOptions)
+    if(option >= menuList[menu].numOptions) {
         option = -1;
-    else {
-        if(!(menuList[menu].options[option].platforms & MENU_BITMASK))
-            menuCursorDown();
+    } else if(!(menuList[menu].options[option].platforms & MENU_BITMASK)) {
+        menuCursorDown();
     }
 }
 
 // Get the number of rows down the selected option is
 // Necessary because of leaving out certain options in certain platforms
 int menuGetOptionRow() {
-    if(option == -1)
+    if(option == -1) {
         return option;
+    }
+
     int row = 0;
     for(int i = 0; i < option; i++) {
-        if(menuList[menu].options[i].platforms & MENU_BITMASK)
+        if(menuList[menu].options[i].platforms & MENU_BITMASK) {
             row++;
+        }
     }
+
     return row;
 }
 
@@ -506,6 +516,7 @@ void menuSetOptionRow(int row) {
             row--;
             lastValidRow = i;
         }
+
         if(row == 0) {
             option = i;
             return;
@@ -519,9 +530,11 @@ void menuSetOptionRow(int row) {
 int menuGetNumRows() {
     int count = 0;
     for(int i = 0; i < menuList[menu].numOptions; i++) {
-        if(menuList[menu].options[i].platforms & MENU_BITMASK)
+        if(menuList[menu].options[i].platforms & MENU_BITMASK) {
             count++;
+        }
     }
+
     return count;
 }
 
@@ -537,71 +550,81 @@ void redrawMenu() {
     if(option == -1) {
         nameStart -= 2;
         iprintfColored(CONSOLE_COLOR_BRIGHT_GREEN, "<");
-    }
-    else
+    } else {
         printf("<");
+    }
+
     pos++;
-    for(; pos < nameStart; pos++)
+    for(; pos < nameStart; pos++) {
         printf(" ");
+    }
+
     if(option == -1) {
         iprintfColored(CONSOLE_COLOR_BRIGHT_YELLOW, "* ");
         pos += 2;
     }
-    {
-        int color = (option == -1 ? CONSOLE_COLOR_BRIGHT_YELLOW : CONSOLE_COLOR_WHITE);
-        iprintfColored(color, "[%s]", menuList[menu].name);
-    }
+
+    int color = (option == -1 ? CONSOLE_COLOR_BRIGHT_YELLOW : CONSOLE_COLOR_WHITE);
+    iprintfColored(color, "[%s]", menuList[menu].name);
     pos += 2 + strlen(menuList[menu].name);
     if(option == -1) {
         iprintfColored(CONSOLE_COLOR_BRIGHT_YELLOW, " *");
         pos += 2;
     }
-    for(; pos < width - 1; pos++)
+
+    for(; pos < width - 1; pos++) {
         printf(" ");
-    if(option == -1)
+    }
+
+    if(option == -1) {
         iprintfColored(CONSOLE_COLOR_BRIGHT_GREEN, ">");
-    else
+    } else {
         printf(">");
+    }
+
     printf("\n");
 
     // Rest of the lines: options
     for(int i = 0; i < menuList[menu].numOptions; i++) {
-        if(!(menuList[menu].options[i].platforms & MENU_BITMASK))
+        if(!(menuList[menu].options[i].platforms & MENU_BITMASK)) {
             continue;
+        }
 
         int option_color;
-        if(!menuList[menu].options[i].enabled)
+        if(!menuList[menu].options[i].enabled) {
             option_color = CONSOLE_COLOR_FAINT_WHITE;
-        else if(option == i)
+        } else if(option == i) {
             option_color = CONSOLE_COLOR_BRIGHT_YELLOW;
-        else
+        } else {
             option_color = CONSOLE_COLOR_WHITE;
+        }
 
         if(menuList[menu].options[i].numValues == 0) {
-            for(unsigned int j = 0; j < (width - strlen(menuList[menu].options[i].name)) / 2 - 2; j++)
+            for(unsigned int j = 0; j < (width - strlen(menuList[menu].options[i].name)) / 2 - 2; j++) {
                 printf(" ");
+            }
+
             if(i == option) {
                 iprintfColored(option_color, "* %s *\n\n", menuList[menu].options[i].name);
-            }
-            else
+            } else {
                 iprintfColored(option_color, "  %s  \n\n", menuList[menu].options[i].name);
-        }
-        else {
-            for(unsigned int j = 0; j < width / 2 - strlen(menuList[menu].options[i].name); j++)
+            }
+        } else {
+            for(unsigned int j = 0; j < width / 2 - strlen(menuList[menu].options[i].name); j++) {
                 printf(" ");
+            }
+
             if(i == option) {
                 iprintfColored(option_color, "* ");
                 iprintfColored(option_color, "%s  ", menuList[menu].options[i].name);
-                iprintfColored(menuList[menu].options[i].enabled ? CONSOLE_COLOR_BRIGHT_GREEN : option_color,
-                               "%s", menuList[menu].options[i].values[menuList[menu].options[i].selection]);
+                iprintfColored(menuList[menu].options[i].enabled ? CONSOLE_COLOR_BRIGHT_GREEN : option_color, "%s", menuList[menu].options[i].values[menuList[menu].options[i].selection]);
                 iprintfColored(option_color, " *");
-            }
-            else {
+            } else {
                 printf("  ");
                 iprintfColored(option_color, "%s  ", menuList[menu].options[i].name);
-                iprintfColored(option_color, "%s",
-                               menuList[menu].options[i].values[menuList[menu].options[i].selection]);
+                iprintfColored(option_color, "%s", menuList[menu].options[i].values[menuList[menu].options[i].selection]);
             }
+
             printf("\n\n");
         }
     }
@@ -755,8 +778,10 @@ void setMenuOption(const char* optionName, int value) {
     for(int i = 0; i < numMenus; i++) {
         for(int j = 0; j < menuList[i].numOptions; j++) {
             if(strcasecmp(optionName, menuList[i].options[j].name) == 0) {
-                if(!(menuList[i].options[j].platforms & MENU_BITMASK))
+                if(!(menuList[i].options[j].platforms & MENU_BITMASK)) {
                     continue;
+                }
+
                 menuList[i].options[j].selection = value;
                 menuList[i].options[j].function(value);
                 return;
@@ -801,9 +826,9 @@ void menuParseConfig(char* line) {
 void menuPrintConfig(FILE* file) {
     for(int i = 0; i < numMenus; i++) {
         for(int j = 0; j < menuList[i].numOptions; j++) {
-            if(menuList[i].options[j].platforms & MENU_BITMASK &&
-               menuList[i].options[j].numValues != 0)
+            if(menuList[i].options[j].platforms & MENU_BITMASK && menuList[i].options[j].numValues != 0) {
                 fprintf(file, "%s=%d\n", menuList[i].options[j].name, menuList[i].options[j].selection);
+            }
         }
     }
 }
