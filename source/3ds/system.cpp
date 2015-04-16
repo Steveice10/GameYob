@@ -55,6 +55,14 @@ void systemCleanup() {
     platformCleanup();
 }
 
+void systemRun() {
+    mgr_selectRom();
+    while(true) {
+        mgr_runFrame();
+        mgr_updateVBlank();
+    }
+}
+
 int systemGetConsoleWidth() {
     PrintConsole* console = !gameScreen == 0 ? topConsole : bottomConsole;
     return console->consoleWidth;

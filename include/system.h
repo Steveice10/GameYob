@@ -9,6 +9,7 @@ extern char borderPath[256];
 
 bool systemInit();
 void systemCleanup();
+void systemRun();
 
 int systemGetConsoleWidth();
 int systemGetConsoleHeight();
