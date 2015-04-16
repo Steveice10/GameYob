@@ -7,6 +7,7 @@ extern int gbcModeOption;
 extern bool gbaModeOption;
 extern int sgbModeOption;
 extern bool soundDisabled;
+extern int gbColorize;
 extern bool customBordersEnabled;
 extern bool sgbBordersEnabled;
 extern bool autoSavingEnabled;

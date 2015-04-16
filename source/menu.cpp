@@ -35,6 +35,8 @@ int sgbModeOption = 0;
 
 bool soundDisabled = false;
 
+int gbColorize = 0;
+
 bool customBordersEnabled = false;
 bool sgbBordersEnabled = false;
 bool autoSavingEnabled = false;
@@ -253,6 +255,10 @@ void setScaleFilterFunc(int value) {
     scaleFilter = value;
 }
 
+void gbColorizeFunc(int value) {
+    gbColorize = value;
+}
+
 void customBorderEnableFunc(int value) {
     customBordersEnabled = value;
     checkBorder();
@@ -320,7 +326,7 @@ struct MenuOption {
     const char* name;
     void (* function)(int);
     int numValues;
-    const char* values[10];
+    const char* values[15];
     int defaultSelection;
     int platforms;
 
@@ -375,6 +381,7 @@ SubMenu menuList[] = {
                         {"Single Screen", setSingleScreenFunc, 2, {"Off", "On"}, 0, MENU_ALL},
                         {"Scaling", setScaleModeFunc, 3, {"Off", "Aspect", "Full"}, 0, MENU_ALL},
                         {"Scale Filter", setScaleFilterFunc, 2, {"Off", "On"}, 1, MENU_ALL},
+                        {"Colorize GB", gbColorizeFunc, 13, {"Off", "Auto", "Inverted", "Pastel Mix", "Red", "Orange", "Yellow", "Green", "Blue", "Brown", "Dark Green", "Dark Blue", "Dark Brown"}, 1, MENU_ALL},
                         {"SGB Borders", sgbBorderEnableFunc, 2, {"Off", "On"}, 1, MENU_ALL},
                         {"Custom Border", customBorderEnableFunc, 2, {"Off", "On"}, 1, MENU_ALL},
                         {"Select Border", (void (*)(int)) selectBorder, 0, {}, 0, MENU_ALL},
