@@ -3,7 +3,7 @@
 #include <ctrcommon/types.hpp>
 
 enum Icons {
-    ICON_NULL=0,
+    ICON_NULL = 0,
     ICON_PRINTER
 };
 
@@ -21,7 +21,7 @@ extern bool customBorderExists;
 extern bool sgbBorderLoaded;
 
 
-void doAtVBlank(void (*func)(void));
+void doAtVBlank(void (* func)(void));
 
 void initGFX();
 void refreshGFX();
@@ -50,7 +50,7 @@ void writeHram(u16 addr, u8 val);
 void handleVideoRegister(u8 ioReg, u8 val);
 
 enum {
-    BORDER_NONE=0,
+    BORDER_NONE = 0,
     BORDER_SGB,
     BORDER_CUSTOM
 };  // Use with loadedBorderType

@@ -333,154 +333,166 @@ namespace {
             TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x63, 0xA5, 0xFF), TOCGB(0x00, 0x00, 0xFF), TOCGB(0x00, 0x00, 0x00)
     };
 
-    struct GbcPaletteEntry { const char *title; const unsigned short *p; };
+    struct GbcPaletteEntry {
+        const char* title;
+        const unsigned short* p;
+    };
 
     static const GbcPaletteEntry gbcDirPalettes[] = {
-            { "GBC - Blue", p518 },
-            { "GBC - Brown", p012 },
-            { "GBC - Dark Blue", p50D },
-            { "GBC - Dark Brown", p319 },
-            { "GBC - Dark Green", p31C },
-            { "GBC - Grayscale", p016 },
-            { "GBC - Green", p005 },
-            { "GBC - Inverted", p013 },
-            { "GBC - Orange", p007 },
-            { "GBC - Pastel Mix", p017 },
-            { "GBC - Red", p510 },
-            { "GBC - Yellow", p51A },
+            {"GBC - Blue",       p518},
+            {"GBC - Brown",      p012},
+            {"GBC - Dark Blue",  p50D},
+            {"GBC - Dark Brown", p319},
+            {"GBC - Dark Green", p31C},
+            {"GBC - Grayscale",  p016},
+            {"GBC - Green",      p005},
+            {"GBC - Inverted",   p013},
+            {"GBC - Orange",     p007},
+            {"GBC - Pastel Mix", p017},
+            {"GBC - Red",        p510},
+            {"GBC - Yellow",     p51A},
     };
 
     static const GbcPaletteEntry gbcTitlePalettes[] = {
-            { "ALLEY WAY", p008 },
-            { "ASTEROIDS/MISCMD", p30E },
-            { "ATOMIC PUNK", p30F }, // unofficial ("DYNABLASTER" alt.)
-            { "BA.TOSHINDEN", p50F },
-            { "BALLOON KID", p006 },
-            { "BASEBALL", p503 },
-            { "BOMBERMAN GB", p31C }, // unofficial ("WARIO BLAST" alt.)
-            { "BOY AND BLOB GB1", p512 },
-            { "BOY AND BLOB GB2", p512 },
-            { "BT2RAGNAROKWORLD", p312 },
-            { "DEFENDER/JOUST", p50F },
-            { "DMG FOOTBALL", p30E },
-            { "DONKEY KONG", p306 },
-            { "DONKEYKONGLAND", p50C },
-            { "DONKEYKONGLAND 2", p50C },
-            { "DONKEYKONGLAND 3", p50C },
-            { "DONKEYKONGLAND95", p501 },
-            { "DR.MARIO", p20B },
-            { "DYNABLASTER", p30F },
-            { "F1RACE", p012 },
-            { "FOOTBALL INT'L", p502 }, // unofficial ("SOCCER" alt.)
-            { "G&W GALLERY", p304 },
-            { "GALAGA&GALAXIAN", p013 },
-            { "GAME&WATCH", p012 },
-            { "GAMEBOY GALLERY", p304 },
-            { "GAMEBOY GALLERY2", p304 },
-            { "GBWARS", p500 },
-            { "GBWARST", p500 }, // unofficial ("GBWARS" alt.)
-            { "GOLF", p30E },
-            { "Game and Watch 2", p304 },
-            { "HOSHINOKA-BI", p508 },
-            { "JAMES  BOND  007", p11C },
-            { "KAERUNOTAMENI", p10D },
-            { "KEN GRIFFEY JR", p31C },
-            { "KID ICARUS", p30D },
-            { "KILLERINSTINCT95", p50D },
-            { "KINGOFTHEZOO", p30F },
-            { "KIRAKIRA KIDS", p012 },
-            { "KIRBY BLOCKBALL", p508 },
-            { "KIRBY DREAM LAND", p508 },
-            { "KIRBY'S PINBALL", p308 },
-            { "KIRBY2", p508 },
-            { "LOLO2", p50F },
-            { "MAGNETIC SOCCER", p50E },
-            { "MANSELL", p012 },
-            { "MARIO & YOSHI", p305 },
-            { "MARIO'S PICROSS", p012 },
-            { "MARIOLAND2", p509 },
-            { "MEGA MAN 2", p50F },
-            { "MEGAMAN", p50F },
-            { "MEGAMAN3", p50F },
-            { "METROID2", p514 },
-            { "MILLI/CENTI/PEDE", p31C },
-            { "MOGURANYA", p300 },
-            { "MYSTIC QUEST", p50E },
-            { "NETTOU KOF 95", p50F },
-            { "NEW CHESSMASTER", p30F },
-            { "OTHELLO", p50E },
-            { "PAC-IN-TIME", p51C },
-            { "PENGUIN WARS", p30F }, // unofficial ("KINGOFTHEZOO" alt.)
-            { "PENGUINKUNWARSVS", p30F }, // unofficial ("KINGOFTHEZOO" alt.)
-            { "PICROSS 2", p012 },
-            { "PINOCCHIO", p20C },
-            { "POKEBOM", p30C },
-            { "POKEMON BLUE", p10B },
-            { "POKEMON GREEN", p11C },
-            { "POKEMON RED", p110 },
-            { "POKEMON YELLOW", p007 },
-            { "QIX", p407 },
-            { "RADARMISSION", p100 },
-            { "ROCKMAN WORLD", p50F },
-            { "ROCKMAN WORLD2", p50F },
-            { "ROCKMANWORLD3", p50F },
-            { "SEIKEN DENSETSU", p50E },
-            { "SOCCER", p502 },
-            { "SOLARSTRIKER", p013 },
-            { "SPACE INVADERS", p013 },
-            { "STAR STACKER", p012 },
-            { "STAR WARS", p512 },
-            { "STAR WARS-NOA", p512 },
-            { "STREET FIGHTER 2", p50F },
-            { "SUPER BOMBLISS  ", p006 }, // unofficial ("TETRIS BLAST" alt.)
-            { "SUPER MARIOLAND", p30A },
-            { "SUPER RC PRO-AM", p50F },
-            { "SUPERDONKEYKONG", p501 },
-            { "SUPERMARIOLAND3", p500 },
-            { "TENNIS", p502 },
-            { "TETRIS", p007 },
-            { "TETRIS ATTACK", p405 },
-            { "TETRIS BLAST", p006 },
-            { "TETRIS FLASH", p407 },
-            { "TETRIS PLUS", p31C },
-            { "TETRIS2", p407 },
-            { "THE CHESSMASTER", p30F },
-            { "TOPRANKINGTENNIS", p502 },
-            { "TOPRANKTENNIS", p502 },
-            { "TOY STORY", p30E },
+            {"ALLEY WAY",        p008},
+            {"ASTEROIDS/MISCMD", p30E},
+            {"ATOMIC PUNK",      p30F}, // unofficial ("DYNABLASTER" alt.)
+            {"BA.TOSHINDEN",     p50F},
+            {"BALLOON KID",      p006},
+            {"BASEBALL",         p503},
+            {"BOMBERMAN GB",     p31C}, // unofficial ("WARIO BLAST" alt.)
+            {"BOY AND BLOB GB1", p512},
+            {"BOY AND BLOB GB2", p512},
+            {"BT2RAGNAROKWORLD", p312},
+            {"DEFENDER/JOUST",   p50F},
+            {"DMG FOOTBALL",     p30E},
+            {"DONKEY KONG",      p306},
+            {"DONKEYKONGLAND",   p50C},
+            {"DONKEYKONGLAND 2", p50C},
+            {"DONKEYKONGLAND 3", p50C},
+            {"DONKEYKONGLAND95", p501},
+            {"DR.MARIO",         p20B},
+            {"DYNABLASTER",      p30F},
+            {"F1RACE",           p012},
+            {"FOOTBALL INT'L",   p502}, // unofficial ("SOCCER" alt.)
+            {"G&W GALLERY",      p304},
+            {"GALAGA&GALAXIAN",  p013},
+            {"GAME&WATCH",       p012},
+            {"GAMEBOY GALLERY",  p304},
+            {"GAMEBOY GALLERY2", p304},
+            {"GBWARS",           p500},
+            {"GBWARST",          p500}, // unofficial ("GBWARS" alt.)
+            {"GOLF",             p30E},
+            {"Game and Watch 2", p304},
+            {"HOSHINOKA-BI",     p508},
+            {"JAMES  BOND  007", p11C},
+            {"KAERUNOTAMENI",    p10D},
+            {"KEN GRIFFEY JR",   p31C},
+            {"KID ICARUS",       p30D},
+            {"KILLERINSTINCT95", p50D},
+            {"KINGOFTHEZOO",     p30F},
+            {"KIRAKIRA KIDS",    p012},
+            {"KIRBY BLOCKBALL",  p508},
+            {"KIRBY DREAM LAND", p508},
+            {"KIRBY'S PINBALL",  p308},
+            {"KIRBY2",           p508},
+            {"LOLO2",            p50F},
+            {"MAGNETIC SOCCER",  p50E},
+            {"MANSELL",          p012},
+            {"MARIO & YOSHI",    p305},
+            {"MARIO'S PICROSS",  p012},
+            {"MARIOLAND2",       p509},
+            {"MEGA MAN 2",       p50F},
+            {"MEGAMAN",          p50F},
+            {"MEGAMAN3",         p50F},
+            {"METROID2",         p514},
+            {"MILLI/CENTI/PEDE", p31C},
+            {"MOGURANYA",        p300},
+            {"MYSTIC QUEST",     p50E},
+            {"NETTOU KOF 95",    p50F},
+            {"NEW CHESSMASTER",  p30F},
+            {"OTHELLO",          p50E},
+            {"PAC-IN-TIME",      p51C},
+            {"PENGUIN WARS",     p30F}, // unofficial ("KINGOFTHEZOO" alt.)
+            {"PENGUINKUNWARSVS", p30F}, // unofficial ("KINGOFTHEZOO" alt.)
+            {"PICROSS 2",        p012},
+            {"PINOCCHIO",        p20C},
+            {"POKEBOM",          p30C},
+            {"POKEMON BLUE",     p10B},
+            {"POKEMON GREEN",    p11C},
+            {"POKEMON RED",      p110},
+            {"POKEMON YELLOW",   p007},
+            {"QIX",              p407},
+            {"RADARMISSION",     p100},
+            {"ROCKMAN WORLD",    p50F},
+            {"ROCKMAN WORLD2",   p50F},
+            {"ROCKMANWORLD3",    p50F},
+            {"SEIKEN DENSETSU",  p50E},
+            {"SOCCER",           p502},
+            {"SOLARSTRIKER",     p013},
+            {"SPACE INVADERS",   p013},
+            {"STAR STACKER",     p012},
+            {"STAR WARS",        p512},
+            {"STAR WARS-NOA",    p512},
+            {"STREET FIGHTER 2", p50F},
+            {"SUPER BOMBLISS  ", p006}, // unofficial ("TETRIS BLAST" alt.)
+            {"SUPER MARIOLAND",  p30A},
+            {"SUPER RC PRO-AM",  p50F},
+            {"SUPERDONKEYKONG",  p501},
+            {"SUPERMARIOLAND3",  p500},
+            {"TENNIS",           p502},
+            {"TETRIS",           p007},
+            {"TETRIS ATTACK",    p405},
+            {"TETRIS BLAST",     p006},
+            {"TETRIS FLASH",     p407},
+            {"TETRIS PLUS",      p31C},
+            {"TETRIS2",          p407},
+            {"THE CHESSMASTER",  p30F},
+            {"TOPRANKINGTENNIS", p502},
+            {"TOPRANKTENNIS",    p502},
+            {"TOY STORY",        p30E},
             //{ "TRIP WORLD", p500 }, // unofficial
-            { "VEGAS STAKES", p50E },
-            { "WARIO BLAST", p31C },
-            { "WARIOLAND2", p515 },
-            { "WAVERACE", p50B },
-            { "WORLD CUP", p30E },
-            { "X", p016 },
-            { "YAKUMAN", p012 },
-            { "YOSHI'S COOKIE", p406 },
-            { "YOSSY NO COOKIE", p406 },
-            { "YOSSY NO PANEPON", p405 },
-            { "YOSSY NO TAMAGO", p305 },
-            { "ZELDA", p511 },
+            {"VEGAS STAKES",     p50E},
+            {"WARIO BLAST",      p31C},
+            {"WARIOLAND2",       p515},
+            {"WAVERACE",         p50B},
+            {"WORLD CUP",        p30E},
+            {"X",                p016},
+            {"YAKUMAN",          p012},
+            {"YOSHI'S COOKIE",   p406},
+            {"YOSSY NO COOKIE",  p406},
+            {"YOSSY NO PANEPON", p405},
+            {"YOSSY NO TAMAGO",  p305},
+            {"ZELDA",            p511},
     };
 
     static inline std::size_t gbcDirPalettesSize() { return (sizeof gbcDirPalettes) / (sizeof gbcDirPalettes[0]); }
-    static inline const struct GbcPaletteEntry * gbcDirPalettesEnd() { return gbcDirPalettes + gbcDirPalettesSize(); }
-    static inline std::size_t gbcTitlePalettesSize() { return (sizeof gbcTitlePalettes) / (sizeof gbcTitlePalettes[0]); }
-    static inline const struct GbcPaletteEntry * gbcTitlePalettesEnd() { return gbcTitlePalettes + gbcTitlePalettesSize(); }
+
+    static inline const struct GbcPaletteEntry* gbcDirPalettesEnd() { return gbcDirPalettes + gbcDirPalettesSize(); }
+
+    static inline std::size_t gbcTitlePalettesSize() {
+        return (sizeof gbcTitlePalettes) / (sizeof gbcTitlePalettes[0]);
+    }
+
+    static inline const struct GbcPaletteEntry* gbcTitlePalettesEnd() {
+        return gbcTitlePalettes + gbcTitlePalettesSize();
+    }
 
     struct GbcPaletteEntryLess {
-        bool operator()(const GbcPaletteEntry &lhs, const char *const rhstitle) const {
+        bool operator()(const GbcPaletteEntry &lhs, const char* const rhstitle) const {
             return std::strcmp(lhs.title, rhstitle) < 0;
         }
     };
 
-    static const unsigned short * findGbcDirPal(const char *const title) {
-        const GbcPaletteEntry *const r = std::lower_bound(gbcDirPalettes, gbcDirPalettesEnd(), title, GbcPaletteEntryLess());
+    static const unsigned short* findGbcDirPal(const char* const title) {
+        const GbcPaletteEntry* const r = std::lower_bound(gbcDirPalettes, gbcDirPalettesEnd(), title,
+                                                          GbcPaletteEntryLess());
         return r < gbcDirPalettesEnd() && !std::strcmp(r->title, title) ? r->p : 0;
     }
 
-    static const unsigned short * findGbcTitlePal(const char *const title) {
-        const GbcPaletteEntry *const r = std::lower_bound(gbcTitlePalettes, gbcTitlePalettesEnd(), title, GbcPaletteEntryLess());
+    static const unsigned short* findGbcTitlePal(const char* const title) {
+        const GbcPaletteEntry* const r = std::lower_bound(gbcTitlePalettes, gbcTitlePalettesEnd(), title,
+                                                          GbcPaletteEntryLess());
         return r < gbcTitlePalettesEnd() && !std::strcmp(r->title, title) ? r->p : 0;
     }
 

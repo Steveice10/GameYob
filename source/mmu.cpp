@@ -13,59 +13,56 @@
 #define refreshWramBank() { \
     memory[0xd] = wram[wramBank]; }
 
-void Gameboy::refreshRomBank(int bank) 
-{
-    if (bank < romFile->getNumRomBanks()) {
+void Gameboy::refreshRomBank(int bank) {
+    if(bank < romFile->getNumRomBanks()) {
         romBank = bank;
-        romFile->loadRomBank(romBank); 
+        romFile->loadRomBank(romBank);
         memory[0x4] = romFile->romSlot1;
-        memory[0x5] = romFile->romSlot1+0x1000;
-        memory[0x6] = romFile->romSlot1+0x2000;
-        memory[0x7] = romFile->romSlot1+0x3000; 
+        memory[0x5] = romFile->romSlot1 + 0x1000;
+        memory[0x6] = romFile->romSlot1 + 0x2000;
+        memory[0x7] = romFile->romSlot1 + 0x3000;
     }
     else
         printLog("Tried to access bank %x\n", bank);
 }
 
-void Gameboy::refreshRamBank (int bank) 
-{
-    if (bank < numRamBanks) {
+void Gameboy::refreshRamBank(int bank) {
+    if(bank < numRamBanks) {
         currentRamBank = bank;
-        memory[0xa] = externRam+currentRamBank*0x2000;
-        memory[0xb] = externRam+currentRamBank*0x2000+0x1000; 
+        memory[0xa] = externRam + currentRamBank * 0x2000;
+        memory[0xb] = externRam + currentRamBank * 0x2000 + 0x1000;
     }
     else
         printLog("Tried to access ram bank %x\n", bank);
 }
 
 void Gameboy::writeSram(u16 addr, u8 val) {
-    int pos = addr + currentRamBank*0x2000;
-    if (externRam[pos] != val) {
+    int pos = addr + currentRamBank * 0x2000;
+    if(externRam[pos] != val) {
         externRam[pos] = val;
-        if (autoSavingEnabled) {
+        if(autoSavingEnabled) {
             /*
             fseek(saveFile, currentRamBank*0x2000+addr, SEEK_SET);
             fputc(val, saveFile);
             */
             saveModified = true;
-            dirtySectors[pos/512] = true;
+            dirtySectors[pos / 512] = true;
             numSaveWrites++;
         }
     }
 }
 
-void Gameboy::initMMU()
-{
+void Gameboy::initMMU() {
     wramBank = 1;
     vramBank = 0;
     romBank = 1;
     currentRamBank = 0;
 
     memoryModel = 0;
-    dmaSource=0;
-    dmaDest=0;
-    dmaLength=0;
-    dmaMode=0;
+    dmaSource = 0;
+    dmaDest = 0;
+    dmaLength = 0;
+    dmaMode = 0;
 
     ramEnabled = false;
 
@@ -79,7 +76,7 @@ void Gameboy::initMMU()
     writeFunc = mbcWrites[romFile->getMBC()];
 
     mapMemory();
-    for (int i=0; i<8; i++)
+    for(int i = 0; i < 8; i++)
         memset(wram[i], 0, 0x1000);
     memset(highram, 0, 0x1000); // Initializes sprites and IO registers
 
@@ -107,9 +104,9 @@ void Gameboy::initMMU()
 
 void Gameboy::mapMemory() {
     memory[0x0] = romFile->romSlot0;
-    memory[0x1] = romFile->romSlot0+0x1000;
-    memory[0x2] = romFile->romSlot0+0x2000;
-    memory[0x3] = romFile->romSlot0+0x3000;
+    memory[0x1] = romFile->romSlot0 + 0x1000;
+    memory[0x2] = romFile->romSlot0 + 0x2000;
+    memory[0x3] = romFile->romSlot0 + 0x3000;
     refreshRomBank(romBank);
     refreshRamBank(currentRamBank);
     refreshVramBank();
@@ -118,27 +115,25 @@ void Gameboy::mapMemory() {
     memory[0xe] = wram[0];
     memory[0xf] = highram;
 
-    dmaSource = (ioRam[0x51]<<8) | (ioRam[0x52]);
+    dmaSource = (ioRam[0x51] << 8) | (ioRam[0x52]);
     dmaSource &= 0xFFF0;
-    dmaDest = (ioRam[0x53]<<8) | (ioRam[0x54]);
+    dmaDest = (ioRam[0x53] << 8) | (ioRam[0x54]);
     dmaDest &= 0x1FF0;
 }
 
 u8 Gameboy::readMemoryFast(u16 addr) {
-    return memory[addr>>12][addr&0xfff];
+    return memory[addr >> 12][addr & 0xfff];
 }
 
 u16 Gameboy::readMemory16(u16 addr) {
-    return readMemory(addr) | readMemory(addr+1)<<8;
+    return readMemory(addr) | readMemory(addr + 1) << 8;
 }
 
-u8 Gameboy::readIO(u8 ioReg)
-{
+u8 Gameboy::readIO(u8 ioReg) {
 #ifdef SPEEDHAX
     return ioRam[ioReg];
 #else
-    switch (ioReg)
-    {
+    switch(ioReg) {
         case 0x00:
             return sgbReadP1();
         case 0x10: // NR10, sweep register 1, bit 7 set on read
@@ -194,59 +189,57 @@ u8 Gameboy::readIO(u8 ioReg)
 }
 
 u8 Gameboy::readMemoryOther(u16 addr) {
-    int area = addr>>12;
+    int area = addr >> 12;
 
-    if (area == 0xf) {
-        if (addr >= 0xff00)
-            return readIO(addr&0xff);
-        // Check for echo area
-        else if (addr < 0xfe00)
+    if(area == 0xf) {
+        if(addr >= 0xff00)
+            return readIO(addr & 0xff);
+            // Check for echo area
+        else if(addr < 0xfe00)
             addr -= 0x2000;
     }
-    /* Check if in range a000-bfff */
-    else if (area == 0xa || area == 0xb) {
+        /* Check if in range a000-bfff */
+    else if(area == 0xa || area == 0xb) {
         /* Check if there's an handler for this mbc */
-        if (readFunc != NULL)
+        if(readFunc != NULL)
             return (*this.*readFunc)(addr);
-        else if (!numRamBanks)
+        else if(!numRamBanks)
             return 0xff;
     }
-    return memory[area][addr&0xfff];
+    return memory[area][addr & 0xfff];
 }
 
 void Gameboy::writeMemoryOther(u16 addr, u8 val) {
-    int area = addr>>12;
-    switch (area)
-    {
+    int area = addr >> 12;
+    switch(area) {
         case 0x8:
         case 0x9:
-            if (isMainGameboy())
-                writeVram(addr&0x1fff, val);
-            vram[vramBank][addr&0x1fff] = val;
+            if(isMainGameboy())
+                writeVram(addr & 0x1fff, val);
+            vram[vramBank][addr & 0x1fff] = val;
             return;
         case 0xE: // Echo area
-            wram[0][addr&0xFFF] = val;
+            wram[0][addr & 0xFFF] = val;
             return;
         case 0xF:
-            if (addr >= 0xFF00)
+            if(addr >= 0xFF00)
                 writeIO(addr & 0xFF, val);
-            else if (addr >= 0xFE00) {
-                writeHram(addr&0x1ff, val);
-                hram[addr&0x1ff] = val;
+            else if(addr >= 0xFE00) {
+                writeHram(addr & 0x1ff, val);
+                hram[addr & 0x1ff] = val;
             }
             else // Echo area
-                wram[wramBank][addr&0xFFF] = val;
+                wram[wramBank][addr & 0xFFF] = val;
             return;
     }
-    if (writeFunc != NULL)
+    if(writeFunc != NULL)
         (*this.*writeFunc)(addr, val);
 }
 
 void Gameboy::writeIO(u8 ioReg, u8 val) {
-    switch (ioReg)
-    {
+    switch(ioReg) {
         case 0x00:
-            if (sgbMode)
+            if(sgbMode)
                 sgbHandleP1(val);
             else {
                 ioRam[0x00] = val;
@@ -258,20 +251,19 @@ void Gameboy::writeIO(u8 ioReg, u8 val) {
         case 0x01:
             ioRam[ioReg] = val;
             return;
-        case 0x02:
-            {
-                ioRam[ioReg] = val;
-                if (val & 0x80 && val & 0x01) {
-                    if (serialCounter == 0) {
-                        serialCounter = clockSpeed/1024;
-                        if (cyclesToExecute > serialCounter)
-                            cyclesToExecute = serialCounter;
-                    }
+        case 0x02: {
+            ioRam[ioReg] = val;
+            if(val & 0x80 && val & 0x01) {
+                if(serialCounter == 0) {
+                    serialCounter = clockSpeed / 1024;
+                    if(cyclesToExecute > serialCounter)
+                        cyclesToExecute = serialCounter;
                 }
-                else
-                    serialCounter = 0;
-                return;
             }
+            else
+                serialCounter = 0;
+            return;
+        }
         case 0x04:
             ioRam[ioReg] = 0;
             return;
@@ -282,7 +274,7 @@ void Gameboy::writeIO(u8 ioReg, u8 val) {
             ioRam[ioReg] = val;
             break;
         case 0x07:
-            timerPeriod = periods[val&0x3];
+            timerPeriod = periods[val & 0x3];
             ioRam[ioReg] = val;
             break;
         case 0x10:
@@ -316,22 +308,22 @@ void Gameboy::writeIO(u8 ioReg, u8 val) {
         case 0x3D:
         case 0x3E:
         case 0x3F:
-handleSoundReg:
-            if (soundDisabled || // If sound is disabled from menu, or
-                    // If sound is globally disabled via shutting down the APU,
-                    (!(ioRam[0x26] & 0x80)
-                     // ignore register writes to between FF10 and FF25 inclusive.
-                     && ioReg >= 0x10 && ioReg <= 0x25))
+        handleSoundReg:
+            if(soundDisabled || // If sound is disabled from menu, or
+               // If sound is globally disabled via shutting down the APU,
+               (!(ioRam[0x26] & 0x80)
+                // ignore register writes to between FF10 and FF25 inclusive.
+                && ioReg >= 0x10 && ioReg <= 0x25))
                 return;
             ioRam[ioReg] = val;
             soundEngine->handleSoundRegister(ioReg, val);
             return;
         case 0x26:
             ioRam[ioReg] &= ~0x80;
-            ioRam[ioReg] |= (val&0x80);
+            ioRam[ioReg] |= (val & 0x80);
 
-            if (!(val & 0x80)) {
-                for (int reg = 0x10; reg <= 0x25; reg++)
+            if(!(val & 0x80)) {
+                for(int reg = 0x10; reg <= 0x25; reg++)
                     ioRam[reg] = 0;
                 clearSoundChannel(CHAN_1);
                 clearSoundChannel(CHAN_2);
@@ -342,33 +334,33 @@ handleSoundReg:
             soundEngine->handleSoundRegister(ioReg, val);
             return;
         case 0x14:
-            if (soundDisabled || (!(ioRam[0x26] & 0x80)))
+            if(soundDisabled || (!(ioRam[0x26] & 0x80)))
                 return;
-            if (val & 0x80)
+            if(val & 0x80)
                 setSoundChannel(CHAN_1);
             goto handleSoundReg;
         case 0x19:
-            if (soundDisabled || (!(ioRam[0x26] & 0x80)))
+            if(soundDisabled || (!(ioRam[0x26] & 0x80)))
                 return;
-            if (val & 0x80)
+            if(val & 0x80)
                 setSoundChannel(CHAN_2);
             goto handleSoundReg;
         case 0x1A:
-            if (soundDisabled || (!(ioRam[0x26] & 0x80)))
+            if(soundDisabled || (!(ioRam[0x26] & 0x80)))
                 return;
-            if (!(val & 0x80))
+            if(!(val & 0x80))
                 clearSoundChannel(CHAN_3);
             goto handleSoundReg;
         case 0x1E:
-            if (soundDisabled || (!(ioRam[0x26] & 0x80)))
+            if(soundDisabled || (!(ioRam[0x26] & 0x80)))
                 return;
-            if (val & 0x80)
+            if(val & 0x80)
                 setSoundChannel(CHAN_3);
             goto handleSoundReg;
         case 0x23:
-            if (soundDisabled || (!(ioRam[0x26] & 0x80)))
+            if(soundDisabled || (!(ioRam[0x26] & 0x80)))
                 return;
-            if (val & 0x80)
+            if(val & 0x80)
                 setSoundChannel(CHAN_4);
             goto handleSoundReg;
         case 0x42:
@@ -378,51 +370,51 @@ handleSoundReg:
         case 0x49:
         case 0x4A:
         case 0x4B:
-            if (isMainGameboy())
+            if(isMainGameboy())
                 handleVideoRegister(ioReg, val);
             ioRam[ioReg] = val;
             return;
         case 0x69: // CGB BG Palette
-            if (isMainGameboy())
+            if(isMainGameboy())
                 handleVideoRegister(ioReg, val);
             {
                 int index = ioRam[0x68] & 0x3F;
                 bgPaletteData[index] = val;
             }
-            if (ioRam[0x68] & 0x80)
-                ioRam[0x68] = 0x80 | (ioRam[0x68]+1);
-            ioRam[0x69] = bgPaletteData[ioRam[0x68]&0x3F];
+            if(ioRam[0x68] & 0x80)
+                ioRam[0x68] = 0x80 | (ioRam[0x68] + 1);
+            ioRam[0x69] = bgPaletteData[ioRam[0x68] & 0x3F];
             return;
         case 0x6B: // CGB Sprite palette
-            if (isMainGameboy())
+            if(isMainGameboy())
                 handleVideoRegister(ioReg, val);
             {
                 int index = ioRam[0x6A] & 0x3F;
                 sprPaletteData[index] = val;
             }
-            if (ioRam[0x6A] & 0x80)
-                ioRam[0x6A] = 0x80 | (ioRam[0x6A]+1);
-            ioRam[0x6B] = sprPaletteData[ioRam[0x6A]&0x3F];
+            if(ioRam[0x6A] & 0x80)
+                ioRam[0x6A] = 0x80 | (ioRam[0x6A] + 1);
+            ioRam[0x6B] = sprPaletteData[ioRam[0x6A] & 0x3F];
             return;
         case 0x46: // Sprite DMA
-            if (isMainGameboy())
+            if(isMainGameboy())
                 handleVideoRegister(ioReg, val);
             ioRam[ioReg] = val;
             {
                 int src = val << 8;
-                u8* mem = memory[src>>12];
+                u8* mem = memory[src >> 12];
                 src &= 0xfff;
-                for (int i=0; i<0xA0; i++) {
+                for(int i = 0; i < 0xA0; i++) {
                     u8 val = mem[src++];
                     hram[i] = val;
                 }
             }
             return;
         case 0x40: // LCDC
-            if (isMainGameboy())
+            if(isMainGameboy())
                 handleVideoRegister(ioReg, val);
             ioRam[ioReg] = val;
-            if (!(val & 0x80)) {
+            if(!(val & 0x80)) {
                 ioRam[0x44] = 0;
                 ioRam[0x41] &= ~3; // Set video mode 0
             }
@@ -430,7 +422,7 @@ handleSoundReg:
 
         case 0x41:
             ioRam[ioReg] &= 0x7;
-            ioRam[ioReg] |= val&0xF8;
+            ioRam[ioReg] |= val & 0xF8;
             return;
         case 0x44:
             //ioRam[0x44] = 0;
@@ -442,90 +434,83 @@ handleSoundReg:
             return;
         case 0x68:
             ioRam[ioReg] = val;
-            ioRam[0x69] = bgPaletteData[val&0x3F];
+            ioRam[0x69] = bgPaletteData[val & 0x3F];
             return;
         case 0x6A:
             ioRam[ioReg] = val;
-            ioRam[0x6B] = sprPaletteData[val&0x3F];
+            ioRam[0x6B] = sprPaletteData[val & 0x3F];
             return;
         case 0x4D:
             ioRam[ioReg] &= 0x80;
-            ioRam[ioReg] |= (val&1);
+            ioRam[ioReg] |= (val & 1);
             return;
         case 0x4F: // Vram bank
-            if (gbMode == CGB)
-            {
+            if(gbMode == CGB) {
                 vramBank = val & 1;
                 refreshVramBank();
             }
-            ioRam[ioReg] = val&1;
+            ioRam[ioReg] = val & 1;
             return;
         case 0x50: // BIOS Lockdown
             memory[0x0] = romFile->romSlot0;
             initGameboyMode();
             return;
         case 0x55: // CGB DMA
-            if (gbMode == CGB)
-            {
-                if (dmaLength > 0)
-                {
-                    if ((val&0x80) == 0)
-                    {
+            if(gbMode == CGB) {
+                if(dmaLength > 0) {
+                    if((val & 0x80) == 0) {
                         ioRam[ioReg] |= 0x80;
                         dmaLength = 0;
                     }
                     return;
                 }
-                dmaLength = ((val & 0x7F)+1);
-                dmaSource = (ioRam[0x51]<<8) | (ioRam[0x52]);
+                dmaLength = ((val & 0x7F) + 1);
+                dmaSource = (ioRam[0x51] << 8) | (ioRam[0x52]);
                 dmaSource &= 0xFFF0;
-                dmaDest = (ioRam[0x53]<<8) | (ioRam[0x54]);
+                dmaDest = (ioRam[0x53] << 8) | (ioRam[0x54]);
                 dmaDest &= 0x1FF0;
-                dmaMode = val>>7;
-                ioRam[ioReg] = dmaLength-1;
-                if (dmaMode == 0)
-                {
+                dmaMode = val >> 7;
+                ioRam[ioReg] = dmaLength - 1;
+                if(dmaMode == 0) {
                     int i;
-                    for (i=0; i<dmaLength; i++)
-                    {
-                        if (isMainGameboy())
+                    for(i = 0; i < dmaLength; i++) {
+                        if(isMainGameboy())
                             writeVram16(dmaDest, dmaSource);
-                        for (int i=0; i<16; i++)
+                        for(int i = 0; i < 16; i++)
                             vram[vramBank][dmaDest++] = quickRead(dmaSource++);
                         dmaDest &= 0x1FF0;
                     }
-                    extraCycles += dmaLength*8*(doubleSpeed+1);
+                    extraCycles += dmaLength * 8 * (doubleSpeed + 1);
                     dmaLength = 0;
                     ioRam[ioReg] = 0xFF;
-                    ioRam[0x51] = dmaSource>>8;
-                    ioRam[0x52] = dmaSource&0xff;
-                    ioRam[0x53] = dmaDest>>8;
-                    ioRam[0x54] = dmaDest&0xff;
+                    ioRam[0x51] = dmaSource >> 8;
+                    ioRam[0x52] = dmaSource & 0xff;
+                    ioRam[0x53] = dmaDest >> 8;
+                    ioRam[0x54] = dmaDest & 0xff;
                 }
             }
             else
                 ioRam[ioReg] = val;
             return;
-        case 0x70:				// WRAM bank, for CGB only
-            if (gbMode == CGB)
-            {
+        case 0x70:                // WRAM bank, for CGB only
+            if(gbMode == CGB) {
                 wramBank = val & 0x7;
-                if (wramBank == 0)
+                if(wramBank == 0)
                     wramBank = 1;
                 refreshWramBank();
             }
-            ioRam[ioReg] = val&0x7;
+            ioRam[ioReg] = val & 0x7;
             return;
         case 0x0F: // IF
             ioRam[ioReg] = val;
             interruptTriggered = val & ioRam[0xff];
-            if (interruptTriggered)
+            if(interruptTriggered)
                 cyclesToExecute = -1;
             break;
         case 0xFF: // IE
             ioRam[ioReg] = val;
             interruptTriggered = val & ioRam[0x0f];
-            if (interruptTriggered)
+            if(interruptTriggered)
                 cyclesToExecute = -1;
             break;
         default:
@@ -538,37 +523,35 @@ void Gameboy::refreshP1() {
     int controller = 0;
 
     // Check if input register is being used for sgb packets
-    if (sgbPacketBit == -1) {
-        if ((ioRam[0x00] & 0x30) == 0x30) {
-            if (!sgbMode)
+    if(sgbPacketBit == -1) {
+        if((ioRam[0x00] & 0x30) == 0x30) {
+            if(!sgbMode)
                 ioRam[0x00] |= 0x0F;
         }
         else {
             ioRam[0x00] &= 0xF0;
-            if (!(ioRam[0x00]&0x20))
+            if(!(ioRam[0x00] & 0x20))
                 ioRam[0x00] |= (controllers[controller] & 0xF);
             else
-                ioRam[0x00] |= ((controllers[controller] & 0xF0)>>4);
+                ioRam[0x00] |= ((controllers[controller] & 0xF0) >> 4);
         }
         ioRam[0x00] |= 0xc0;
     }
 }
 
-bool Gameboy::updateHBlankDMA()
-{
-    if (dmaLength > 0)
-    {
-        if (isMainGameboy())
+bool Gameboy::updateHBlankDMA() {
+    if(dmaLength > 0) {
+        if(isMainGameboy())
             writeVram16(dmaDest, dmaSource);
-        for (int i=0; i<16; i++)
+        for(int i = 0; i < 16; i++)
             vram[vramBank][dmaDest++] = quickRead(dmaSource++);
         dmaDest &= 0x1FF0;
-        dmaLength --;
-        ioRam[0x55] = dmaLength-1;
-        ioRam[0x51] = dmaSource>>8;
-        ioRam[0x52] = dmaSource&0xff;
-        ioRam[0x53] = dmaDest>>8;
-        ioRam[0x54] = dmaDest&0xff;
+        dmaLength--;
+        ioRam[0x55] = dmaLength - 1;
+        ioRam[0x51] = dmaSource >> 8;
+        ioRam[0x52] = dmaSource & 0xff;
+        ioRam[0x53] = dmaDest >> 8;
+        ioRam[0x54] = dmaDest & 0xff;
         return true;
     }
     else

@@ -1,6 +1,5 @@
 #include <3ds.h>
 
-#include "gfx.h"
 #include "gbgfx.h"
 #include "inputhelper.h"
 
@@ -54,7 +53,7 @@ void gfxCleanup() {
     }
 }
 
-void gfxDrawScreen(u8 *screenBuffer, int scaleMode, int gameScreen) {
+void gfxDrawScreen(u8* screenBuffer, int scaleMode, int gameScreen) {
     // Update VBO data if the size has changed.
     if(prevScaleMode != scaleMode || prevGameScreen != gameScreen) {
         u32 fbWidth = gameScreen == 0 ? 400 : 320;
@@ -104,7 +103,8 @@ void gfxDrawScreen(u8 *screenBuffer, int scaleMode, int gameScreen) {
 
     // Update the texture with the new frame.
     TextureFilter filter = scaleFilter == 1 ? FILTER_LINEAR : FILTER_NEAREST;
-    gpuTextureData(texture, screenBuffer, 256, 256, PIXEL_RGB8, 256, 256, PIXEL_RGB8, TEXTURE_MIN_FILTER(filter) | TEXTURE_MAG_FILTER(filter));
+    gpuTextureData(texture, screenBuffer, 256, 256, PIXEL_RGB8, 256, 256, PIXEL_RGB8,
+                   TEXTURE_MIN_FILTER(filter) | TEXTURE_MAG_FILTER(filter));
 
     // Draw the VBO.
     gpuClear();

@@ -42,7 +42,7 @@ int consoleGetHeight() {
 }
 
 void clearConsole() {
-	consoleClear();
+    consoleClear();
 }
 
 void updateScreens() {
@@ -59,8 +59,8 @@ void updateScreens() {
         gfxSwapBuffers();
         gspWaitForVBlank();
 
-        u16 *framebuffer = (u16 *) gfxGetFramebuffer(screen, GFX_LEFT, NULL, NULL);
-        PrintConsole *console = screen == GFX_TOP ? topConsole : bottomConsole;
+        u16* framebuffer = (u16*) gfxGetFramebuffer(screen, GFX_LEFT, NULL, NULL);
+        PrintConsole* console = screen == GFX_TOP ? topConsole : bottomConsole;
         console->frameBuffer = framebuffer;
         consoleSelect(console);
 

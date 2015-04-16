@@ -9,8 +9,6 @@
 #include "inputhelper.h"
 #include "console.h"
 
-#include "gfx.h"
-
 #include <ctrcommon/fs.hpp>
 
 #define FLAG_DIRECTORY  1
@@ -26,46 +24,46 @@ FileChooserState borderChooserState = {0, "/"};
 // Private stuff
 int filesPerPage = 24;
 int numFiles;
-int scrollY=0;
-int fileSelection=0;
-bool fileChooserOn=false;
+int scrollY = 0;
+int fileSelection = 0;
+bool fileChooserOn = false;
 string matchFile;
 
 string currDirectory = "/";
 
 void updateScrollDown() {
-    if (fileSelection >= numFiles)
-        fileSelection = numFiles-1;
-    if (numFiles > filesPerPage) {
-        if (fileSelection == numFiles-1)
-            scrollY = fileSelection-filesPerPage+1;
-        else if (fileSelection-scrollY >= filesPerPage-1)
-            scrollY = fileSelection-filesPerPage+2;
+    if(fileSelection >= numFiles)
+        fileSelection = numFiles - 1;
+    if(numFiles > filesPerPage) {
+        if(fileSelection == numFiles - 1)
+            scrollY = fileSelection - filesPerPage + 1;
+        else if(fileSelection - scrollY >= filesPerPage - 1)
+            scrollY = fileSelection - filesPerPage + 2;
     }
 }
+
 void updateScrollUp() {
-    if (fileSelection < 0)
+    if(fileSelection < 0)
         fileSelection = 0;
-    if (fileSelection == 0)
+    if(fileSelection == 0)
         scrollY = 0;
-    else if (fileSelection == scrollY)
+    else if(fileSelection == scrollY)
         scrollY--;
-    else if (fileSelection < scrollY)
-        scrollY = fileSelection-1;
+    else if(fileSelection < scrollY)
+        scrollY = fileSelection - 1;
 
 }
 
-int nameSortFunction(string& a, string& b)
-{
+int nameSortFunction(string &a, string &b) {
     // ".." sorts before everything except itself.
     bool aIsParent = strcmp(a.c_str(), "..") == 0;
     bool bIsParent = strcmp(b.c_str(), "..") == 0;
 
-    if (aIsParent && bIsParent)
+    if(aIsParent && bIsParent)
         return 0;
-    else if (aIsParent) // Sorts before
+    else if(aIsParent) // Sorts before
         return -1;
-    else if (bIsParent) // Sorts after
+    else if(bIsParent) // Sorts after
         return 1;
     else
         return strcasecmp(a.c_str(), b.c_str());
@@ -84,19 +82,18 @@ int nameSortFunction(string& a, string& b)
  *   true if the range is one or no elements, or if from > to.
  *   false otherwise.
  */
-template <class Data> bool isSorted(std::vector<Data>& data, int (*sortFunction) (Data&, Data&), const unsigned int from, const unsigned int to)
-{
-    if (from >= to)
+template<class Data> bool isSorted(std::vector<Data> &data, int (* sortFunction)(Data &, Data &),
+                                   const unsigned int from, const unsigned int to) {
+    if(from >= to)
         return true;
 
     Data* prev = &data[from];
-    for (unsigned int i = from + 1; i < to; i++)
-    {
-        if ((*sortFunction)(*prev, data[i]) > 0)
+    for(unsigned int i = from + 1; i < to; i++) {
+        if((*sortFunction)(*prev, data[i]) > 0)
             return false;
         prev = &data[i];
     }
-    if ((*sortFunction)(*prev, data[to]) > 0)
+    if((*sortFunction)(*prev, data[to]) > 0)
         return false;
 
     return true;
@@ -113,17 +110,17 @@ template <class Data> bool isSorted(std::vector<Data>& data, int (*sortFunction)
  *        'to', index of the last element in the range to be sorted.
  * Output: a valid index into data, between 'from' and 'to' inclusive.
  */
-template <class Data> unsigned int choosePivot(std::vector<Data>& data, int (*sortFunction) (Data&, Data&), const unsigned int from, const unsigned int to)
-{
+template<class Data> unsigned int choosePivot(std::vector<Data> &data, int (* sortFunction)(Data &, Data &),
+                                              const unsigned int from, const unsigned int to) {
     // The highest of the two extremities is calculated first.
     unsigned int highest = ((*sortFunction)(data[from], data[to]) > 0)
-        ? from
-        : to;
+                           ? from
+                           : to;
     // Then the lowest of that highest extremity and the middle
     // becomes the pivot.
     return ((*sortFunction)(data[from + (to - from) / 2], data[highest]) < 0)
-        ? (from + (to - from) / 2)
-        : highest;
+           ? (from + (to - from) / 2)
+           : highest;
 }
 
 /*
@@ -140,8 +137,10 @@ template <class Data> unsigned int choosePivot(std::vector<Data>& data, int (*so
  * Output: the index of the value chosen as the pivot after it has been moved
  *   after all the values that are less than it.
  */
-template <class Data, class Metadata> unsigned int partition(std::vector<Data>& data, std::vector<Metadata>& metadata, int (*sortFunction) (Data&, Data&), const unsigned int from, const unsigned int to, const unsigned int pivotIndex)
-{
+template<class Data, class Metadata> unsigned int partition(std::vector<Data> &data, std::vector<Metadata> &metadata,
+                                                            int (* sortFunction)(Data &, Data &),
+                                                            const unsigned int from, const unsigned int to,
+                                                            const unsigned int pivotIndex) {
     Data pivotValue = data[pivotIndex];
     data[pivotIndex] = data[to];
     data[to] = pivotValue;
@@ -152,10 +151,8 @@ template <class Data, class Metadata> unsigned int partition(std::vector<Data>& 
     }
 
     unsigned int storeIndex = from;
-    for (unsigned int i = from; i < to; i++)
-    {
-        if ((*sortFunction)(data[i], pivotValue) < 0)
-        {
+    for(unsigned int i = from; i < to; i++) {
+        if((*sortFunction)(data[i], pivotValue) < 0) {
             const Data tD = data[storeIndex];
             data[storeIndex] = data[i];
             data[i] = tD;
@@ -191,16 +188,17 @@ template <class Data, class Metadata> unsigned int partition(std::vector<Data>& 
  *        'from', index of the first element in the range to sort.
  *        'to', index of the last element in the range to sort.
  */
-template <class Data, class Metadata> void quickSort(std::vector<Data>& data, std::vector<Metadata>& metadata, int (*sortFunction) (Data&, Data&), const unsigned int from, const unsigned int to)
-{
-    if (isSorted(data, sortFunction, from, to))
+template<class Data, class Metadata> void quickSort(std::vector<Data> &data, std::vector<Metadata> &metadata,
+                                                    int (* sortFunction)(Data &, Data &), const unsigned int from,
+                                                    const unsigned int to) {
+    if(isSorted(data, sortFunction, from, to))
         return;
 
     unsigned int pivotIndex = choosePivot(data, sortFunction, from, to);
     unsigned int newPivotIndex = partition(data, metadata, sortFunction, from, to, pivotIndex);
-    if (newPivotIndex > 0)
+    if(newPivotIndex > 0)
         quickSort(data, metadata, sortFunction, from, newPivotIndex - 1);
-    if (newPivotIndex < to)
+    if(newPivotIndex < to)
         quickSort(data, metadata, sortFunction, newPivotIndex + 1, to);
 }
 
@@ -214,7 +212,7 @@ char* startFileChooser(const char* extensions[], bool romExtensions, bool canQui
 
     filesPerPage--;
 
-    if (canQuit)
+    if(canQuit)
         filesPerPage--;
 
     fileChooserOn = true;
@@ -225,18 +223,18 @@ char* startFileChooser(const char* extensions[], bool romExtensions, bool canQui
     consoleSetScreen(GFX_TOP);
 #endif
 */
-    int numExtensions = sizeof(extensions)/sizeof(const char*);
+    int numExtensions = sizeof(extensions) / sizeof(const char*);
     char* retval;
     char buffer[256];
-    struct dirent *entry;
+    struct dirent* entry;
 
-    while (true) {
-        numFiles=0;
+    while(true) {
+        numFiles = 0;
         std::vector<string> filenames;
         std::vector<int> flags;
         std::vector<string> unmatchedStates;
 #ifdef _3DS
-        if (currDirectory.compare("/") != 0) {
+        if(currDirectory.compare("/") != 0) {
             filenames.push_back(string(".."));
             flags.push_back(FLAG_DIRECTORY);
             numFiles++;
@@ -247,7 +245,7 @@ char* startFileChooser(const char* extensions[], bool romExtensions, bool canQui
         if(dir != NULL) {
             // Read file list
             while((entry = readdir(dir)) != NULL) {
-                char *ext = strrchr(entry->d_name, '.') + 1;
+                char* ext = strrchr(entry->d_name, '.') + 1;
                 if(strrchr(entry->d_name, '.') == 0)
                     ext = 0;
                 bool isValidExtension = false;
@@ -262,7 +260,7 @@ char* startFileChooser(const char* extensions[], bool romExtensions, bool canQui
                         }
                         if(romExtensions) {
                             isRomFile = strcasecmp(ext, "cgb") == 0 || strcasecmp(ext, "gbc") == 0 ||
-                                                                       strcasecmp(ext, "gb") == 0 || strcasecmp(ext, "sgb") == 0;
+                                        strcasecmp(ext, "gb") == 0 || strcasecmp(ext, "sgb") == 0;
                             if(isRomFile)
                                 isValidExtension = true;
                         }
@@ -323,12 +321,12 @@ char* startFileChooser(const char* extensions[], bool romExtensions, bool canQui
 
         quickSort(filenames, flags, nameSortFunction, 0, numFiles - 1);
 
-        if (fileSelection >= numFiles)
+        if(fileSelection >= numFiles)
             fileSelection = 0;
 
-        if (!matchFile.empty()) {
-            for (int i=0; i<numFiles; i++) {
-                if (matchFile == filenames[i]) {
+        if(!matchFile.empty()) {
+            for(int i = 0; i < numFiles; i++) {
+                if(matchFile == filenames[i]) {
                     fileSelection = i;
                     break;
                 }
@@ -339,42 +337,42 @@ char* startFileChooser(const char* extensions[], bool romExtensions, bool canQui
 
         // Done reading files
 
-        scrollY=0;
+        scrollY = 0;
         updateScrollDown();
         bool readDirectory = false;
-        while (!readDirectory) {
+        while(!readDirectory) {
             int screenLen = consoleGetWidth();
             // Draw the screen
             clearConsole();
             strncpy(buffer, currDirectory.c_str(), screenLen);
             buffer[screenLen] = '\0';
             iprintfColored(CONSOLE_COLOR_WHITE, "%s", buffer);
-            for (uint j=0; j<screenLen-strlen(buffer); j++)
+            for(uint j = 0; j < screenLen - strlen(buffer); j++)
                 iprintfColored(CONSOLE_COLOR_WHITE, " ");
 
-            for (int i=scrollY; i<scrollY+filesPerPage && i<numFiles; i++) {
-                if (i == fileSelection)
+            for(int i = scrollY; i < scrollY + filesPerPage && i < numFiles; i++) {
+                if(i == fileSelection)
                     printf("* ");
-                else if (i == scrollY && i != 0)
+                else if(i == scrollY && i != 0)
                     printf("^ ");
-                else if (i == scrollY+filesPerPage-1 && scrollY+filesPerPage-1 != numFiles-1)
+                else if(i == scrollY + filesPerPage - 1 && scrollY + filesPerPage - 1 != numFiles - 1)
                     printf("v ");
                 else
                     printf("  ");
 
                 int stringLen = screenLen - 2;
-                if (flags[i] & FLAG_DIRECTORY)
+                if(flags[i] & FLAG_DIRECTORY)
                     stringLen--;
                 strncpy(buffer, filenames[i].c_str(), stringLen);
                 buffer[stringLen] = '\0';
-                if (flags[i] & FLAG_DIRECTORY) {
+                if(flags[i] & FLAG_DIRECTORY) {
                     iprintfColored(CONSOLE_COLOR_BRIGHT_YELLOW, "%s/", buffer);
                 }
-                else if (flags[i] & FLAG_SUSPENDED)
+                else if(flags[i] & FLAG_SUSPENDED)
                     iprintfColored(CONSOLE_COLOR_BRIGHT_MAGENTA, "%s", buffer);
                 else
                     iprintfColored(CONSOLE_COLOR_WHITE, "%s", buffer);
-                for (uint j=0; j<stringLen-strlen(buffer); j++)
+                for(uint j = 0; j < stringLen - strlen(buffer); j++)
                     iprintfColored(CONSOLE_COLOR_WHITE, " ");
 
 #ifdef DS
@@ -383,9 +381,9 @@ char* startFileChooser(const char* extensions[], bool romExtensions, bool canQui
                 }
 #endif
             }
-            if (canQuit) {
-                if (numFiles < filesPerPage) {
-                    for (int i=numFiles; i<filesPerPage; i++)
+            if(canQuit) {
+                if(numFiles < filesPerPage) {
+                    for(int i = numFiles; i < filesPerPage; i++)
                         iprintfColored(CONSOLE_COLOR_WHITE, "\n");
                 }
                 iprintfColored(CONSOLE_COLOR_WHITE, "                Press Y to exit");
@@ -395,14 +393,14 @@ char* startFileChooser(const char* extensions[], bool romExtensions, bool canQui
             system_waitForVBlank();
 
             // Wait for input
-            while (true) {
+            while(true) {
                 system_checkPolls();
                 system_waitForVBlank();
                 inputUpdate();
 
-                if (keyJustPressed(mapMenuKey(MENU_KEY_A))) {
-                    if (flags[fileSelection] & FLAG_DIRECTORY) {
-                        if (strcmp(filenames[fileSelection].c_str(), "..") == 0)
+                if(keyJustPressed(mapMenuKey(MENU_KEY_A))) {
+                    if(flags[fileSelection] & FLAG_DIRECTORY) {
+                        if(strcmp(filenames[fileSelection].c_str(), "..") == 0)
                             goto lowerDirectory;
                         currDirectory += filenames[fileSelection] + "/";
                         readDirectory = true;
@@ -412,18 +410,19 @@ char* startFileChooser(const char* extensions[], bool romExtensions, bool canQui
                     else {
                         // Copy the result to a new allocation, as the
                         // filename would become unavailable when freed.
-                        retval = (char*) malloc(sizeof(char) * (currDirectory.length() + strlen(filenames[fileSelection].c_str()) + 1));
+                        retval = (char*) malloc(
+                                sizeof(char) * (currDirectory.length() + strlen(filenames[fileSelection].c_str()) + 1));
                         strcpy(retval, currDirectory.c_str());
                         strcpy(retval + (currDirectory.length() * sizeof(char)), filenames[fileSelection].c_str());
                         goto end;
                     }
                 }
-                else if (keyJustPressed(mapMenuKey(MENU_KEY_B))) {
-lowerDirectory:
+                else if(keyJustPressed(mapMenuKey(MENU_KEY_B))) {
+                    lowerDirectory:
                     // Select this directory when going up
                     std::string currDir = currDirectory;
                     std::string::size_type slash = currDir.find_last_of('/');
-                    if (currDir.length() != 1 && slash == currDir.length() - 1) {
+                    if(currDir.length() != 1 && slash == currDir.length() - 1) {
                         currDir = currDir.substr(0, slash);
                         slash = currDir.find_last_of('/');
                     }
@@ -435,32 +434,32 @@ lowerDirectory:
                     readDirectory = true;
                     break;
                 }
-                else if (keyPressedAutoRepeat(mapMenuKey(MENU_KEY_UP))) {
-                    if (fileSelection > 0) {
+                else if(keyPressedAutoRepeat(mapMenuKey(MENU_KEY_UP))) {
+                    if(fileSelection > 0) {
                         fileSelection--;
                         updateScrollUp();
                         break;
                     }
                 }
-                else if (keyPressedAutoRepeat(mapMenuKey(MENU_KEY_DOWN))) {
-                    if (fileSelection < numFiles-1) {
+                else if(keyPressedAutoRepeat(mapMenuKey(MENU_KEY_DOWN))) {
+                    if(fileSelection < numFiles - 1) {
                         fileSelection++;
                         updateScrollDown();
                         break;
                     }
                 }
-                else if (keyPressedAutoRepeat(mapMenuKey(MENU_KEY_RIGHT))) {
-                    fileSelection += filesPerPage/2;
+                else if(keyPressedAutoRepeat(mapMenuKey(MENU_KEY_RIGHT))) {
+                    fileSelection += filesPerPage / 2;
                     updateScrollDown();
                     break;
                 }
-                else if (keyPressedAutoRepeat(mapMenuKey(MENU_KEY_LEFT))) {
-                    fileSelection -= filesPerPage/2;
+                else if(keyPressedAutoRepeat(mapMenuKey(MENU_KEY_LEFT))) {
+                    fileSelection -= filesPerPage / 2;
                     updateScrollUp();
                     break;
                 }
-                else if (keyJustPressed(mapMenuKey(MENU_KEY_Y))) {
-                    if (canQuit) {
+                else if(keyJustPressed(mapMenuKey(MENU_KEY_Y))) {
+                    if(canQuit) {
                         retval = NULL;
                         goto end;
                     }
@@ -468,7 +467,7 @@ lowerDirectory:
             }
         }
     }
-end:
+    end:
     clearConsole();
 #ifdef DS
     consoleSelectedRow = -1;
@@ -497,6 +496,7 @@ void saveFileChooserState(FileChooserState* state) {
     state->selection = fileSelection;
     state->directory = currDirectory;
 }
+
 void loadFileChooserState(FileChooserState* state) {
     fileSelection = state->selection;
     currDirectory = state->directory;

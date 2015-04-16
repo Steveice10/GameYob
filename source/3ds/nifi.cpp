@@ -8,17 +8,22 @@ volatile bool receivedPacket;
 volatile int nifiSendid;
 bool nifiEnabled;
 
-void enableNifi() {}
-void disableNifi() {}
+void enableNifi() { }
 
-void nifiSendPacket(u8 command, u8* data, int dataLen) {}
+void disableNifi() { }
 
-void nifiHostMenu(int value) {}
-void nifiClientMenu(int value) {}
+void nifiSendPacket(u8 command, u8* data, int dataLen) { }
 
-bool nifiIsHost() {return false;}
-bool nifiIsClient() {return false;}
-bool nifiIsLinked() {return false;}
+void nifiHostMenu(int value) { }
 
-void nifiCheckInput() {}
-void nifiUpdateInput() {}
+void nifiClientMenu(int value) { }
+
+bool nifiIsHost() { return false; }
+
+bool nifiIsClient() { return false; }
+
+bool nifiIsLinked() { return false; }
+
+void nifiCheckInput() { }
+
+void nifiUpdateInput() { }

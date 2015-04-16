@@ -33,25 +33,25 @@ void mgr_init() {
 }
 
 void mgr_runFrame() {
-    int ret1=0,ret2=0;
+    int ret1 = 0, ret2 = 0;
 
     bool paused = false;
-    while (!paused && !((ret1 & RET_VBLANK) && (ret2 & RET_VBLANK))) {
+    while(!paused && !((ret1 & RET_VBLANK) && (ret2 & RET_VBLANK))) {
         paused = false;
-        if (gbUno && gbUno->isGameboyPaused())
+        if(gbUno && gbUno->isGameboyPaused())
             paused = true;
-        if (gbDuo && gbDuo->isGameboyPaused())
+        if(gbDuo && gbDuo->isGameboyPaused())
             paused = true;
-        if (!paused) {
-            if (gbUno) {
-                if (!(ret1 & RET_VBLANK))
+        if(!paused) {
+            if(gbUno) {
+                if(!(ret1 & RET_VBLANK))
                     ret1 |= gbUno->runEmul();
             }
             else
                 ret1 |= RET_VBLANK;
 
-            if (gbDuo) {
-                if (!(ret2 & RET_VBLANK))
+            if(gbDuo) {
+                if(!(ret2 & RET_VBLANK))
                     ret2 |= gbDuo->runEmul();
             }
             else
@@ -61,7 +61,7 @@ void mgr_runFrame() {
 }
 
 void mgr_startGb2(const char* filename) {
-    if (gb2 == NULL)
+    if(gb2 == NULL)
         gb2 = new Gameboy();
     gb2->setRomFile(gameboy->getRomFile());
     gb2->loadSave(-1);
@@ -75,7 +75,7 @@ void mgr_startGb2(const char* filename) {
 }
 
 void mgr_swapFocus() {
-    if (gb2) {
+    if(gb2) {
         Gameboy* tmp = gameboy;
         gameboy = gb2;
         gb2 = tmp;
@@ -89,14 +89,14 @@ void mgr_swapFocus() {
 
 void mgr_setInternalClockGb(Gameboy* g) {
     gbUno = g;
-    if (g == gameboy)
+    if(g == gameboy)
         gbDuo = gb2;
     else
         gbDuo = gameboy;
 }
 
 void mgr_loadRom(const char* filename) {
-    if (romFile != NULL)
+    if(romFile != NULL)
         delete romFile;
 
     romFile = new RomFile(filename);
@@ -113,7 +113,7 @@ void mgr_loadRom(const char* filename) {
 
     gameboy->init();
 
-    if (gbsMode) {
+    if(gbsMode) {
         disableMenuOption("State Slot");
         disableMenuOption("Save State");
         disableMenuOption("Load State");
@@ -125,7 +125,7 @@ void mgr_loadRom(const char* filename) {
         enableMenuOption("State Slot");
         enableMenuOption("Save State");
         enableMenuOption("Suspend");
-        if (gameboy->checkStateExists(stateNum)) {
+        if(gameboy->checkStateExists(stateNum)) {
             enableMenuOption("Load State");
             enableMenuOption("Delete State");
         }
@@ -134,7 +134,7 @@ void mgr_loadRom(const char* filename) {
             disableMenuOption("Delete State");
         }
 
-        if (gameboy->getNumRamBanks() && !autoSavingEnabled)
+        if(gameboy->getNumRamBanks() && !autoSavingEnabled)
             enableMenuOption("Exit without saving");
         else
             disableMenuOption("Exit without saving");
@@ -150,14 +150,14 @@ void mgr_unloadRom() {
     gameboy->linkedGameboy = NULL;
     gbUno = gameboy;
 
-    if (gb2) {
+    if(gb2) {
         gb2->unloadRom();
         delete gb2;
         gb2 = NULL;
         gbDuo = NULL;
     }
 
-    if (romFile != NULL) {
+    if(romFile != NULL) {
         delete romFile;
         romFile = NULL;
     }
@@ -171,7 +171,7 @@ void mgr_selectRom() {
     char* filename = startFileChooser(extraExtensions, true);
     saveFileChooserState(&romChooserState);
 
-    if (filename == NULL) {
+    if(filename == NULL) {
         printf("Filechooser error");
         printf("\n\nPlease restart GameYob.\n");
         while(true) {
@@ -188,9 +188,9 @@ void mgr_selectRom() {
 }
 
 void mgr_save() {
-    if (gameboy)
+    if(gameboy)
         gameboy->saveGame();
-    if (gb2)
+    if(gb2)
         gb2->saveGame();
 }
 
@@ -199,17 +199,17 @@ void mgr_updateVBlank() {
 
     system_checkPolls();
 
-    if (gameboy && !gameboy->isGameboyPaused())
+    if(gameboy && !gameboy->isGameboyPaused())
         gameboy->getSoundEngine()->soundUpdateVBlank();
 
     inputUpdate();
 
     buttonsPressed = 0xff;
-    if (isMenuOn())
+    if(isMenuOn())
         updateMenu();
     else {
         gameboy->gameboyCheckInput();
-        if (gbsMode)
+        if(gbsMode)
             gbsCheckInput();
     }
 
@@ -234,11 +234,11 @@ void mgr_updateVBlank() {
 }
 
 void mgr_exit() {
-    if (gameboy)
+    if(gameboy)
         delete gameboy;
-    if (gb2)
+    if(gb2)
         delete gb2;
-    if (romFile)
+    if(romFile)
         delete romFile;
 
     gameboy = 0;

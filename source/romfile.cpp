@@ -15,7 +15,7 @@
 
 RomFile::RomFile(const char* f) {
 
-    romFile=NULL;
+    romFile = NULL;
     maxLoadedRomBanks = 512;
 
     strcpy(filename, f);
@@ -32,56 +32,54 @@ RomFile::RomFile(const char* f) {
         lastBanksUsed.push_back(i);
     }
 #else
-    romBankSlots = (u8*)malloc(maxLoadedRomBanks*0x4000);
+    romBankSlots = (u8*) malloc(maxLoadedRomBanks * 0x4000);
 
     // Check if this is a GBS file
     gbsMode = (strcasecmp(strrchr(filename, '.'), ".gbs") == 0);
 
     romFile = fopen(filename, "rb");
-    if (romFile == NULL) {
+    if(romFile == NULL) {
         printf("Error opening %s.", filename);
         printf("\n\nPlease restart GameYob.\n");
         while(true) {
             system_checkPolls();
             system_waitForVBlank();
         }
-
-        return;
     }
 
-    if (gbsMode) {
+    if(gbsMode) {
         fread(gbsHeader, 1, 0x70, romFile);
         gbsReadHeader();
         fseek(romFile, 0, SEEK_END);
-        numRomBanks = (ftell(romFile)-0x70+0x3fff)/0x4000; // Get number of banks, rounded up
+        numRomBanks = (ftell(romFile) - 0x70 + 0x3fff) / 0x4000; // Get number of banks, rounded up
         printf("%.2x\n", numRomBanks);
     }
     else {
         fseek(romFile, 0, SEEK_END);
-        numRomBanks = (ftell(romFile)+0x3fff)/0x4000; // Get number of banks, rounded up
+        numRomBanks = (ftell(romFile) + 0x3fff) / 0x4000; // Get number of banks, rounded up
     }
 
     // Round numRomBanks to a power of 2
-    int n=1;
-    while (n < numRomBanks) n*=2;
+    int n = 1;
+    while(n < numRomBanks) n *= 2;
     numRomBanks = n;
 
     //int rawRomSize = ftell(romFile);
     fseek(romFile, 0, SEEK_SET);
 
-    if (numRomBanks <= maxLoadedRomBanks)
+    if(numRomBanks <= maxLoadedRomBanks)
         numLoadedRomBanks = numRomBanks;
     else
         numLoadedRomBanks = maxLoadedRomBanks;
 
-    for (int i=0; i<numRomBanks; i++) {
+    for(int i = 0; i < numRomBanks; i++) {
         bankSlotIDs[i] = -1;
     }
 
     // Load rom banks and initialize all those "bank" arrays
     lastBanksUsed = std::vector<int>();
     // Read bank 0
-    if (gbsMode) {
+    if(gbsMode) {
         bankSlotIDs[0] = 0;
         fseek(romFile, 0x70, SEEK_SET);
         fread(romBankSlots + gbsLoadAddress, 1, 0x4000 - gbsLoadAddress, romFile);
@@ -92,7 +90,7 @@ RomFile::RomFile(const char* f) {
         fread(romBankSlots, 1, 0x4000, romFile);
     }
     // Read the rest of the banks
-    for (int i=1; i<numLoadedRomBanks; i++) {
+    for(int i = 1; i < numLoadedRomBanks; i++) {
         bankSlotIDs[i] = i;
         fread(romBankSlots + 0x4000 * i, 1, 0x4000, romFile);
         lastBanksUsed.push_back(i);
@@ -110,44 +108,57 @@ RomFile::RomFile(const char* f) {
     u8 cgbFlag = getCgbFlag();
 
     int nameLength = 16;
-    if (cgbFlag == 0x80 || cgbFlag == 0xc0)
+    if(cgbFlag == 0x80 || cgbFlag == 0xc0)
         nameLength = 15;
-    for (int i=0; i<nameLength; i++) 
-        romTitle[i] = (char)romSlot0[i+0x134];
+    for(int i = 0; i < nameLength; i++)
+        romTitle[i] = (char) romSlot0[i + 0x134];
     romTitle[nameLength] = '\0';
 
     gbPalette = findGbcTitlePal(romTitle);
-    if (!gbPalette) {
+    if(!gbPalette) {
         gbPalette = findGbcDirPal("GBC - Grayscale");
     }
 
-    if (gbsMode) {
+    if(gbsMode) {
         MBC = MBC5;
     }
     else {
-        switch (getMapper()) {
-            case 0: case 8: case 9:
-                MBC = MBC0; 
+        switch(getMapper()) {
+            case 0:
+            case 8:
+            case 9:
+                MBC = MBC0;
                 break;
-            case 1: case 2: case 3:
+            case 1:
+            case 2:
+            case 3:
                 MBC = MBC1;
                 break;
-            case 5: case 6:
+            case 5:
+            case 6:
                 MBC = MBC2;
                 break;
                 //case 0xb: case 0xc: case 0xd:
                 //MBC = MMM01;
                 //break;
-            case 0xf: case 0x10: case 0x11: case 0x12: case 0x13:
+            case 0xf:
+            case 0x10:
+            case 0x11:
+            case 0x12:
+            case 0x13:
                 MBC = MBC3;
                 break;
                 //case 0x15: case 0x16: case 0x17:
                 //MBC = MBC4;
                 //break;
-            case 0x19: case 0x1a: case 0x1b: 
+            case 0x19:
+            case 0x1a:
+            case 0x1b:
                 MBC = MBC5;
                 break;
-            case 0x1c: case 0x1d: case 0x1e: // MBC5 with rumble
+            case 0x1c:
+            case 0x1d:
+            case 0x1e: // MBC5 with rumble
                 MBC = MBC5;
                 break;
             case 0x22:
@@ -172,7 +183,7 @@ RomFile::RomFile(const char* f) {
 
 #ifndef EMBEDDED_ROM
     // If we've loaded everything, close the rom file
-    if (numRomBanks <= numLoadedRomBanks) {
+    if(numRomBanks <= numLoadedRomBanks) {
         fclose(romFile);
         romFile = NULL;
     }
@@ -180,7 +191,7 @@ RomFile::RomFile(const char* f) {
 }
 
 RomFile::~RomFile() {
-    if (romFile != NULL)
+    if(romFile != NULL)
         fclose(romFile);
 #ifndef EMBEDDED_ROM
     free(romBankSlots);
@@ -189,8 +200,8 @@ RomFile::~RomFile() {
 
 
 void RomFile::loadRomBank(int romBank) {
-    if (bankSlotIDs[romBank] != -1 || numRomBanks <= numLoadedRomBanks || romBank == 0) {
-        romSlot1 = romBankSlots+bankSlotIDs[romBank]*0x4000;
+    if(bankSlotIDs[romBank] != -1 || numRomBanks <= numLoadedRomBanks || romBank == 0) {
+        romSlot1 = romBankSlots + bankSlotIDs[romBank] * 0x4000;
         return;
     }
     int bankToUnload = lastBanksUsed.back();
@@ -206,16 +217,17 @@ void RomFile::loadRomBank(int romBank) {
 
     gameboy->getCheatEngine()->applyGGCheatsToBank(romBank);
 
-    romSlot1 = romBankSlots+slot*0x4000;
+    romSlot1 = romBankSlots + slot * 0x4000;
 }
 
 bool RomFile::isRomBankLoaded(int bank) {
     return bankSlotIDs[bank] != -1;
 }
+
 u8* RomFile::getRomBank(int bank) {
-    if (!isRomBankLoaded(bank))
+    if(!isRomBankLoaded(bank))
         return 0;
-    return romBankSlots+bankSlotIDs[bank]*0x4000;
+    return romBankSlots + bankSlotIDs[bank] * 0x4000;
 }
 
 const char* RomFile::getBasename() {

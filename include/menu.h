@@ -28,7 +28,7 @@ void redrawMenu();
 void updateMenu();
 void printMenuMessage(const char* s);
 
-void displaySubMenu(void (*updateFunc)());
+void displaySubMenu(void (* updateFunc)());
 void closeSubMenu();
 
 int getMenuOption(const char* name);
@@ -37,5 +37,5 @@ void enableMenuOption(const char* name);
 void disableMenuOption(const char* name);
 
 void menuParseConfig(char* line);
-void menuPrintConfig(FILE * file);
+void menuPrintConfig(FILE* file);
 

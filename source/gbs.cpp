@@ -32,17 +32,17 @@ void gbsRedraw() {
 
     printf("\33[0;0H"); // Cursor to upper-left corner
 
-    printf("Song %d of %d\33[0K\n", gbsSelectedSong+1, gbsNumSongs);
-    if (gbsPlayingSong == -1)
+    printf("Song %d of %d\33[0K\n", gbsSelectedSong + 1, gbsNumSongs);
+    if(gbsPlayingSong == -1)
         printf("(Not playing)\33[0K\n\n");
     else
-        printf("(Playing %d)\33[0K\n\n", gbsPlayingSong+1);
+        printf("(Playing %d)\33[0K\n\n", gbsPlayingSong + 1);
 
     // Print music information
-    for (int i=0; i<3; i++) {
-        for (int j=0; j<32; j++) {
-            char c = gbsHeader[0x10+i*0x20+j];
-            if (c == 0)
+    for(int i = 0; i < 3; i++) {
+        for(int j = 0; j < 32; j++) {
+            char c = gbsHeader[0x10 + i * 0x20 + j];
+            if(c == 0)
                 printf(" ");
             else
                 printf("%c", c);
@@ -56,26 +56,26 @@ void gbsLoadSong() {
     gameboy->initMMU();
     gameboy->ime = 0;
 
-    gameboy->gbRegs.sp.w = READ16(gbsHeader+0x0c);
-    u8 tma =        gbsHeader[0x0e];
-    u8 tac =        gbsHeader[0x0f];
+    gameboy->gbRegs.sp.w = READ16(gbsHeader + 0x0c);
+    u8 tma = gbsHeader[0x0e];
+    u8 tac = gbsHeader[0x0f];
 
-    if (tac&0x80)
+    if(tac & 0x80)
         gameboy->setDoubleSpeed(1);
     tac &= ~0x80;
-    if (tma == 0 && tac == 0) {
+    if(tma == 0 && tac == 0) {
         // Vblank interrupt handler
         romSlot0[0x40] = 0xcd; // call
-        romSlot0[0x41] = gbsPlayAddress&0xff;
-        romSlot0[0x42] = gbsPlayAddress>>8;
+        romSlot0[0x41] = gbsPlayAddress & 0xff;
+        romSlot0[0x42] = gbsPlayAddress >> 8;
         romSlot0[0x43] = 0xd9; // reti
         gameboy->writeIO(0xff, INT_VBLANK);
     }
     else {
         // Timer interrupt handler
         romSlot0[0x50] = 0xcd; // call
-        romSlot0[0x51] = gbsPlayAddress&0xff;
-        romSlot0[0x52] = gbsPlayAddress>>8;
+        romSlot0[0x51] = gbsPlayAddress & 0xff;
+        romSlot0[0x52] = gbsPlayAddress >> 8;
         romSlot0[0x53] = 0xd9; // reti
         gameboy->writeIO(0xff, INT_TIMER);
     }
@@ -94,10 +94,10 @@ void gbsLoadSong() {
 // public
 
 void gbsReadHeader() {
-    gbsNumSongs    =    gbsHeader[0x04];
-    gbsLoadAddress =    READ16(gbsHeader+0x06);
-    gbsInitAddress =    READ16(gbsHeader+0x08);
-    gbsPlayAddress =    READ16(gbsHeader+0x0a);
+    gbsNumSongs = gbsHeader[0x04];
+    gbsLoadAddress = READ16(gbsHeader + 0x06);
+    gbsInitAddress = READ16(gbsHeader + 0x08);
+    gbsPlayAddress = READ16(gbsHeader + 0x0a);
 }
 
 void gbsInit() {
@@ -111,19 +111,19 @@ void gbsInit() {
     videoBgEnable(0);
 #endif
 
-    u8 firstSong=   gbsHeader[0x05]-1;
+    u8 firstSong = gbsHeader[0x05] - 1;
 
     // RST vectors
-    for (int i=0; i<8; i++) {
-        u16 dest = gbsLoadAddress + i*8;
-        romSlot0[i*8] = 0xc3; // jp
-        romSlot0[i*8+1] = dest&0xff;
-        romSlot0[i*8+2] = dest>>8;
+    for(int i = 0; i < 8; i++) {
+        u16 dest = gbsLoadAddress + i * 8;
+        romSlot0[i * 8] = 0xc3; // jp
+        romSlot0[i * 8 + 1] = dest & 0xff;
+        romSlot0[i * 8 + 2] = dest >> 8;
     }
 
     // Interrupt handlers
-    for (int i=0; i<5; i++) {
-        romSlot0[0x40+i*8] = 0xd9; // reti
+    for(int i = 0; i < 5; i++) {
+        romSlot0[0x40 + i * 8] = 0xd9; // reti
     }
 
     // Infinite loop
@@ -138,21 +138,21 @@ void gbsInit() {
 
 // Called at vblank each frame
 void gbsCheckInput() {
-    if (keyPressedAutoRepeat(mapMenuKey(MENU_KEY_LEFT))) {
-        if (gbsSelectedSong == 0)
-            gbsSelectedSong = gbsNumSongs-1;
+    if(keyPressedAutoRepeat(mapMenuKey(MENU_KEY_LEFT))) {
+        if(gbsSelectedSong == 0)
+            gbsSelectedSong = gbsNumSongs - 1;
         else
             gbsSelectedSong--;
     }
-    if (keyPressedAutoRepeat(mapMenuKey(MENU_KEY_RIGHT))) {
+    if(keyPressedAutoRepeat(mapMenuKey(MENU_KEY_RIGHT))) {
         gbsSelectedSong++;
-        if (gbsSelectedSong == gbsNumSongs)
+        if(gbsSelectedSong == gbsNumSongs)
             gbsSelectedSong = 0;
     }
-    if (keyJustPressed(mapMenuKey(MENU_KEY_A))) {
+    if(keyJustPressed(mapMenuKey(MENU_KEY_A))) {
         gbsLoadSong();
     }
-    if (keyJustPressed(mapMenuKey(MENU_KEY_B))) { // Stop playing music
+    if(keyJustPressed(mapMenuKey(MENU_KEY_B))) { // Stop playing music
         gbsPlayingSong = -1;
         gameboy->ime = 0;
         gameboy->writeIO(0xff, 0);
@@ -160,7 +160,7 @@ void gbsCheckInput() {
     }
     gbsRedraw();
 
-    if (gbsPlayingSong != -1)
+    if(gbsPlayingSong != -1)
         disableSleepMode();
     else
         enableSleepMode();

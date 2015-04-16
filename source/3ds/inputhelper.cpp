@@ -3,7 +3,6 @@
 #include "inputhelper.h"
 #include "console.h"
 #include "gbmanager.h"
-#include "gfx.h"
 
 #include <ctrcommon/input.hpp>
 #include <ctrcommon/platform.hpp>
@@ -29,11 +28,11 @@ bool keyJustPressed(int key) {
 }
 
 bool keyPressedAutoRepeat(int key) {
-    if (keyJustPressed(key)) {
+    if(keyJustPressed(key)) {
         repeatStartTimer = 14;
         return true;
     }
-    if (keyPressed(key) && repeatStartTimer == 0 && repeatTimer == 0) {
+    if(keyPressed(key) && repeatStartTimer == 0 && repeatTimer == 0) {
         repeatTimer = 2;
         return true;
     }

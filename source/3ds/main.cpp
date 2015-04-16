@@ -1,6 +1,5 @@
 #include <stdio.h>
 
-#include "gfx.h"
 #include "console.h"
 #include "inputhelper.h"
 #include "menu.h"
@@ -8,8 +7,7 @@
 
 #include <ctrcommon/platform.hpp>
 
-int main(int argc, char* argv[])
-{
+int main(int argc, char* argv[]) {
     if(!platformInit()) {
         return 0;
     }
@@ -32,5 +30,5 @@ int main(int argc, char* argv[])
         mgr_updateVBlank();
     }
 
-	return 0;
+    return 0;
 }
