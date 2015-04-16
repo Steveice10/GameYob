@@ -108,23 +108,11 @@ public:
     void pause();
     void unpause();
     bool isGameboyPaused();
-    int runEmul()
-#ifdef DS
-            ITCM_CODE
-#endif
-    ;
+    int runEmul();
     void initGameboyMode();
     void checkLYC();
-    int updateLCD(int cycles)
-#ifdef DS
-            ITCM_CODE
-#endif
-    ;
-    void updateTimers(int cycles)
-#ifdef DS
-            ITCM_CODE
-#endif
-    ;
+    int updateLCD(int cycles);
+    void updateTimers(int cycles);
     void requestInterrupt(int id);
     void setDoubleSpeed(int val);
 
@@ -204,11 +192,7 @@ public:
     void enableInterrupts();
     void disableInterrupts();
     int handleInterrupts(unsigned int interruptTriggered);
-    int runOpcode(int cycles)
-#ifdef DS
-            ITCM_CODE
-#endif
-    ;
+    int runOpcode(int cycles);
 
     inline u8 quickRead(u16 addr) { return memory[addr >> 12][addr & 0xFFF]; }
 
@@ -224,24 +208,12 @@ public:
 
     void initMMU();
     void mapMemory();
-//        u8 readMemory(u16 addr) ITCM_CODE;
-    u8 readMemoryFast(u16 addr)
-#ifdef DS
-            ITCM_CODE
-#endif
-    ;
+
+    u8 readMemoryFast(u16 addr);
     u16 readMemory16(u16 addr);
-    u8 readIO(u8 ioReg)
-#ifdef DS
-            ITCM_CODE
-#endif
-    ;
-//        void writeMemory(u16 addr, u8 val) ITCM_CODE;
-    void writeIO(u8 ioReg, u8 val)
-#ifdef DS
-            ITCM_CODE
-#endif
-    ;
+    u8 readIO(u8 ioReg);
+
+    void writeIO(u8 ioReg, u8 val);
     void refreshP1();
     u8 readMemoryOther(u16 addr);
     void writeMemoryOther(u16 addr, u8 val);
@@ -303,17 +275,8 @@ public:
     u8* const hram;
     u8* const ioRam;
 
-    u8 bgPaletteData[0x40]
-#ifdef DS
-        ALIGN(4)
-#endif
-    ;
-
-    u8 sprPaletteData[0x40]
-#ifdef DS
-        ALIGN(4)
-#endif
-    ;
+    u8 bgPaletteData[0x40];
+    u8 sprPaletteData[0x40];
 
     int wramBank;
     int vramBank;

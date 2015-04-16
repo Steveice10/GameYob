@@ -422,11 +422,6 @@ void setMenuDefaults() {
             }
         }
     }
-
-#ifdef DS
-    menuConsole = (GYPrintConsole*)malloc(sizeof(GYPrintConsole));
-    memcpy(menuConsole, getDefaultConsole(), sizeof(GYPrintConsole));
-#endif
 }
 
 void displayMenu() {

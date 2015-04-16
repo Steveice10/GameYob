@@ -23,11 +23,7 @@
 
 #define carryBit()    (locF & 0x10 ? 1 : 0)
 
-const u8 opCycles[0x100]
-#ifdef DS
-DTCM_DATA
-#endif
-        = {
+const u8 opCycles[0x100] = {
                 /* Low nybble -> */
                 /* High nybble v */
                 /*         0, 1, 2, 3, 4, 5, 6, 7, 8, 9, A, B, C, D, E, F  */
@@ -50,11 +46,7 @@ DTCM_DATA
                 /* opcodes that have 99 cycles are undefined, but don't hang on them */
         };
 
-const u8 CBopCycles[0x100]
-#ifdef DS
-DTCM_DATA
-#endif
-        = {
+const u8 CBopCycles[0x100] = {
                 /* Low nybble -> */
                 /* High nybble v */
                 /*  0, 1, 2, 3, 4, 5, 6, 7, 8, 9, A, B, C, D, E, F  */
@@ -75,16 +67,6 @@ DTCM_DATA
                 /* EX */   8, 8, 8, 8, 8, 8, 16, 8, 8, 8, 8, 8, 8, 8, 16, 8,
                 /* FX */   8, 8, 8, 8, 8, 8, 16, 8, 8, 8, 8, 8, 8, 8, 16, 8
         };
-
-
-/*
-struct Registers Gameboy::g_gbRegs;
-#ifdef DS
-DTCM_BSS
-#endif
-;
-int DTCM_BSS Gameboy::halt;
-*/
 
 void Gameboy::initCPU() {
     gbRegs.sp.w = 0xFFFE;
@@ -133,11 +115,7 @@ int Gameboy::handleInterrupts(unsigned int interruptTriggered) {
     return 20;
 }
 
-const u8 reg8Offsets[]
-#ifdef DS
-DTCM_DATA
-#endif
-        = {
+const u8 reg8Offsets[] = {
                 offsetof(struct Registers, bc.b.h),
                 offsetof(struct Registers, bc.b.l),
                 offsetof(struct Registers, de.b.h),
@@ -164,29 +142,10 @@ DTCM_DATA
                     totalCycles -= 4; \
                 }
 
-struct Registers g_gbRegs
-#ifdef DS
-DTCM_BSS
-#endif
-;
-
-int cyclesToExecute
-#ifdef DS
-DTCM_BSS
-#endif
-;
-
-u8* haltBugAddr
-#ifdef DS
-DTCM_BSS
-#endif
-        = NULL;
-
-u8* firstPcAddr
-#ifdef DS
-DTCM_BSS
-#endif
-;
+struct Registers g_gbRegs;
+int cyclesToExecute;
+u8* haltBugAddr = NULL;
+u8* firstPcAddr;
 
 int Gameboy::runOpcode(int cycles) {
     cyclesToExecute = cycles;

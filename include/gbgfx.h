@@ -7,10 +7,6 @@ enum Icons {
     ICON_PRINTER
 };
 
-#ifdef DS
-extern volatile int dsFrameCounter;
-#endif
-
 extern bool probingForBorder;
 
 extern int scaleMode;

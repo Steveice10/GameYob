@@ -374,12 +374,6 @@ char* startFileChooser(const char* extensions[], bool romExtensions, bool canQui
                     iprintfColored(CONSOLE_COLOR_WHITE, "%s", buffer);
                 for(uint j = 0; j < stringLen - strlen(buffer); j++)
                     iprintfColored(CONSOLE_COLOR_WHITE, " ");
-
-#ifdef DS
-                if (i == fileSelection) {
-                    consoleSelectedRow = i-scrollY+1; // triggers blue highlighting
-                }
-#endif
             }
             if(canQuit) {
                 if(numFiles < filesPerPage) {
@@ -469,15 +463,6 @@ char* startFileChooser(const char* extensions[], bool romExtensions, bool canQui
     }
     end:
     clearConsole();
-#ifdef DS
-    consoleSelectedRow = -1;
-    setBackdropColorSub(RGB15(0,0,0)); // Sometimes needed to un-blueify the screen
-#endif
-    /*
-#ifdef _3DS
-    consoleSetScreen((gfxScreen_t)!gameScreen);
-#endif
-    */
     fileChooserOn = false;
 
     return retval;
