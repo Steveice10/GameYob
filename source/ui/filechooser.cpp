@@ -375,7 +375,7 @@ char* startFileChooser(const char* extensions[], bool romExtensions, bool canQui
                     } else {
                         printf("\x1b[1m");
                     }
-                    
+
                     printf("\x1b[35m%s", buffer);
                 } else {
                     printf("%s", buffer);

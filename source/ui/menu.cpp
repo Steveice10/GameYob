@@ -52,6 +52,7 @@ bool accelPadMode = false;
 void (* subMenuUpdateFunc)();
 
 bool fpsOutput = false;
+bool timeOutput = false;
 
 extern int halt;
 
@@ -97,18 +98,22 @@ void exitNoSaveFunc(int value) {
 void consoleOutputFunc(int value) {
     if(value == 0) {
         fpsOutput = false;
+        timeOutput = false;
         consoleDebugOutput = false;
     }
     else if(value == 1) {
         fpsOutput = false;
+        timeOutput = true;
         consoleDebugOutput = false;
     }
     else if(value == 2) {
         fpsOutput = true;
+        timeOutput = true;
         consoleDebugOutput = false;
     }
     else if(value == 3) {
         fpsOutput = false;
+        timeOutput = false;
         consoleDebugOutput = true;
     }
 }

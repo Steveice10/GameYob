@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <string.h>
 
 #include "platform/input.h"
 #include "platform/system.h"
@@ -142,12 +143,39 @@ void mgrUpdateVBlank() {
     time(&rawTime);
     fps++;
     if(!isMenuOn() && !consoleDebugOutput && rawTime > lastRawTime) {
+        int line = 0;
         if(fpsOutput) {
             iprintf("\x1b[2J");
             iprintf("FPS: %d\n", fps);
+            line++;
         }
 
         fps = 0;
+        if(timeOutput) {
+            for(; line < 23 - 1; line++) {
+                iprintf("\n");
+            }
+
+            char *timeString = ctime(&rawTime);
+            for(int i = 0; ; i++) {
+                if(timeString[i] == ':') {
+                    timeString += i - 2;
+                    break;
+                }
+            }
+
+            char s[50];
+            strncpy(s, timeString, 50);
+            s[5] = '\0';
+
+            int spaces = 31-strlen(s);
+            for(int i = 0; i < spaces; i++) {
+                iprintf(" ");
+            }
+
+            iprintf("%s\n", s);
+        }
+
         lastRawTime = rawTime;
     }
 }
