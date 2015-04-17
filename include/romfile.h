@@ -44,7 +44,7 @@ public:
 
     inline int getMBC() { return MBC; }
 
-    inline bool hasRumble() { return MBC == 0x1c || MBC == 0x1d || MBC == 0x1e; }
+    inline bool hasRumble() { return getMapper() == 0x1c || getMapper() == 0x1d || getMapper() == 0x1e; }
 
     u8* romSlot0;
     u8* romSlot1;
