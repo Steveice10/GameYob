@@ -8,7 +8,7 @@
 #include "platform/system.h"
 #include "ui/config.h"
 #include "ui/cheats.h"
-#include "ui/manager.h"
+
 #include "ui/menu.h"
 #include "gameboy.h"
 
@@ -481,7 +481,6 @@ Gameboy::Gameboy() : hram(highram + 0xe00), ioRam(highram + 0xf00) {
     romFile = NULL;
 
     fpsOutput = true;
-    timeOutput = true;
 
     cyclesSinceVBlank = 0;
 

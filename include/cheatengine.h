@@ -4,8 +4,8 @@
 
 #include <ctrcommon/types.hpp>
 
-#define MAX_CHEAT_NAME_LEN  24
-#define MAX_CHEATS      900
+#define MAX_CHEAT_NAME_LEN    24
+#define MAX_CHEATS            900
 #define CHEAT_FLAG_ENABLED    (1<<0)
 #define CHEAT_FLAG_TYPE_MASK  (3<<2)
 #define CHEAT_FLAG_GAMEGENIE  (1<<2)
@@ -27,6 +27,8 @@ typedef struct cheat_t {
     /* For GameGenie codes */
     std::vector<int> patchedValues; /* For GameGenie codes */
 } cheat_t;
+
+class Gameboy;
 
 class CheatEngine {
 public:

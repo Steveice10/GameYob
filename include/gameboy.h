@@ -21,7 +21,6 @@
 // Same deal
 #define CYCLES_PER_FRAME 70224
 
-
 #define GB            0
 #define CGB            1
 
@@ -71,7 +70,6 @@ struct Registers {
     Register de;
     Register hl;
 };
-
 
 class Gameboy {
 public:

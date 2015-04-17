@@ -20,7 +20,6 @@ extern int scaleMode;
 extern int scaleFilter;
 
 extern bool fpsOutput;
-extern bool timeOutput;
 
 void setMenuDefaults();
 

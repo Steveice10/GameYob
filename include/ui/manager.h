@@ -2,7 +2,7 @@
 
 #include <time.h>
 
-class Gameboy;
+#include "gameboy.h"
 
 extern Gameboy* gameboy;
 

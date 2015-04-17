@@ -61,7 +61,6 @@ void Gameboy::sgbHandleP1(u8 val) {
             if(sgbPacketsTransferred == 0) {
                 sgbCommand = sgbPacket[0] / 8;
                 sgbPacketLength = sgbPacket[0] & 7;
-                //printLog("CMD %x\n", sgbCommand);
             }
             if(sgbCommands[sgbCommand] != 0)
                 (this->*sgbCommands[sgbCommand])(sgbPacketsTransferred);
@@ -111,11 +110,6 @@ u8 Gameboy::sgbReadP1() {
 }
 
 void Gameboy::setBackdrop(u16 val) {
-#ifdef DS
-    if (loadedBorderType == BORDER_SGB)
-        BG_PALETTE[0] = val;
-    BG_PALETTE[15*16+1] = val; // "off map" palette, for when the screen is disabled
-#endif
     for(int i = 0; i < 4; i++) {
         bgPaletteData[i * 8] = val & 0xff;
         bgPaletteData[i * 8 + 1] = val >> 8;
