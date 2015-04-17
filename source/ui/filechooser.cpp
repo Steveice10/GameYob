@@ -344,29 +344,48 @@ char* startFileChooser(const char* extensions[], bool romExtensions, bool canQui
                 printf(" ");
 
             for(int i = scrollY; i < scrollY + filesPerPage && i < numFiles; i++) {
-                if(i == fileSelection)
-                    printf("* ");
-                else if(i == scrollY && i != 0)
+                if(i == fileSelection) {
+                    printf("\x1b[47m\x1b[30m* ");
+                } else if(i == scrollY && i != 0) {
                     printf("^ ");
-                else if(i == scrollY + filesPerPage - 1 && scrollY + filesPerPage - 1 != numFiles - 1)
+                } else if(i == scrollY + filesPerPage - 1 && scrollY + filesPerPage - 1 != numFiles - 1) {
                     printf("v ");
-                else
+                } else {
                     printf("  ");
+                }
 
                 int stringLen = screenLen - 2;
-                if(flags[i] & FLAG_DIRECTORY)
+                if(flags[i] & FLAG_DIRECTORY) {
                     stringLen--;
+                }
+
                 strncpy(buffer, filenames[i].c_str(), stringLen);
                 buffer[stringLen] = '\0';
                 if(flags[i] & FLAG_DIRECTORY) {
-                    printf("\x1b[1m\x1b[33m%s/\x1b[0m", buffer);
-                }
-                else if(flags[i] & FLAG_SUSPENDED)
-                    printf("\x1b[1m\x1b[35m%s\x1b[0m", buffer);
-                else
+                    if(i == fileSelection) {
+                        printf("\x1b[2m");
+                    } else {
+                        printf("\x1b[1m");
+                    }
+
+                    printf("\x1b[33m%s/", buffer);
+                } else if(flags[i] & FLAG_SUSPENDED) {
+                    if(i == fileSelection) {
+                        printf("\x1b[2m");
+                    } else {
+                        printf("\x1b[1m");
+                    }
+                    
+                    printf("\x1b[35m%s", buffer);
+                } else {
                     printf("%s", buffer);
-                for(uint j = 0; j < stringLen - strlen(buffer); j++)
+                }
+
+                for(uint j = 0; j < stringLen - strlen(buffer); j++) {
                     printf(" ");
+                }
+
+                printf("\x1b[0m");
             }
             if(canQuit) {
                 if(numFiles < filesPerPage) {
