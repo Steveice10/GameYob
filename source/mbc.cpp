@@ -269,8 +269,10 @@ void Gameboy::m5w(u16 addr, u8 val) {
             break;
         case 0xa: /* a000 - bfff */
         case 0xb:
-            if(ramEnabled && numRamBanks)
+            if(ramEnabled && numRamBanks) {
                 writeSram(addr & 0x1fff, val);
+            }
+
             break;
     }
 }

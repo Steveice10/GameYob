@@ -100,18 +100,15 @@ void consoleOutputFunc(int value) {
         fpsOutput = false;
         timeOutput = false;
         consoleDebugOutput = false;
-    }
-    else if(value == 1) {
+    } else if(value == 1) {
         fpsOutput = false;
         timeOutput = true;
         consoleDebugOutput = false;
-    }
-    else if(value == 2) {
+    } else if(value == 2) {
         fpsOutput = true;
         timeOutput = true;
         consoleDebugOutput = false;
-    }
-    else if(value == 3) {
+    } else if(value == 3) {
         fpsOutput = false;
         timeOutput = false;
         consoleDebugOutput = true;
@@ -245,9 +242,6 @@ void setScaleModeFunc(int value) {
 
     if(value == 0) {
         gameboy->getPPU()->checkBorder();
-        enableMenuOption("Console Output");
-    } else {
-        disableMenuOption("Console Output");
     }
 }
 

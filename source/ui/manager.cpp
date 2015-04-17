@@ -142,40 +142,41 @@ void mgrUpdateVBlank() {
 
     time(&rawTime);
     fps++;
-    if(!isMenuOn() && !consoleDebugOutput && rawTime > lastRawTime) {
-        int line = 0;
-        if(fpsOutput) {
+    if(rawTime > lastRawTime) {
+        if(!isMenuOn() && !consoleDebugOutput && (fpsOutput || timeOutput)) {
             iprintf("\x1b[2J");
-            iprintf("FPS: %d\n", fps);
-            line++;
+            int fpsLength = 0;
+            if(fpsOutput) {
+                char buffer[16];
+                snprintf(buffer, 16, "FPS: %d", fps);
+                printf(buffer);
+                fpsLength = strlen(buffer);
+            }
+
+            if(timeOutput) {
+                char *timeString = ctime(&rawTime);
+                for(int i = 0; ; i++) {
+                    if(timeString[i] == ':') {
+                        timeString += i - 2;
+                        break;
+                    }
+                }
+
+                char timeDisplay[6] = {0};
+                strncpy(timeDisplay, timeString, 5);
+
+                int spaces = systemGetConsoleWidth() - strlen(timeDisplay) - fpsLength;
+                for(int i = 0; i < spaces; i++) {
+                    printf(" ");
+                }
+
+                printf("%s", timeDisplay);
+            }
+
+            printf("\n");
         }
 
         fps = 0;
-        if(timeOutput) {
-            for(; line < 23 - 1; line++) {
-                iprintf("\n");
-            }
-
-            char *timeString = ctime(&rawTime);
-            for(int i = 0; ; i++) {
-                if(timeString[i] == ':') {
-                    timeString += i - 2;
-                    break;
-                }
-            }
-
-            char s[50];
-            strncpy(s, timeString, 50);
-            s[5] = '\0';
-
-            int spaces = 31-strlen(s);
-            for(int i = 0; i < spaces; i++) {
-                iprintf(" ");
-            }
-
-            iprintf("%s\n", s);
-        }
-
         lastRawTime = rawTime;
     }
 }
