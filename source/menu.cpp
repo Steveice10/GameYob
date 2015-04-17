@@ -384,7 +384,7 @@ SubMenu menuList[] = {
                         {"Manage Cheats", cheatFunc, 0, {}, 0, MENU_ALL},
                         {"Console Output", consoleOutputFunc, 4, {"Off", "Time", "FPS+Time", "Debug"}, 0, MENU_ALL},
                         {"GB Printer", printerEnableFunc, 2, {"Off", "On"}, 1, MENU_ALL},
-                        {"Autosaving", setAutoSaveFunc, 1, {"Off", "On"}, 1, MENU_ALL},
+                        {"Autosaving", setAutoSaveFunc, 2, {"Off", "On"}, 1, MENU_ALL},
                         {"Save Settings", saveSettingsFunc, 0, {}, 0, MENU_ALL}
                 }
         },
