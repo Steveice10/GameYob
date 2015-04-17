@@ -316,7 +316,7 @@ void updateCheatMenu() {
     }
 
     if(redraw)
-        doAtVBlank(redrawCheatMenu);
+        redrawCheatMenu();
 }
 
 bool startCheatMenu() {

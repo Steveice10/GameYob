@@ -9,14 +9,12 @@
 class Gameboy;
 
 #define MAX_CHEAT_NAME_LEN  24
-
 #define MAX_CHEATS      900
 #define CHEAT_FLAG_ENABLED    (1<<0)
 #define CHEAT_FLAG_TYPE_MASK  (3<<2)
 #define CHEAT_FLAG_GAMEGENIE  (1<<2)
 #define CHEAT_FLAG_GAMEGENIE1 (2<<2)
 #define CHEAT_FLAG_GAMESHARK  (3<<2)
-
 
 typedef struct cheat_t {
     char name[MAX_CHEAT_NAME_LEN + 1];

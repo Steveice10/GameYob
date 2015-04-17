@@ -5,8 +5,12 @@
 #define PRINTER_WIDTH 160
 #define PRINTER_HEIGHT 208 // The actual value is 200, but 16 divides 208.
 
+class Gameboy;
+
 class GameboyPrinter {
 public:
+    GameboyPrinter(Gameboy* gb);
+
     void initGbPrinter();
     u8 sendGbPrinterByte(u8 dat);
     void updateGbPrinter(); // Called each vblank
@@ -18,6 +22,8 @@ private:
     void printerSaveFile();
 
     // Local variables
+    Gameboy* gameboy;
+
     u8 printerGfx[PRINTER_WIDTH * PRINTER_HEIGHT / 4];
     int printerGfxIndex;
 

@@ -2,7 +2,7 @@
 
 #include "audio.h"
 #include "gameboy.h"
-#include "soundengine.h"
+#include "apu.h"
 
 #include <ctrcommon/sound.hpp>
 

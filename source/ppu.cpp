@@ -13,66 +13,11 @@
 
 #define RGB24(r, g, b) ((r) << 16 | (g) << 8 | (b))
 
-// public variables
-
-bool probingForBorder;
-
-int interruptWaitMode;
-int scaleMode;
-int scaleFilter;
-u8 gfxMask;
-volatile int loadedBorderType;
-bool customBorderExists;
-bool sgbBorderLoaded;
-
-// private variables
-
-int lastGameScreen = -1;
-
-u32 gbColors[4];
-u32 pixels[32 * 32 * 64];
-
-int scale = 3;
-
-u32 bgPalettes[8][4];
-u32* bgPalettesRef[8][4];
-u32 sprPalettes[8][4];
-u32* sprPalettesRef[8][4];
-
-int dmaLine;
-bool lineModified;
-
-// For drawScanline / drawSprite
-
-u8 spritePixels[256];
-u32 spritePixelsTrue[256]; // Holds the palettized colors
-
-u8 spritePixelsLow[256];
-u32 spritePixelsTrueLow[256];
-
-u8 bgPixels[256];
-u32 bgPixelsTrue[256];
-u8 bgPixelsLow[256];
-u32 bgPixelsTrueLow[256];
-
-bool bgPalettesModified[8];
-bool sprPalettesModified[8];
-
-// Private functions
-void drawSprite(int scanline, int spriteNum);
-
-void updateBgPalette(int paletteid);
-void updateBgPaletteDMG();
-void updateSprPalette(int paletteid);
-void updateSprPaletteDMG(int paletteid);
-
-// Function definitions
-
-void doAtVBlank(void (* func)(void)) {
-    func();
+GameboyPPU::GameboyPPU(Gameboy* gb) {
+    this->gameboy = gb;
 }
 
-void initGFX() {
+void GameboyPPU::initPPU() {
     bgPalettes[0][0] = RGB24(255, 255, 255);
     bgPalettes[0][1] = RGB24(192, 192, 192);
     bgPalettes[0][2] = RGB24(94, 94, 94);
@@ -102,21 +47,21 @@ void initGFX() {
     memset(sprPalettesModified, 0, sizeof(sprPalettesModified));
 }
 
-void refreshGFX() {
+void GameboyPPU::refreshPPU() {
     for(int i = 0; i < 8; i++) {
         bgPalettesModified[i] = true;
         sprPalettesModified[i] = true;
     }
 }
 
-void clearGFX() {
+void GameboyPPU::clearPPU() {
 
 }
 
-void drawScanline(int scanline) {
+void GameboyPPU::drawScanline(int scanline) {
 }
 
-void drawScanline_P2(int scanline) {
+void GameboyPPU::drawScanline_P2(int scanline) {
     int tileSigned;
     int BGMapAddr;
     int winMapAddr;
@@ -327,7 +272,7 @@ void drawScanline_P2(int scanline) {
     }
 }
 
-void drawSprite(int scanline, int spriteNum) {
+void GameboyPPU::drawSprite(int scanline, int spriteNum) {
     // The sprite's number, times 4 (each uses 4 bytes)
     spriteNum *= 4;
 
@@ -396,53 +341,53 @@ void drawSprite(int scanline, int spriteNum) {
     }
 }
 
-void drawScreen() {
+void GameboyPPU::drawScreen() {
     gfxDrawScreen(gameScreen, scaleMode);
 }
 
 
-void displayIcon(int iconid) {
+void GameboyPPU::displayIcon(int iconid) {
 
 }
 
 
-void selectBorder() {
+void GameboyPPU::selectBorder() {
 
 }
 
-int loadBorder(const char* filename) {
+int GameboyPPU::loadBorder(const char* filename) {
     return 0;
 }
 
-void checkBorder() {
+void GameboyPPU::checkBorder() {
     if(lastGameScreen != gameScreen) {
         lastGameScreen = gameScreen;
         gfxClearScreens();
     }
 }
 
-void setSgbMask(int mask) {
+void GameboyPPU::setSgbMask(int mask) {
 
 }
 
-void setSgbTiles(u8* src, u8 flags) {
+void GameboyPPU::setSgbTiles(u8* src, u8 flags) {
 
 }
 
-void setSgbMap(u8* src) {
+void GameboyPPU::setSgbMap(u8* src) {
 
 }
 
-void writeVram(u16 addr, u8 val) {
+void GameboyPPU::writeVram(u16 addr, u8 val) {
 }
 
-void writeVram16(u16 addr, u16 src) {
+void GameboyPPU::writeVram16(u16 addr, u16 src) {
 }
 
-void writeHram(u16 addr, u8 val) {
+void GameboyPPU::writeHram(u16 addr, u8 val) {
 }
 
-void handleVideoRegister(u8 ioReg, u8 val) {
+void GameboyPPU::handleVideoRegister(u8 ioReg, u8 val) {
     switch(ioReg) {
         case 0x47:
             if(gameboy->gbMode == GB)
@@ -469,7 +414,7 @@ void handleVideoRegister(u8 ioReg, u8 val) {
     }
 }
 
-void updateBgPalette(int paletteid) {
+void GameboyPPU::updateBgPalette(int paletteid) {
     int multiplier = 8;
     int i;
     for(i = 0; i < 4; i++) {
@@ -481,9 +426,9 @@ void updateBgPalette(int paletteid) {
     }
 }
 
-void updateBgPaletteDMG() {
+void GameboyPPU::updateBgPaletteDMG() {
     u8 val = gameboy->ioRam[0x47];
-    u8 palette[] = {val & 3, (val >> 2) & 3, (val >> 4) & 3, (val >> 6)};
+    u8 palette[] = {(u8) (val & 3), (u8) ((val >> 2) & 3), (u8) ((val >> 4) & 3), (u8) (val >> 6)};
 
     int paletteid = 0;
     int multiplier = 8;
@@ -498,7 +443,7 @@ void updateBgPaletteDMG() {
     }
 }
 
-void updateSprPalette(int paletteid) {
+void GameboyPPU::updateSprPalette(int paletteid) {
     int multiplier = 8;
     int i;
     for(i = 0; i < 4; i++) {
@@ -510,9 +455,9 @@ void updateSprPalette(int paletteid) {
     }
 }
 
-void updateSprPaletteDMG(int paletteid) {
+void GameboyPPU::updateSprPaletteDMG(int paletteid) {
     u8 val = gameboy->ioRam[0x48 + paletteid];
-    u8 palette[] = {val & 3, (val >> 2) & 3, (val >> 4) & 3, (val >> 6)};
+    u8 palette[] = {(u8) (val & 3), (u8) ((val >> 2) & 3), (u8) ((val >> 4) & 3), (u8) (val >> 6)};
 
     int multiplier = 8;
     for(int i = 0; i < 4; i++) {

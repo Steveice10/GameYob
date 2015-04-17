@@ -1,7 +1,7 @@
 #include "audio.h"
 #include "gameboy.h"
 #include "menu.h"
-#include "soundengine.h"
+#include "apu.h"
 
 // 127 bytes
 u8 lfsr7NoiseSample[] = {
@@ -2200,18 +2200,18 @@ u8 lfsr15NoiseSample[] = {0xa0, 0xa0, 0xa0, 0xa0, 0xa0, 0xa0, 0xa0, 0xa0, 0xa0, 
                           0x60, 0xa0, 0x60, 0xa0, 0x60, 0xa0, 0x60, 0xa0, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60,
                           0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60};
 
-SoundEngine::SoundEngine(Gameboy* g) {
+GameboyAPU::GameboyAPU(Gameboy* g) {
     setGameboy(g);
 }
 
-SoundEngine::~SoundEngine() {
+GameboyAPU::~GameboyAPU() {
 }
 
-void SoundEngine::setGameboy(Gameboy* g) {
+void GameboyAPU::setGameboy(Gameboy* g) {
     gameboy = g;
 }
 
-void SoundEngine::init() {
+void GameboyAPU::init() {
     for(int i = 0; i < 4; i++) {
         chanPolarity[i] = 1;
         chanPolarityCounter[i] = 0;
@@ -2225,7 +2225,7 @@ void SoundEngine::init() {
     refresh();
 }
 
-void SoundEngine::refresh() {
+void GameboyAPU::refresh() {
     // Ordering note: Writing a byte to FF26 with bit 7 set enables writes to
     // the other registers. With bit 7 unset, writes are ignored.
     handleSoundRegister(0x26, gameboy->readIO(0x26));
@@ -2257,16 +2257,16 @@ void SoundEngine::refresh() {
     unmute();
 }
 
-void SoundEngine::mute() {
+void GameboyAPU::mute() {
     muted = true;
 }
 
-void SoundEngine::unmute() {
+void GameboyAPU::unmute() {
     muted = false;
 }
 
 
-void SoundEngine::updateSound(int cycles) {
+void GameboyAPU::updateSound(int cycles) {
     if(soundDisabled || muted)
         return;
 
@@ -2474,20 +2474,16 @@ void SoundEngine::updateSound(int cycles) {
 }
 
 
-void SoundEngine::setSoundEventCycles(int cycles) {
+void GameboyAPU::setSoundEventCycles(int cycles) {
     if(cyclesToSoundEvent > cycles) {
         cyclesToSoundEvent = cycles;
     }
 }
 
-void SoundEngine::soundUpdateVBlank() {
+void GameboyAPU::soundUpdateVBlank() {
 }
 
-void SoundEngine::updateSoundSample() {
-}
-
-
-void SoundEngine::handleSoundRegister(u8 ioReg, u8 val) {
+void GameboyAPU::handleSoundRegister(u8 ioReg, u8 val) {
     switch(ioReg) {
         // CHANNEL 1
         // Sweep
@@ -2642,10 +2638,6 @@ void SoundEngine::handleSoundRegister(u8 ioReg, u8 val) {
             if(chan4FreqRatio == 0)
                 chan4FreqRatio = 0.5;
             chan4Width = !!(val & 0x8);
-            if(consoleDebugOutput) {
-                printf("Freq %x\n", chanFreq[3]);
-            }
-
             break;
             // Start
         case 0x23:
@@ -2691,10 +2683,10 @@ void SoundEngine::handleSoundRegister(u8 ioReg, u8 val) {
 
 // Global functions
 
-void SoundEngine::enableChannel(int i) {
+void GameboyAPU::enableChannel(int i) {
     chanEnabled[i] = true;
 }
 
-void SoundEngine::disableChannel(int i) {
+void GameboyAPU::disableChannel(int i) {
     chanEnabled[i] = false;
 }

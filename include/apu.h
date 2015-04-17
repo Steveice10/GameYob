@@ -1,5 +1,7 @@
 #pragma once
 
+#include <ctrcommon/types.hpp>
+
 class Gameboy;
 
 #define CHAN_1 1
@@ -9,10 +11,10 @@ class Gameboy;
 
 #define CYCLES_UNTIL_SAMPLE (0x54)
 
-class SoundEngine {
+class GameboyAPU {
 public:
-    SoundEngine(Gameboy* g);
-    ~SoundEngine();
+    GameboyAPU(Gameboy* g);
+    ~GameboyAPU();
     void setGameboy(Gameboy* g);
 
     void init();
@@ -27,23 +29,11 @@ public:
 
     void setSoundEventCycles(int cycles); // Should be moved out of here
     void soundUpdateVBlank();
-    void updateSoundSample();
     void handleSoundRegister(u8 ioReg, u8 val);
 
     int cyclesToSoundEvent;
 
 private:
-    void synchronizeSound();
-    void sendStartMessage(int i);
-    void sendUpdateMessage(int i);
-    void sendGlobalVolumeMessage();
-
-    void refreshSoundPan(int i);
-    void refreshSoundVolume(int i, bool send = false);
-    void refreshSoundFreq(int i);
-    void refreshSoundDuty(int i);
-    void updateSoundSample(int byte);
-
 
     double chan4FreqRatio;
     int chan1SweepTime;

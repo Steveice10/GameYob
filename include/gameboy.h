@@ -4,9 +4,12 @@
 #include <vector>
 #include <stdarg.h>
 
+#include "apu.h"
+#include "cheats.h"
 #include "gbsplayer.h"
 #include "ppu.h"
 #include "printer.h"
+#include "romfile.h"
 
 #include <ctrcommon/types.hpp>
 
@@ -21,12 +24,6 @@
 
 #define GB            0
 #define CGB            1
-
-class CheatEngine;
-
-class SoundEngine;
-
-class RomFile;
 
 // Interrupts
 #define INT_VBLANK  0x01
@@ -117,7 +114,7 @@ public:
     void requestInterrupt(int id);
     void setDoubleSpeed(int val);
 
-    void setRomFile(RomFile* r);
+    void setRomFile(const char* filename);
     void unloadRom();
     void printRomInfo();
     bool isRomLoaded();
@@ -132,17 +129,15 @@ public:
     void deleteState(int num);
     bool checkStateExists(int num);
 
-    inline int getCyclesSinceVBlank() { return cyclesSinceVBlank + extraCycles; }
-
-    inline bool isDoubleSpeed() { return doubleSpeed; }
-
-    inline GameboyPrinter* getGameboyPrinter() { return gameboyPrinter; }
+    inline GameboyPrinter* getPrinter() { return printer; }
 
     inline GBSPlayer* getGBSPlayer() { return gbsPlayer; }
 
-    inline CheatEngine* getCheatEngine() { return cheatEngine; }
+    inline GameboyPPU* getPPU() { return ppu; }
 
-    inline SoundEngine* getSoundEngine() { return soundEngine; }
+    inline GameboyAPU* getAPU() { return apu; }
+
+    inline CheatEngine* getCheatEngine() { return cheatEngine; }
 
     inline RomFile* getRomFile() { return romFile; }
 
@@ -183,11 +178,13 @@ private:
     volatile bool gameboyPaused;
     bool resettingGameboy;
 
-    GameboyPrinter* gameboyPrinter;
+    GameboyPrinter* printer;
     GBSPlayer* gbsPlayer;
 
+    GameboyPPU* ppu;
+    GameboyAPU* apu;
+
     CheatEngine* cheatEngine;
-    SoundEngine* soundEngine;
     RomFile* romFile;
 
     FILE* saveFile;
@@ -432,18 +429,6 @@ private:
             } attrChr;
         };
     } sgbCmdData;
-};
-
-typedef void (Gameboy::*mbcWrite)(u16, u8);
-typedef u8   (Gameboy::*mbcRead )(u16);
-
-const mbcRead mbcReads[] = {
-        NULL, NULL, NULL, &Gameboy::m3r, NULL, &Gameboy::m7r, NULL, &Gameboy::h3r
-};
-
-const mbcWrite mbcWrites[] = {
-        &Gameboy::m0w, &Gameboy::m1w, &Gameboy::m2w, &Gameboy::m3w, &Gameboy::m5w, &Gameboy::m7w, &Gameboy::h1w,
-        &Gameboy::h3w
 };
 
 extern Gameboy* gameboy;

@@ -20,9 +20,11 @@ enum {
     MBC_MAX,
 };
 
+class Gameboy;
+
 class RomFile {
 public:
-    RomFile(const char* filename);
+    RomFile(Gameboy* gb, const char* filename);
     ~RomFile();
 
     void loadRomBank(int romBank);
@@ -31,11 +33,6 @@ public:
     const char* getBasename();
 
     char* getRomTitle();
-
-    void saveState(int num);
-    int loadState(int num);
-    void deleteState(int num);
-    bool checkStateExists(int num);
 
     inline int getNumRomBanks() { return numRomBanks; }
 
@@ -53,6 +50,8 @@ public:
     u8* romSlot1;
 
 private:
+    Gameboy* gameboy;
+
     u8* romBankSlots = NULL; // Each 0x4000 bytes = one slot
 
     int numRomBanks;

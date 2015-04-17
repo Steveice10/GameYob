@@ -11,7 +11,7 @@
 #include "gbsplayer.h"
 #include "input.h"
 #include "menu.h"
-#include "soundengine.h"
+#include "apu.h"
 #include "system.h"
 
 #include <ctrcommon/fs.hpp>
@@ -487,7 +487,7 @@ Gameboy::Gameboy() : hram(highram + 0xe00), ioRam(highram + 0xf00) {
     timeOutput = true;
 
     cyclesSinceVBlank = 0;
-    probingForBorder = false;
+    ppu->probingForBorder = false;
 
     // private
     resettingGameboy = false;
@@ -498,20 +498,25 @@ Gameboy::Gameboy() : hram(highram + 0xe00), ioRam(highram + 0xf00) {
     saveModified = false;
     autosaveStarted = false;
 
-    gameboyPrinter = new GameboyPrinter();
-    gbsPlayer = new GBSPlayer();
+    printer = new GameboyPrinter(this);
+    gbsPlayer = new GBSPlayer(this);
+
+    ppu = new GameboyPPU(this);
+    apu = new GameboyAPU(this);
 
     cheatEngine = new CheatEngine(this);
-    soundEngine = new SoundEngine(this);
     if(this != gameboy)
-        soundEngine->mute();
+        apu->mute();
 }
 
 Gameboy::~Gameboy() {
     unloadRom();
 
     delete cheatEngine;
-    delete soundEngine;
+    delete apu;
+    delete ppu;
+    delete printer;
+    delete gbsPlayer;
 }
 
 void Gameboy::init() {
@@ -519,7 +524,7 @@ void Gameboy::init() {
 
     if(gbsPlayer->gbsMode) {
         resultantGBMode = 1; // GBC
-        probingForBorder = false;
+        ppu->probingForBorder = false;
     }
     else {
         switch(gbcModeOption) {
@@ -541,11 +546,11 @@ void Gameboy::init() {
         }
 
         bool sgbEnhanced = romFile->romSlot0[0x14b] == 0x33 && romFile->romSlot0[0x146] == 0x03;
-        if(sgbEnhanced && resultantGBMode != 2 && probingForBorder) {
+        if(sgbEnhanced && resultantGBMode != 2 && ppu->probingForBorder) {
             resultantGBMode = 2;
         }
         else {
-            probingForBorder = false;
+            ppu->probingForBorder = false;
         }
     }
 
@@ -573,7 +578,7 @@ void Gameboy::init() {
     cyclesSinceVBlank = 0;
     cycleToSerialTransfer = -1;
 
-    gameboyPrinter->initGbPrinter();
+    printer->initGbPrinter();
 
     // Timer stuff
     periods[0] = clockSpeed / 4096;
@@ -587,11 +592,11 @@ void Gameboy::init() {
 
     initGFXPalette();
     if(isMainGameboy()) {
-        initGFX();
+        ppu->initPPU();
     }
     initSND();
 
-    if(!gbsPlayer->gbsMode && !probingForBorder && checkStateExists(-1)) {
+    if(!gbsPlayer->gbsMode && !ppu->probingForBorder && checkStateExists(-1)) {
         loadState(-1);
     }
 
@@ -648,9 +653,9 @@ void Gameboy::initSND() {
     for(int i = 1; i < 0x10; i += 2)
         ioRam[0x30 + i] = 0xff;
 
-    soundEngine->cyclesToSoundEvent = 0;
+    apu->cyclesToSoundEvent = 0;
 
-    soundEngine->init();
+    apu->init();
 }
 
 // Called either from startup, or when FF50 is written to.
@@ -690,7 +695,7 @@ void Gameboy::gameboyCheckInput() {
 
     u8 buttonsPressed = 0xff;
 
-    if(probingForBorder)
+    if(ppu->probingForBorder)
         return;
 
     if(inputKeyHeld(mapFuncKey(FUNC_KEY_UP))) {
@@ -792,11 +797,11 @@ void Gameboy::gameboyUpdateVBlank() {
             resettingGameboy = false;
         }
 
-        if(probingForBorder) {
+        if(ppu->probingForBorder) {
             if(gameboyFrameCounter >= 450) {
                 // Give up on finding a sgb border.
-                probingForBorder = false;
-                sgbBorderLoaded = false;
+                ppu->probingForBorder = false;
+                ppu->sgbBorderLoaded = false;
                 init();
             }
             return;
@@ -807,7 +812,7 @@ void Gameboy::gameboyUpdateVBlank() {
         if(cheatEngine->areCheatsEnabled())
             cheatEngine->applyGSCheats();
 
-        gameboyPrinter->updateGbPrinter();
+        printer->updateGbPrinter();
     }
 }
 
@@ -820,14 +825,14 @@ void Gameboy::resetGameboy() {
 void Gameboy::pause() {
     if(!gameboyPaused) {
         gameboyPaused = true;
-        soundEngine->mute();
+        apu->mute();
     }
 }
 
 void Gameboy::unpause() {
     if(gameboyPaused) {
         gameboyPaused = false;
-        soundEngine->unmute();
+        apu->unmute();
     }
 }
 
@@ -895,7 +900,7 @@ int Gameboy::runEmul() {
                     // cycle.
                 }
                 else if(printerEnabled) {
-                    ioRam[0x01] = gameboyPrinter->sendGbPrinterByte(ioRam[0x01]);
+                    ioRam[0x01] = printer->sendGbPrinterByte(ioRam[0x01]);
                 }
                 else
                     ioRam[0x01] = 0xff;
@@ -909,12 +914,12 @@ int Gameboy::runEmul() {
         updateTimers(cycles);
 
         soundCycles += cycles >> doubleSpeed;
-        if(soundCycles >= soundEngine->cyclesToSoundEvent) {
-            soundEngine->cyclesToSoundEvent = 10000;
-            soundEngine->updateSound(soundCycles);
+        if(soundCycles >= apu->cyclesToSoundEvent) {
+            apu->cyclesToSoundEvent = 10000;
+            apu->updateSound(soundCycles);
             soundCycles = 0;
         }
-        setEventCycles(soundEngine->cyclesToSoundEvent);
+        setEventCycles(apu->cyclesToSoundEvent);
 
         emuRet |= updateLCD(cycles);
 
@@ -1047,7 +1052,7 @@ inline int Gameboy::updateLCD(int cycles) {
             ioRam[0x41]++; // Set mode 3
             scanlineCounter += 172 << doubleSpeed;
             if(isMainGameboy())
-                drawScanline(ioRam[0x44]);
+                ppu->drawScanline(ioRam[0x44]);
         }
             break;
         case 3: {
@@ -1059,7 +1064,7 @@ inline int Gameboy::updateLCD(int cycles) {
             scanlineCounter += 204 << doubleSpeed;
 
             if(isMainGameboy())
-                drawScanline_P2(ioRam[0x44]);
+                ppu->drawScanline_P2(ioRam[0x44]);
             if(updateHBlankDMA()) {
                 extraCycles += 8 << doubleSpeed;
             }
@@ -1179,9 +1184,14 @@ void Gameboy::setDoubleSpeed(int val) {
     }
 }
 
-void Gameboy::setRomFile(RomFile* r) {
-    romFile = r;
-    cheatEngine->setRomFile(r);
+void Gameboy::setRomFile(const char* filename) {
+    if(romFile != NULL) {
+        delete romFile;
+        romFile = NULL;
+    }
+
+    romFile = new RomFile(this, filename);
+    cheatEngine->setRomFile(romFile);
 
     // Load cheats
     if(gbsPlayer->gbsMode)
@@ -1194,7 +1204,7 @@ void Gameboy::setRomFile(RomFile* r) {
 }
 
 void Gameboy::unloadRom() {
-    doAtVBlank(clearGFX);
+    ppu->clearPPU();
 
     gameboySyncAutosave();
     if(saveFile != NULL)
@@ -1205,7 +1215,10 @@ void Gameboy::unloadRom() {
         free(externRam);
         externRam = NULL;
     }
-    romFile = NULL;
+    if(romFile != NULL) {
+        delete romFile;
+        romFile = NULL;
+    }
     cheatEngine->setRomFile(NULL);
 }
 
@@ -1465,7 +1478,7 @@ void Gameboy::saveState(int stateNum) {
         fwrite(&sgbPacketsTransferred, 1, sizeof(int), outFile);
         fwrite(&sgbPacketBit, 1, sizeof(int), outFile);
         fwrite(&sgbCommand, 1, sizeof(u8), outFile);
-        fwrite(&gfxMask, 1, sizeof(u8), outFile);
+        fwrite(&ppu->gfxMask, 1, sizeof(u8), outFile);
         fwrite(sgbMap, 1, sizeof(sgbMap), outFile);
     }
 
@@ -1539,7 +1552,7 @@ int Gameboy::loadState(int stateNum) {
             fread(&sgbPacketsTransferred, 1, sizeof(int), inFile);
             fread(&sgbPacketBit, 1, sizeof(int), inFile);
             fread(&sgbCommand, 1, sizeof(u8), inFile);
-            fread(&gfxMask, 1, sizeof(u8), inFile);
+            fread(&ppu->gfxMask, 1, sizeof(u8), inFile);
             fread(sgbMap, 1, sizeof(sgbMap), inFile);
         }
     }
@@ -1582,8 +1595,8 @@ int Gameboy::loadState(int stateNum) {
     if(autoSavingEnabled && stateNum != -1)
         saveGame(); // Synchronize save file on sd with file in ram
 
-    refreshGFX();
-    soundEngine->refresh();
+    ppu->refreshPPU();
+    apu->refresh();
 
     return 0;
 }

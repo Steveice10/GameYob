@@ -7,18 +7,10 @@
 #include "input.h"
 #include "menu.h"
 #include "romfile.h"
-#include "soundengine.h"
+#include "apu.h"
 #include "system.h"
 
 Gameboy* gameboy = NULL;
-Gameboy* gb2 = NULL;
-
-// Ordering for purposes of link emulation
-Gameboy* gbUno = NULL;
-Gameboy* gbDuo = NULL;
-
-
-RomFile* romFile = NULL;
 
 int fps = 0;
 
@@ -52,11 +44,7 @@ void mgrRunFrame() {
 }
 
 void mgrLoadRom(const char* filename) {
-    if(romFile != NULL)
-        delete romFile;
-
-    romFile = new RomFile(filename);
-    gameboy->setRomFile(romFile);
+    gameboy->setRomFile(filename);
     gameboy->loadSave(1);
 
     // Border probing is broken
@@ -65,7 +53,7 @@ void mgrLoadRom(const char* filename) {
         probingForBorder = true; // This will be ignored if starting in sgb mode, or if there is no sgb mode.
 #endif
 
-    sgbBorderLoaded = false; // Effectively unloads any sgb border
+    gameboy->getPPU()->sgbBorderLoaded = false; // Effectively unloads any sgb border
 
     gameboy->init();
 
@@ -106,11 +94,6 @@ void mgrLoadRom(const char* filename) {
 void mgr_unloadRom() {
     gameboy->unloadRom();
     gameboy->linkedGameboy = NULL;
-
-    if(romFile != NULL) {
-        delete romFile;
-        romFile = NULL;
-    }
 }
 
 void mgrSelectRom() {
@@ -142,12 +125,12 @@ void mgrSave() {
 }
 
 void mgrUpdateVBlank() {
-    drawScreen();
+    gameboy->getPPU()->drawScreen();
 
     systemCheckRunning();
 
     if(gameboy && !gameboy->isGameboyPaused())
-        gameboy->getSoundEngine()->soundUpdateVBlank();
+        gameboy->getAPU()->soundUpdateVBlank();
 
     inputUpdate();
 
@@ -175,9 +158,6 @@ void mgrUpdateVBlank() {
 void mgrExit() {
     if(gameboy)
         delete gameboy;
-    if(romFile)
-        delete romFile;
 
-    gameboy = 0;
-    romFile = 0;
+    gameboy = NULL;
 }

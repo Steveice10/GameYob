@@ -12,7 +12,7 @@
 #include "gbsplayer.h"
 #include "input.h"
 #include "menu.h"
-#include "soundengine.h"
+#include "apu.h"
 #include "system.h"
 
 const int MENU_NONE = 1;
@@ -66,7 +66,7 @@ void subMenuGenericUpdateFunc() {
 // Functions corresponding to menu options
 
 void suspendFunc(int value) {
-    gameboy->getSoundEngine()->mute();
+    gameboy->getAPU()->mute();
     if(!autoSavingEnabled && gameboy->getNumRamBanks()) {
         printMenuMessage("Saving SRAM...");
         mgrSave();
@@ -79,7 +79,7 @@ void suspendFunc(int value) {
 }
 
 void exitFunc(int value) {
-    gameboy->getSoundEngine()->mute();
+    gameboy->getAPU()->mute();
     if(!autoSavingEnabled && gameboy->getNumRamBanks()) {
         printMenuMessage("Saving SRAM...");
         mgrSave();
@@ -90,7 +90,7 @@ void exitFunc(int value) {
 }
 
 void exitNoSaveFunc(int value) {
-    gameboy->getSoundEngine()->mute();
+    gameboy->getAPU()->mute();
     closeMenu();
     mgrSelectRom();
 }
@@ -124,7 +124,7 @@ void returnToLauncherFunc(int value) {
 
 void printerEnableFunc(int value) {
     if(value) {
-        gameboy->getGameboyPrinter()->initGbPrinter();
+        gameboy->getPrinter()->initGbPrinter();
     }
     printerEnabled = value;
 }
@@ -140,10 +140,10 @@ void keyConfigFunc(int value) {
 
 void saveSettingsFunc(int value) {
     printMenuMessage("Saving settings...");
-    gameboy->getSoundEngine()->mute();
+    gameboy->getAPU()->mute();
     writeConfigFile();
     if(!gameboy->isGameboyPaused())
-        gameboy->getSoundEngine()->unmute();
+        gameboy->getAPU()->unmute();
     printMenuMessage("Settings saved.");
 }
 
@@ -161,10 +161,10 @@ void stateSelectFunc(int value) {
 
 void stateSaveFunc(int value) {
     printMenuMessage("Saving state...");
-    gameboy->getSoundEngine()->mute();
+    gameboy->getAPU()->mute();
     gameboy->saveState(stateNum);
     if(!gameboy->isGameboyPaused())
-        gameboy->getSoundEngine()->unmute();
+        gameboy->getAPU()->unmute();
     printMenuMessage("State saved.");
     // Will activate the other state options
     stateSelectFunc(stateNum);
@@ -172,7 +172,7 @@ void stateSaveFunc(int value) {
 
 void stateLoadFunc(int value) {
     printMenuMessage("Loading state...");
-    gameboy->getSoundEngine()->mute();
+    gameboy->getAPU()->mute();
     if(gameboy->loadState(stateNum) == 0) {
         closeMenu();
         systemUpdateConsole();
@@ -181,12 +181,12 @@ void stateLoadFunc(int value) {
 }
 
 void stateDeleteFunc(int value) {
-    gameboy->getSoundEngine()->mute();
+    gameboy->getAPU()->mute();
     gameboy->deleteState(stateNum);
     // Will grey out the other state options
     stateSelectFunc(stateNum);
     if(!gameboy->isGameboyPaused())
-        gameboy->getSoundEngine()->unmute();
+        gameboy->getAPU()->unmute();
 }
 
 void accelPadFunc(int value) {
@@ -241,13 +241,13 @@ void setSingleScreenFunc(int value) {
 }
 
 void setScaleModeFunc(int value) {
-    scaleMode = value;
+    gameboy->getPPU()->scaleMode = value;
     if(!isMenuOn()) {
         systemUpdateConsole();
     }
 
     if(value == 0) {
-        doAtVBlank(checkBorder);
+        gameboy->getPPU()->checkBorder();
         enableMenuOption("Console Output");
     } else {
         disableMenuOption("Console Output");
@@ -255,21 +255,29 @@ void setScaleModeFunc(int value) {
 }
 
 void setScaleFilterFunc(int value) {
-    scaleFilter = value;
+    gameboy->getPPU()->scaleFilter = value;
 }
 
 void gbColorizeFunc(int value) {
     gbColorize = value;
+    if(gameboy->getRomFile() != NULL) {
+        gameboy->initGFXPalette();
+        gameboy->getPPU()->refreshPPU();
+    }
 }
 
 void customBorderEnableFunc(int value) {
     customBordersEnabled = value;
-    checkBorder();
+    gameboy->getPPU()->checkBorder();
+}
+
+void selectBorderFunc(int value) {
+    gameboy->getPPU()->selectBorder();
 }
 
 void sgbBorderEnableFunc(int value) {
     sgbBordersEnabled = value;
-    checkBorder();
+    gameboy->getPPU()->checkBorder();
 }
 
 void soundEnableFunc(int value) {
@@ -289,9 +297,9 @@ void versionInfoFunc(int value) {
 
 void setChanEnabled(int chan, int value) {
     if(value == 0)
-        gameboy->getSoundEngine()->disableChannel(chan);
+        gameboy->getAPU()->disableChannel(chan);
     else
-        gameboy->getSoundEngine()->enableChannel(chan);
+        gameboy->getAPU()->enableChannel(chan);
 }
 
 void chan1Func(int value) {
@@ -311,7 +319,7 @@ void chan4Func(int value) {
 }
 
 void setAutoSaveFunc(int value) {
-    gameboy->getSoundEngine()->mute();
+    gameboy->getAPU()->mute();
     if(autoSavingEnabled) {
         gameboy->gameboySyncAutosave();
     } else {
@@ -326,7 +334,7 @@ void setAutoSaveFunc(int value) {
     }
 
     if(!gameboy->isGameboyPaused()) {
-        gameboy->getSoundEngine()->unmute();
+        gameboy->getAPU()->unmute();
     }
 }
 
@@ -391,7 +399,7 @@ SubMenu menuList[] = {
                         {"Colorize GB", gbColorizeFunc, 13, {"Off", "Auto", "Inverted", "Pastel Mix", "Red", "Orange", "Yellow", "Green", "Blue", "Brown", "Dark Green", "Dark Blue", "Dark Brown"}, 1, MENU_ALL},
                         {"SGB Borders", sgbBorderEnableFunc, 2, {"Off", "On"}, 1, MENU_ALL},
                         {"Custom Border", customBorderEnableFunc, 2, {"Off", "On"}, 1, MENU_ALL},
-                        {"Select Border", (void (*)(int)) selectBorder, 0, {}, 0, MENU_ALL},
+                        {"Select Border", (void (*)(int)) selectBorderFunc, 0, {}, 0, MENU_ALL},
                 }
         },
         {
@@ -442,7 +450,7 @@ void setMenuDefaults() {
 void displayMenu() {
     menuOn = true;
     systemUpdateConsole();
-    doAtVBlank(redrawMenu);
+    redrawMenu();
 }
 
 void closeMenu() {
@@ -706,8 +714,7 @@ void updateMenu() {
             menu = numMenus - 1;
         menuSetOptionRow(row);
         redraw = true;
-    }
-    else if(inputKeyPressed(mapMenuKey(MENU_KEY_R))) {
+    } else if(inputKeyPressed(mapMenuKey(MENU_KEY_R))) {
         int row = menuGetOptionRow();
         menu++;
         if(menu >= numMenus)
@@ -715,9 +722,10 @@ void updateMenu() {
         menuSetOptionRow(row);
         redraw = true;
     }
-    if(redraw && subMenuUpdateFunc == 0 &&
-       isMenuOn()) // The menu may have been closed by an option
-        doAtVBlank(redrawMenu);
+
+    if(redraw && subMenuUpdateFunc == 0 && isMenuOn()) {// The menu may have been closed by an option
+        redrawMenu();
+    }
 }
 
 // Message will be printed immediately, but also stored in case it's overwritten 
@@ -752,7 +760,7 @@ void displaySubMenu(void (* updateFunc)()) {
 
 void closeSubMenu() {
     subMenuUpdateFunc = NULL;
-    doAtVBlank(redrawMenu);
+    redrawMenu();
 }
 
 

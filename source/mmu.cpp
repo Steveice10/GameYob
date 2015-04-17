@@ -5,13 +5,25 @@
 #include "gameboy.h"
 #include "menu.h"
 #include "romfile.h"
-#include "soundengine.h"
+#include "apu.h"
 
 #define refreshVramBank() { \
     memory[0x8] = vram[vramBank]; \
     memory[0x9] = vram[vramBank]+0x1000; }
 #define refreshWramBank() { \
     memory[0xd] = wram[wramBank]; }
+
+typedef void (Gameboy::*mbcWrite)(u16, u8);
+typedef u8   (Gameboy::*mbcRead )(u16);
+
+const mbcRead mbcReads[] = {
+        NULL, NULL, NULL, &Gameboy::m3r, NULL, &Gameboy::m7r, NULL, &Gameboy::h3r
+};
+
+const mbcWrite mbcWrites[] = {
+        &Gameboy::m0w, &Gameboy::m1w, &Gameboy::m2w, &Gameboy::m3w, &Gameboy::m5w, &Gameboy::m7w, &Gameboy::h1w,
+        &Gameboy::h3w
+};
 
 void Gameboy::refreshRomBank(int bank) {
     if(bank < romFile->getNumRomBanks()) {
@@ -206,7 +218,7 @@ void Gameboy::writeMemoryOther(u16 addr, u8 val) {
         case 0x8:
         case 0x9:
             if(isMainGameboy())
-                writeVram(addr & 0x1fff, val);
+                ppu->writeVram(addr & 0x1fff, val);
             vram[vramBank][addr & 0x1fff] = val;
             return;
         case 0xE: // Echo area
@@ -216,7 +228,7 @@ void Gameboy::writeMemoryOther(u16 addr, u8 val) {
             if(addr >= 0xFF00)
                 writeIO(addr & 0xFF, val);
             else if(addr >= 0xFE00) {
-                writeHram(addr & 0x1ff, val);
+                ppu->writeHram(addr & 0x1ff, val);
                 hram[addr & 0x1ff] = val;
             }
             else // Echo area
@@ -304,7 +316,7 @@ void Gameboy::writeIO(u8 ioReg, u8 val) {
                 && ioReg >= 0x10 && ioReg <= 0x25))
                 return;
             ioRam[ioReg] = val;
-            soundEngine->handleSoundRegister(ioReg, val);
+            apu->handleSoundRegister(ioReg, val);
             return;
         case 0x26:
             ioRam[ioReg] &= ~0x80;
@@ -319,7 +331,7 @@ void Gameboy::writeIO(u8 ioReg, u8 val) {
                 clearSoundChannel(CHAN_4);
             }
 
-            soundEngine->handleSoundRegister(ioReg, val);
+            apu->handleSoundRegister(ioReg, val);
             return;
         case 0x14:
             if(soundDisabled || (!(ioRam[0x26] & 0x80)))
@@ -359,12 +371,12 @@ void Gameboy::writeIO(u8 ioReg, u8 val) {
         case 0x4A:
         case 0x4B:
             if(isMainGameboy())
-                handleVideoRegister(ioReg, val);
+                ppu->handleVideoRegister(ioReg, val);
             ioRam[ioReg] = val;
             return;
         case 0x69: // CGB BG Palette
             if(isMainGameboy())
-                handleVideoRegister(ioReg, val);
+                ppu->handleVideoRegister(ioReg, val);
             {
                 int index = ioRam[0x68] & 0x3F;
                 bgPaletteData[index] = val;
@@ -375,7 +387,7 @@ void Gameboy::writeIO(u8 ioReg, u8 val) {
             return;
         case 0x6B: // CGB Sprite palette
             if(isMainGameboy())
-                handleVideoRegister(ioReg, val);
+                ppu->handleVideoRegister(ioReg, val);
             {
                 int index = ioRam[0x6A] & 0x3F;
                 sprPaletteData[index] = val;
@@ -386,7 +398,7 @@ void Gameboy::writeIO(u8 ioReg, u8 val) {
             return;
         case 0x46: // Sprite DMA
             if(isMainGameboy())
-                handleVideoRegister(ioReg, val);
+                ppu->handleVideoRegister(ioReg, val);
             ioRam[ioReg] = val;
             {
                 int src = val << 8;
@@ -400,7 +412,7 @@ void Gameboy::writeIO(u8 ioReg, u8 val) {
             return;
         case 0x40: // LCDC
             if(isMainGameboy())
-                handleVideoRegister(ioReg, val);
+                ppu->handleVideoRegister(ioReg, val);
             ioRam[ioReg] = val;
             if(!(val & 0x80)) {
                 ioRam[0x44] = 0;
@@ -466,7 +478,7 @@ void Gameboy::writeIO(u8 ioReg, u8 val) {
                     int i;
                     for(i = 0; i < dmaLength; i++) {
                         if(isMainGameboy())
-                            writeVram16(dmaDest, dmaSource);
+                            ppu->writeVram16(dmaDest, dmaSource);
                         for(int i = 0; i < 16; i++)
                             vram[vramBank][dmaDest++] = quickRead(dmaSource++);
                         dmaDest &= 0x1FF0;
@@ -533,7 +545,7 @@ void Gameboy::refreshP1() {
 bool Gameboy::updateHBlankDMA() {
     if(dmaLength > 0) {
         if(isMainGameboy())
-            writeVram16(dmaDest, dmaSource);
+            ppu->writeVram16(dmaDest, dmaSource);
         for(int i = 0; i < 16; i++)
             vram[vramBank][dmaDest++] = quickRead(dmaSource++);
         dmaDest &= 0x1FF0;

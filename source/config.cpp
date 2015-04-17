@@ -412,7 +412,7 @@ void updateKeyConfigChooser() {
         redraw = true;
     }
     if(redraw)
-        doAtVBlank(redrawKeyConfigChooser);
+        redrawKeyConfigChooser();
 }
 
 void startKeyConfigChooser() {

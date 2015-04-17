@@ -13,8 +13,8 @@
 #include "rom_gb.h"
 #endif
 
-RomFile::RomFile(const char* f) {
-
+RomFile::RomFile(Gameboy* gb, const char* f) {
+    this->gameboy = gb;
     romFile = NULL;
     maxLoadedRomBanks = 512;
 

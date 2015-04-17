@@ -6,6 +6,7 @@
 #include "system.h"
 #include "ppu.h"
 #include "manager.h"
+#include "gameboy.h"
 #include "gfx.h"
 #include "menu.h"
 
@@ -94,7 +95,7 @@ void systemUpdateConsole() {
         console->frameBuffer = framebuffer;
         consoleSelect(console);
 
-        checkBorder();
+        gameboy->getPPU()->checkBorder();
     }
 }
 

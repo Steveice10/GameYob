@@ -6,8 +6,12 @@
 #include "gbsplayer.h"
 #include "input.h"
 #include "romfile.h"
-#include "soundengine.h"
+#include "apu.h"
 #include "system.h"
+
+GBSPlayer::GBSPlayer(Gameboy* gb) {
+    this->gameboy = gb;
+}
 
 // private
 
