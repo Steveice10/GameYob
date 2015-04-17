@@ -18,6 +18,15 @@
 #include <ctrcommon/input.hpp>
 #include <gfx.h>
 
+#define GB_A 0x01
+#define GB_B 0x02
+#define GB_SELECT 0x04
+#define GB_START 0x08
+#define GB_RIGHT 0x10
+#define GB_LEFT 0x20
+#define GB_UP 0x40
+#define GB_DOWN 0x80
+
 #define TO5BIT(c8) (((c8) * 0x1F * 2 + 0xFF) / (0xFF * 2))
 #define TOCGB(r, g, b) (TO5BIT(b) << 10 | TO5BIT(g) << 5 | TO5BIT(r))
 
