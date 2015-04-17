@@ -7,7 +7,6 @@
 #include "platform/input.h"
 #include "platform/system.h"
 #include "ui/config.h"
-#include "ui/cheats.h"
 
 #include "ui/menu.h"
 #include "gameboy.h"
@@ -932,8 +931,10 @@ int Gameboy::runEmul() {
             if(!halt && !opTriggeredInterrupt)
                 extraCycles += runOpcode(4);
 
-            extraCycles += handleInterrupts(interruptTriggered);
-            interruptTriggered = ioRam[0x0F] & ioRam[0xFF];
+            if(interruptTriggered) {
+                extraCycles += handleInterrupts(interruptTriggered);
+                interruptTriggered = ioRam[0x0F] & ioRam[0xFF];
+            }
         }
 
         if(emuRet) {
