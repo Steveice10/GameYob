@@ -37,6 +37,11 @@ bool gfxInit() {
     // Create the VBO.
     gpuCreateVbo(&vbo);
     gpuVboAttributes(vbo, ATTRIBUTE(0, 3, ATTR_FLOAT) | ATTRIBUTE(1, 2, ATTR_FLOAT), 2);
+
+    // Create the texture.
+    gpuCreateTexture(&texture);
+    gpuBindTexture(TEXUNIT0, texture);
+
     return true;
 }
 
@@ -119,16 +124,6 @@ void gfxDrawScreen() {
 
         prevScaleMode = scaleMode;
         prevGameScreen = gameScreen;
-    }
-
-    // (Re)Create the texture if needed.
-    if(prevScaleFilter != scaleFilter) {
-        if(texture != 0) {
-            gpuFreeTexture(texture);
-        }
-
-        gpuCreateTexture(&texture);
-        gpuBindTexture(TEXUNIT0, texture);
     }
 
     // Update the texture with the new frame.
