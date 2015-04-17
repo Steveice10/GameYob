@@ -9,7 +9,7 @@
 #include "gameboy.h"
 #include "gbmanager.h"
 #include "gbprinter.h"
-#include "gbs.h"
+#include "gbsplayer.h"
 #include "input.h"
 #include "menu.h"
 #include "soundengine.h"
@@ -319,7 +319,7 @@ void setAutoSaveFunc(int value) {
     }
 
     autoSavingEnabled = value;
-    if(gameboy->isRomLoaded() && gameboy->getNumRamBanks() && !gameboy->getGameboySound()->gbsMode && !autoSavingEnabled) {
+    if(gameboy->isRomLoaded() && gameboy->getNumRamBanks() && !gameboy->getGBSPlayer()->gbsMode && !autoSavingEnabled) {
         enableMenuOption("Exit without saving");
     } else {
         disableMenuOption("Exit without saving");

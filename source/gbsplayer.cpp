@@ -3,7 +3,7 @@
 
 #include "config.h"
 #include "gameboy.h"
-#include "gbs.h"
+#include "gbsplayer.h"
 #include "input.h"
 #include "romfile.h"
 #include "soundengine.h"
@@ -11,7 +11,7 @@
 
 // private
 
-void GameboySound::gbsRedraw() {
+void GBSPlayer::gbsRedraw() {
     //consoleClear();
 
     printf("\33[0;0H"); // Cursor to upper-left corner
@@ -35,7 +35,7 @@ void GameboySound::gbsRedraw() {
     }
 }
 
-void GameboySound::gbsLoadSong() {
+void GBSPlayer::gbsLoadSong() {
     u8* romSlot0 = gameboy->getRomFile()->getRomBank(0);
     gameboy->initMMU();
     gameboy->ime = 0;
@@ -77,14 +77,14 @@ void GameboySound::gbsLoadSong() {
 
 // public
 
-void GameboySound::gbsReadHeader() {
+void GBSPlayer::gbsReadHeader() {
     gbsNumSongs = gbsHeader[0x04];
     gbsLoadAddress = (*(gbsHeader + 0x06) | *(gbsHeader + 0x06+1)<<8);
     gbsInitAddress = (*(gbsHeader + 0x08) | *(gbsHeader + 0x08+1)<<8);
     gbsPlayAddress = (*(gbsHeader + 0x0a) | *(gbsHeader + 0x0a+1)<<8);
 }
 
-void GameboySound::gbsInit() {
+void GBSPlayer::gbsInit() {
     u8* romSlot0 = gameboy->getRomFile()->getRomBank(0);
 
     u8 firstSong = gbsHeader[0x05] - 1;
@@ -113,7 +113,7 @@ void GameboySound::gbsInit() {
 }
 
 // Called at vblank each frame
-void GameboySound::gbsCheckInput() {
+void GBSPlayer::gbsCheckInput() {
     if(inputKeyRepeat(mapMenuKey(MENU_KEY_LEFT))) {
         if(gbsSelectedSong == 0)
             gbsSelectedSong = gbsNumSongs - 1;

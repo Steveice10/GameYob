@@ -5,7 +5,7 @@
 
 #include "cheats.h"
 #include "gameboy.h"
-#include "gbs.h"
+#include "gbsplayer.h"
 #include "menu.h"
 #include "system.h"
 
@@ -35,7 +35,7 @@ RomFile::RomFile(const char* f) {
     romBankSlots = (u8*) malloc(maxLoadedRomBanks * 0x4000);
 
     // Check if this is a GBS file
-    gameboy->getGameboySound()->gbsMode = (strcasecmp(strrchr(filename, '.'), ".gbs") == 0);
+    gameboy->getGBSPlayer()->gbsMode = (strcasecmp(strrchr(filename, '.'), ".gbs") == 0);
 
     romFile = fopen(filename, "rb");
     if(romFile == NULL) {
@@ -46,9 +46,9 @@ RomFile::RomFile(const char* f) {
         }
     }
 
-    if(gameboy->getGameboySound()->gbsMode) {
-        fread(gameboy->getGameboySound()->gbsHeader, 1, 0x70, romFile);
-        gameboy->getGameboySound()->gbsReadHeader();
+    if(gameboy->getGBSPlayer()->gbsMode) {
+        fread(gameboy->getGBSPlayer()->gbsHeader, 1, 0x70, romFile);
+        gameboy->getGBSPlayer()->gbsReadHeader();
         fseek(romFile, 0, SEEK_END);
         numRomBanks = (ftell(romFile) - 0x70 + 0x3fff) / 0x4000; // Get number of banks, rounded up
         printf("%.2x\n", numRomBanks);
@@ -78,10 +78,10 @@ RomFile::RomFile(const char* f) {
     // Load rom banks and initialize all those "bank" arrays
     lastBanksUsed = std::vector<int>();
     // Read bank 0
-    if(gameboy->getGameboySound()->gbsMode) {
+    if(gameboy->getGBSPlayer()->gbsMode) {
         bankSlotIDs[0] = 0;
         fseek(romFile, 0x70, SEEK_SET);
-        fread(romBankSlots + gameboy->getGameboySound()->gbsLoadAddress, 1, 0x4000 - gameboy->getGameboySound()->gbsLoadAddress, romFile);
+        fread(romBankSlots + gameboy->getGBSPlayer()->gbsLoadAddress, 1, 0x4000 - gameboy->getGBSPlayer()->gbsLoadAddress, romFile);
     }
     else {
         bankSlotIDs[0] = 0;
@@ -113,7 +113,7 @@ RomFile::RomFile(const char* f) {
         romTitle[i] = (char) romSlot0[i + 0x134];
     romTitle[nameLength] = '\0';
 
-    if(gameboy->getGameboySound()->gbsMode) {
+    if(gameboy->getGBSPlayer()->gbsMode) {
         MBC = MBC5;
     }
     else {

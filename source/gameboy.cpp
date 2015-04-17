@@ -8,7 +8,7 @@
 #include "gameboy.h"
 #include "gbmanager.h"
 #include "gbprinter.h"
-#include "gbs.h"
+#include "gbsplayer.h"
 #include "input.h"
 #include "menu.h"
 #include "soundengine.h"
@@ -490,7 +490,7 @@ Gameboy::Gameboy() : hram(highram + 0xe00), ioRam(highram + 0xf00) {
     autosaveStarted = false;
 
     gameboyPrinter = new GameboyPrinter();
-    gameboySound = new GameboySound();
+    gbsPlayer = new GBSPlayer();
 
     cheatEngine = new CheatEngine(this);
     soundEngine = new SoundEngine(this);
@@ -508,7 +508,7 @@ Gameboy::~Gameboy() {
 void Gameboy::init() {
     systemEnableSleepMode();
 
-    if(gameboySound->gbsMode) {
+    if(gbsPlayer->gbsMode) {
         resultantGBMode = 1; // GBC
         probingForBorder = false;
     }
@@ -582,12 +582,12 @@ void Gameboy::init() {
     }
     initSND();
 
-    if(!gameboySound->gbsMode && !probingForBorder && checkStateExists(-1)) {
+    if(!gbsPlayer->gbsMode && !probingForBorder && checkStateExists(-1)) {
         loadState(-1);
     }
 
-    if(gameboySound->gbsMode)
-        gameboySound->gbsInit();
+    if(gbsPlayer->gbsMode)
+        gbsPlayer->gbsInit();
 }
 
 void Gameboy::initGBMode() {
@@ -777,7 +777,7 @@ void Gameboy::gameboyCheckInput() {
 void Gameboy::gameboyUpdateVBlank() {
     gameboyFrameCounter++;
 
-    if(!gameboySound->gbsMode) {
+    if(!gbsPlayer->gbsMode) {
         if(resettingGameboy) {
             init();
             resettingGameboy = false;
@@ -1175,7 +1175,7 @@ void Gameboy::setRomFile(RomFile* r) {
     cheatEngine->setRomFile(r);
 
     // Load cheats
-    if(gameboySound->gbsMode)
+    if(gbsPlayer->gbsMode)
         cheatEngine->loadCheats("");
     else {
         char nameBuf[256];
@@ -1224,7 +1224,7 @@ int Gameboy::loadSave(int saveId) {
         strcat(savename, buf);
     }
 
-    if(gameboySound->gbsMode)
+    if(gbsPlayer->gbsMode)
         numRamBanks = 1;
     else {
         // Get the game's external memory size and allocate the memory
@@ -1261,7 +1261,7 @@ int Gameboy::loadSave(int saveId) {
 
     externRam = (u8*) malloc(numRamBanks * 0x2000);
 
-    if(gameboySound->gbsMode || saveId == -1)
+    if(gbsPlayer->gbsMode || saveId == -1)
         return 0;
 
     // Now load the data.

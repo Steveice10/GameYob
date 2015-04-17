@@ -2,7 +2,7 @@
 
 #include <ctrcommon/types.hpp>
 
-class GameboySound {
+class GBSPlayer {
 public:
     bool gbsMode;
     u8 gbsHeader[0x70];
