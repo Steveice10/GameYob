@@ -1,6 +1,7 @@
 #include "platform/input.h"
 #include "config.h"
 #include "gameboy.h"
+#include "menu.h"
 
 #include <3ds.h>
 
@@ -11,6 +12,7 @@
 static u8* screenBuffer = (u8*) gpuAlloc(256 * 256 * 3);
 
 static int prevScaleMode = -1;
+static int prevScaleFilter = -1;
 static int prevGameScreen = -1;
 
 static bool fastForward = false;
@@ -31,10 +33,6 @@ bool gfxInit() {
     gpuCreateShader(&shader);
     gpuLoadShader(shader, shader_vsh_shbin, shader_vsh_shbin_size);
     gpuUseShader(shader);
-
-    // Create and bind the texture.
-    gpuCreateTexture(&texture);
-    gpuBindTexture(TEXUNIT0, texture);
 
     // Create the VBO.
     gpuCreateVbo(&vbo);
@@ -75,7 +73,7 @@ void gfxDrawPixel(int x, int y, u32 pixel) {
     screenBuffer[(y * 256 + x) * 3 + 2] = (u8) (pixel >> 16);
 }
 
-void gfxDrawScreen(int gameScreen, int scaleMode) {
+void gfxDrawScreen() {
     // Update VBO data if the size has changed.
     if(prevScaleMode != scaleMode || prevGameScreen != gameScreen) {
         u32 fbWidth = gameScreen == 0 ? 400 : 320;
@@ -123,8 +121,18 @@ void gfxDrawScreen(int gameScreen, int scaleMode) {
         prevGameScreen = gameScreen;
     }
 
+    // (Re)Create the texture if needed.
+    if(prevScaleFilter != scaleFilter) {
+        if(texture != 0) {
+            gpuFreeTexture(texture);
+        }
+
+        gpuCreateTexture(&texture);
+        gpuBindTexture(TEXUNIT0, texture);
+    }
+
     // Update the texture with the new frame.
-    TextureFilter filter = gameboy->getPPU()->scaleFilter == 1 ? FILTER_LINEAR : FILTER_NEAREST;
+    TextureFilter filter = scaleFilter == 1 ? FILTER_LINEAR : FILTER_NEAREST;
     gpuTextureData(texture, screenBuffer, 256, 256, PIXEL_RGB8, 256, 256, PIXEL_RGB8, TEXTURE_MIN_FILTER(filter) | TEXTURE_MAG_FILTER(filter));
 
     // Draw the VBO.

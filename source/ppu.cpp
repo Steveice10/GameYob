@@ -341,7 +341,7 @@ void GameboyPPU::drawSprite(int scanline, int spriteNum) {
 }
 
 void GameboyPPU::drawScreen() {
-    gfxDrawScreen(gameScreen, scaleMode);
+    gfxDrawScreen();
 }
 
 

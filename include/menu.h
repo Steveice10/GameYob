@@ -16,6 +16,8 @@ extern int singleScreenMode;
 extern int stateNum;
 extern int gameScreen;
 extern bool accelPadMode;
+extern int scaleMode;
+extern int scaleFilter;
 
 extern bool fpsOutput;
 extern bool timeOutput;

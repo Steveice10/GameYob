@@ -42,6 +42,9 @@ bool customBordersEnabled = false;
 bool sgbBordersEnabled = false;
 bool autoSavingEnabled = false;
 
+int scaleMode = 0;
+int scaleFilter = 0;
+
 bool printerEnabled = false;
 
 bool accelPadMode = false;
@@ -238,7 +241,7 @@ void setSingleScreenFunc(int value) {
 }
 
 void setScaleModeFunc(int value) {
-    gameboy->getPPU()->scaleMode = value;
+    scaleMode = value;
     if(!isMenuOn()) {
         systemUpdateConsole();
     }
@@ -252,7 +255,7 @@ void setScaleModeFunc(int value) {
 }
 
 void setScaleFilterFunc(int value) {
-    gameboy->getPPU()->scaleFilter = value;
+    scaleFilter = value;
 }
 
 void gbColorizeFunc(int value) {

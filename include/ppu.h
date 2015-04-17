@@ -43,9 +43,7 @@ public:
     void handleVideoRegister(u8 ioReg, u8 val);
 
     bool probingForBorder;
-
-    int scaleMode;
-    int scaleFilter;
+    
     u8 gfxMask;
     volatile int loadedBorderType;
     bool customBorderExists;
