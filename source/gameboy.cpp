@@ -489,6 +489,8 @@ Gameboy::Gameboy() : hram(highram + 0xe00), ioRam(highram + 0xf00) {
     saveModified = false;
     autosaveStarted = false;
 
+    gameboyPrinter = new GameboyPrinter();
+
     cheatEngine = new CheatEngine(this);
     soundEngine = new SoundEngine(this);
     if(this != gameboy)
@@ -561,7 +563,7 @@ void Gameboy::init() {
     cyclesSinceVBlank = 0;
     cycleToSerialTransfer = -1;
 
-    initGbPrinter();
+    gameboyPrinter->initGbPrinter();
 
     // Timer stuff
     periods[0] = clockSpeed / 4096;
@@ -795,7 +797,7 @@ void Gameboy::gameboyUpdateVBlank() {
         if(cheatEngine->areCheatsEnabled())
             cheatEngine->applyGSCheats();
 
-        updateGbPrinter();
+        gameboyPrinter->updateGbPrinter();
     }
 }
 
@@ -883,7 +885,7 @@ int Gameboy::runEmul() {
                     // cycle.
                 }
                 else if(printerEnabled) {
-                    ioRam[0x01] = sendGbPrinterByte(ioRam[0x01]);
+                    ioRam[0x01] = gameboyPrinter->sendGbPrinterByte(ioRam[0x01]);
                 }
                 else
                     ioRam[0x01] = 0xff;

@@ -124,7 +124,7 @@ void returnToLauncherFunc(int value) {
 
 void printerEnableFunc(int value) {
     if(value) {
-        initGbPrinter();
+        gameboy->getGameboyPrinter()->initGbPrinter();
     }
     printerEnabled = value;
 }

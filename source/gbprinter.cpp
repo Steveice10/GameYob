@@ -13,44 +13,8 @@
 #define PRINTER_STATUS_PRINTING     0x02
 #define PRINTER_STATUS_CHECKSUM     0x01
 
-#define PRINTER_WIDTH 160
-#define PRINTER_HEIGHT 208 // The actual value is 200, but 16 divides 208.
-
-// Local variables
-
-u8 printerGfx[PRINTER_WIDTH * PRINTER_HEIGHT / 4];
-int printerGfxIndex;
-
-int printerPacketByte;
-u8 printerStatus;
-u8 printerCmd;
-u16 printerCmdLength;
-
-bool printerPacketCompressed;
-u8 printerCompressionByte;
-u8 printerCompressionLen;
-
-u16 printerExpectedChecksum;
-u16 printerChecksum;
-
-int printerMargins;
-int lastPrinterMargins; // it's an int so that it can have a "nonexistant" value ("never set").
-u8 printerCmd2Index;
-u8 printerPalette;
-u8 printerExposure; // Ignored
-
-int numPrinted; // Corresponds to the number after the filename
-
-int printCounter = 0; // Timer until the printer "stops printing".
-
-// Local functions
-void resetGbPrinter();
-void printerSendVariableLenData();
-void printerSaveFile();
-
-
 // Called along with other initialization routines
-void initGbPrinter() {
+void GameboyPrinter::initGbPrinter() {
     printerPacketByte = 0;
     printerChecksum = 0;
     printerCmd2Index = 0;
@@ -63,49 +27,10 @@ void initGbPrinter() {
     resetGbPrinter();
 }
 
-// Can be invoked by the game (command 1)
-void resetGbPrinter() {
-    printerStatus = 0;
-    printerGfxIndex = 0;
-    memset(printerGfx, 0, sizeof(printerGfx));
-    printCounter = 0;
-}
-
-
-void printerSendVariableLenData(u8 dat) {
-    switch(printerCmd) {
-
-        case 0x2: // Print
-            switch(printerCmd2Index) {
-                case 0: // Unknown (0x01)
-                    break;
-                case 1: // Margins
-                    lastPrinterMargins = printerMargins;
-                    printerMargins = dat;
-                    break;
-                case 2: // Palette
-                    printerPalette = dat;
-                    break;
-                case 3: // Exposure / brightness
-                    printerExposure = dat;
-                    break;
-            }
-            printerCmd2Index++;
-            break;
-
-        case 0x4: // Fill buffer
-            if(printerGfxIndex < PRINTER_WIDTH * PRINTER_HEIGHT / 4) {
-                printerGfx[printerGfxIndex++] = dat;
-            }
-            break;
-    }
-}
-
-u8 sendGbPrinterByte(u8 dat) {
+u8 GameboyPrinter::sendGbPrinterByte(u8 dat) {
     u8 linkReceivedData = 0x00;
-    //printLog("Byte %d = %x\n", printerPacketByte, dat);
 
-    // "Byte" 6 is actually a number of bytes. The counter stays at 6 until the 
+    // "Byte" 6 is actually a number of bytes. The counter stays at 6 until the
     // required number of bytes have been read.
     if(printerPacketByte == 6 && printerCmdLength == 0)
         printerPacketByte++;
@@ -211,7 +136,7 @@ u8 sendGbPrinterByte(u8 dat) {
 
             linkReceivedData = printerStatus;
 
-            // The received value apparently shouldn't contain this until next 
+            // The received value apparently shouldn't contain this until next
             // packet.
             if(printerGfxIndex >= 0x280)
                 printerStatus |= PRINTER_STATUS_READY;
@@ -229,23 +154,63 @@ u8 sendGbPrinterByte(u8 dat) {
     return linkReceivedData;
 }
 
-inline void WRITE_32(u8* ptr, u32 x) {
-    *ptr = x & 0xff;
-    *(ptr + 1) = (x >> 8) & 0xff;
-    *(ptr + 2) = (x >> 16) & 0xff;
-    *(ptr + 3) = (x >> 24) & 0xff;
+void GameboyPrinter::updateGbPrinter() {
+    if(printCounter != 0) {
+        printCounter--;
+        if(printCounter == 0) {
+            if(printerStatus & PRINTER_STATUS_PRINTING) {
+                printerStatus &= ~PRINTER_STATUS_PRINTING;
+                displayIcon(ICON_NULL); // Disable the printing icon
+            }
+            else {
+                printerStatus |= PRINTER_STATUS_REQUESTED;
+                printerStatus |= PRINTER_STATUS_PRINTING;
+                printerStatus &= ~PRINTER_STATUS_READY;
+                printerSaveFile();
+            }
+        }
+    }
 }
 
-u8 bmpHeader[] = { // Contains header data & palettes
-        0x42, 0x4d, 0x50, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46, 0x00, 0x00, 0x00, 0x28, 0x00,
-        0x00, 0x00, 0x14, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x04, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x0a, 0x00, 0x00, 0x00, 0x12, 0x0b, 0x00, 0x00, 0x12, 0x0b, 0x00, 0x00, 0x04, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x55, 0x55, 0x55, 0x55, 0xaa, 0xaa,
-        0xaa, 0xaa, 0xff, 0xff, 0xff, 0xff
-};
+// Can be invoked by the game (command 1)
+void GameboyPrinter::resetGbPrinter() {
+    printerStatus = 0;
+    printerGfxIndex = 0;
+    memset(printerGfx, 0, sizeof(printerGfx));
+    printCounter = 0;
+}
+
+void GameboyPrinter::printerSendVariableLenData(u8 dat) {
+    switch(printerCmd) {
+
+        case 0x2: // Print
+            switch(printerCmd2Index) {
+                case 0: // Unknown (0x01)
+                    break;
+                case 1: // Margins
+                    lastPrinterMargins = printerMargins;
+                    printerMargins = dat;
+                    break;
+                case 2: // Palette
+                    printerPalette = dat;
+                    break;
+                case 3: // Exposure / brightness
+                    printerExposure = dat;
+                    break;
+            }
+            printerCmd2Index++;
+            break;
+
+        case 0x4: // Fill buffer
+            if(printerGfxIndex < PRINTER_WIDTH * PRINTER_HEIGHT / 4) {
+                printerGfx[printerGfxIndex++] = dat;
+            }
+            break;
+    }
+}
 
 // Save the image as a 4bpp bitmap
-void printerSaveFile() {
+void GameboyPrinter::printerSaveFile() {
     displayIcon(ICON_PRINTER);
 
     // if "appending" is true, this image will be slapped onto the old one.
@@ -287,6 +252,14 @@ void printerSaveFile() {
 
     int height = printerGfxIndex / width * 4;
     int pixelArraySize = (width * height + 1) / 2;
+
+    u8 bmpHeader[] = { // Contains header data & palettes
+            0x42, 0x4d, 0x50, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46, 0x00, 0x00, 0x00, 0x28, 0x00,
+            0x00, 0x00, 0x14, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x04, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x0a, 0x00, 0x00, 0x00, 0x12, 0x0b, 0x00, 0x00, 0x12, 0x0b, 0x00, 0x00, 0x04, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x55, 0x55, 0x55, 0x55, 0xaa, 0xaa,
+            0xaa, 0xaa, 0xff, 0xff, 0xff, 0xff
+    };
 
     // Set up the palette
     for(int i = 0; i < 4; i++) {
@@ -364,10 +337,11 @@ void printerSaveFile() {
     }
     else { // Not appending; making a file from scratch
         file = fopen(filename, "ab");
-        WRITE_32(bmpHeader + 2, sizeof(bmpHeader) + pixelArraySize);
-        WRITE_32(bmpHeader + 0x22, pixelArraySize);
-        WRITE_32(bmpHeader + 0x12, width);
-        WRITE_32(bmpHeader + 0x16, -height); // negative means it's top-to-bottom
+
+        *(u32*) (bmpHeader + 0x02) = sizeof(bmpHeader) + pixelArraySize;
+        *(u32*) (bmpHeader + 0x22) = (u32) pixelArraySize;
+        *(u32*) (bmpHeader + 0x12) = (u32) width;
+        *(u32*) (bmpHeader + 0x16) = (u32) -height;
         fwrite(bmpHeader, 1, sizeof(bmpHeader), file);
     }
 
@@ -381,22 +355,4 @@ void printerSaveFile() {
     printCounter = height; // PRINTER_STATUS_PRINTING will be unset after this many frames
     if(printCounter == 0)
         printCounter = 1;
-}
-
-void updateGbPrinter() {
-    if(printCounter != 0) {
-        printCounter--;
-        if(printCounter == 0) {
-            if(printerStatus & PRINTER_STATUS_PRINTING) {
-                printerStatus &= ~PRINTER_STATUS_PRINTING;
-                displayIcon(ICON_NULL); // Disable the printing icon
-            }
-            else {
-                printerStatus |= PRINTER_STATUS_REQUESTED;
-                printerStatus |= PRINTER_STATUS_PRINTING;
-                printerStatus &= ~PRINTER_STATUS_READY;
-                printerSaveFile();
-            }
-        }
-    }
 }

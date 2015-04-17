@@ -6,6 +6,7 @@
 
 #include "time.h"
 #include "gbgfx.h"
+#include "gbprinter.h"
 
 #include <ctrcommon/types.hpp>
 
@@ -135,6 +136,8 @@ public:
 
     inline bool isDoubleSpeed() { return doubleSpeed; }
 
+    inline GameboyPrinter* getGameboyPrinter() { return gameboyPrinter; }
+
     inline CheatEngine* getCheatEngine() { return cheatEngine; }
 
     inline SoundEngine* getSoundEngine() { return soundEngine; }
@@ -177,6 +180,8 @@ public:
 private:
     volatile bool gameboyPaused;
     bool resettingGameboy;
+
+    GameboyPrinter* gameboyPrinter;
 
     CheatEngine* cheatEngine;
     SoundEngine* soundEngine;
