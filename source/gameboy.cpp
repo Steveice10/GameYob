@@ -7,11 +7,8 @@
 #include "cheats.h"
 #include "gameboy.h"
 #include "manager.h"
-#include "printer.h"
-#include "gbsplayer.h"
 #include "input.h"
 #include "menu.h"
-#include "apu.h"
 #include "system.h"
 
 #include <ctrcommon/fs.hpp>
@@ -487,7 +484,6 @@ Gameboy::Gameboy() : hram(highram + 0xe00), ioRam(highram + 0xf00) {
     timeOutput = true;
 
     cyclesSinceVBlank = 0;
-    ppu->probingForBorder = false;
 
     // private
     resettingGameboy = false;
@@ -498,15 +494,15 @@ Gameboy::Gameboy() : hram(highram + 0xe00), ioRam(highram + 0xf00) {
     saveModified = false;
     autosaveStarted = false;
 
+    apu = new GameboyAPU(this);
+    ppu = new GameboyPPU(this);
+
     printer = new GameboyPrinter(this);
     gbsPlayer = new GBSPlayer(this);
 
-    ppu = new GameboyPPU(this);
-    apu = new GameboyAPU(this);
-
     cheatEngine = new CheatEngine(this);
-    if(this != gameboy)
-        apu->mute();
+
+    ppu->probingForBorder = false;
 }
 
 Gameboy::~Gameboy() {
