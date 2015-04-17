@@ -96,13 +96,8 @@ int Gameboy::handleInterrupts(unsigned int interruptTriggered) {
 
     ime = 0;
 
-#ifdef SPEEDHAX
-    quickWrite(--g_gbRegs.sp.w, g_gbRegs.pc.b.h);
-    quickWrite(--g_gbRegs.sp.w, g_gbRegs.pc.b.l);
-#else
     writeMemory(--g_gbRegs.sp.w, g_gbRegs.pc.b.h);
     writeMemory(--g_gbRegs.sp.w, g_gbRegs.pc.b.l);
-#endif
 
     /* __builtin_ffs returns the first bit set plus one */
     int irqNo = __builtin_ffs(interruptTriggered) - 1;
@@ -362,42 +357,22 @@ int Gameboy::runOpcode(int cycles) {
                 break;
             }
             case 0xF5:        // PUSH AF
-#ifdef SPEEDHAX
-                quickWrite(--locSP, g_gbRegs.af.b.h);
-                quickWrite(--locSP, locF);
-#else
                 writeMemory(--locSP, g_gbRegs.af.b.h);
                 writeMemory(--locSP, locF);
-#endif
                 break;
                 // Some games use the stack in exotic ways.
                 // Better to use writeMemory than writeMemory.
             case 0xC5:        // PUSH BC			16
-#ifdef SPEEDHAX
-                quickWrite(--locSP, g_gbRegs.bc.b.h);
-                quickWrite(--locSP, g_gbRegs.bc.b.l);
-#else
                 writeMemory(--locSP, g_gbRegs.bc.b.h);
                 writeMemory(--locSP, g_gbRegs.bc.b.l);
-#endif
                 break;
             case 0xD5:        // PUSH de			16
-#ifdef SPEEDHAX
-                quickWrite(--locSP, g_gbRegs.de.b.h);
-                quickWrite(--locSP, g_gbRegs.de.b.l);
-#else
                 writeMemory(--locSP, g_gbRegs.de.b.h);
                 writeMemory(--locSP, g_gbRegs.de.b.l);
-#endif
                 break;
             case 0xE5:        // PUSH hl			16
-#ifdef SPEEDHAX
-                quickWrite(--locSP, g_gbRegs.hl.b.h);
-                quickWrite(--locSP, g_gbRegs.hl.b.l);
-#else
                 writeMemory(--locSP, g_gbRegs.hl.b.h);
                 writeMemory(--locSP, g_gbRegs.hl.b.l);
-#endif
                 break;
             case 0xF1:        // POP AF				12
                 locF = quickRead(locSP++) & 0xF0;

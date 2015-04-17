@@ -487,7 +487,6 @@ Gameboy::Gameboy() : hram(highram + 0xe00), ioRam(highram + 0xf00) {
 
     externRam = NULL;
     saveModified = false;
-    numSaveWrites = 0;
     autosaveStarted = false;
 
     cheatEngine = new CheatEngine(this);
@@ -1299,36 +1298,6 @@ int Gameboy::loadSave(int saveId) {
             break;
     }
 
-    // Get the save file's sectors on the sd card.
-    // I do this by writing a byte, then finding the area of the cache marked dirty.
-
-#ifdef DS
-    if (autoSavingEnabled) {
-        flushFatCache();
-        devoptab_t* devops = (devoptab_t*)GetDeviceOpTab ("sd");
-        PARTITION* partition = (PARTITION*)devops->deviceData;
-        CACHE* cache = partition->cache;
-
-        memset(saveFileSectors, -1, sizeof(saveFileSectors));
-        for (int i=0; i<numRamBanks*0x2000/512; i++) {
-            file_seek(saveFile, i*512, SEEK_SET);
-            file_putc(externRam[i*512], saveFile);
-            bool found=false;
-            for (int j=0; j<FAT_CACHE_SIZE; j++) {
-                if (cache->cacheEntries[j].dirty) {
-                    saveFileSectors[i] = cache->cacheEntries[j].sector + (i%(cache->sectorsPerPage));
-                    cache->cacheEntries[j].dirty = false;
-                    found = true;
-                    break;
-                }
-            }
-            if (!found) {
-                printLog("couldn't find save file sector\n");
-            }
-        }
-    }
-#endif
-
     return 0;
 }
 
@@ -1347,8 +1316,6 @@ int Gameboy::saveGame() {
             break;
     }
 
-    systemFlushFatCache();
-
     return 0;
 }
 
@@ -1356,7 +1323,6 @@ void Gameboy::gameboySyncAutosave() {
     if(!autosaveStarted)
         return;
 
-    numSaveWrites = 0;
     wroteToSramThisFrame = false;
 
     int numSectors = 0;
@@ -1365,26 +1331,14 @@ void Gameboy::gameboySyncAutosave() {
         if(dirtySectors[i]) {
             dirtySectors[i] = false;
 
-            // If only 1 bank, it seems more efficient to write multiple sectors 
-            // at once - at least, on the Acekard 2i.
-            if(numRamBanks == 1) {
-                writeSaveFileSectors(i / 8 * 8, 8);
-                for(int j = i; j < (i / 8 * 8) + 8; j++)
-                    dirtySectors[j] = false;
-            }
-            else {
-                // For bigger saves, writing one sector at a time seems to work better.
-                writeSaveFileSectors(i, 1);
-                numSectors++;
-            }
+            fseek(saveFile, i * 512, SEEK_SET);
+            fwrite(&externRam[i * 512], 1, 512, saveFile);
         }
     }
 
     if(consoleDebugOutput) {
         printf("SAVE %d sectors\n", numSectors);
     }
-
-    systemFlushFatCache(); // This should do nothing, unless the RTC was written to.
 
     framesSinceAutosaveStarted = 0;
     autosaveStarted = false;

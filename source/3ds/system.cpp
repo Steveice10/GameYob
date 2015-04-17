@@ -109,6 +109,3 @@ void systemDisableSleepMode() {
 
 void systemEnableSleepMode() {
 }
-
-void systemFlushFatCache() {
-}

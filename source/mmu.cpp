@@ -41,13 +41,8 @@ void Gameboy::writeSram(u16 addr, u8 val) {
     if(externRam[pos] != val) {
         externRam[pos] = val;
         if(autoSavingEnabled) {
-            /*
-            fseek(saveFile, currentRamBank*0x2000+addr, SEEK_SET);
-            fputc(val, saveFile);
-            */
             saveModified = true;
             dirtySectors[pos / 512] = true;
-            numSaveWrites++;
         }
     }
 }
@@ -130,9 +125,6 @@ u16 Gameboy::readMemory16(u16 addr) {
 }
 
 u8 Gameboy::readIO(u8 ioReg) {
-#ifdef SPEEDHAX
-    return ioRam[ioReg];
-#else
     switch(ioReg) {
         case 0x00:
             return sgbReadP1();
@@ -243,9 +235,6 @@ void Gameboy::writeIO(u8 ioReg, u8 val) {
                 sgbHandleP1(val);
             else {
                 ioRam[0x00] = val;
-#ifdef SPEEDHAX
-                refreshP1();
-#endif
             }
             return;
         case 0x01:
@@ -559,20 +548,4 @@ bool Gameboy::updateHBlankDMA() {
     }
     else
         return false;
-}
-
-// This bypasses libfat's cache to directly write a single sector of the save 
-// file. This reduces lag.
-void Gameboy::writeSaveFileSectors(int startSector, int numSectors) {
-#ifdef DS
-    if (saveFileSectors[startSector] == -1) {
-        flushFatCache();
-        return;
-    }
-    devoptab_t* devops = (devoptab_t*)GetDeviceOpTab ("sd");
-    PARTITION* partition = (PARTITION*)devops->deviceData;
-    CACHE* cache = partition->cache;
-
-	_FAT_disc_writeSectors(cache->disc, saveFileSectors[startSector], numSectors, externRam+startSector*512);
-#endif
 }

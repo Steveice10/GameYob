@@ -244,7 +244,6 @@ public:
 
     bool updateHBlankDMA();
     void latchClock();
-    void writeSaveFileSectors(int startSector, int numSectors);
 
     inline int getNumRamBanks() { return numRamBanks; }
 
@@ -288,7 +287,6 @@ public:
 
     bool saveModified;
     bool dirtySectors[MAX_SRAM_SIZE / 512];
-    int numSaveWrites;
     bool autosaveStarted;
 
     int rumbleValue;

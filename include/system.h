@@ -3,8 +3,6 @@
 #include <stdarg.h>
 #include <stdio.h>
 
-#define FAT_CACHE_SIZE 16
-
 extern char borderPath[256];
 
 bool systemInit();
@@ -19,5 +17,3 @@ void systemCheckRunning();
 
 void systemDisableSleepMode();
 void systemEnableSleepMode();
-
-void systemFlushFatCache();
