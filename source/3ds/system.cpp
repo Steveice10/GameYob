@@ -4,8 +4,8 @@
 
 #include "config.h"
 #include "system.h"
-#include "gbgfx.h"
-#include "gbmanager.h"
+#include "ppu.h"
+#include "manager.h"
 #include "gfx.h"
 #include "menu.h"
 

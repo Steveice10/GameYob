@@ -7,7 +7,7 @@
 
 #include "config.h"
 #include "input.h"
-#include "gbgfx.h"
+#include "ppu.h"
 #include "menu.h"
 #include "filechooser.h"
 #include "gameboy.h"

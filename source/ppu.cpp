@@ -7,7 +7,7 @@
 #include <string.h>
 
 #include "gameboy.h"
-#include "gbgfx.h"
+#include "ppu.h"
 #include "gfx.h"
 #include "menu.h"
 

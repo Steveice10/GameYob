@@ -1,5 +1,5 @@
 #include "config.h"
-#include "gbgfx.h"
+#include "ppu.h"
 #include "input.h"
 
 #include <3ds.h>

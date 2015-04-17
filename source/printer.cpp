@@ -3,7 +3,7 @@
 #include <string.h>
 #include <unistd.h>
 
-#include "gbprinter.h"
+#include "printer.h"
 #include "gameboy.h"
 #include "menu.h"
 #include "romfile.h"

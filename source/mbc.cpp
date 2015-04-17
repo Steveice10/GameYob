@@ -1,6 +1,6 @@
 #include "system.h"
 #include "gameboy.h"
-#include "gbmanager.h"
+#include "manager.h"
 #include "input.h"
 #include "menu.h"
 #include "romfile.h"

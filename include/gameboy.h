@@ -4,10 +4,9 @@
 #include <vector>
 #include <stdarg.h>
 
-#include "time.h"
-#include "gbgfx.h"
-#include "gbprinter.h"
 #include "gbsplayer.h"
+#include "ppu.h"
+#include "printer.h"
 
 #include <ctrcommon/types.hpp>
 

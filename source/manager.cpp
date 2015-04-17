@@ -2,7 +2,7 @@
 
 #include "filechooser.h"
 #include "gameboy.h"
-#include "gbmanager.h"
+#include "manager.h"
 #include "gbsplayer.h"
 #include "input.h"
 #include "menu.h"
