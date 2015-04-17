@@ -28,7 +28,7 @@ public:
     void updateSound(int cycles);
 
     void setSoundEventCycles(int cycles); // Should be moved out of here
-    void soundUpdateVBlank();
+    void soundUpdate();
     void handleSoundRegister(u8 ioReg, u8 val);
 
     int cyclesToSoundEvent;

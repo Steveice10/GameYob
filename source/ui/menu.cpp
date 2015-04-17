@@ -73,6 +73,7 @@ void suspendFunc(int value) {
         printMenuMessage("Saving SRAM...");
         mgrSave();
     }
+
     printMenuMessage("Saving state...");
     gameboy->saveState(-1);
     printMessage[0] = '\0';
@@ -86,6 +87,7 @@ void exitFunc(int value) {
         printMenuMessage("Saving SRAM...");
         mgrSave();
     }
+
     printMessage[0] = '\0';
     closeMenu();
     mgrSelectRom();

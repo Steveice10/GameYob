@@ -60,8 +60,7 @@ void systemExit() {
 void systemRun() {
     mgrSelectRom();
     while(true) {
-        mgrRunFrame();
-        mgrUpdateVBlank();
+        mgrRun();
     }
 }
 

@@ -22,23 +22,11 @@ void mgrInit() {
     lastRawTime = rawTime;
 }
 
-void mgrRunFrame() {
-    int ret1 = 0;
+void mgrExit() {
+    if(gameboy)
+        delete gameboy;
 
-    bool paused = false;
-    while(!paused && !(ret1 & RET_VBLANK)) {
-        paused = false;
-        if(gameboy && gameboy->isGameboyPaused())
-            paused = true;
-        if(!paused) {
-            if(gameboy) {
-                if(!(ret1 & RET_VBLANK))
-                    ret1 |= gameboy->runEmul();
-            }
-            else
-                ret1 |= RET_VBLANK;
-        }
-    }
+    gameboy = NULL;
 }
 
 void mgrLoadRom(const char* filename) {
@@ -124,26 +112,48 @@ void mgrSelectRom() {
 }
 
 void mgrSave() {
-    if(gameboy)
+    if(gameboy) {
         gameboy->saveGame();
+    }
 }
 
-void mgrUpdateVBlank() {
-    gameboy->getPPU()->drawScreen();
-
+void mgrRun() {
     systemCheckRunning();
 
-    if(gameboy && !gameboy->isGameboyPaused())
-        gameboy->getAPU()->soundUpdateVBlank();
+    int ret = 0;
+    bool paused = false;
+    while(!paused && !(ret & RET_VBLANK)) {
+        paused = false;
+        if(gameboy && gameboy->isGameboyPaused()) {
+            paused = true;
+        }
+
+        if(!paused) {
+            if(gameboy) {
+                if(!(ret & RET_VBLANK)) {
+                    ret |= gameboy->runEmul();
+                }
+            } else {
+                ret |= RET_VBLANK;
+            }
+        }
+    }
+
+    gameboy->getPPU()->drawScreen();
+
+    if(gameboy && !gameboy->isGameboyPaused()) {
+        gameboy->getAPU()->soundUpdate();
+    }
 
     inputUpdate();
 
-    if(isMenuOn())
+    if(isMenuOn()) {
         updateMenu();
-    else {
+    } else {
         gameboy->gameboyCheckInput();
-        if(gameboy->getGBSPlayer()->gbsMode)
+        if(gameboy->getGBSPlayer()->gbsMode) {
             gameboy->getGBSPlayer()->gbsCheckInput();
+        }
     }
 
     time(&rawTime);
@@ -185,11 +195,4 @@ void mgrUpdateVBlank() {
         fps = 0;
         lastRawTime = rawTime;
     }
-}
-
-void mgrExit() {
-    if(gameboy)
-        delete gameboy;
-
-    gameboy = NULL;
 }

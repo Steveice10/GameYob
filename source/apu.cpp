@@ -2479,7 +2479,7 @@ void GameboyAPU::setSoundEventCycles(int cycles) {
     }
 }
 
-void GameboyAPU::soundUpdateVBlank() {
+void GameboyAPU::soundUpdate() {
 }
 
 void GameboyAPU::handleSoundRegister(u8 ioReg, u8 val) {
