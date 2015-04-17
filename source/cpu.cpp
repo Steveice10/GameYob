@@ -23,6 +23,22 @@
 
 #define carryBit()    (locF & 0x10 ? 1 : 0)
 
+#define setPC(val) { g_gbRegs.pc.w = (val); pcAddr = &memory[(g_gbRegs.pc.w)>>12][(g_gbRegs.pc.w)&0xfff]; firstPcAddr=pcAddr;}
+#define getPC() (g_gbRegs.pc.w+(pcAddr-firstPcAddr))
+#define readPC() *(pcAddr++)
+#define readPC_noinc() (*pcAddr)
+#define readPC16() ((*pcAddr) | ((*(pcAddr+1))<<8)); pcAddr += 2
+#define readPC16_noinc() ((*pcAddr) | ((*(pcAddr+1))<<8))
+
+#define OP_JR(cond)  \
+                if (cond) { \
+                    setPC((getPC()+(s8)readPC_noinc()+1)&0xffff); \
+                } \
+                else { \
+                    pcAddr++; \
+                    totalCycles -= 4; \
+                }
+
 const u8 opCycles[0x100] = {
                 /* Low nybble -> */
                 /* High nybble v */
@@ -68,6 +84,17 @@ const u8 CBopCycles[0x100] = {
                 /* FX */   8, 8, 8, 8, 8, 8, 16, 8, 8, 8, 8, 8, 8, 8, 16, 8
         };
 
+const u8 reg8Offsets[] = {
+        offsetof(struct Registers, bc.b.h),
+        offsetof(struct Registers, bc.b.l),
+        offsetof(struct Registers, de.b.h),
+        offsetof(struct Registers, de.b.l),
+        offsetof(struct Registers, hl.b.h),
+        offsetof(struct Registers, hl.b.l),
+        0,
+        offsetof(struct Registers, af.b.h)
+};
+
 void Gameboy::initCPU() {
     gbRegs.sp.w = 0xFFFE;
     gbRegs.pc.w = 0x100;
@@ -109,38 +136,6 @@ int Gameboy::handleInterrupts(unsigned int interruptTriggered) {
     /* The interrupt prologue takes 20 cycles, take it into account */
     return 20;
 }
-
-const u8 reg8Offsets[] = {
-                offsetof(struct Registers, bc.b.h),
-                offsetof(struct Registers, bc.b.l),
-                offsetof(struct Registers, de.b.h),
-                offsetof(struct Registers, de.b.l),
-                offsetof(struct Registers, hl.b.h),
-                offsetof(struct Registers, hl.b.l),
-                0,
-                offsetof(struct Registers, af.b.h)
-        };
-
-#define setPC(val) { g_gbRegs.pc.w = (val); pcAddr = &memory[(g_gbRegs.pc.w)>>12][(g_gbRegs.pc.w)&0xfff]; firstPcAddr=pcAddr;}
-#define getPC() (g_gbRegs.pc.w+(pcAddr-firstPcAddr))
-#define readPC() *(pcAddr++)
-#define readPC_noinc() (*pcAddr)
-#define readPC16() ((*pcAddr) | ((*(pcAddr+1))<<8)); pcAddr += 2
-#define readPC16_noinc() ((*pcAddr) | ((*(pcAddr+1))<<8))
-
-#define OP_JR(cond)  \
-                if (cond) { \
-                    setPC((getPC()+(s8)readPC_noinc()+1)&0xffff); \
-                } \
-                else { \
-                    pcAddr++; \
-                    totalCycles -= 4; \
-                }
-
-struct Registers g_gbRegs;
-int cyclesToExecute;
-u8* haltBugAddr = NULL;
-u8* firstPcAddr;
 
 int Gameboy::runOpcode(int cycles) {
     cyclesToExecute = cycles;

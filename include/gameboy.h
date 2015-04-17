@@ -211,9 +211,14 @@ public:
     // Currently unused because this can actually overwrite the rom, in rare cases
     inline void quickWrite(u16 addr, u8 val) { memory[addr >> 12][addr & 0xFFF] = val; }
 
+private:
+    struct Registers g_gbRegs;
+    u8* haltBugAddr = NULL;
+    u8* firstPcAddr;
 
     // mmu.cpp
 
+public:
     void initMMU();
     void mapMemory();
 
@@ -442,5 +447,3 @@ const mbcWrite mbcWrites[] = {
 };
 
 extern Gameboy* gameboy;
-
-extern struct Registers g_gbRegs;

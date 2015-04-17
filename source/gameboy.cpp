@@ -27,6 +27,8 @@
 #define GB_UP 0x40
 #define GB_DOWN 0x80
 
+#define MAX_WAIT_CYCLES 1000000
+
 #define TO5BIT(c8) (((c8) * 0x1F * 2 + 0xFF) / (0xFF * 2))
 #define TOCGB(r, g, b) (TO5BIT(b) << 10 | TO5BIT(g) << 5 | TO5BIT(r))
 
@@ -476,8 +478,6 @@ static const unsigned short* findPalette(const char* title) {
     return NULL;
 }
 
-const int maxWaitCycles = 1000000;
-
 Gameboy::Gameboy() : hram(highram + 0xe00), ioRam(highram + 0xf00) {
     saveFile = NULL;
 
@@ -854,7 +854,7 @@ int Gameboy::runEmul() {
 
         cycles += extraCycles;
 
-        cyclesToEvent = maxWaitCycles;
+        cyclesToEvent = MAX_WAIT_CYCLES;
         extraCycles = 0;
 
         cyclesSinceVBlank += cycles;
