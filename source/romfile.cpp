@@ -1,13 +1,12 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include "input.h"
 
+#include "platform/input.h"
+#include "platform/system.h"
 #include "cheats.h"
 #include "gameboy.h"
-#include "gbsplayer.h"
 #include "menu.h"
-#include "system.h"
 
 #ifdef EMBEDDED_ROM
 #include "rom_gb.h"

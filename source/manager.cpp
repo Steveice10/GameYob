@@ -1,14 +1,11 @@
 #include <stdlib.h>
 
+#include "platform/input.h"
+#include "platform/system.h"
 #include "filechooser.h"
 #include "gameboy.h"
 #include "manager.h"
-#include "gbsplayer.h"
-#include "input.h"
 #include "menu.h"
-#include "romfile.h"
-#include "apu.h"
-#include "system.h"
 
 Gameboy* gameboy = NULL;
 

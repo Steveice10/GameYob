@@ -1,8 +1,7 @@
 #include <string.h>
 
-#include "audio.h"
+#include "platform/audio.h"
 #include "gameboy.h"
-#include "apu.h"
 
 #include <ctrcommon/sound.hpp>
 

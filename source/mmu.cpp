@@ -1,11 +1,8 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "system.h"
 #include "gameboy.h"
 #include "menu.h"
-#include "romfile.h"
-#include "apu.h"
 
 #define refreshVramBank() { \
     memory[0x8] = vram[vramBank]; \

@@ -1,7 +1,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "system.h"
+#include "platform/system.h"
 #include "gameboy.h"
 #include "menu.h"
 

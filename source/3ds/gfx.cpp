@@ -1,6 +1,6 @@
+#include "platform/input.h"
 #include "config.h"
 #include "gameboy.h"
-#include "input.h"
 
 #include <3ds.h>
 
@@ -125,8 +125,7 @@ void gfxDrawScreen(int gameScreen, int scaleMode) {
 
     // Update the texture with the new frame.
     TextureFilter filter = gameboy->getPPU()->scaleFilter == 1 ? FILTER_LINEAR : FILTER_NEAREST;
-    gpuTextureData(texture, screenBuffer, 256, 256, PIXEL_RGB8, 256, 256, PIXEL_RGB8,
-                   TEXTURE_MIN_FILTER(filter) | TEXTURE_MAG_FILTER(filter));
+    gpuTextureData(texture, screenBuffer, 256, 256, PIXEL_RGB8, 256, 256, PIXEL_RGB8, TEXTURE_MIN_FILTER(filter) | TEXTURE_MAG_FILTER(filter));
 
     // Draw the VBO.
     gpuClear();

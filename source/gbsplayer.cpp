@@ -1,13 +1,10 @@
 // GBS files contain music ripped from a game.
 #include <stdio.h>
 
+#include "platform/input.h"
+#include "platform/system.h"
 #include "config.h"
 #include "gameboy.h"
-#include "gbsplayer.h"
-#include "input.h"
-#include "romfile.h"
-#include "apu.h"
-#include "system.h"
 
 GBSPlayer::GBSPlayer(Gameboy* gb) {
     this->gameboy = gb;

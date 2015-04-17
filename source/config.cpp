@@ -5,13 +5,12 @@
 
 #include <vector>
 
+#include "platform/input.h"
 #include "config.h"
-#include "input.h"
 #include "ppu.h"
 #include "menu.h"
 #include "filechooser.h"
 #include "gameboy.h"
-#include "cheats.h"
 
 #include <ctrcommon/input.hpp>
 

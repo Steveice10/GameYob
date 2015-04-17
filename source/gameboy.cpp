@@ -3,17 +3,17 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "platform/gfx.h"
+#include "platform/input.h"
+#include "platform/system.h"
 #include "config.h"
 #include "cheats.h"
 #include "gameboy.h"
 #include "manager.h"
-#include "input.h"
 #include "menu.h"
-#include "system.h"
 
 #include <ctrcommon/fs.hpp>
 #include <ctrcommon/input.hpp>
-#include <gfx.h>
 
 #define GB_A 0x01
 #define GB_B 0x02

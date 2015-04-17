@@ -2,12 +2,12 @@
 #include <stdlib.h>
 #include <malloc.h>
 
+#include "platform/gfx.h"
+#include "platform/system.h"
 #include "config.h"
-#include "system.h"
 #include "ppu.h"
 #include "manager.h"
 #include "gameboy.h"
-#include "gfx.h"
 #include "menu.h"
 
 #include <3ds.h>

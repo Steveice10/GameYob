@@ -4,16 +4,13 @@
 
 #include <string>
 
+#include "platform/input.h"
+#include "platform/system.h"
 #include "cheats.h"
 #include "config.h"
 #include "gameboy.h"
 #include "manager.h"
-#include "printer.h"
-#include "gbsplayer.h"
-#include "input.h"
 #include "menu.h"
-#include "apu.h"
-#include "system.h"
 
 const int MENU_NONE = 1;
 const int MENU_3DS = 2;

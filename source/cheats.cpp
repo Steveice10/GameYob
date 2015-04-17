@@ -2,10 +2,10 @@
 #include <algorithm>
 #include <sys/stat.h>
 
+#include "platform/input.h"
 #include "cheats.h"
 #include "config.h"
 #include "gameboy.h"
-#include "input.h"
 #include "menu.h"
 
 #define TO_INT(a) ( (a) >= 'a' ? (a) - 'a' + 10 : (a) >= 'A' ? (a) - 'A' + 10 : (a) - '0')

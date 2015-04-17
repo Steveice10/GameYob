@@ -1,7 +1,6 @@
-#include "audio.h"
+#include "platform/audio.h"
 #include "gameboy.h"
 #include "menu.h"
-#include "apu.h"
 
 // 127 bytes
 u8 lfsr7NoiseSample[] = {

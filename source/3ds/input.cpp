@@ -1,7 +1,7 @@
 #include <stdlib.h>
 
-#include "gfx.h"
-#include "input.h"
+#include "platform/gfx.h"
+#include "platform/input.h"
 #include "menu.h"
 
 #include <3ds.h>
