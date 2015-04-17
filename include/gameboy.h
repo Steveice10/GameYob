@@ -146,6 +146,9 @@ public:
 
     int doubleSpeed;
 
+    // whether the bios is mapped to memory
+    bool biosOn;
+
     int gbMode;
     bool sgbMode;
 

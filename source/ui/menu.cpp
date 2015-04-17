@@ -54,6 +54,8 @@ void (* subMenuUpdateFunc)();
 bool fpsOutput = false;
 bool timeOutput = false;
 
+int biosEnabled = false;
+
 extern int halt;
 
 
@@ -218,6 +220,10 @@ void sgbModeFunc(int value) {
     sgbModeOption = value;
 }
 
+void biosEnableFunc(int value) {
+    biosEnabled = value;
+}
+
 void setScreenFunc(int value) {
     gameScreen = value;
     systemUpdateConsole();
@@ -251,7 +257,7 @@ void setScaleFilterFunc(int value) {
 
 void gbColorizeFunc(int value) {
     gbColorize = value;
-    if(gameboy->getRomFile() != NULL) {
+    if(gameboy->getRomFile() != NULL && gameboy->gbMode == GB) {
         gameboy->initGFXPalette();
         gameboy->getPPU()->refreshPPU();
     }
@@ -395,8 +401,9 @@ SubMenu menuList[] = {
         },
         {
                 "GB Modes",
-                3,
+                4,
                 {
+                        {"GBC Bios", biosEnableFunc, 2, {"Off", "On"}, 1, MENU_ALL},
                         {"Detect GBA", gbaModeFunc, 2, {"Off", "On"}, 0, MENU_ALL},
                         {"GBC Mode", gameboyModeFunc, 3, {"Off", "If Needed", "On"}, 2, MENU_ALL},
                         {"SGB Mode", sgbModeFunc, 3, {"Off", "Prefer GBC", "Prefer SGB"}, 0, MENU_ALL}

@@ -1,8 +1,9 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "ui/config.h"
+#include "ui/manager.h"
 #include "ui/menu.h"
-#include "gameboy.h"
 
 #define refreshVramBank() { \
     memory[0x8] = vram[vramBank]; \
@@ -103,11 +104,17 @@ void Gameboy::initMMU() {
 
     memset(dirtySectors, 0, sizeof(dirtySectors));
 
-    initGameboyMode();
+    if(!biosOn)
+        initGameboyMode();
 }
 
 void Gameboy::mapMemory() {
-    memory[0x0] = romFile->romSlot0;
+    if(biosOn) {
+        memory[0x0] = romFile->bios;
+    } else {
+        memory[0x0] = romFile->romSlot0;
+    }
+
     memory[0x1] = romFile->romSlot0 + 0x1000;
     memory[0x2] = romFile->romSlot0 + 0x2000;
     memory[0x3] = romFile->romSlot0 + 0x3000;

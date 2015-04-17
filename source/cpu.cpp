@@ -97,9 +97,15 @@ const u8 reg8Offsets[] = {
 
 void Gameboy::initCPU() {
     gbRegs.sp.w = 0xFFFE;
-    gbRegs.pc.w = 0x100;
     ime = 1;            // Correct default value?
     halt = 0;
+
+    if(biosOn) {
+        gbRegs.pc.w = 0;
+        gbMode = CGB;
+    } else {
+        gbRegs.pc.w = 0x100;
+    }
 }
 
 void Gameboy::enableInterrupts() {

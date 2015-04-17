@@ -34,6 +34,8 @@ public:
 
     char* getRomTitle();
 
+    void loadBios(const char* filename);
+
     inline int getNumRomBanks() { return numRomBanks; }
 
     inline int getCgbFlag() { return romSlot0[0x143]; }
@@ -48,6 +50,9 @@ public:
 
     u8* romSlot0;
     u8* romSlot1;
+
+    bool hasBios = false;
+    u8 bios[0x900];
 
 private:
     Gameboy* gameboy;

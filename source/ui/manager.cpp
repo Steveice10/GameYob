@@ -82,6 +82,12 @@ void mgrLoadRom(const char* filename) {
             disableMenuOption("Exit without saving");
     }
 
+    if(gameboy->getRomFile()->hasBios) {
+        enableMenuOption("GBC Bios");
+    } else {
+        disableMenuOption("GBC Bios");
+    }
+
     if(gameboy->getRomFile()->getMBC() == MBC7) {
         enableMenuOption("Accelerometer Pad");
     } else {

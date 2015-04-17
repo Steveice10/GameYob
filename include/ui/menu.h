@@ -22,6 +22,8 @@ extern int scaleFilter;
 extern bool fpsOutput;
 extern bool timeOutput;
 
+extern int biosEnabled;
+
 void setMenuDefaults();
 
 void displayMenu();

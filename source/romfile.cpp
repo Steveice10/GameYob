@@ -2,11 +2,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "platform/input.h"
 #include "platform/system.h"
-#include "ui/cheats.h"
+#include "ui/config.h"
+#include "ui/manager.h"
 #include "ui/menu.h"
-#include "gameboy.h"
 
 #ifdef EMBEDDED_ROM
 #include "rom_gb.h"
@@ -176,6 +175,9 @@ RomFile::RomFile(Gameboy* gb, const char* f) {
         }
     }
 
+    loadBios(biosPath);
+    gameboy->biosOn = hasBios && !gameboy->getPPU()->probingForBorder && !gameboy->getGBSPlayer()->gbsMode && biosEnabled == 1;
+
 #ifndef EMBEDDED_ROM
     // If we've loaded everything, close the rom file
     if(numRomBanks <= numLoadedRomBanks) {
@@ -213,6 +215,8 @@ void RomFile::loadRomBank(int romBank) {
     gameboy->getCheatEngine()->applyGGCheatsToBank(romBank);
 
     romSlot1 = romBankSlots + slot * 0x4000;
+
+    loadBios(biosPath);
 }
 
 bool RomFile::isRomBankLoaded(int bank) {
@@ -231,4 +235,20 @@ const char* RomFile::getBasename() {
 
 char* RomFile::getRomTitle() {
     return romTitle;
+}
+
+void RomFile::loadBios(const char* filename) {
+    if(!hasBios) {
+        FILE* file = fopen(filename, "rb");
+        hasBios = file != NULL;
+        if(hasBios) {
+            fread(bios, 1, 0x900, file);
+            fclose(file);
+        }
+    }
+
+    // Little hack to preserve "quickread" from gbcpu.cpp.
+    for(int i = 0x100; i < 0x150; i++) {
+        bios[i] = romSlot0[i];
+    }
 }

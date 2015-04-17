@@ -7,7 +7,7 @@
 #include "platform/input.h"
 #include "platform/system.h"
 #include "ui/config.h"
-
+#include "ui/manager.h"
 #include "ui/menu.h"
 #include "gameboy.h"
 
@@ -662,9 +662,8 @@ void Gameboy::initGameboyMode() {
         case 0: // GB
             gbRegs.af.b.h = 0x01;
             gbMode = GB;
-            if(romFile->romSlot0[0x143] == 0x80 || romFile->romSlot0[0x143] == 0xC0)
-                // Init the palette in case it was overwritten, since it
-                // assumed it was starting in GBC mode.
+            if(romFile->romSlot0[0x143] == 0x80 || romFile->romSlot0[0x143] == 0xC0 || biosOn)
+                // Init the palette in case it was overwritten.
                 initGFXPalette();
             break;
         case 1: // GBC
@@ -1392,7 +1391,7 @@ struct StateStruct {
     // sram
     Registers regs;
     int halt, ime;
-    bool doubleSpeed, deprecated_biosOn;
+    bool doubleSpeed, biosOn;
     int gbMode;
     int romBank, ramBank, wramBank, vramBank;
     int memoryModel;
@@ -1437,6 +1436,7 @@ void Gameboy::saveState(int stateNum) {
     state.halt = halt;
     state.ime = ime;
     state.doubleSpeed = doubleSpeed;
+    state.biosOn = biosOn;
     state.gbMode = gbMode;
     state.romBank = romBank;
     state.ramBank = currentRamBank;
@@ -1566,6 +1566,9 @@ int Gameboy::loadState(int stateNum) {
     halt = state.halt;
     ime = state.ime;
     doubleSpeed = state.doubleSpeed;
+    biosOn = state.biosOn;
+    if(!romFile->hasBios)
+        biosOn = false;
     gbMode = state.gbMode;
     romBank = state.romBank;
     currentRamBank = state.ramBank;

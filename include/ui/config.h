@@ -32,6 +32,7 @@ enum {
     NUM_MENU_KEYS,
 };
 
+extern char biosPath[256];
 
 bool readConfigFile();
 void writeConfigFile();
