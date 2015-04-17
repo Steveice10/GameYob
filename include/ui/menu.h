@@ -12,7 +12,7 @@ extern bool customBordersEnabled;
 extern bool sgbBordersEnabled;
 extern bool autoSavingEnabled;
 extern bool printerEnabled;
-extern int singleScreenMode;
+extern int pauseOnMenu;
 extern int stateNum;
 extern int gameScreen;
 extern bool accelPadMode;

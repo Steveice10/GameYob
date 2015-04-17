@@ -27,7 +27,7 @@ int menu = 0;
 int option = -1;
 char printMessage[33];
 int gameScreen = 0;
-int singleScreenMode = 0;
+int pauseOnMenu = 0;
 int stateNum = 0;
 
 int gbcModeOption = 0;
@@ -221,16 +221,13 @@ void setScreenFunc(int value) {
     systemUpdateConsole();
 }
 
-void setSingleScreenFunc(int value) {
-    if(value != singleScreenMode) {
-        singleScreenMode = value;
-        if(singleScreenMode)
+void setPauseOnMenuFunc(int value) {
+    if(value != pauseOnMenu) {
+        pauseOnMenu = value;
+        if(pauseOnMenu) {
             gameboy->pause();
-
-        if(isMenuOn()) {
-            // Swap game screen
-            // This will invoke systemUpdateConsole, incidentally.
-            setMenuOption("Game Screen", !gameScreen);
+        } else {
+            gameboy->unpause();
         }
     }
 }
@@ -373,13 +370,14 @@ SubMenu menuList[] = {
         },
         {
                 "Settings",
-                6,
+                7,
                 {
                         {"Button Mapping", keyConfigFunc, 0, {}, 0, MENU_ALL},
                         {"Manage Cheats", cheatFunc, 0, {}, 0, MENU_ALL},
                         {"Console Output", consoleOutputFunc, 4, {"Off", "Time", "FPS+Time", "Debug"}, 0, MENU_ALL},
                         {"GB Printer", printerEnableFunc, 2, {"Off", "On"}, 1, MENU_ALL},
                         {"Autosaving", setAutoSaveFunc, 2, {"Off", "On"}, 1, MENU_ALL},
+                        {"Pause on Menu", setPauseOnMenuFunc, 2, {"Off", "On"}, 0, MENU_ALL},
                         {"Save Settings", saveSettingsFunc, 0, {}, 0, MENU_ALL}
                 }
         },
@@ -388,7 +386,6 @@ SubMenu menuList[] = {
                 7,
                 {
                         {"Game Screen", setScreenFunc, 2, {"Top", "Bottom"}, 0, MENU_ALL},
-                        {"Single Screen", setSingleScreenFunc, 2, {"Off", "On"}, 0, MENU_ALL},
                         {"Scaling", setScaleModeFunc, 3, {"Off", "Aspect", "Full"}, 0, MENU_ALL},
                         {"Scale Filter", setScaleFilterFunc, 2, {"Off", "On"}, 1, MENU_ALL},
                         {"Colorize GB", gbColorizeFunc, 13, {"Off", "Auto", "Inverted", "Pastel Mix", "Red", "Orange", "Yellow", "Green", "Blue", "Brown", "Dark Green", "Dark Blue", "Dark Brown"}, 1, MENU_ALL},

@@ -11,7 +11,6 @@
 static u8* screenBuffer = (u8*) gpuAlloc(256 * 256 * 3);
 
 static int prevScaleMode = -1;
-static int prevScaleFilter = -1;
 static int prevGameScreen = -1;
 
 static bool fastForward = false;

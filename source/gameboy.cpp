@@ -766,8 +766,9 @@ void Gameboy::gameboyCheckInput() {
     }
 
     if(inputKeyPressed(mapFuncKey(FUNC_KEY_MENU) | mapFuncKey(FUNC_KEY_MENU_PAUSE) | BUTTON_TOUCH) && !accelPadMode) {
-        if(singleScreenMode || inputKeyPressed(mapFuncKey(FUNC_KEY_MENU_PAUSE)))
+        if(pauseOnMenu || inputKeyPressed(mapFuncKey(FUNC_KEY_MENU_PAUSE))) {
             pause();
+        }
 
         inputKeyRelease(0xffffffff);
         gfxSetFastForward(false);
