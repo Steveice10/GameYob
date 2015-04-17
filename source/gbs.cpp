@@ -6,25 +6,12 @@
 #include "gbs.h"
 #include "input.h"
 #include "romfile.h"
-#include "sound.h"
+#include "soundengine.h"
 #include "system.h"
-
-#define READ16(src) (*(src) | *(src+1)<<8)
-
-bool gbsMode;
-u8 gbsHeader[0x70];
-
-u8 gbsNumSongs;
-u16 gbsLoadAddress;
-u16 gbsInitAddress;
-u16 gbsPlayAddress;
-
-u8 gbsSelectedSong;
-int gbsPlayingSong;
 
 // private
 
-void gbsRedraw() {
+void GameboySound::gbsRedraw() {
     //consoleClear();
 
     printf("\33[0;0H"); // Cursor to upper-left corner
@@ -48,12 +35,12 @@ void gbsRedraw() {
     }
 }
 
-void gbsLoadSong() {
+void GameboySound::gbsLoadSong() {
     u8* romSlot0 = gameboy->getRomFile()->getRomBank(0);
     gameboy->initMMU();
     gameboy->ime = 0;
 
-    gameboy->gbRegs.sp.w = READ16(gbsHeader + 0x0c);
+    gameboy->gbRegs.sp.w = (*(gbsHeader + 0x0c) | *(gbsHeader + 0x0c+1)<<8);
     u8 tma = gbsHeader[0x0e];
     u8 tac = gbsHeader[0x0f];
 
@@ -90,14 +77,14 @@ void gbsLoadSong() {
 
 // public
 
-void gbsReadHeader() {
+void GameboySound::gbsReadHeader() {
     gbsNumSongs = gbsHeader[0x04];
-    gbsLoadAddress = READ16(gbsHeader + 0x06);
-    gbsInitAddress = READ16(gbsHeader + 0x08);
-    gbsPlayAddress = READ16(gbsHeader + 0x0a);
+    gbsLoadAddress = (*(gbsHeader + 0x06) | *(gbsHeader + 0x06+1)<<8);
+    gbsInitAddress = (*(gbsHeader + 0x08) | *(gbsHeader + 0x08+1)<<8);
+    gbsPlayAddress = (*(gbsHeader + 0x0a) | *(gbsHeader + 0x0a+1)<<8);
 }
 
-void gbsInit() {
+void GameboySound::gbsInit() {
     u8* romSlot0 = gameboy->getRomFile()->getRomBank(0);
 
     u8 firstSong = gbsHeader[0x05] - 1;
@@ -126,7 +113,7 @@ void gbsInit() {
 }
 
 // Called at vblank each frame
-void gbsCheckInput() {
+void GameboySound::gbsCheckInput() {
     if(inputKeyRepeat(mapMenuKey(MENU_KEY_LEFT))) {
         if(gbsSelectedSong == 0)
             gbsSelectedSong = gbsNumSongs - 1;

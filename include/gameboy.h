@@ -7,6 +7,7 @@
 #include "time.h"
 #include "gbgfx.h"
 #include "gbprinter.h"
+#include "gbs.h"
 
 #include <ctrcommon/types.hpp>
 
@@ -138,6 +139,8 @@ public:
 
     inline GameboyPrinter* getGameboyPrinter() { return gameboyPrinter; }
 
+    inline GameboySound* getGameboySound() { return gameboySound; }
+
     inline CheatEngine* getCheatEngine() { return cheatEngine; }
 
     inline SoundEngine* getSoundEngine() { return soundEngine; }
@@ -182,6 +185,7 @@ private:
     bool resettingGameboy;
 
     GameboyPrinter* gameboyPrinter;
+    GameboySound* gameboySound;
 
     CheatEngine* cheatEngine;
     SoundEngine* soundEngine;

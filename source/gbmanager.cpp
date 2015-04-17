@@ -7,7 +7,7 @@
 #include "input.h"
 #include "menu.h"
 #include "romfile.h"
-#include "sound.h"
+#include "soundengine.h"
 #include "system.h"
 
 Gameboy* gameboy = NULL;
@@ -69,7 +69,7 @@ void mgrLoadRom(const char* filename) {
 
     gameboy->init();
 
-    if(gbsMode) {
+    if(gameboy->getGameboySound()->gbsMode) {
         disableMenuOption("State Slot");
         disableMenuOption("Save State");
         disableMenuOption("Load State");
@@ -155,8 +155,8 @@ void mgrUpdateVBlank() {
         updateMenu();
     else {
         gameboy->gameboyCheckInput();
-        if(gbsMode)
-            gbsCheckInput();
+        if(gameboy->getGameboySound()->gbsMode)
+            gameboy->getGameboySound()->gbsCheckInput();
     }
 
     time(&rawTime);

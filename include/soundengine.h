@@ -7,6 +7,8 @@ class Gameboy;
 #define CHAN_3 4
 #define CHAN_4 8
 
+#define CYCLES_UNTIL_SAMPLE (0x54)
+
 class SoundEngine {
 public:
     SoundEngine(Gameboy* g);
@@ -17,6 +19,9 @@ public:
     void refresh();
     void mute();
     void unmute();
+
+    void enableChannel(int i);
+    void disableChannel(int i);
 
     void updateSound(int cycles);
 
@@ -71,13 +76,9 @@ private:
 
     int cyclesUntilSample;
 
+    bool chanEnabled[4] = {true, true, true, true};
+
     bool muted;
 
     Gameboy* gameboy;
 };
-
-// Global functions
-void muteSND();
-void unmuteSND();
-void enableChannel(int i);
-void disableChannel(int i);

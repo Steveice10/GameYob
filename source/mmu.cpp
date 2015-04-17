@@ -5,7 +5,7 @@
 #include "gameboy.h"
 #include "menu.h"
 #include "romfile.h"
-#include "sound.h"
+#include "soundengine.h"
 
 #define refreshVramBank() { \
     memory[0x8] = vram[vramBank]; \

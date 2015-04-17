@@ -35,7 +35,7 @@ RomFile::RomFile(const char* f) {
     romBankSlots = (u8*) malloc(maxLoadedRomBanks * 0x4000);
 
     // Check if this is a GBS file
-    gbsMode = (strcasecmp(strrchr(filename, '.'), ".gbs") == 0);
+    gameboy->getGameboySound()->gbsMode = (strcasecmp(strrchr(filename, '.'), ".gbs") == 0);
 
     romFile = fopen(filename, "rb");
     if(romFile == NULL) {
@@ -46,9 +46,9 @@ RomFile::RomFile(const char* f) {
         }
     }
 
-    if(gbsMode) {
-        fread(gbsHeader, 1, 0x70, romFile);
-        gbsReadHeader();
+    if(gameboy->getGameboySound()->gbsMode) {
+        fread(gameboy->getGameboySound()->gbsHeader, 1, 0x70, romFile);
+        gameboy->getGameboySound()->gbsReadHeader();
         fseek(romFile, 0, SEEK_END);
         numRomBanks = (ftell(romFile) - 0x70 + 0x3fff) / 0x4000; // Get number of banks, rounded up
         printf("%.2x\n", numRomBanks);
@@ -78,10 +78,10 @@ RomFile::RomFile(const char* f) {
     // Load rom banks and initialize all those "bank" arrays
     lastBanksUsed = std::vector<int>();
     // Read bank 0
-    if(gbsMode) {
+    if(gameboy->getGameboySound()->gbsMode) {
         bankSlotIDs[0] = 0;
         fseek(romFile, 0x70, SEEK_SET);
-        fread(romBankSlots + gbsLoadAddress, 1, 0x4000 - gbsLoadAddress, romFile);
+        fread(romBankSlots + gameboy->getGameboySound()->gbsLoadAddress, 1, 0x4000 - gameboy->getGameboySound()->gbsLoadAddress, romFile);
     }
     else {
         bankSlotIDs[0] = 0;
@@ -113,7 +113,7 @@ RomFile::RomFile(const char* f) {
         romTitle[i] = (char) romSlot0[i + 0x134];
     romTitle[nameLength] = '\0';
 
-    if(gbsMode) {
+    if(gameboy->getGameboySound()->gbsMode) {
         MBC = MBC5;
     }
     else {
@@ -175,8 +175,7 @@ RomFile::RomFile(const char* f) {
                 MBC = MBC5;
                 break;
         }
-
-    } // !gbsMode
+    }
 
 #ifndef EMBEDDED_ROM
     // If we've loaded everything, close the rom file

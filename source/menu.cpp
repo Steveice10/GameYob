@@ -12,7 +12,7 @@
 #include "gbs.h"
 #include "input.h"
 #include "menu.h"
-#include "sound.h"
+#include "soundengine.h"
 #include "system.h"
 
 const int MENU_NONE = 1;
@@ -66,7 +66,7 @@ void subMenuGenericUpdateFunc() {
 // Functions corresponding to menu options
 
 void suspendFunc(int value) {
-    muteSND();
+    gameboy->getSoundEngine()->mute();
     if(!autoSavingEnabled && gameboy->getNumRamBanks()) {
         printMenuMessage("Saving SRAM...");
         mgrSave();
@@ -79,7 +79,7 @@ void suspendFunc(int value) {
 }
 
 void exitFunc(int value) {
-    muteSND();
+    gameboy->getSoundEngine()->mute();
     if(!autoSavingEnabled && gameboy->getNumRamBanks()) {
         printMenuMessage("Saving SRAM...");
         mgrSave();
@@ -90,7 +90,7 @@ void exitFunc(int value) {
 }
 
 void exitNoSaveFunc(int value) {
-    muteSND();
+    gameboy->getSoundEngine()->mute();
     closeMenu();
     mgrSelectRom();
 }
@@ -140,10 +140,10 @@ void keyConfigFunc(int value) {
 
 void saveSettingsFunc(int value) {
     printMenuMessage("Saving settings...");
-    muteSND();
+    gameboy->getSoundEngine()->mute();
     writeConfigFile();
     if(!gameboy->isGameboyPaused())
-        unmuteSND();
+        gameboy->getSoundEngine()->unmute();
     printMenuMessage("Settings saved.");
 }
 
@@ -161,10 +161,10 @@ void stateSelectFunc(int value) {
 
 void stateSaveFunc(int value) {
     printMenuMessage("Saving state...");
-    muteSND();
+    gameboy->getSoundEngine()->mute();
     gameboy->saveState(stateNum);
     if(!gameboy->isGameboyPaused())
-        unmuteSND();
+        gameboy->getSoundEngine()->unmute();
     printMenuMessage("State saved.");
     // Will activate the other state options
     stateSelectFunc(stateNum);
@@ -172,7 +172,7 @@ void stateSaveFunc(int value) {
 
 void stateLoadFunc(int value) {
     printMenuMessage("Loading state...");
-    muteSND();
+    gameboy->getSoundEngine()->mute();
     if(gameboy->loadState(stateNum) == 0) {
         closeMenu();
         systemUpdateConsole();
@@ -181,12 +181,12 @@ void stateLoadFunc(int value) {
 }
 
 void stateDeleteFunc(int value) {
-    muteSND();
+    gameboy->getSoundEngine()->mute();
     gameboy->deleteState(stateNum);
     // Will grey out the other state options
     stateSelectFunc(stateNum);
     if(!gameboy->isGameboyPaused())
-        unmuteSND();
+        gameboy->getSoundEngine()->unmute();
 }
 
 void accelPadFunc(int value) {
@@ -289,9 +289,9 @@ void versionInfoFunc(int value) {
 
 void setChanEnabled(int chan, int value) {
     if(value == 0)
-        disableChannel(chan);
+        gameboy->getSoundEngine()->disableChannel(chan);
     else
-        enableChannel(chan);
+        gameboy->getSoundEngine()->enableChannel(chan);
 }
 
 void chan1Func(int value) {
@@ -311,7 +311,7 @@ void chan4Func(int value) {
 }
 
 void setAutoSaveFunc(int value) {
-    muteSND();
+    gameboy->getSoundEngine()->mute();
     if(autoSavingEnabled) {
         gameboy->gameboySyncAutosave();
     } else {
@@ -319,14 +319,14 @@ void setAutoSaveFunc(int value) {
     }
 
     autoSavingEnabled = value;
-    if(gameboy->isRomLoaded() && gameboy->getNumRamBanks() && !gbsMode && !autoSavingEnabled) {
+    if(gameboy->isRomLoaded() && gameboy->getNumRamBanks() && !gameboy->getGameboySound()->gbsMode && !autoSavingEnabled) {
         enableMenuOption("Exit without saving");
     } else {
         disableMenuOption("Exit without saving");
     }
 
     if(!gameboy->isGameboyPaused()) {
-        unmuteSND();
+        gameboy->getSoundEngine()->unmute();
     }
 }
 

@@ -2,14 +2,24 @@
 
 #include <ctrcommon/types.hpp>
 
-extern bool gbsMode;
-extern u8 gbsHeader[0x70];
+class GameboySound {
+public:
+    bool gbsMode;
+    u8 gbsHeader[0x70];
 
-extern u8 gbsNumSongs;
-extern u16 gbsLoadAddress;
-extern u16 gbsInitAddress;
-extern u16 gbsPlayAddress;
+    u8 gbsNumSongs;
+    u16 gbsLoadAddress;
+    u16 gbsInitAddress;
+    u16 gbsPlayAddress;
 
-void gbsReadHeader();
-void gbsInit();
-void gbsCheckInput();
+    void gbsInit();
+    void gbsReadHeader();
+    void gbsCheckInput();
+
+private:
+    u8 gbsSelectedSong;
+    int gbsPlayingSong;
+
+    void gbsRedraw();
+    void gbsLoadSong();
+};
