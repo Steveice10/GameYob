@@ -6,11 +6,11 @@
 #include <vector>
 
 #include "platform/input.h"
-#include "config.h"
-#include "ppu.h"
-#include "menu.h"
-#include "filechooser.h"
+#include "ui/config.h"
+#include "ui/filechooser.h"
+#include "ui/menu.h"
 #include "gameboy.h"
+#include "ppu.h"
 
 #include <ctrcommon/input.hpp>
 

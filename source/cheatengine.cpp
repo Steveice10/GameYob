@@ -1,12 +1,11 @@
-#include <string.h>
-#include <algorithm>
 #include <sys/stat.h>
+#include <string.h>
 
-#include "platform/input.h"
-#include "cheats.h"
-#include "config.h"
+#include <algorithm>
+
+#include "ui/menu.h"
+#include "cheatengine.h"
 #include "gameboy.h"
-#include "menu.h"
 
 #define TO_INT(a) ( (a) >= 'a' ? (a) - 'a' + 10 : (a) >= 'A' ? (a) - 'A' + 10 : (a) - '0')
 
@@ -128,11 +127,7 @@ void CheatEngine::applyGGCheatsToBank(int bank) {
             int bankSlot = cheats[i].address / 0x4000;
             if((bankSlot == 0 && bank == 0) || (bankSlot == 1 && bank != 0)) {
                 int address = cheats[i].address & 0x3fff;
-                if(((cheats[i].flags & CHEAT_FLAG_TYPE_MASK) == CHEAT_FLAG_GAMEGENIE1 ||
-                    bankPtr[address] == cheats[i].compare) &&
-                   find(cheats[i].patchedBanks.begin(), cheats[i].patchedBanks.end(), bank) ==
-                   cheats[i].patchedBanks.end()) {
-
+                if(((cheats[i].flags & CHEAT_FLAG_TYPE_MASK) == CHEAT_FLAG_GAMEGENIE1 || bankPtr[address] == cheats[i].compare) && std::find(cheats[i].patchedBanks.begin(), cheats[i].patchedBanks.end(), bank) == cheats[i].patchedBanks.end()) {
                     cheats[i].patchedBanks.push_back(bank);
                     cheats[i].patchedValues.push_back(bankPtr[address]);
                     bankPtr[address] = cheats[i].data;
@@ -225,110 +220,4 @@ void CheatEngine::saveCheats(const char* filename) {
         fprintf(file, "%s %d%s\n", cheats[i].cheatString, !!(cheats[i].flags & CHEAT_FLAG_ENABLED), cheats[i].name);
     }
     fclose(file);
-}
-
-// Menu code
-
-const int cheatsPerPage = 18;
-int cheatMenuSelection = 0;
-bool cheatMenu_gameboyWasPaused;
-CheatEngine* ch; // cheat engine to display the menu for
-
-void redrawCheatMenu() {
-    int numCheats = ch->getNumCheats();
-
-    int numPages = (numCheats - 1) / cheatsPerPage + 1;
-
-    int page = cheatMenuSelection / cheatsPerPage;
-
-    iprintf("\x1b[2J");
-
-    printf("          Cheat Menu      ");
-    printf("%d/%d\n\n", page + 1, numPages);
-    for(int i = page * cheatsPerPage; i < numCheats && i < (page + 1) * cheatsPerPage; i++) {
-        std::string nameColor = (cheatMenuSelection == i ? "\x1b[1m\x1b[33m" : "");
-        printf((nameColor + ch->cheats[i].name + "\x1b[0m").c_str());
-        for(unsigned int j = 0; j < 25 - strlen(ch->cheats[i].name); j++)
-            printf(" ");
-        if(ch->isCheatEnabled(i)) {
-            if(cheatMenuSelection == i) {
-                printf("\x1b[1m\x1b[33m* \x1b[0m");
-                printf("\x1b[1m\x1b[32mOn\x1b[0m");
-                printf("\x1b[1m\x1b[33m * \x1b[0m");
-            } else {
-                printf("  On   ");
-            }
-        }
-        else {
-            if(cheatMenuSelection == i) {
-                printf("\x1b[1m\x1b[33m* \x1b[0m");
-                printf("\x1b[1m\x1b[32mOff\x1b[0m");
-                printf("\x1b[1m\x1b[33m *\x1b[0m");
-            } else {
-                printf("  Off  ");
-            }
-        }
-    }
-
-}
-
-void updateCheatMenu() {
-    bool redraw = false;
-    int numCheats = ch->getNumCheats();
-
-    if(cheatMenuSelection >= numCheats) {
-        cheatMenuSelection = 0;
-    }
-
-    if(inputKeyRepeat(mapMenuKey(MENU_KEY_UP))) {
-        if(cheatMenuSelection > 0) {
-            cheatMenuSelection--;
-            redraw = true;
-        }
-    }
-    else if(inputKeyRepeat(mapMenuKey(MENU_KEY_DOWN))) {
-        if(cheatMenuSelection < numCheats - 1) {
-            cheatMenuSelection++;
-            redraw = true;
-        }
-    }
-    else if(inputKeyPressed(mapMenuKey(MENU_KEY_RIGHT)) |
-            inputKeyPressed(mapMenuKey(MENU_KEY_LEFT))) {
-        ch->toggleCheat(cheatMenuSelection, !ch->isCheatEnabled(cheatMenuSelection));
-        redraw = true;
-    }
-    else if(inputKeyPressed(mapMenuKey(MENU_KEY_R))) {
-        cheatMenuSelection += cheatsPerPage;
-        if(cheatMenuSelection >= numCheats)
-            cheatMenuSelection = 0;
-        redraw = true;
-    }
-    else if(inputKeyPressed(mapMenuKey(MENU_KEY_L))) {
-        cheatMenuSelection -= cheatsPerPage;
-        if(cheatMenuSelection < 0)
-            cheatMenuSelection = numCheats - 1;
-        redraw = true;
-    }
-    if(inputKeyPressed(mapMenuKey(MENU_KEY_B))) {
-        closeSubMenu();
-        if(!cheatMenu_gameboyWasPaused)
-            gameboy->unpause();
-    }
-
-    if(redraw)
-        redrawCheatMenu();
-}
-
-bool startCheatMenu() {
-    ch = gameboy->getCheatEngine();
-
-    if(ch == NULL || ch->getNumCheats() == 0)
-        return false;
-
-    cheatMenu_gameboyWasPaused = gameboy->isGameboyPaused();
-    gameboy->pause();
-    displaySubMenu(updateCheatMenu);
-    redrawCheatMenu();
-
-    return true;
 }

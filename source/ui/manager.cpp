@@ -2,10 +2,10 @@
 
 #include "platform/input.h"
 #include "platform/system.h"
-#include "filechooser.h"
+#include "ui/filechooser.h"
+#include "ui/manager.h"
+#include "ui/menu.h"
 #include "gameboy.h"
-#include "manager.h"
-#include "menu.h"
 
 Gameboy* gameboy = NULL;
 

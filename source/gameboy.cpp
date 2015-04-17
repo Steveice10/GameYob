@@ -6,11 +6,11 @@
 #include "platform/gfx.h"
 #include "platform/input.h"
 #include "platform/system.h"
-#include "config.h"
-#include "cheats.h"
+#include "ui/config.h"
+#include "ui/cheats.h"
+#include "ui/manager.h"
+#include "ui/menu.h"
 #include "gameboy.h"
-#include "manager.h"
-#include "menu.h"
 
 #include <ctrcommon/fs.hpp>
 #include <ctrcommon/input.hpp>

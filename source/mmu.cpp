@@ -1,8 +1,8 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "ui/menu.h"
 #include "gameboy.h"
-#include "menu.h"
 
 #define refreshVramBank() { \
     memory[0x8] = vram[vramBank]; \

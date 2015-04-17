@@ -1,9 +1,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "platform/system.h"
 #include "gameboy.h"
-#include "menu.h"
 
 #define sgbPalettes (vram[1])
 #define sgbAttrFiles (vram[1]+0x1000)
@@ -130,10 +128,6 @@ void Gameboy::setBackdrop(u16 val) {
 
 void Gameboy::sgbLoadAttrFile(int index) {
     if(index > 0x2c) {
-        if(consoleDebugOutput) {
-            printf("Bad Attr %x\n", index);
-        }
-
         return;
     }
     //printLog("Load Attr %x\n", index);

@@ -1,7 +1,6 @@
 #include "platform/input.h"
-#include "config.h"
-#include "gameboy.h"
-#include "menu.h"
+#include "ui/config.h"
+#include "ui/menu.h"
 
 #include <3ds.h>
 

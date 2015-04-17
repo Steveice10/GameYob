@@ -3,7 +3,7 @@
 
 #include "platform/input.h"
 #include "platform/system.h"
-#include "config.h"
+#include "ui/config.h"
 #include "gameboy.h"
 
 GBSPlayer::GBSPlayer(Gameboy* gb) {

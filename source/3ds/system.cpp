@@ -4,11 +4,10 @@
 
 #include "platform/gfx.h"
 #include "platform/system.h"
-#include "config.h"
-#include "ppu.h"
-#include "manager.h"
+#include "ui/config.h"
+#include "ui/manager.h"
+#include "ui/menu.h"
 #include "gameboy.h"
-#include "menu.h"
 
 #include <3ds.h>
 #include <ctrcommon/platform.hpp>

@@ -2,7 +2,7 @@
 
 #include "platform/gfx.h"
 #include "platform/input.h"
-#include "menu.h"
+#include "ui/menu.h"
 
 #include <3ds.h>
 

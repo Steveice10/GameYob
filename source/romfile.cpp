@@ -4,9 +4,9 @@
 
 #include "platform/input.h"
 #include "platform/system.h"
-#include "cheats.h"
+#include "ui/cheats.h"
+#include "ui/menu.h"
 #include "gameboy.h"
-#include "menu.h"
 
 #ifdef EMBEDDED_ROM
 #include "rom_gb.h"

@@ -8,8 +8,8 @@
 #include "platform/gfx.h"
 #include "platform/input.h"
 #include "platform/system.h"
-#include "config.h"
-#include "filechooser.h"
+#include "ui/config.h"
+#include "ui/filechooser.h"
 
 #include <ctrcommon/fs.hpp>
 

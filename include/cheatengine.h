@@ -1,12 +1,8 @@
 #pragma once
 
-#include <vector>
-
 #include "romfile.h"
 
 #include <ctrcommon/types.hpp>
-
-class Gameboy;
 
 #define MAX_CHEAT_NAME_LEN  24
 #define MAX_CHEATS      900
@@ -66,6 +62,3 @@ private:
     Gameboy* gameboy;
     RomFile* romFile;
 };
-
-bool startCheatMenu();
-void redrawCheatMenu();

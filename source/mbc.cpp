@@ -1,8 +1,8 @@
 #include "platform/input.h"
 #include "platform/system.h"
+#include "ui/manager.h"
+#include "ui/menu.h"
 #include "gameboy.h"
-#include "manager.h"
-#include "menu.h"
 
 /* MBC read handlers */
 

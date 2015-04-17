@@ -5,7 +5,7 @@
 #include <stdarg.h>
 
 #include "apu.h"
-#include "cheats.h"
+#include "cheatengine.h"
 #include "gbsplayer.h"
 #include "ppu.h"
 #include "printer.h"

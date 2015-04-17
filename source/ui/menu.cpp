@@ -6,11 +6,11 @@
 
 #include "platform/input.h"
 #include "platform/system.h"
-#include "cheats.h"
-#include "config.h"
+#include "ui/cheats.h"
+#include "ui/config.h"
+#include "ui/manager.h"
+#include "ui/menu.h"
 #include "gameboy.h"
-#include "manager.h"
-#include "menu.h"
 
 const int MENU_NONE = 1;
 const int MENU_3DS = 2;

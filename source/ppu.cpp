@@ -7,8 +7,8 @@
 #include <string.h>
 
 #include "platform/gfx.h"
+#include "ui/menu.h"
 #include "gameboy.h"
-#include "menu.h"
 
 #define RGB24(r, g, b) ((r) << 16 | (g) << 8 | (b))
 
