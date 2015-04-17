@@ -315,8 +315,8 @@ void Gameboy::m7w(u16 addr, u8 val) {
                 if(!oldCs && mbc7Cs) {
                     if(mbc7State == 5) {
                         if(mbc7WriteEnable) {
-                            *(externRam + mbc7Addr * 2) = (u8) (mbc7Buffer >> 8);
-                            *(externRam + mbc7Addr * 2 + 1) = (u8) (mbc7Buffer & 0xff);
+                            writeSram((u16) (mbc7Addr * 2), (u8) (mbc7Buffer >> 8));
+                            writeSram((u16) (mbc7Addr * 2 + 1), (u8) (mbc7Buffer & 0xff));
                         }
 
                         mbc7State = 0;
@@ -378,16 +378,18 @@ void Gameboy::m7w(u16 addr, u8 val) {
                                             } else if((mbc7Addr >> 6) == 1) {
                                                 if(mbc7WriteEnable) {
                                                     for(int i = 0; i < 256; i++) {
-                                                        *(externRam + i * 2) = (u8) (mbc7Buffer >> 8);
-                                                        *(externRam + i * 2) = (u8) (mbc7Buffer & 0xff);
+                                                        writeSram((u16) (i * 2), (u8) (mbc7Buffer >> 8));
+                                                        writeSram((u16) (i * 2 + 1), (u8) (mbc7Buffer & 0xff));
                                                     }
                                                 }
 
                                                 mbc7State = 5;
                                             } else if((mbc7Addr >> 6) == 2) {
                                                 if(mbc7WriteEnable) {
-                                                    for(int i = 0; i < 256; i++)
-                                                        *(u16*) (externRam + i * 2) = 0xffff;
+                                                    for(int i = 0; i < 256; i++) {
+                                                        writeSram((u16) (i * 2), 0xff);
+                                                        writeSram((u16) (i * 2 + 1), 0xff);
+                                                    }
                                                 }
 
                                                 mbc7State = 5;
