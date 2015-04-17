@@ -877,7 +877,6 @@ int Gameboy::runEmul() {
                 serialCounter = 0;
                 if(linkedGameboy != NULL) {
                     linkedGameboy->cycleToSerialTransfer = cyclesSinceVBlank;
-                    mgr_setInternalClockGb(this);
                     emuRet |= RET_LINK;
                     // Execution will stop here, and this gameboy's SB will be 
                     // updated when the other gameboy runs to the appropriate 

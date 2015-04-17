@@ -34,7 +34,7 @@ bool systemInit() {
     consoleSelect(bottomConsole);
     currConsole = GFX_BOTTOM;
 
-    mgr_init();
+    mgrInit();
 
     setMenuDefaults();
     readConfigFile();
@@ -45,8 +45,8 @@ bool systemInit() {
 }
 
 void systemExit() {
-    mgr_save();
-    mgr_exit();
+    mgrSave();
+    mgrExit();
 
     free(topConsole);
     free(bottomConsole);
@@ -58,10 +58,10 @@ void systemExit() {
 }
 
 void systemRun() {
-    mgr_selectRom();
+    mgrSelectRom();
     while(true) {
-        mgr_runFrame();
-        mgr_updateVBlank();
+        mgrRunFrame();
+        mgrUpdateVBlank();
     }
 }
 

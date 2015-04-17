@@ -25,78 +25,33 @@ int fps = 0;
 time_t rawTime;
 time_t lastRawTime;
 
-void mgr_init() {
+void mgrInit() {
     gameboy = new Gameboy();
-    gbUno = gameboy;
 
     rawTime = 0;
     lastRawTime = rawTime;
 }
 
-void mgr_runFrame() {
-    int ret1 = 0, ret2 = 0;
+void mgrRunFrame() {
+    int ret1 = 0;
 
     bool paused = false;
-    while(!paused && !((ret1 & RET_VBLANK) && (ret2 & RET_VBLANK))) {
+    while(!paused && !(ret1 & RET_VBLANK)) {
         paused = false;
-        if(gbUno && gbUno->isGameboyPaused())
-            paused = true;
-        if(gbDuo && gbDuo->isGameboyPaused())
+        if(gameboy && gameboy->isGameboyPaused())
             paused = true;
         if(!paused) {
-            if(gbUno) {
+            if(gameboy) {
                 if(!(ret1 & RET_VBLANK))
-                    ret1 |= gbUno->runEmul();
+                    ret1 |= gameboy->runEmul();
             }
             else
                 ret1 |= RET_VBLANK;
-
-            if(gbDuo) {
-                if(!(ret2 & RET_VBLANK))
-                    ret2 |= gbDuo->runEmul();
-            }
-            else
-                ret2 |= RET_VBLANK;
         }
     }
 }
 
-void mgr_startGb2(const char* filename) {
-    if(gb2 == NULL)
-        gb2 = new Gameboy();
-    gb2->setRomFile(gameboy->getRomFile());
-    gb2->loadSave(-1);
-    gb2->init();
-    gb2->getSoundEngine()->mute();
-
-    gameboy->linkedGameboy = gb2;
-    gb2->linkedGameboy = gameboy;
-
-    gbDuo = gb2;
-}
-
-void mgr_swapFocus() {
-    if(gb2) {
-        Gameboy* tmp = gameboy;
-        gameboy = gb2;
-        gb2 = tmp;
-
-        gb2->getSoundEngine()->mute();
-        gameboy->getSoundEngine()->refresh();
-
-        refreshGFX();
-    }
-}
-
-void mgr_setInternalClockGb(Gameboy* g) {
-    gbUno = g;
-    if(g == gameboy)
-        gbDuo = gb2;
-    else
-        gbDuo = gameboy;
-}
-
-void mgr_loadRom(const char* filename) {
+void mgrLoadRom(const char* filename) {
     if(romFile != NULL)
         delete romFile;
 
@@ -151,14 +106,6 @@ void mgr_loadRom(const char* filename) {
 void mgr_unloadRom() {
     gameboy->unloadRom();
     gameboy->linkedGameboy = NULL;
-    gbUno = gameboy;
-
-    if(gb2) {
-        gb2->unloadRom();
-        delete gb2;
-        gb2 = NULL;
-        gbDuo = NULL;
-    }
 
     if(romFile != NULL) {
         delete romFile;
@@ -166,7 +113,7 @@ void mgr_unloadRom() {
     }
 }
 
-void mgr_selectRom() {
+void mgrSelectRom() {
     mgr_unloadRom();
 
     loadFileChooserState(&romChooserState);
@@ -182,21 +129,19 @@ void mgr_selectRom() {
         }
     }
 
-    mgr_loadRom(filename);
+    mgrLoadRom(filename);
 
     free(filename);
 
     systemUpdateConsole();
 }
 
-void mgr_save() {
+void mgrSave() {
     if(gameboy)
         gameboy->saveGame();
-    if(gb2)
-        gb2->saveGame();
 }
 
-void mgr_updateVBlank() {
+void mgrUpdateVBlank() {
     drawScreen();
 
     systemCheckRunning();
@@ -227,15 +172,12 @@ void mgr_updateVBlank() {
     }
 }
 
-void mgr_exit() {
+void mgrExit() {
     if(gameboy)
         delete gameboy;
-    if(gb2)
-        delete gb2;
     if(romFile)
         delete romFile;
 
     gameboy = 0;
-    gb2 = 0;
     romFile = 0;
 }

@@ -177,7 +177,6 @@ u8 Gameboy::readIO(u8 ioReg) {
         default:
             return ioRam[ioReg];
     }
-#endif
 }
 
 u8 Gameboy::readMemoryOther(u16 addr) {

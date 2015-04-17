@@ -28,7 +28,6 @@ int filesPerPage = 24;
 int numFiles;
 int scrollY = 0;
 int fileSelection = 0;
-bool fileChooserOn = false;
 string matchFile;
 
 string currDirectory = "/";
@@ -217,7 +216,6 @@ char* startFileChooser(const char* extensions[], bool romExtensions, bool canQui
     if(canQuit)
         filesPerPage--;
 
-    fileChooserOn = true;
     systemUpdateConsole(); // Screen may need to be enabled
 
     int numExtensions = sizeof(extensions) / sizeof(const char*);
@@ -453,19 +451,9 @@ char* startFileChooser(const char* extensions[], bool romExtensions, bool canQui
     }
     end:
     iprintf("\x1b[2J");
-    fileChooserOn = false;
 
     return retval;
 }
-
-bool isFileChooserOn() {
-    return fileChooserOn;
-}
-
-void setFileChooserMatchFile(const char* filename) {
-    matchFile = filename;
-}
-
 
 void saveFileChooserState(FileChooserState* state) {
     state->selection = fileSelection;

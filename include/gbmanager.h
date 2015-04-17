@@ -5,21 +5,17 @@
 class Gameboy;
 
 extern Gameboy* gameboy;
-extern Gameboy* gb2;
 
 extern time_t rawTime;
 extern time_t lastRawTime;
 
-void mgr_init();
-void mgr_runFrame();
-void mgr_startGb2(const char* filename);
-void mgr_swapFocus();
-void mgr_setInternalClockGb(Gameboy* g);
+void mgrInit();
+void mgrRunFrame();
 
-void mgr_loadRom(const char* filename);
-void mgr_selectRom();
-void mgr_save();
+void mgrLoadRom(const char* filename);
+void mgrSelectRom();
+void mgrSave();
 
-void mgr_updateVBlank();
+void mgrUpdateVBlank();
 
-void mgr_exit();
+void mgrExit();

@@ -69,30 +69,30 @@ void suspendFunc(int value) {
     muteSND();
     if(!autoSavingEnabled && gameboy->getNumRamBanks()) {
         printMenuMessage("Saving SRAM...");
-        mgr_save();
+        mgrSave();
     }
     printMenuMessage("Saving state...");
     gameboy->saveState(-1);
     printMessage[0] = '\0';
     closeMenu();
-    mgr_selectRom();
+    mgrSelectRom();
 }
 
 void exitFunc(int value) {
     muteSND();
     if(!autoSavingEnabled && gameboy->getNumRamBanks()) {
         printMenuMessage("Saving SRAM...");
-        mgr_save();
+        mgrSave();
     }
     printMessage[0] = '\0';
     closeMenu();
-    mgr_selectRom();
+    mgrSelectRom();
 }
 
 void exitNoSaveFunc(int value) {
     muteSND();
     closeMenu();
-    mgr_selectRom();
+    mgrSelectRom();
 }
 
 void consoleOutputFunc(int value) {

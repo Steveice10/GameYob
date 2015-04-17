@@ -430,7 +430,7 @@ void Gameboy::sgbJump(int block) {
     // TODO
 }
 
-void Gameboy::sgbChrTrn(int blonk) {
+void Gameboy::sgbChrTrn(int block) {
     u8* data = (u8*) malloc(0x1000);
     sgbDoVramTransfer(data);
     setSgbTiles(data, sgbPacket[1]);

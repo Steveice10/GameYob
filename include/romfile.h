@@ -13,7 +13,6 @@ enum {
     MBC1,
     MBC2,
     MBC3,
-    MBC4, // Unsupported
     MBC5,
     MBC7,
     HUC1,

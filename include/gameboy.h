@@ -425,10 +425,11 @@ typedef void (Gameboy::*mbcWrite)(u16, u8);
 typedef u8   (Gameboy::*mbcRead )(u16);
 
 const mbcRead mbcReads[] = {
-        NULL, NULL, NULL, &Gameboy::m3r, NULL, NULL, &Gameboy::m7r, NULL, &Gameboy::h3r
+        NULL, NULL, NULL, &Gameboy::m3r, NULL, &Gameboy::m7r, NULL, &Gameboy::h3r
 };
+
 const mbcWrite mbcWrites[] = {
-        &Gameboy::m0w, &Gameboy::m1w, &Gameboy::m2w, &Gameboy::m3w, NULL, &Gameboy::m5w, &Gameboy::m7w, &Gameboy::h1w,
+        &Gameboy::m0w, &Gameboy::m1w, &Gameboy::m2w, &Gameboy::m3w, &Gameboy::m5w, &Gameboy::m7w, &Gameboy::h1w,
         &Gameboy::h3w
 };
 
