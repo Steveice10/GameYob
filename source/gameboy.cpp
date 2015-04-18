@@ -778,8 +778,9 @@ void Gameboy::gameboyCheckInput() {
         setMenuOption("Scaling", (getMenuOption("Scaling") + 1) % 3);
     }
 
-    if(inputKeyPressed(mapFuncKey(FUNC_KEY_RESET)))
+    if(inputKeyPressed(mapFuncKey(FUNC_KEY_RESET))) {
         resetGameboy();
+    }
 }
 
 // This is called 60 times per gameboy second, even if the lcd is off.
