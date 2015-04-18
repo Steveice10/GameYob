@@ -100,7 +100,7 @@ unsigned int gfxNextPowerOfTwo(unsigned int v) {
 void gfxLoadBorder(const char* filename) {
     if(filename == NULL) {
         if(borderTexture != 0) {
-            gpuFreeVbo(borderTexture);
+            gpuFreeTexture(borderTexture);
             borderTexture = 0;
         }
 

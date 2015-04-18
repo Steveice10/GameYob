@@ -2326,9 +2326,9 @@ void GameboyAPU::updateSound(int cycles) {
             if(chanLenCounter[2] <= 0) {
                 chanOn[2] = 0;
                 gameboy->clearSoundChannel(CHAN_3);
-            }
-            else
+            } else {
                 setSoundEventCycles(chanLenCounter[2]);
+            }
         }
     }
     if(chanOn[3]) {
@@ -2420,8 +2420,7 @@ void GameboyAPU::updateSound(int cycles) {
                     chan3WavPos = 0;
             }
 
-            static double analog[] = {-1, -0.8667, -0.7334, -0.6, -0.4668, -0.3335, -0.2, -0.067, 0.0664, 0.2, 0.333,
-                                      0.4668, 0.6, 0.7334, 0.8667, 1};
+            static double analog[] = {-1, -0.8667, -0.7334, -0.6, -0.4668, -0.3335, -0.2, -0.067, 0.0664, 0.2, 0.333, 0.4668, 0.6, 0.7334, 0.8667, 1};
 
             if(chanVol[2] >= 0) {
                 int wavTone = gameboy->ioRam[0x30 + (chan3WavPos / 2)];
@@ -2573,25 +2572,20 @@ void GameboyAPU::handleSoundRegister(u8 ioReg, u8 val) {
         case 0x1A:
             if((val & 0x80) == 0) {
                 chanOn[2] = 0;
-                gameboy->clearSoundChannel(CHAN_4);
-                //buf.clear();
-                //printf("chan3off\n");
-            }
-            else {
-                //chanOn[2] = 1;
-                //printf("chan3on?\n");
+                gameboy->clearSoundChannel(CHAN_3);
             }
             break;
             // Length
         case 0x1B:
             chanLen[2] = val;
+            chanLenCounter[2] = (256 - chanLen[2]) * clockSpeed / 256;
+            if(chanUseLen[2]) {
+                setSoundEventCycles(chanLenCounter[2]);
+            }
             break;
             // Volume
         case 0x1C:
-            if(chanVol[2] != ((val >> 5) & 3)) {
-                chanVol[2] = (val >> 5) & 3;
-                chanVol[2]--;
-            }
+            chanVol[2] = ((val >> 5) & 3) - 1;
             break;
             // Frequency (low)
         case 0x1D:
@@ -2602,18 +2596,21 @@ void GameboyAPU::handleSoundRegister(u8 ioReg, u8 val) {
         case 0x1E:
             chanFreq[2] &= 0xFF;
             chanFreq[2] |= (val & 7) << 8;
-            if((val & 0x80) && (gameboy->ioRam[0x1A] & 0x80)) {
-                //buf.clear();
-                chanOn[2] = 1;
-                chanLenCounter[2] = (256 - chanLen[2]) * clockSpeed / 256;
-                gameboy->setSoundChannel(CHAN_3);
-            }
             if(val & 0x40) {
                 chanUseLen[2] = 1;
-                //printf("useLen\n");
             }
             else {
                 chanUseLen[2] = 0;
+            }
+
+            if((val & 0x80) && (gameboy->ioRam[0x1A] & 0x80)) {
+                chanOn[2] = 1;
+                chanLenCounter[2] = (256 - chanLen[2]) * clockSpeed / 256;
+                if(chanUseLen[2]) {
+                    setSoundEventCycles(chanLenCounter[2]);
+                }
+
+                gameboy->setSoundChannel(CHAN_3);
             }
             break;
             // CHANNEL 4
@@ -2654,14 +2651,14 @@ void GameboyAPU::handleSoundRegister(u8 ioReg, u8 val) {
             SO2Vol = (val >> 4) & 0x7;
             break;
         case 0x25:
-            chanToOut1[0] = !!(val & 0x1);
-            chanToOut1[1] = !!(val & 0x2);
-            chanToOut1[2] = !!(val & 0x4);
-            chanToOut1[3] = !!(val & 0x8);
-            chanToOut2[0] = !!(val & 0x10);
-            chanToOut2[1] = !!(val & 0x20);
-            chanToOut2[2] = !!(val & 0x40);
-            chanToOut2[3] = !!(val & 0x80);
+            chanToOut1[0] = (val & 0x1);
+            chanToOut1[1] = (val & 0x2);
+            chanToOut1[2] = (val & 0x4);
+            chanToOut1[3] = (val & 0x8);
+            chanToOut2[0] = (val & 0x10);
+            chanToOut2[1] = (val & 0x20);
+            chanToOut2[2] = (val & 0x40);
+            chanToOut2[3] = (val & 0x80);
             break;
         case 0x26:
             if(!(val & 0x80)) {
