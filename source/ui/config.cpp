@@ -32,7 +32,6 @@ void generalParseConfig(char* line) {
 
         if(strcasecmp(parameter, "rompath") == 0) {
             strcpy(romPath, value);
-            romChooserState.directory = romPath;
         } else if (strcasecmp(parameter, "biosfile") == 0) {
             strcpy(biosPath, value);
         } else if(strcasecmp(parameter, "borderfile") == 0) {
@@ -200,7 +199,7 @@ KeyConfig defaultKeyConfig = {
                 FUNC_KEY_NONE,         // 17 = BUTTON_NONE
                 FUNC_KEY_NONE,         // 18 = BUTTON_NONE
                 FUNC_KEY_NONE,         // 19 = BUTTON_NONE
-                FUNC_KEY_NONE,         // 20 = BUTTON_TOUCH
+                FUNC_KEY_MENU,         // 20 = BUTTON_TOUCH
                 FUNC_KEY_NONE,         // 21 = BUTTON_NONE
                 FUNC_KEY_NONE,         // 22 = BUTTON_NONE
                 FUNC_KEY_NONE,         // 23 = BUTTON_NONE
@@ -340,11 +339,10 @@ void updateKeyConfigChooser() {
     int &option = keyConfigChooser_option;
     KeyConfig* config = &keyConfigs[selectedKeyConfig];
 
-    if(inputKeyPressed(BUTTON_B)) {
+    if(inputKeyPressed(mapMenuKey(MENU_KEY_B))) {
         loadKeyConfig();
         closeSubMenu();
-    }
-    else if(inputKeyPressed(BUTTON_X)) {
+    } else if(inputKeyPressed(mapMenuKey(MENU_KEY_X))) {
         keyConfigs.push_back(KeyConfig(*config));
         selectedKeyConfig = keyConfigs.size() - 1;
         char name[32];
@@ -352,16 +350,14 @@ void updateKeyConfigChooser() {
         strcpy(keyConfigs.back().name, name);
         option = -1;
         redraw = true;
-    }
-    else if(inputKeyPressed(BUTTON_Y)) {
+    } else if(inputKeyPressed(mapMenuKey(MENU_KEY_Y))) {
         if(selectedKeyConfig != 0) /* can't erase the default */ {
             keyConfigs.erase(keyConfigs.begin() + selectedKeyConfig);
             if(selectedKeyConfig >= keyConfigs.size())
                 selectedKeyConfig = keyConfigs.size() - 1;
             redraw = true;
         }
-    }
-    else if(inputKeyRepeat(BUTTON_DOWN)) {
+    } else if(inputKeyRepeat(mapMenuKey(MENU_KEY_DOWN))) {
         if(option == NUM_BINDABLE_BUTTONS - 1)
             option = -1;
         else if(option == 11) //Skip nonexistant keys
@@ -371,8 +367,7 @@ void updateKeyConfigChooser() {
         else
             option++;
         redraw = true;
-    }
-    else if(inputKeyRepeat(BUTTON_UP)) {
+    } else if(inputKeyRepeat(mapMenuKey(MENU_KEY_UP))) {
         if(option == -1)
             option = NUM_BINDABLE_BUTTONS - 1;
         else if(option == 14) //Skip nonexistant keys
@@ -382,8 +377,7 @@ void updateKeyConfigChooser() {
         else
             option--;
         redraw = true;
-    }
-    else if(inputKeyRepeat(BUTTON_LEFT)) {
+    } else if(inputKeyRepeat(mapMenuKey(MENU_KEY_LEFT))) {
         if(option == -1) {
             if(selectedKeyConfig == 0)
                 selectedKeyConfig = keyConfigs.size() - 1;
@@ -396,8 +390,7 @@ void updateKeyConfigChooser() {
                 config->funcKeys[option] = NUM_FUNC_KEYS - 1;
         }
         redraw = true;
-    }
-    else if(inputKeyRepeat(BUTTON_RIGHT)) {
+    } else if(inputKeyRepeat(mapMenuKey(MENU_KEY_RIGHT))) {
         if(option == -1) {
             selectedKeyConfig++;
             if(selectedKeyConfig >= keyConfigs.size())
@@ -410,8 +403,10 @@ void updateKeyConfigChooser() {
         }
         redraw = true;
     }
-    if(redraw)
+
+    if(redraw) {
         redrawKeyConfigChooser();
+    }
 }
 
 void startKeyConfigChooser() {
@@ -447,5 +442,6 @@ int mapMenuKey(int menuKey) {
         case MENU_KEY_Y:
             return BUTTON_Y;
     }
+
     return 0;
 }

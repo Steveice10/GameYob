@@ -379,7 +379,7 @@ void Gameboy::sgbPalSet(int block) {
         sgbLoadAttrFile(sgbPacket[9] & 0x3f);
     }
     if(sgbPacket[9] & 0x40)
-        gameboy->getPPU()->setSgbMask(0);
+        ppu->setSgbMask(0);
 }
 
 void Gameboy::sgbPalTrn(int block) {
@@ -421,14 +421,14 @@ void Gameboy::sgbJump(int block) {
 void Gameboy::sgbChrTrn(int block) {
     u8* data = (u8*) malloc(0x1000);
     sgbDoVramTransfer(data);
-    gameboy->getPPU()->setSgbTiles(data, sgbPacket[1]);
+    ppu->setSgbTiles(data, sgbPacket[1]);
     free(data);
 }
 
 void Gameboy::sgbPctTrn(int block) {
     u8* data = (u8*) malloc(0x1000);
     sgbDoVramTransfer(data);
-    gameboy->getPPU()->setSgbMap(data);
+    ppu->setSgbMap(data);
     free(data);
 }
 
@@ -439,11 +439,11 @@ void Gameboy::sgbAttrTrn(int block) {
 void Gameboy::sgbAttrSet(int block) {
     sgbLoadAttrFile(sgbPacket[1] & 0x3f);
     if(sgbPacket[1] & 0x40)
-        gameboy->getPPU()->setSgbMask(0);
+        ppu->setSgbMask(0);
 }
 
 void Gameboy::sgbMaskEn(int block) {
-    gameboy->getPPU()->setSgbMask(sgbPacket[1] & 3);
+    ppu->setSgbMask(sgbPacket[1] & 3);
 }
 
 void Gameboy::sgbObjTrn(int block) {

@@ -34,6 +34,8 @@ enum {
 };
 
 extern char biosPath[256];
+extern char romPath[256];
+extern char borderPath[256];
 
 bool readConfigFile();
 void writeConfigFile();

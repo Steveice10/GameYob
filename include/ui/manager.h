@@ -6,9 +6,6 @@
 
 extern Gameboy* gameboy;
 
-extern time_t rawTime;
-extern time_t lastRawTime;
-
 void mgrInit();
 void mgrExit();
 

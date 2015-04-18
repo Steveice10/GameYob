@@ -9,6 +9,7 @@
 #include "ui/menu.h"
 
 #include <3ds.h>
+#include <ctrcommon/fs.hpp>
 #include <ctrcommon/platform.hpp>
 #include <ctrcommon/screen.hpp>
 
@@ -107,4 +108,16 @@ void systemDisableSleepMode() {
 }
 
 void systemEnableSleepMode() {
+}
+
+bool systemExists(std::string path) {
+    return fsExists(path);
+}
+
+bool systemIsDirectory(std::string path) {
+    return fsIsDirectory(path);
+}
+
+void systemDelete(std::string path) {
+    fsDelete(path);
 }

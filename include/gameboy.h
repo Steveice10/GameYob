@@ -82,7 +82,6 @@ public:
     void initGBCMode();
     void initSND();
     void initGFXPalette();
-    bool isMainGameboy();
 
     inline void setEventCycles(int cycles) {
         if(cycles < cyclesToEvent) {
@@ -98,7 +97,6 @@ public:
 
     void gameboyCheckInput();
     void gameboyUpdateVBlank();
-    void gameboyAutosaveCheck();
 
     void resetGameboy(); // This may be called even from the context of "runOpcode".
     void pause();

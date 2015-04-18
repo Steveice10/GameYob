@@ -4,32 +4,36 @@
 #include "platform/gfx.h"
 #include "platform/input.h"
 #include "platform/system.h"
+#include "ui/config.h"
 #include "ui/filechooser.h"
 #include "ui/manager.h"
 #include "ui/menu.h"
 
 Gameboy* gameboy = NULL;
 
-int fps = 0;
+int fps;
+time_t lastPrintTime;
 
-time_t rawTime;
-time_t lastRawTime;
+FileChooser romChooser("/");
 
 void mgrInit() {
     gameboy = new Gameboy();
-
-    rawTime = 0;
-    lastRawTime = rawTime;
+    fps = 0;
+    lastPrintTime = 0;
 }
 
 void mgrExit() {
-    if(gameboy)
+    if(gameboy) {
         delete gameboy;
-
-    gameboy = NULL;
+        gameboy = NULL;
+    }
 }
 
 void mgrLoadRom(const char* filename) {
+    if(gameboy == NULL) {
+        return;
+    }
+
     gameboy->setRomFile(filename);
     gameboy->loadSave(1);
 
@@ -50,40 +54,43 @@ void mgrLoadRom(const char* filename) {
         disableMenuOption("Delete State");
         disableMenuOption("Suspend");
         disableMenuOption("Exit without saving");
-    }
-    else {
+    } else {
         enableMenuOption("State Slot");
         enableMenuOption("Save State");
         enableMenuOption("Suspend");
         if(gameboy->checkStateExists(stateNum)) {
             enableMenuOption("Load State");
             enableMenuOption("Delete State");
-        }
-        else {
+        } else {
             disableMenuOption("Load State");
             disableMenuOption("Delete State");
         }
 
-        if(gameboy->getNumRamBanks() && !autoSavingEnabled)
+        if(gameboy->getNumRamBanks() && !autoSavingEnabled) {
             enableMenuOption("Exit without saving");
-        else
+        } else {
             disableMenuOption("Exit without saving");
-    }
+        }
 
-    if(gameboy->getRomFile()->hasBios) {
-        enableMenuOption("GBC Bios");
-    } else {
-        disableMenuOption("GBC Bios");
-    }
+        if(gameboy->getRomFile()->hasBios) {
+            enableMenuOption("GBC Bios");
+        } else {
+            disableMenuOption("GBC Bios");
+        }
 
-    if(gameboy->getRomFile()->getMBC() == MBC7) {
-        enableMenuOption("Accelerometer Pad");
-    } else {
-        disableMenuOption("Accelerometer Pad");
+        if(gameboy->getRomFile()->getMBC() == MBC7) {
+            enableMenuOption("Accelerometer Pad");
+        } else {
+            disableMenuOption("Accelerometer Pad");
+        }
     }
 }
 
 void mgrUnloadRom() {
+    if(gameboy == NULL) {
+        return;
+    }
+
     gameboy->unloadRom();
     gameboy->linkedGameboy = NULL;
 }
@@ -91,10 +98,12 @@ void mgrUnloadRom() {
 void mgrSelectRom() {
     mgrUnloadRom();
 
-    loadFileChooserState(&romChooserState);
+    if(romChooser.getDirectory().compare(romPath) != 0 && systemIsDirectory(romPath)) {
+        romChooser.setDirectory(romPath);
+    }
+
     const char* extraExtensions[] = {"gbs"};
-    char* filename = startFileChooser(extraExtensions, true);
-    saveFileChooserState(&romChooserState);
+    char* filename = romChooser.startFileChooser(extraExtensions, true);
 
     if(filename == NULL) {
         printf("Filechooser error");
@@ -106,42 +115,29 @@ void mgrSelectRom() {
     }
 
     mgrLoadRom(filename);
-
     free(filename);
 
     systemUpdateConsole();
 }
 
 void mgrSave() {
-    if(gameboy) {
-        gameboy->saveGame();
+    if(gameboy == NULL) {
+        return;
     }
+
+    gameboy->saveGame();
 }
 
 void mgrRun() {
-    systemCheckRunning();
-
-    int ret = 0;
-    bool paused = false;
-    while(!paused && !(ret & RET_VBLANK)) {
-        paused = false;
-        if(gameboy && gameboy->isGameboyPaused()) {
-            paused = true;
-        }
-
-        if(!paused) {
-            if(gameboy) {
-                if(!(ret & RET_VBLANK)) {
-                    ret |= gameboy->runEmul();
-                }
-            } else {
-                ret |= RET_VBLANK;
-            }
-        }
+    if(gameboy == NULL) {
+        return;
     }
 
-    gameboy->getPPU()->drawScreen();
+    systemCheckRunning();
 
+    while(!gameboy->isGameboyPaused() && !(gameboy->runEmul() & RET_VBLANK));
+
+    gameboy->getPPU()->drawScreen();
     if(gameboy && !gameboy->isGameboyPaused()) {
         gameboy->getAPU()->soundUpdate();
     }
@@ -157,9 +153,10 @@ void mgrRun() {
         }
     }
 
+    time_t rawTime = 0;
     time(&rawTime);
     fps++;
-    if(rawTime > lastRawTime) {
+    if(rawTime > lastPrintTime) {
         if(!isMenuOn() && !consoleDebugOutput && (fpsOutput || timeOutput)) {
             iprintf("\x1b[2J");
             int fpsLength = 0;
@@ -194,6 +191,6 @@ void mgrRun() {
         }
 
         fps = 0;
-        lastRawTime = rawTime;
+        lastPrintTime = rawTime;
     }
 }

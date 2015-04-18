@@ -285,7 +285,3 @@ void gfxFlush() {
 void gfxWaitForVBlank() {
     gspWaitForVBlank();
 }
-
-void gfxClearScreens() {
-    screenClearAll(0, 0, 0);
-}

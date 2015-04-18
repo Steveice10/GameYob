@@ -1,7 +1,7 @@
 <b><center>GameYob</center></b>
 ==========
 
-Fork of [Drenn](https://github.com/Drenn1/)'s GBC emulator [GameYob](https://github.com/Drenn1/GameYob/).
+Fork of [Drenn](https://github.com/Drenn1/)'s (S)GB(C) emulator [GameYob](https://github.com/Drenn1/GameYob/).
 
 Download: https://www.dropbox.com/s/ms1kes4jhrb3meg/gameyob.zip?dl=0
 

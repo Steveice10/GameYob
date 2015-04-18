@@ -57,7 +57,7 @@ bool timeOutput = false;
 
 int biosEnabled = false;
 
-extern int halt;
+FileChooser borderChooser("/");
 
 
 // Private function used for simple submenus
@@ -267,10 +267,8 @@ void customBorderEnableFunc(int value) {
 }
 
 void selectBorderFunc(int value) {
-    loadFileChooserState(&borderChooserState);
     const char* extensions[] = {"png"};
-    char* filename = startFileChooser(extensions, false, true);
-    saveFileChooserState(&borderChooserState);
+    char* filename = borderChooser.startFileChooser(extensions, false, true);
     if(filename != NULL) {
         strcpy(borderPath, filename);
         free(filename);
@@ -443,6 +441,7 @@ SubMenu menuList[] = {
                 }
         }
 };
+
 const int numMenus = sizeof(menuList) / sizeof(SubMenu);
 
 void setMenuDefaults() {

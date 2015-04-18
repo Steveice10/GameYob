@@ -1,4 +1,5 @@
 #include <sys/dirent.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -11,47 +12,36 @@
 #include "ui/config.h"
 #include "ui/filechooser.h"
 
-#include <ctrcommon/fs.hpp>
-
 #define FLAG_DIRECTORY  1
 #define FLAG_SUSPENDED  2
 #define FLAG_ROM        4
 
 using namespace std;
 
-// Public "states"
-FileChooserState romChooserState = {0, "/gb/"};
-FileChooserState borderChooserState = {0, "/"};
+FileChooser::FileChooser(std::string directory) {
+    this->directory = directory;
+}
 
-// Private stuff
-int filesPerPage = 24;
-int numFiles;
-int scrollY = 0;
-int fileSelection = 0;
-string matchFile;
-
-string currDirectory = "/";
-
-void updateScrollDown() {
-    if(fileSelection >= numFiles)
-        fileSelection = numFiles - 1;
+void FileChooser::updateScrollDown() {
+    if(selection >= numFiles)
+        selection = numFiles - 1;
     if(numFiles > filesPerPage) {
-        if(fileSelection == numFiles - 1)
-            scrollY = fileSelection - filesPerPage + 1;
-        else if(fileSelection - scrollY >= filesPerPage - 1)
-            scrollY = fileSelection - filesPerPage + 2;
+        if(selection == numFiles - 1)
+            scrollY = selection - filesPerPage + 1;
+        else if(selection - scrollY >= filesPerPage - 1)
+            scrollY = selection - filesPerPage + 2;
     }
 }
 
-void updateScrollUp() {
-    if(fileSelection < 0)
-        fileSelection = 0;
-    if(fileSelection == 0)
+void FileChooser::updateScrollUp() {
+    if(selection < 0)
+        selection = 0;
+    if(selection == 0)
         scrollY = 0;
-    else if(fileSelection == scrollY)
+    else if(selection == scrollY)
         scrollY--;
-    else if(fileSelection < scrollY)
-        scrollY = fileSelection - 1;
+    else if(selection < scrollY)
+        scrollY = selection - 1;
 
 }
 
@@ -203,12 +193,20 @@ template<class Data, class Metadata> void quickSort(std::vector<Data> &data, std
         quickSort(data, metadata, sortFunction, newPivotIndex + 1, to);
 }
 
+std::string FileChooser::getDirectory() {
+    return this->directory;
+}
+
+void FileChooser::setDirectory(std::string directory) {
+    this->directory = directory;
+}
+
 /*
  * Prompts the user for a file to load.
  * Returns a pointer to a newly-allocated string. The caller is responsible
  * for free()ing it.
  */
-char* startFileChooser(const char* extensions[], bool romExtensions, bool canQuit) {
+char* FileChooser::startFileChooser(const char* extensions[], bool romExtensions, bool canQuit) {
     filesPerPage = systemGetConsoleHeight();
 
     filesPerPage--;
@@ -228,13 +226,13 @@ char* startFileChooser(const char* extensions[], bool romExtensions, bool canQui
         std::vector<string> filenames;
         std::vector<int> flags;
         std::vector<string> unmatchedStates;
-        if(currDirectory.compare("/") != 0) {
+        if(directory.compare("/") != 0) {
             filenames.push_back(string(".."));
             flags.push_back(FLAG_DIRECTORY);
             numFiles++;
         }
 
-        DIR* dir = opendir(currDirectory.c_str());
+        DIR* dir = opendir(directory.c_str());
         if(dir != NULL) {
             // Read file list
             while((entry = readdir(dir)) != NULL) {
@@ -252,10 +250,10 @@ char* startFileChooser(const char* extensions[], bool romExtensions, bool canQui
                             }
                         }
                         if(romExtensions) {
-                            isRomFile = strcasecmp(ext, "cgb") == 0 || strcasecmp(ext, "gbc") == 0 ||
-                                        strcasecmp(ext, "gb") == 0 || strcasecmp(ext, "sgb") == 0;
-                            if(isRomFile)
+                            isRomFile = strcasecmp(ext, "cgb") == 0 || strcasecmp(ext, "gbc") == 0 || strcasecmp(ext, "gb") == 0 || strcasecmp(ext, "sgb") == 0;
+                            if(isRomFile) {
                                 isValidExtension = true;
+                            }
                         }
                     }
                 }
@@ -263,10 +261,13 @@ char* startFileChooser(const char* extensions[], bool romExtensions, bool canQui
                 if(entry->d_type & DT_DIR || isValidExtension) {
                     if(!(strcmp(".", entry->d_name) == 0)) {
                         int flag = 0;
-                        if(entry->d_type & DT_DIR)
+                        if(entry->d_type & DT_DIR) {
                             flag |= FLAG_DIRECTORY;
-                        if(isRomFile)
+                        }
+
+                        if(isRomFile) {
                             flag |= FLAG_ROM;
+                        }
 
                         // Check for suspend state
                         if(isRomFile) {
@@ -314,13 +315,13 @@ char* startFileChooser(const char* extensions[], bool romExtensions, bool canQui
 
         quickSort(filenames, flags, nameSortFunction, 0, numFiles - 1);
 
-        if(fileSelection >= numFiles)
-            fileSelection = 0;
+        if(selection >= numFiles)
+            selection = 0;
 
         if(!matchFile.empty()) {
             for(int i = 0; i < numFiles; i++) {
                 if(matchFile == filenames[i]) {
-                    fileSelection = i;
+                    selection = i;
                     break;
                 }
             }
@@ -337,14 +338,14 @@ char* startFileChooser(const char* extensions[], bool romExtensions, bool canQui
             int screenLen = systemGetConsoleWidth();
             // Draw the screen
             iprintf("\x1b[2J");
-            strncpy(buffer, currDirectory.c_str(), screenLen);
+            strncpy(buffer, directory.c_str(), screenLen);
             buffer[screenLen] = '\0';
             printf("%s", buffer);
             for(uint j = 0; j < screenLen - strlen(buffer); j++)
                 printf(" ");
 
             for(int i = scrollY; i < scrollY + filesPerPage && i < numFiles; i++) {
-                if(i == fileSelection) {
+                if(i == selection) {
                     printf("\x1b[47m\x1b[30m* ");
                 } else if(i == scrollY && i != 0) {
                     printf("^ ");
@@ -362,7 +363,7 @@ char* startFileChooser(const char* extensions[], bool romExtensions, bool canQui
                 strncpy(buffer, filenames[i].c_str(), stringLen);
                 buffer[stringLen] = '\0';
                 if(flags[i] & FLAG_DIRECTORY) {
-                    if(i == fileSelection) {
+                    if(i == selection) {
                         printf("\x1b[2m");
                     } else {
                         printf("\x1b[1m");
@@ -370,7 +371,7 @@ char* startFileChooser(const char* extensions[], bool romExtensions, bool canQui
 
                     printf("\x1b[33m%s/", buffer);
                 } else if(flags[i] & FLAG_SUSPENDED) {
-                    if(i == fileSelection) {
+                    if(i == selection) {
                         printf("\x1b[2m");
                     } else {
                         printf("\x1b[1m");
@@ -414,26 +415,26 @@ char* startFileChooser(const char* extensions[], bool romExtensions, bool canQui
                 inputUpdate();
 
                 if(inputKeyPressed(mapMenuKey(MENU_KEY_A))) {
-                    if(flags[fileSelection] & FLAG_DIRECTORY) {
-                        if(strcmp(filenames[fileSelection].c_str(), "..") == 0)
+                    if(flags[selection] & FLAG_DIRECTORY) {
+                        if(strcmp(filenames[selection].c_str(), "..") == 0)
                             goto lowerDirectory;
-                        currDirectory += filenames[fileSelection] + "/";
+                        directory += filenames[selection] + "/";
                         readDirectory = true;
-                        fileSelection = 1;
+                        selection = 1;
                         break;
                     } else {
                         // Copy the result to a new allocation, as the
                         // filename would become unavailable when freed.
                         retval = (char*) malloc(
-                                sizeof(char) * (currDirectory.length() + strlen(filenames[fileSelection].c_str()) + 1));
-                        strcpy(retval, currDirectory.c_str());
-                        strcpy(retval + (currDirectory.length() * sizeof(char)), filenames[fileSelection].c_str());
+                                sizeof(char) * (directory.length() + strlen(filenames[selection].c_str()) + 1));
+                        strcpy(retval, directory.c_str());
+                        strcpy(retval + (directory.length() * sizeof(char)), filenames[selection].c_str());
                         goto end;
                     }
                 } else if(inputKeyPressed(mapMenuKey(MENU_KEY_B))) {
                     lowerDirectory:
                     // Select this directory when going up
-                    std::string currDir = currDirectory;
+                    std::string currDir = directory;
                     std::string::size_type slash = currDir.find_last_of('/');
                     if(currDir.length() != 1 && slash == currDir.length() - 1) {
                         currDir = currDir.substr(0, slash);
@@ -442,28 +443,27 @@ char* startFileChooser(const char* extensions[], bool romExtensions, bool canQui
 
                     matchFile = currDir.substr(0, slash);
 
-                    currDirectory = matchFile + "/";
-                    //chdir("..");
+                    directory = matchFile + "/";
                     readDirectory = true;
                     break;
                 } else if(inputKeyRepeat(mapMenuKey(MENU_KEY_UP))) {
-                    if(fileSelection > 0) {
-                        fileSelection--;
+                    if(selection > 0) {
+                        selection--;
                         updateScrollUp();
                         break;
                     }
                 } else if(inputKeyRepeat(mapMenuKey(MENU_KEY_DOWN))) {
-                    if(fileSelection < numFiles - 1) {
-                        fileSelection++;
+                    if(selection < numFiles - 1) {
+                        selection++;
                         updateScrollDown();
                         break;
                     }
                 } else if(inputKeyRepeat(mapMenuKey(MENU_KEY_RIGHT))) {
-                    fileSelection += filesPerPage / 2;
+                    selection += filesPerPage / 2;
                     updateScrollDown();
                     break;
                 } else if(inputKeyRepeat(mapMenuKey(MENU_KEY_LEFT))) {
-                    fileSelection -= filesPerPage / 2;
+                    selection -= filesPerPage / 2;
                     updateScrollUp();
                     break;
                 } else if(inputKeyPressed(mapMenuKey(MENU_KEY_Y))) {
@@ -479,17 +479,4 @@ char* startFileChooser(const char* extensions[], bool romExtensions, bool canQui
     iprintf("\x1b[2J");
 
     return retval;
-}
-
-void saveFileChooserState(FileChooserState* state) {
-    state->selection = fileSelection;
-    state->directory = currDirectory;
-}
-
-void loadFileChooserState(FileChooserState* state) {
-    fileSelection = state->selection;
-    currDirectory = state->directory;
-    if(!fsExists(currDirectory)) {
-        currDirectory = "/";
-    }
 }

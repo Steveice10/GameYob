@@ -221,8 +221,7 @@ void Gameboy::writeMemoryOther(u16 addr, u8 val) {
     switch(area) {
         case 0x8:
         case 0x9:
-            if(isMainGameboy())
-                ppu->writeVram(addr & 0x1fff, val);
+            ppu->writeVram(addr & 0x1fff, val);
             vram[vramBank][addr & 0x1fff] = val;
             return;
         case 0xE: // Echo area
@@ -374,35 +373,25 @@ void Gameboy::writeIO(u8 ioReg, u8 val) {
         case 0x49:
         case 0x4A:
         case 0x4B:
-            if(isMainGameboy())
-                ppu->handleVideoRegister(ioReg, val);
+            ppu->handleVideoRegister(ioReg, val);
             ioRam[ioReg] = val;
             return;
         case 0x69: // CGB BG Palette
-            if(isMainGameboy())
-                ppu->handleVideoRegister(ioReg, val);
-            {
-                int index = ioRam[0x68] & 0x3F;
-                bgPaletteData[index] = val;
-            }
+            ppu->handleVideoRegister(ioReg, val);
+            bgPaletteData[ioRam[0x68] & 0x3F] = val;
             if(ioRam[0x68] & 0x80)
                 ioRam[0x68] = 0x80 | (ioRam[0x68] + 1);
             ioRam[0x69] = bgPaletteData[ioRam[0x68] & 0x3F];
             return;
         case 0x6B: // CGB Sprite palette
-            if(isMainGameboy())
-                ppu->handleVideoRegister(ioReg, val);
-            {
-                int index = ioRam[0x6A] & 0x3F;
-                sprPaletteData[index] = val;
-            }
+            ppu->handleVideoRegister(ioReg, val);
+            sprPaletteData[ioRam[0x6A] & 0x3F] = val;
             if(ioRam[0x6A] & 0x80)
                 ioRam[0x6A] = 0x80 | (ioRam[0x6A] + 1);
             ioRam[0x6B] = sprPaletteData[ioRam[0x6A] & 0x3F];
             return;
         case 0x46: // Sprite DMA
-            if(isMainGameboy())
-                ppu->handleVideoRegister(ioReg, val);
+            ppu->handleVideoRegister(ioReg, val);
             ioRam[ioReg] = val;
             {
                 int src = val << 8;
@@ -415,8 +404,7 @@ void Gameboy::writeIO(u8 ioReg, u8 val) {
             }
             return;
         case 0x40: // LCDC
-            if(isMainGameboy())
-                ppu->handleVideoRegister(ioReg, val);
+            ppu->handleVideoRegister(ioReg, val);
             ioRam[ioReg] = val;
             if(!(val & 0x80)) {
                 ioRam[0x44] = 0;
@@ -481,8 +469,7 @@ void Gameboy::writeIO(u8 ioReg, u8 val) {
                 if(dmaMode == 0) {
                     int i;
                     for(i = 0; i < dmaLength; i++) {
-                        if(isMainGameboy())
-                            ppu->writeVram16(dmaDest, dmaSource);
+                        ppu->writeVram16(dmaDest, dmaSource);
                         for(int i = 0; i < 16; i++)
                             vram[vramBank][dmaDest++] = quickRead(dmaSource++);
                         dmaDest &= 0x1FF0;
@@ -548,8 +535,7 @@ void Gameboy::refreshP1() {
 
 bool Gameboy::updateHBlankDMA() {
     if(dmaLength > 0) {
-        if(isMainGameboy())
-            ppu->writeVram16(dmaDest, dmaSource);
+        ppu->writeVram16(dmaDest, dmaSource);
         for(int i = 0; i < 16; i++)
             vram[vramBank][dmaDest++] = quickRead(dmaSource++);
         dmaDest &= 0x1FF0;

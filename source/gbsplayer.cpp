@@ -13,8 +13,6 @@ GBSPlayer::GBSPlayer(Gameboy* gb) {
 // private
 
 void GBSPlayer::gbsRedraw() {
-    //consoleClear();
-
     printf("\33[0;0H"); // Cursor to upper-left corner
 
     printf("Song %d of %d\33[0K\n", gbsSelectedSong + 1, gbsNumSongs);

@@ -9,10 +9,6 @@
 #include "ui/config.h"
 #include "ui/manager.h"
 #include "ui/menu.h"
-#include "gameboy.h"
-
-#include <ctrcommon/fs.hpp>
-#include <ctrcommon/input.hpp>
 
 #define GB_A 0x01
 #define GB_B 0x02
@@ -586,9 +582,7 @@ void Gameboy::init() {
     memset(vram[1], 0, 0x2000);
 
     initGFXPalette();
-    if(isMainGameboy()) {
-        ppu->initPPU();
-    }
+    ppu->initPPU();
     initSND();
 
     if(!gbsPlayer->gbsMode && !ppu->probingForBorder && checkStateExists(-1)) {
@@ -764,7 +758,7 @@ void Gameboy::gameboyCheckInput() {
         gfxToggleFastForward();
     }
 
-    if(inputKeyPressed(mapFuncKey(FUNC_KEY_MENU) | mapFuncKey(FUNC_KEY_MENU_PAUSE) | BUTTON_TOUCH) && !accelPadMode) {
+    if(inputKeyPressed(mapFuncKey(FUNC_KEY_MENU) | mapFuncKey(FUNC_KEY_MENU_PAUSE)) && !accelPadMode) {
         if(pauseOnMenu || inputKeyPressed(mapFuncKey(FUNC_KEY_MENU_PAUSE))) {
             pause();
         }
@@ -862,11 +856,10 @@ int Gameboy::runEmul() {
 
         // For external clock
         if(cycleToSerialTransfer != -1) {
-            if(cyclesSinceVBlank < cycleToSerialTransfer)
+            if(cyclesSinceVBlank < cycleToSerialTransfer) {
                 setEventCycles(cycleToSerialTransfer - cyclesSinceVBlank);
-            else {
+            } else {
                 cycleToSerialTransfer = -1;
-
                 if((ioRam[0x02] & 0x81) == 0x80) {
                     u8 tmp = ioRam[0x01];
                     ioRam[0x01] = linkedGameboy->ioRam[0x01];
@@ -874,9 +867,10 @@ int Gameboy::runEmul() {
                     emuRet |= RET_LINK;
                     // Execution will be passed back to the other gameboy (the 
                     // internal clock gameboy).
-                }
-                else
+                } else {
                     linkedGameboy->ioRam[0x01] = 0xff;
+                }
+
                 if(ioRam[0x02] & 0x80) {
                     requestInterrupt(INT_SERIAL);
                     ioRam[0x02] &= ~0x80;
@@ -894,12 +888,12 @@ int Gameboy::runEmul() {
                     // Execution will stop here, and this gameboy's SB will be 
                     // updated when the other gameboy runs to the appropriate 
                     // cycle.
-                }
-                else if(printerEnabled) {
+                } else if(printerEnabled) {
                     ioRam[0x01] = printer->sendGbPrinterByte(ioRam[0x01]);
-                }
-                else
+                } else {
                     ioRam[0x01] = 0xff;
+                }
+
                 requestInterrupt(INT_SERIAL);
                 ioRam[0x02] &= ~0x80;
             }
@@ -1003,10 +997,6 @@ void Gameboy::initGFXPalette() {
     }
 }
 
-bool Gameboy::isMainGameboy() {
-    return this == gameboy;
-}
-
 void Gameboy::checkLYC() {
     if(ioRam[0x44] == ioRam[0x45]) {
         ioRam[0x41] |= 4;
@@ -1049,8 +1039,7 @@ inline int Gameboy::updateLCD(int cycles) {
         case 2: {
             ioRam[0x41]++; // Set mode 3
             scanlineCounter += 172 << doubleSpeed;
-            if(isMainGameboy())
-                ppu->drawScanline(ioRam[0x44]);
+            ppu->drawScanline(ioRam[0x44]);
         }
             break;
         case 3: {
@@ -1061,8 +1050,7 @@ inline int Gameboy::updateLCD(int cycles) {
 
             scanlineCounter += 204 << doubleSpeed;
 
-            if(isMainGameboy())
-                ppu->drawScanline_P2(ioRam[0x44]);
+            ppu->drawScanline_P2(ioRam[0x44]);
             if(updateHBlankDMA()) {
                 extraCycles += 8 << doubleSpeed;
             }
@@ -1581,7 +1569,7 @@ int Gameboy::loadState(int stateNum) {
 
     fclose(inFile);
     if(stateNum == -1) {
-        fsDelete(statename);
+        systemDelete(statename);
     }
 
     gbRegs = state.regs;
@@ -1636,7 +1624,7 @@ void Gameboy::deleteState(int stateNum) {
         sprintf(statename, "%s.yss", romFile->getBasename());
     else
         sprintf(statename, "%s.ys%d", romFile->getBasename(), stateNum);
-    fsDelete(statename);
+    systemDelete(statename);
 }
 
 bool Gameboy::checkStateExists(int stateNum) {
@@ -1649,7 +1637,7 @@ bool Gameboy::checkStateExists(int stateNum) {
         sprintf(statename, "%s.yss", romFile->getBasename());
     else
         sprintf(statename, "%s.ys%d", romFile->getBasename(), stateNum);
-    return fsExists(statename);
+    return systemExists(statename);
     /*
     file = fopen(statename, "r");
 
