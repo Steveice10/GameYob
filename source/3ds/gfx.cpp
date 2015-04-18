@@ -1,6 +1,5 @@
 #include "lodepng/lodepng.h"
 #include "platform/input.h"
-#include "platform/system.h"
 #include "ui/config.h"
 #include "ui/menu.h"
 

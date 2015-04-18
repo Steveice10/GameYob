@@ -2,6 +2,8 @@
 #include "ui/menu.h"
 #include "gameboy.h"
 
+#include <ctrcommon/platform.hpp>
+
 // 127 bytes
 u8 lfsr7NoiseSample[] = {
         0xa0, 0xa0, 0xa0, 0xa0, 0xa0, 0x60, 0xa0, 0xa0, 0xa0, 0xa0, 0xa0, 0x60, 0x60, 0xa0, 0xa0, 0xa0, 0xa0, 0x60,
@@ -2269,11 +2271,6 @@ void GameboyAPU::updateSound(int cycles) {
     if(soundDisabled || muted)
         return;
 
-//	chanOn[0] = 0;
-//	chanOn[1] = 0;
-//	chanOn[2] = 0;
-//	chanOn[3] = 0;
-
     if(chan1SweepTime != 0) {
         chan1SweepCounter -= cycles;
         while(chan1SweepCounter <= 0) {
@@ -2358,8 +2355,7 @@ void GameboyAPU::updateSound(int cycles) {
 
     cyclesUntilSample -= cycles;
     while(cyclesUntilSample <= 0) {
-        int c = CYCLES_UNTIL_SAMPLE;
-        cyclesUntilSample += c;
+        cyclesUntilSample += CYCLES_UNTIL_SAMPLE;
 
         s16 tone = 0, tone1 = 0, tone2 = 0;
 
@@ -2367,7 +2363,7 @@ void GameboyAPU::updateSound(int cycles) {
             if(!chanEnabled[j])
                 continue;
             if(chanOn[j]) {
-                chanPolarityCounter[j] -= c;
+                chanPolarityCounter[j] -= CYCLES_UNTIL_SAMPLE;
                 while(chanPolarityCounter[j] <= 0) {
                     int oldPolarityCounter = chanPolarityCounter[j];
                     chanPolarity[j] *= -1;
@@ -2409,7 +2405,7 @@ void GameboyAPU::updateSound(int cycles) {
         }
 
         if(chanEnabled[2] && chanOn[2]) {
-            chanPolarityCounter[2] -= c;
+            chanPolarityCounter[2] -= CYCLES_UNTIL_SAMPLE;
             while(chanPolarityCounter[2] <= 0) {
                 chanPolarityCounter[2] = clockSpeed / (65536 / (2048 - chanFreq[2]) * 32) + chanPolarityCounter[2];
                 //chanPolarityCounter[2] = clockSpeed/((131072/(2048-chanFreq[2]))*16);
@@ -2434,7 +2430,7 @@ void GameboyAPU::updateSound(int cycles) {
         }
         if(chanEnabled[3] && chanOn[3]) {
             int polarityLen = clockSpeed / ((int) (524288 / chan4FreqRatio) >> (chanFreq[3] + 1));
-            chanPolarityCounter[3] -= c;
+            chanPolarityCounter[3] -= CYCLES_UNTIL_SAMPLE;
             int flips = -(chanPolarityCounter[3] - polarityLen) / polarityLen;
             chanPolarityCounter[3] += flips * polarityLen;
 
@@ -2600,6 +2596,7 @@ void GameboyAPU::handleSoundRegister(u8 ioReg, u8 val) {
                 chanOn[2] = 0;
                 gameboy->clearSoundChannel(CHAN_3);
             }
+
             break;
             // Length
         case 0x1B:
@@ -2679,6 +2676,7 @@ void GameboyAPU::handleSoundRegister(u8 ioReg, u8 val) {
                 chanOn[3] = 1;
                 lfsr = 0;
             }
+
             chanUseLen[3] = !!(val & 0x40);
             break;
         case 0x24:
@@ -2687,14 +2685,14 @@ void GameboyAPU::handleSoundRegister(u8 ioReg, u8 val) {
             SO2Vol = (val >> 4) & 0x7;
             break;
         case 0x25:
-            chanToOut1[0] = (val & 0x1);
-            chanToOut1[1] = (val & 0x2);
-            chanToOut1[2] = (val & 0x4);
-            chanToOut1[3] = (val & 0x8);
-            chanToOut2[0] = (val & 0x10);
-            chanToOut2[1] = (val & 0x20);
-            chanToOut2[2] = (val & 0x40);
-            chanToOut2[3] = (val & 0x80);
+            chanToOut1[0] = !!(val & 0x1);
+            chanToOut1[1] = !!(val & 0x2);
+            chanToOut1[2] = !!(val & 0x4);
+            chanToOut1[3] = !!(val & 0x8);
+            chanToOut2[0] = !!(val & 0x10);
+            chanToOut2[1] = !!(val & 0x20);
+            chanToOut2[2] = !!(val & 0x40);
+            chanToOut2[3] = !!(val & 0x80);
             break;
         case 0x26:
             if(!(val & 0x80)) {
