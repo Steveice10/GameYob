@@ -280,6 +280,8 @@ void selectBorderFunc(int value) {
             if(file != NULL) {
                 fclose(file);
                 gfxLoadBorder(borderPath);
+            } else {
+                gfxLoadBorder(NULL);
             }
         }
     }

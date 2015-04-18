@@ -1202,6 +1202,8 @@ void Gameboy::setRomFile(const char* filename) {
         if(defaultFile != NULL) {
             fclose(defaultFile);
             gfxLoadBorder(borderPath);
+        } else {
+            gfxLoadBorder(NULL);
         }
     }
 

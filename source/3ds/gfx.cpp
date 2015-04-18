@@ -12,11 +12,6 @@
 
 static u8* screenBuffer = (u8*) gpuAlloc(256 * 256 * 3);
 
-static u32 borderWidth = 0;
-static u32 borderHeight = 0;
-static u32 gpuBorderWidth = 0;
-static u32 gpuBorderHeight = 0;
-
 static int prevScaleMode = -1;
 static int prevGameScreen = -1;
 
@@ -28,6 +23,11 @@ static u32 vbo = 0;
 
 static u32 borderVbo = 0;
 static u32 borderTexture = 0;
+
+static u32 borderWidth = 0;
+static u32 borderHeight = 0;
+static u32 gpuBorderWidth = 0;
+static u32 gpuBorderHeight = 0;
 
 bool gfxInit() {
     // Initialize the GPU and setup the state.
@@ -98,12 +98,30 @@ unsigned int gfxNextPowerOfTwo(unsigned int v) {
 }
 
 void gfxLoadBorder(const char* filename) {
+    if(filename == NULL) {
+        if(borderTexture != 0) {
+            gpuFreeVbo(borderTexture);
+            borderTexture = 0;
+        }
+
+        if(borderVbo != 0) {
+            gpuFreeVbo(borderVbo);
+            borderVbo = 0;
+        }
+
+        borderWidth = 0;
+        borderHeight = 0;
+        gpuBorderWidth = 0;
+        gpuBorderHeight = 0;
+
+        return;
+    }
+
     // Load the image.
     unsigned char* imgData;
     unsigned int imgWidth;
     unsigned int imgHeight;
     if(lodepng_decode32_file(&imgData, &imgWidth, &imgHeight, filename)) {
-        printf("ERROR: Could not load border PNG.\n");
         return;
     }
 
