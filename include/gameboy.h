@@ -91,11 +91,6 @@ public:
     inline void setEventCycles(int cycles) {
         if(cycles < cyclesToEvent) {
             cyclesToEvent = cycles;
-            /*
-               if (cyclesToEvent <= 0) {
-               cyclesToEvent = 1;
-               }
-               */
         }
     }
 
@@ -177,6 +172,7 @@ public:
     int ime;
     int extraCycles;
     int soundCycles;
+    int soundFrames;
     int cyclesToExecute;
     struct Registers gbRegs;
 

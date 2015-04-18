@@ -907,24 +907,27 @@ int Gameboy::runEmul() {
 
         updateTimers(cycles);
 
-        soundCycles += cycles >> doubleSpeed;
-        if(soundCycles >= (clockSpeed / 60.0f) * 8) {
-            apu->end_frame(soundCycles);
-            apuBuffer->end_frame(soundCycles);
-
-            static blip_sample_t buf[APU_BUFFER_SIZE];
-            long count = apuBuffer->read_samples(buf, APU_BUFFER_SIZE);
-            if(!soundDisabled && !gameboyPaused) {
-                playAudio(buf, count);
-            } else {
-                apuBuffer->clear();
-            }
-
-            soundCycles = 0;
-        }
-        setEventCycles(10000);
-
         emuRet |= updateLCD(cycles);
+
+        soundCycles += cycles >> doubleSpeed;
+        if(emuRet & RET_VBLANK) {
+            soundFrames++;
+            if(soundFrames >= 8) {
+                apu->end_frame(soundCycles);
+                apuBuffer->end_frame(soundCycles);
+
+                static blip_sample_t buf[APU_BUFFER_SIZE];
+                long count = apuBuffer->read_samples(buf, APU_BUFFER_SIZE);
+                if(!soundDisabled && !gameboyPaused) {
+                    playAudio(buf, count);
+                } else {
+                    apuBuffer->clear();
+                }
+
+                soundCycles = 0;
+                soundFrames = 0;
+            }
+        }
 
         //interruptTriggered = ioRam[0x0F] & ioRam[0xFF];
         if(interruptTriggered) {
