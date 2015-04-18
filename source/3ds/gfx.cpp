@@ -125,8 +125,6 @@ void gfxLoadBorder(const char* filename) {
         return;
     }
 
-    strcpy(borderPath, filename);
-
     // Adjust the texture to power-of-two dimensions.
     borderWidth = imgWidth;
     borderHeight = imgHeight;

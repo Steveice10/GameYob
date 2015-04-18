@@ -2638,7 +2638,7 @@ void GameboyAPU::handleSoundRegister(u8 ioReg, u8 val) {
 
                 gameboy->setSoundChannel(CHAN_3);
             }
-            
+
             break;
             // CHANNEL 4
             // Length
