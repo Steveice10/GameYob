@@ -227,6 +227,15 @@ void biosEnableFunc(int value) {
     biosEnabled = value;
 }
 
+void selectBiosFunc(int value) {
+    const char* extensions[] = {"bin"};
+    char* filename = borderChooser.startFileChooser(extensions, false, true);
+    if(filename != NULL) {
+        strcpy(biosPath, filename);
+        free(filename);
+    }
+}
+
 void setScreenFunc(int value) {
     gameScreen = value;
     systemUpdateConsole();
@@ -408,17 +417,18 @@ SubMenu menuList[] = {
                         {"Colorize GB", gbColorizeFunc, 13, {"Off", "Auto", "Inverted", "Pastel Mix", "Red", "Orange", "Yellow", "Green", "Blue", "Brown", "Dark Green", "Dark Blue", "Dark Brown"}, 1, MENU_ALL},
                         {"SGB Borders", sgbBorderEnableFunc, 2, {"Off", "On"}, 1, MENU_NONE}, // TODO
                         {"Custom Border", customBorderEnableFunc, 2, {"Off", "On"}, 1, MENU_ALL},
-                        {"Select Border", selectBorderFunc, 0, {}, 0, MENU_ALL},
+                        {"Select Border", selectBorderFunc, 0, {}, 0, MENU_ALL}
                 }
         },
         {
                 "GB Modes",
-                4,
+                5,
                 {
-                        {"GBC Bios", biosEnableFunc, 2, {"Off", "On"}, 1, MENU_ALL},
                         {"Detect GBA", gbaModeFunc, 2, {"Off", "On"}, 0, MENU_ALL},
                         {"GBC Mode", gameboyModeFunc, 3, {"Off", "If Needed", "On"}, 2, MENU_ALL},
-                        {"SGB Mode", sgbModeFunc, 3, {"Off", "Prefer GBC", "Prefer SGB"}, 0, MENU_ALL}
+                        {"SGB Mode", sgbModeFunc, 3, {"Off", "Prefer GBC", "Prefer SGB"}, 0, MENU_ALL},
+                        {"GBC Bios", biosEnableFunc, 2, {"Off", "On"}, 1, MENU_ALL},
+                        {"Select BIOS", selectBiosFunc, 0, {}, 0, MENU_ALL}
                 }
         },
         {

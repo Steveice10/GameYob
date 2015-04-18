@@ -15,8 +15,8 @@
 
 #define INI_PATH "/gameyob.ini"
 
-char biosPath[256] = "/gbc_bios.bin";
-char borderPath[256] = "/border.png";
+char biosPath[256] = "";
+char borderPath[256] = "";
 char romPath[256] = "/gb/";
 
 void controlsParseConfig(char* line);
@@ -245,6 +245,8 @@ void controlsParseConfig(char* line2) {
                     config->funcKeys[i] = FUNC_KEY_NONE;
                 }
             }
+
+            config->funcKeys[20] = FUNC_KEY_MENU; // BUTTON_TOUCH
         }
         return;
     }
