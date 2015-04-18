@@ -98,6 +98,23 @@ unsigned int gfxNextPowerOfTwo(unsigned int v) {
 
 void gfxLoadBorder(const char* filename) {
     if(filename == NULL) {
+        gfxLoadBorder(NULL, 0, 0);
+        return;
+    }
+
+    // Load the image.
+    unsigned char* imgData;
+    unsigned int imgWidth;
+    unsigned int imgHeight;
+    if(lodepng_decode32_file(&imgData, &imgWidth, &imgHeight, filename)) {
+        return;
+    }
+
+    gfxLoadBorder(imgData, imgWidth, imgHeight);
+}
+
+void gfxLoadBorder(u8* imgData, u32 imgWidth, u32 imgHeight) {
+    if(imgData == NULL) {
         if(borderTexture != 0) {
             gpuFreeTexture(borderTexture);
             borderTexture = 0;
@@ -113,14 +130,6 @@ void gfxLoadBorder(const char* filename) {
         gpuBorderWidth = 0;
         gpuBorderHeight = 0;
 
-        return;
-    }
-
-    // Load the image.
-    unsigned char* imgData;
-    unsigned int imgWidth;
-    unsigned int imgHeight;
-    if(lodepng_decode32_file(&imgData, &imgWidth, &imgHeight, filename)) {
         return;
     }
 
