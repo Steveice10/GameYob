@@ -25,6 +25,6 @@ General Features
 TODO
 ----
 
-* Custom borders
+* Super Gameboy support isn't fully implemented graphically
+* Super Gameboy borders
 * WiFi connectivity
-* Super Gameboy support isn't fully implemented graphically on the 3DS

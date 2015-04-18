@@ -2664,6 +2664,7 @@ void GameboyAPU::handleSoundRegister(u8 ioReg, u8 val) {
             break;
             // Start
         case 0x23:
+            chanUseLen[3] = !!(val & 0x40);
             if(val & 0x80) {
                 chanLenCounter[3] = (64 - chanLen[3]) * clockSpeed / 256;
                 if(chanUseLen[3]) {
@@ -2675,7 +2676,6 @@ void GameboyAPU::handleSoundRegister(u8 ioReg, u8 val) {
                 lfsr = 0;
             }
 
-            chanUseLen[3] = !!(val & 0x40);
             break;
         case 0x24:
             //printf("Access volume\n");

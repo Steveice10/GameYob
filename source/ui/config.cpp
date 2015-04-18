@@ -240,8 +240,11 @@ void controlsParseConfig(char* line2) {
             KeyConfig* config = &keyConfigs.back();
             strncpy(config->name, name, 32);
             config->name[31] = '\0';
-            for(int i = 0; i < NUM_BINDABLE_BUTTONS; i++)
-                config->funcKeys[i] = FUNC_KEY_NONE;
+            for(int i = 0; i < NUM_BINDABLE_BUTTONS; i++) {
+                if(strlen(dsKeyNames[i]) > 0) {
+                    config->funcKeys[i] = FUNC_KEY_NONE;
+                }
+            }
         }
         return;
     }
@@ -251,26 +254,28 @@ void controlsParseConfig(char* line2) {
 
         if(strcasecmp(line, "config") == 0) {
             selectedKeyConfig = atoi(equalsPos + 1);
-        }
-        else {
-            int dsKey = -1;
-            for(int i = 0; i < NUM_BINDABLE_BUTTONS; i++) {
-                if(strcasecmp(line, dsKeyNames[i]) == 0) {
-                    dsKey = i;
-                    break;
+        } else {
+            if(strlen(line) > 0) {
+                int dsKey = -1;
+                for(int i = 0; i < NUM_BINDABLE_BUTTONS; i++) {
+                    if(strcasecmp(line, dsKeyNames[i]) == 0) {
+                        dsKey = i;
+                        break;
+                    }
                 }
-            }
-            int gbKey = -1;
-            for(int i = 0; i < NUM_FUNC_KEYS; i++) {
-                if(strcasecmp(equalsPos + 1, gbKeyNames[i]) == 0) {
-                    gbKey = i;
-                    break;
-                }
-            }
 
-            if(gbKey != -1 && dsKey != -1) {
-                KeyConfig* config = &keyConfigs.back();
-                config->funcKeys[dsKey] = gbKey;
+                int gbKey = -1;
+                for(int i = 0; i < NUM_FUNC_KEYS; i++) {
+                    if(strcasecmp(equalsPos + 1, gbKeyNames[i]) == 0) {
+                        gbKey = i;
+                        break;
+                    }
+                }
+
+                if(gbKey != -1 && dsKey != -1) {
+                    KeyConfig* config = &keyConfigs.back();
+                    config->funcKeys[dsKey] = gbKey;
+                }
             }
         }
     }
@@ -289,7 +294,9 @@ void controlsPrintConfig(FILE* file) {
     for(unsigned int i = 0; i < keyConfigs.size(); i++) {
         fprintf(file, "(%s)\n", keyConfigs[i].name);
         for(int j = 0; j < NUM_BINDABLE_BUTTONS; j++) {
-            fprintf(file, "%s=%s\n", dsKeyNames[j], gbKeyNames[keyConfigs[i].funcKeys[j]]);
+            if(strlen(dsKeyNames[j]) > 0) {
+                fprintf(file, "%s=%s\n", dsKeyNames[j], gbKeyNames[keyConfigs[i].funcKeys[j]]);
+            }
         }
     }
 }
