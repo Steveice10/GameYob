@@ -142,9 +142,6 @@ RomFile::RomFile(Gameboy* gb, const char* f) {
             case 0x13:
                 MBC = MBC3;
                 break;
-                //case 0x15: case 0x16: case 0x17:
-                //MBC = MBC4;
-                //break;
             case 0x19:
             case 0x1a:
             case 0x1b:
