@@ -7,10 +7,10 @@
 #include "ui/config.h"
 #include "ui/manager.h"
 #include "ui/menu.h"
-#include "gameboy.h"
 
 #include <3ds.h>
 #include <ctrcommon/platform.hpp>
+#include <ctrcommon/screen.hpp>
 
 gfxScreen_t currConsole;
 
@@ -77,13 +77,15 @@ int systemGetConsoleHeight() {
 void systemUpdateConsole() {
     gfxScreen_t screen = !gameScreen == 0 ? GFX_TOP : GFX_BOTTOM;
     if(currConsole != screen) {
-        currConsole = screen;
-        gfxSetScreenFormat(screen, GSP_RGB565_OES);
-        gfxSetDoubleBuffering(screen, false);
-
         gfxScreen_t oldScreen = gameScreen == 0 ? GFX_TOP : GFX_BOTTOM;
         gfxSetScreenFormat(oldScreen, GSP_BGR8_OES);
         gfxSetDoubleBuffering(oldScreen, true);
+
+        screenClearAll(0, 0, 0);
+
+        currConsole = screen;
+        gfxSetScreenFormat(screen, GSP_RGB565_OES);
+        gfxSetDoubleBuffering(screen, false);
 
         gfxSwapBuffers();
         gspWaitForVBlank();
@@ -92,8 +94,6 @@ void systemUpdateConsole() {
         PrintConsole* console = screen == GFX_TOP ? topConsole : bottomConsole;
         console->frameBuffer = framebuffer;
         consoleSelect(console);
-
-        gameboy->getPPU()->checkBorder();
     }
 }
 

@@ -4,13 +4,14 @@
 
 #include <string>
 
+#include "platform/gfx.h"
 #include "platform/input.h"
 #include "platform/system.h"
 #include "ui/cheats.h"
 #include "ui/config.h"
+#include "ui/filechooser.h"
 #include "ui/manager.h"
 #include "ui/menu.h"
-#include "gameboy.h"
 
 const int MENU_NONE = 1;
 const int MENU_3DS = 2;
@@ -247,10 +248,6 @@ void setScaleModeFunc(int value) {
     if(!isMenuOn()) {
         systemUpdateConsole();
     }
-
-    if(value == 0) {
-        gameboy->getPPU()->checkBorder();
-    }
 }
 
 void setScaleFilterFunc(int value) {
@@ -267,16 +264,29 @@ void gbColorizeFunc(int value) {
 
 void customBorderEnableFunc(int value) {
     customBordersEnabled = value;
-    gameboy->getPPU()->checkBorder();
 }
 
 void selectBorderFunc(int value) {
-    gameboy->getPPU()->selectBorder();
+    loadFileChooserState(&borderChooserState);
+    const char* extensions[] = {"png"};
+    char* filename = startFileChooser(extensions, false, true);
+    saveFileChooserState(&borderChooserState);
+    if(filename != NULL) {
+        strcpy(borderPath, filename);
+        free(filename);
+
+        if(!gameboy->romHasBorder) {
+            FILE* file = fopen(borderPath, "r");
+            if(file != NULL) {
+                fclose(file);
+                gfxLoadBorder(borderPath);
+            }
+        }
+    }
 }
 
 void sgbBorderEnableFunc(int value) {
     sgbBordersEnabled = value;
-    gameboy->getPPU()->checkBorder();
 }
 
 void soundEnableFunc(int value) {
@@ -396,9 +406,9 @@ SubMenu menuList[] = {
                         {"Scaling", setScaleModeFunc, 3, {"Off", "Aspect", "Full"}, 0, MENU_ALL},
                         {"Scale Filter", setScaleFilterFunc, 2, {"Off", "On"}, 1, MENU_ALL},
                         {"Colorize GB", gbColorizeFunc, 13, {"Off", "Auto", "Inverted", "Pastel Mix", "Red", "Orange", "Yellow", "Green", "Blue", "Brown", "Dark Green", "Dark Blue", "Dark Brown"}, 1, MENU_ALL},
-                        {"SGB Borders", sgbBorderEnableFunc, 2, {"Off", "On"}, 1, MENU_ALL},
+                        {"SGB Borders", sgbBorderEnableFunc, 2, {"Off", "On"}, 1, MENU_NONE}, // TODO
                         {"Custom Border", customBorderEnableFunc, 2, {"Off", "On"}, 1, MENU_ALL},
-                        {"Select Border", (void (*)(int)) selectBorderFunc, 0, {}, 0, MENU_ALL},
+                        {"Select Border", selectBorderFunc, 0, {}, 0, MENU_ALL},
                 }
         },
         {
@@ -728,7 +738,7 @@ void updateMenu() {
     }
 }
 
-// Message will be printed immediately, but also stored in case it's overwritten 
+// Message will be printed immediately, but also stored in case it's overwritten
 // right away.
 void printMenuMessage(const char* s) {
     int width = systemGetConsoleWidth();

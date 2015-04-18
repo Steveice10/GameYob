@@ -387,6 +387,7 @@ char* startFileChooser(const char* extensions[], bool romExtensions, bool canQui
 
                 printf("\x1b[0m");
             }
+
             if(canQuit) {
                 if(numFiles < filesPerPage) {
                     for(int i = numFiles; i < filesPerPage; i++) {
@@ -394,7 +395,13 @@ char* startFileChooser(const char* extensions[], bool romExtensions, bool canQui
                     }
                 }
 
-                printf("                Press Y to exit");
+                const char* text = "Press Y to exit";
+                int spaces = systemGetConsoleWidth() - strlen(text);
+                for(int i = 0; i < spaces; i++) {
+                    printf(" ");
+                }
+
+                printf(text);
             }
 
             gfxFlush();

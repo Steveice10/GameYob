@@ -478,6 +478,7 @@ Gameboy::Gameboy() : hram(highram + 0xe00), ioRam(highram + 0xf00) {
     saveFile = NULL;
 
     romFile = NULL;
+    romHasBorder = false;
 
     fpsOutput = true;
 
@@ -1184,10 +1185,26 @@ void Gameboy::setRomFile(const char* filename) {
     if(romFile != NULL) {
         delete romFile;
         romFile = NULL;
+        romHasBorder = false;
     }
 
     romFile = new RomFile(this, filename);
     cheatEngine->setRomFile(romFile);
+
+    std::string border = std::string(filename) + ".png";
+    FILE* file = fopen(border.c_str(), "r");
+    if(file != NULL) {
+        romHasBorder = true;
+        fclose(file);
+        gfxLoadBorder(border.c_str());
+    } else {
+        FILE* defaultFile = fopen(borderPath, "r");
+        if(defaultFile != NULL) {
+            fclose(defaultFile);
+            gfxLoadBorder(borderPath);
+        }
+    }
+
 
     // Load cheats
     if(gbsPlayer->gbsMode)
@@ -1214,6 +1231,7 @@ void Gameboy::unloadRom() {
     if(romFile != NULL) {
         delete romFile;
         romFile = NULL;
+        romHasBorder = false;
     }
     cheatEngine->setRomFile(NULL);
 }

@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "platform/gfx.h"
 #include "platform/system.h"
 #include "ui/config.h"
 #include "ui/manager.h"
@@ -41,6 +42,7 @@ RomFile::RomFile(Gameboy* gb, const char* f) {
         printf("\n\nPlease restart GameYob.\n");
         while(true) {
             systemCheckRunning();
+            gfxWaitForVBlank();
         }
     }
 

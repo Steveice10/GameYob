@@ -5,8 +5,11 @@
  */
 
 #include <string.h>
+#include <malloc.h>
 
 #include "platform/gfx.h"
+#include "platform/system.h"
+#include "ui/filechooser.h"
 #include "ui/menu.h"
 #include "gameboy.h"
 
@@ -344,25 +347,8 @@ void GameboyPPU::drawScreen() {
     gfxDrawScreen();
 }
 
-
 void GameboyPPU::displayIcon(int iconid) {
 
-}
-
-
-void GameboyPPU::selectBorder() {
-
-}
-
-int GameboyPPU::loadBorder(const char* filename) {
-    return 0;
-}
-
-void GameboyPPU::checkBorder() {
-    if(lastGameScreen != gameScreen) {
-        lastGameScreen = gameScreen;
-        gfxClearScreens();
-    }
 }
 
 void GameboyPPU::setSgbMask(int mask) {

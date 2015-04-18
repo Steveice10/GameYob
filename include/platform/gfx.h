@@ -6,6 +6,7 @@ bool gfxInit();
 void gfxCleanup();
 void gfxToggleFastForward();
 void gfxSetFastForward(bool fastforward);
+void gfxLoadBorder(const char* filename);
 void gfxDrawPixel(int x, int y, u32 pixel);
 void gfxDrawScreen();
 void gfxFlush();

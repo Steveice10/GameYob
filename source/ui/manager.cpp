@@ -1,12 +1,12 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "platform/gfx.h"
 #include "platform/input.h"
 #include "platform/system.h"
 #include "ui/filechooser.h"
 #include "ui/manager.h"
 #include "ui/menu.h"
-#include "gameboy.h"
 
 Gameboy* gameboy = NULL;
 
@@ -83,13 +83,13 @@ void mgrLoadRom(const char* filename) {
     }
 }
 
-void mgr_unloadRom() {
+void mgrUnloadRom() {
     gameboy->unloadRom();
     gameboy->linkedGameboy = NULL;
 }
 
 void mgrSelectRom() {
-    mgr_unloadRom();
+    mgrUnloadRom();
 
     loadFileChooserState(&romChooserState);
     const char* extraExtensions[] = {"gbs"};
@@ -101,6 +101,7 @@ void mgrSelectRom() {
         printf("\n\nPlease restart GameYob.\n");
         while(true) {
             systemCheckRunning();
+            gfxWaitForVBlank();
         }
     }
 

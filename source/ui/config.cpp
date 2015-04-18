@@ -10,14 +10,13 @@
 #include "ui/filechooser.h"
 #include "ui/menu.h"
 #include "gameboy.h"
-#include "ppu.h"
 
 #include <ctrcommon/input.hpp>
 
 #define INI_PATH "/gameyob.ini"
 
 char biosPath[256] = "/gbc_bios.bin";
-char borderPath[256] = "";
+char borderPath[256] = "/border.png";
 char romPath[256] = "/gb/";
 
 void controlsParseConfig(char* line);
@@ -35,13 +34,10 @@ void generalParseConfig(char* line) {
             strcpy(romPath, value);
             romChooserState.directory = romPath;
         } else if (strcasecmp(parameter, "biosfile") == 0) {
-            //strcpy(biosPath, value);
+            strcpy(biosPath, value);
         } else if(strcasecmp(parameter, "borderfile") == 0) {
             strcpy(borderPath, value);
         }
-    }
-    if(*borderPath == '\0') {
-        strcpy(borderPath, "/border.bmp");
     }
 }
 
