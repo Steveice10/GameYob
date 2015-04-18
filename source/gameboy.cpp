@@ -2,7 +2,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <platform/audio.h>
 
+#include "gb_apu/Gb_Apu.h"
 #include "platform/gfx.h"
 #include "platform/input.h"
 #include "platform/system.h"
@@ -489,13 +491,20 @@ Gameboy::Gameboy() : hram(highram + 0xe00), ioRam(highram + 0xf00) {
     saveModified = false;
     autosaveStarted = false;
 
-    apu = new GameboyAPU(this);
+    apu = new Gb_Apu();
+    apuBuffer = new Mono_Buffer();
+
     ppu = new GameboyPPU(this);
 
     printer = new GameboyPrinter(this);
     gbsPlayer = new GBSPlayer(this);
 
     cheatEngine = new CheatEngine(this);
+
+    apuBuffer->bass_freq(461);
+    apuBuffer->clock_rate(clockSpeed);
+    apuBuffer->set_sample_rate((long) SAMPLE_RATE);
+    apu->output(apuBuffer->center(), apuBuffer->center(), apuBuffer->center());
 
     ppu->probingForBorder = false;
 }
@@ -610,7 +619,6 @@ void Gameboy::initGBCMode() {
 }
 
 void Gameboy::initSND() {
-
     // Sound stuff
     for(int i = 0x27; i <= 0x2f; i++)
         ioRam[i] = 0xff;
@@ -642,9 +650,7 @@ void Gameboy::initSND() {
     for(int i = 1; i < 0x10; i += 2)
         ioRam[0x30 + i] = 0xff;
 
-    apu->cyclesToSoundEvent = 0;
-
-    apu->init();
+    apu->reset();
 }
 
 // Called either from startup, or when FF50 is written to.
@@ -815,14 +821,12 @@ void Gameboy::resetGameboy() {
 void Gameboy::pause() {
     if(!gameboyPaused) {
         gameboyPaused = true;
-        apu->mute();
     }
 }
 
 void Gameboy::unpause() {
     if(gameboyPaused) {
         gameboyPaused = false;
-        apu->unmute();
     }
 }
 
@@ -904,12 +908,21 @@ int Gameboy::runEmul() {
         updateTimers(cycles);
 
         soundCycles += cycles >> doubleSpeed;
-        if(soundCycles >= apu->cyclesToSoundEvent) {
-            apu->cyclesToSoundEvent = 10000;
-            apu->updateSound(soundCycles);
+        if(soundCycles >= (clockSpeed / 60.0f) * 8) {
+            apu->end_frame(soundCycles);
+            apuBuffer->end_frame(soundCycles);
+
+            static blip_sample_t buf[APU_BUFFER_SIZE];
+            long count = apuBuffer->read_samples(buf, APU_BUFFER_SIZE);
+            if(!soundDisabled && !gameboyPaused) {
+                playAudio(buf, count);
+            } else {
+                apuBuffer->clear();
+            }
+
             soundCycles = 0;
         }
-        setEventCycles(apu->cyclesToSoundEvent);
+        setEventCycles(10000);
 
         emuRet |= updateLCD(cycles);
 
@@ -1606,7 +1619,7 @@ int Gameboy::loadState(int stateNum) {
         saveGame(); // Synchronize save file on sd with file in ram
 
     ppu->refreshPPU();
-    apu->refresh();
+    apu->reset();
 
     return 0;
 }

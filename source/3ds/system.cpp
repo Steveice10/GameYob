@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <malloc.h>
 
+#include "platform/audio.h"
 #include "platform/gfx.h"
 #include "platform/system.h"
 #include "ui/config.h"

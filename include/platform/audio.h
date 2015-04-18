@@ -2,6 +2,4 @@
 
 #include <ctrcommon/types.hpp>
 
-void initSampler();
-void swapBuffers();
-void addSample(s16 sample);
+void playAudio(s16* samples, long count);

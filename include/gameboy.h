@@ -4,7 +4,8 @@
 #include <vector>
 #include <stdarg.h>
 
-#include "apu.h"
+#include "gb_apu/Gb_Apu.h"
+#include "gb_apu/Multi_Buffer.h"
 #include "cheatengine.h"
 #include "gbsplayer.h"
 #include "ppu.h"
@@ -20,6 +21,10 @@
 
 // Same deal
 #define CYCLES_PER_FRAME 70224
+#define CYCLES_UNTIL_SAMPLE (0x54)
+#define SAMPLE_RATE (CYCLES_PER_FRAME * 59.7 / CYCLES_UNTIL_SAMPLE)
+#define FRAMES_PER_BUFFER 8
+#define APU_BUFFER_SIZE ((CYCLES_PER_FRAME / CYCLES_UNTIL_SAMPLE) * FRAMES_PER_BUFFER)
 
 #define GB            0
 #define CGB            1
@@ -131,7 +136,9 @@ public:
 
     inline GameboyPPU* getPPU() { return ppu; }
 
-    inline GameboyAPU* getAPU() { return apu; }
+    inline Gb_Apu* getAPU() { return apu; }
+
+    inline Mono_Buffer* getAPUBuffer() { return apuBuffer; }
 
     inline CheatEngine* getCheatEngine() { return cheatEngine; }
 
@@ -183,7 +190,9 @@ private:
     GBSPlayer* gbsPlayer;
 
     GameboyPPU* ppu;
-    GameboyAPU* apu;
+
+    Gb_Apu* apu;
+    Mono_Buffer* apuBuffer;
 
     CheatEngine* cheatEngine;
     RomFile* romFile;
@@ -261,10 +270,6 @@ public:
     inline u8 getWramBank() { return wramBank; }
 
     inline void setWramBank(u8 bank) { wramBank = bank; }
-
-    inline void setSoundChannel(int which) { ioRam[0x26] |= which; }
-
-    inline void clearSoundChannel(int which) { ioRam[0x26] &= ~which; }
 
     void refreshRomBank(int bank);
     void refreshRamBank(int bank);

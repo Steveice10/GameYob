@@ -138,9 +138,6 @@ void mgrRun() {
     while(!gameboy->isGameboyPaused() && !(gameboy->runEmul() & RET_VBLANK));
 
     gameboy->getPPU()->drawScreen();
-    if(gameboy && !gameboy->isGameboyPaused()) {
-        gameboy->getAPU()->soundUpdate();
-    }
 
     inputUpdate();
 

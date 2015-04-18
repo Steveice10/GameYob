@@ -144,50 +144,44 @@ u8 Gameboy::readIO(u8 ioReg) {
     switch(ioReg) {
         case 0x00:
             return sgbReadP1();
-        case 0x10: // NR10, sweep register 1, bit 7 set on read
-            return ioRam[ioReg] | 0x80;
-        case 0x11: // NR11, sound length/pattern duty 1, bits 5-0 set on read
-            return ioRam[ioReg] | 0x3F;
-        case 0x13: // NR13, sound frequency low byte 1, all bits set on read
-            return 0xFF;
-        case 0x14: // NR14, sound frequency high byte 1, bits 7,5-0 set on read
-            return ioRam[ioReg] | 0xBF;
-        case 0x15: // No register, all bits set on read
-            return 0xFF;
-        case 0x16: // NR21, sound length/pattern duty 2, bits 5-0 set on read
-            return ioRam[ioReg] | 0x3F;
-        case 0x18: // NR23, sound frequency low byte 2, all bits set on read
-            return 0xFF;
-        case 0x19: // NR24, sound frequency high byte 2, bits 7,5-0 set on read
-            return ioRam[ioReg] | 0xBF;
-        case 0x1A: // NR30, sound mode 3, bits 6-0 set on read
-            return ioRam[ioReg] | 0x7F;
-        case 0x1B: // NR31, sound length 3, all bits set on read
-            return 0xFF;
-        case 0x1C: // NR32, sound output level 3, bits 7,4-0 set on read
-            return ioRam[ioReg] | 0x9F;
-        case 0x1D: // NR33, sound frequency low byte 2, all bits set on read
-            return 0xFF;
-        case 0x1E: // NR34, sound frequency high byte 2, bits 7,5-0 set on read
-            return ioRam[ioReg] | 0xBF;
-        case 0x1F: // No register, all bits set on read
-            return 0xFF;
-        case 0x20: // NR41, sound mode/length 4, all bits set on read
-            return 0xFF;
-        case 0x23: // NR44, sound counter/consecutive, bits 7,5-0 set on read
-            return ioRam[ioReg] | 0xBF;
-        case 0x26: // NR52, global sound status, bits 6-4 set on read
-            return ioRam[ioReg] | 0x70;
-        case 0x27: // No register, all bits set on read
-        case 0x28:
-        case 0x29:
-        case 0x2A:
-        case 0x2B:
-        case 0x2C:
-        case 0x2D:
-        case 0x2E:
-        case 0x2F:
-            return 0xFF;
+        // APU registers.
+        case 0x10:
+        case 0x11:
+        case 0x12:
+        case 0x13:
+        case 0x14:
+        case 0x16:
+        case 0x17:
+        case 0x18:
+        case 0x19:
+        case 0x1A:
+        case 0x1B:
+        case 0x1C:
+        case 0x1D:
+        case 0x1E:
+        case 0x20:
+        case 0x21:
+        case 0x22:
+        case 0x23:
+        case 0x24:
+        case 0x25:
+        case 0x30:
+        case 0x31:
+        case 0x32:
+        case 0x33:
+        case 0x34:
+        case 0x35:
+        case 0x36:
+        case 0x37:
+        case 0x38:
+        case 0x39:
+        case 0x3A:
+        case 0x3B:
+        case 0x3C:
+        case 0x3D:
+        case 0x3E:
+        case 0x3F:
+            return (u8) apu->read_register(soundCycles, 0xFF00 + ioReg);
         case 0x70: // wram register
             return ioRam[ioReg] | 0xf8;
         default:
@@ -272,29 +266,35 @@ void Gameboy::writeIO(u8 ioReg, u8 val) {
             return;
         case 0x05:
             ioRam[ioReg] = val;
-            break;
+            return;
         case 0x06:
             ioRam[ioReg] = val;
-            break;
+            return;
         case 0x07:
             timerPeriod = periods[val & 0x3];
             ioRam[ioReg] = val;
-            break;
+            return;
         case 0x10:
         case 0x11:
         case 0x12:
         case 0x13:
+        case 0x14:
         case 0x16:
         case 0x17:
         case 0x18:
+        case 0x19:
+        case 0x1A:
         case 0x1B:
         case 0x1C:
         case 0x1D:
+        case 0x1E:
         case 0x20:
         case 0x21:
         case 0x22:
+        case 0x23:
         case 0x24:
         case 0x25:
+        case 0x26:
         case 0x30:
         case 0x31:
         case 0x32:
@@ -311,61 +311,9 @@ void Gameboy::writeIO(u8 ioReg, u8 val) {
         case 0x3D:
         case 0x3E:
         case 0x3F:
-        handleSoundReg:
-            if(soundDisabled || // If sound is disabled from menu, or
-               // If sound is globally disabled via shutting down the APU,
-               (!(ioRam[0x26] & 0x80)
-                // ignore register writes to between FF10 and FF25 inclusive.
-                && ioReg >= 0x10 && ioReg <= 0x25))
-                return;
             ioRam[ioReg] = val;
-            apu->handleSoundRegister(ioReg, val);
+            apu->write_register(soundCycles, 0xFF00 + ioReg, val);
             return;
-        case 0x26:
-            ioRam[ioReg] &= ~0x80;
-            ioRam[ioReg] |= (val & 0x80);
-
-            if(!(val & 0x80)) {
-                for(int reg = 0x10; reg <= 0x25; reg++)
-                    ioRam[reg] = 0;
-                clearSoundChannel(CHAN_1);
-                clearSoundChannel(CHAN_2);
-                clearSoundChannel(CHAN_3);
-                clearSoundChannel(CHAN_4);
-            }
-
-            apu->handleSoundRegister(ioReg, val);
-            return;
-        case 0x14:
-            if(soundDisabled || (!(ioRam[0x26] & 0x80)))
-                return;
-            if(val & 0x80)
-                setSoundChannel(CHAN_1);
-            goto handleSoundReg;
-        case 0x19:
-            if(soundDisabled || (!(ioRam[0x26] & 0x80)))
-                return;
-            if(val & 0x80)
-                setSoundChannel(CHAN_2);
-            goto handleSoundReg;
-        case 0x1A:
-            if(soundDisabled || (!(ioRam[0x26] & 0x80)))
-                return;
-            if(!(val & 0x80))
-                clearSoundChannel(CHAN_3);
-            goto handleSoundReg;
-        case 0x1E:
-            if(soundDisabled || (!(ioRam[0x26] & 0x80)))
-                return;
-            if(val & 0x80)
-                setSoundChannel(CHAN_3);
-            goto handleSoundReg;
-        case 0x23:
-            if(soundDisabled || (!(ioRam[0x26] & 0x80)))
-                return;
-            if(val & 0x80)
-                setSoundChannel(CHAN_4);
-            goto handleSoundReg;
         case 0x42:
         case 0x43:
         case 0x47:

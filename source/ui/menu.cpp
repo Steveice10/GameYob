@@ -69,7 +69,6 @@ void subMenuGenericUpdateFunc() {
 // Functions corresponding to menu options
 
 void suspendFunc(int value) {
-    gameboy->getAPU()->mute();
     if(!autoSavingEnabled && gameboy->getNumRamBanks()) {
         printMenuMessage("Saving SRAM...");
         mgrSave();
@@ -83,7 +82,6 @@ void suspendFunc(int value) {
 }
 
 void exitFunc(int value) {
-    gameboy->getAPU()->mute();
     if(!autoSavingEnabled && gameboy->getNumRamBanks()) {
         printMenuMessage("Saving SRAM...");
         mgrSave();
@@ -95,7 +93,6 @@ void exitFunc(int value) {
 }
 
 void exitNoSaveFunc(int value) {
-    gameboy->getAPU()->mute();
     closeMenu();
     mgrSelectRom();
 }
@@ -142,10 +139,7 @@ void keyConfigFunc(int value) {
 
 void saveSettingsFunc(int value) {
     printMenuMessage("Saving settings...");
-    gameboy->getAPU()->mute();
     writeConfigFile();
-    if(!gameboy->isGameboyPaused())
-        gameboy->getAPU()->unmute();
     printMenuMessage("Settings saved.");
 }
 
@@ -163,10 +157,7 @@ void stateSelectFunc(int value) {
 
 void stateSaveFunc(int value) {
     printMenuMessage("Saving state...");
-    gameboy->getAPU()->mute();
     gameboy->saveState(stateNum);
-    if(!gameboy->isGameboyPaused())
-        gameboy->getAPU()->unmute();
     printMenuMessage("State saved.");
     // Will activate the other state options
     stateSelectFunc(stateNum);
@@ -174,7 +165,6 @@ void stateSaveFunc(int value) {
 
 void stateLoadFunc(int value) {
     printMenuMessage("Loading state...");
-    gameboy->getAPU()->mute();
     if(gameboy->loadState(stateNum) == 0) {
         closeMenu();
         systemUpdateConsole();
@@ -183,12 +173,9 @@ void stateLoadFunc(int value) {
 }
 
 void stateDeleteFunc(int value) {
-    gameboy->getAPU()->mute();
     gameboy->deleteState(stateNum);
     // Will grey out the other state options
     stateSelectFunc(stateNum);
-    if(!gameboy->isGameboyPaused())
-        gameboy->getAPU()->unmute();
 }
 
 void accelPadFunc(int value) {
@@ -314,10 +301,7 @@ void versionInfoFunc(int value) {
 }
 
 void setChanEnabled(int chan, int value) {
-    if(value == 0)
-        gameboy->getAPU()->disableChannel(chan);
-    else
-        gameboy->getAPU()->enableChannel(chan);
+    gameboy->getAPU()->set_osc_enabled(chan, value == 1);
 }
 
 void chan1Func(int value) {
@@ -337,7 +321,6 @@ void chan4Func(int value) {
 }
 
 void setAutoSaveFunc(int value) {
-    gameboy->getAPU()->mute();
     if(autoSavingEnabled) {
         gameboy->gameboySyncAutosave();
     } else {
@@ -349,10 +332,6 @@ void setAutoSaveFunc(int value) {
         enableMenuOption("Exit without saving");
     } else {
         disableMenuOption("Exit without saving");
-    }
-
-    if(!gameboy->isGameboyPaused()) {
-        gameboy->getAPU()->unmute();
     }
 }
 
