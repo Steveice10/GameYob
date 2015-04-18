@@ -190,12 +190,11 @@ void gfxDrawScreen() {
         u32 vboWidth = 160;
         u32 vboHeight = 144;
         if(scaleMode == 1) {
-            float scale = fbHeight / (float) 144;
-            vboWidth *= scale;
-            vboHeight *= scale;
+            vboWidth *= fbHeight / (float) 144;
+            vboHeight = fbHeight;
         } else if(scaleMode == 2) {
-            vboWidth *= fbWidth / (float) 160;
-            vboHeight *= fbHeight / (float) 144;
+            vboWidth = fbWidth;
+            vboHeight = fbHeight;
         }
 
         // Calculate VBO extents.
@@ -231,7 +230,7 @@ void gfxDrawScreen() {
     gpuClear();
 
     // Draw the border.
-    if(borderTexture != 0 && borderVbo != 0 && customBordersEnabled) {
+    if(borderTexture != 0 && borderVbo != 0 && customBordersEnabled && scaleMode != 2) {
         gpuBindTexture(TEXUNIT0, borderTexture);
         gpuDrawVbo(borderVbo);
     }
