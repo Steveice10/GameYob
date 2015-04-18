@@ -2546,7 +2546,7 @@ void GameboyAPU::handleSoundRegister(u8 ioReg, u8 val) {
             chanLen[1] = val & 0x3F;
             chanLenCounter[1] = (64 - chanLen[1]) * clockSpeed / 256;
             if(chanUseLen[1]) {
-                setSoundEventCycles(chanLenCounter[0]);
+                setSoundEventCycles(chanLenCounter[1]);
             }
 
             chanDuty[1] = val >> 6;
@@ -2578,7 +2578,7 @@ void GameboyAPU::handleSoundRegister(u8 ioReg, u8 val) {
             if(val & 0x80) {
                 chanLenCounter[1] = (64 - chanLen[1]) * clockSpeed / 256;
                 if(chanUseLen[1]) {
-                    setSoundEventCycles(chanLenCounter[0]);
+                    setSoundEventCycles(chanLenCounter[1]);
                 }
 
                 chanOn[1] = 1;
