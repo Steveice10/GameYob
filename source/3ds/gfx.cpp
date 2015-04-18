@@ -1,4 +1,5 @@
 #include "lodepng/lodepng.h"
+#include "platform/gfx.h"
 #include "platform/input.h"
 #include "ui/config.h"
 #include "ui/menu.h"
@@ -98,7 +99,7 @@ unsigned int gfxNextPowerOfTwo(unsigned int v) {
 
 void gfxLoadBorder(const char* filename) {
     if(filename == NULL) {
-        gfxLoadBorder(NULL, 0, 0);
+        gfxLoadBorderBuffer(NULL, 0, 0);
         return;
     }
 
@@ -110,10 +111,10 @@ void gfxLoadBorder(const char* filename) {
         return;
     }
 
-    gfxLoadBorder(imgData, imgWidth, imgHeight);
+    gfxLoadBorderBuffer(imgData, imgWidth, imgHeight);
 }
 
-void gfxLoadBorder(u8* imgData, u32 imgWidth, u32 imgHeight) {
+void gfxLoadBorderBuffer(u8* imgData, u32 imgWidth, u32 imgHeight) {
     if(imgData == NULL) {
         if(borderTexture != 0) {
             gpuFreeTexture(borderTexture);
