@@ -157,7 +157,7 @@ void gfxDrawScreen() {
 
         if(gameScreen == 1) {
             // Adjust for the bottom screen. (with some error, apparently?)
-            static const float mod = ((400.0f - 320.0f) / 400.0f) - (15.0f / 400.0f);
+            static const float mod = ((400.0f - 320.0f) / 400.0f) - (18.0f / 400.0f);
             leftHorizMod = mod / 2.0f;
             rightHorizMod += mod / 2.0f;
         }

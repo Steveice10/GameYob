@@ -1368,6 +1368,7 @@ void Gameboy::gameboySyncAutosave() {
     for(int i = 0; i < numRamBanks * 0x2000 / 512; i++) {
         if(dirtySectors[i]) {
             dirtySectors[i] = false;
+            numSectors++;
 
             fseek(saveFile, i * 512, SEEK_SET);
             fwrite(&externRam[i * 512], 1, 512, saveFile);
