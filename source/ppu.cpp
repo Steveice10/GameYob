@@ -46,6 +46,7 @@ void GameboyPPU::initPPU() {
     }
 
     gfxMask = 0;
+    screenWasDisabled = false;
 
     memset(bgPalettesModified, 0, sizeof(bgPalettesModified));
     memset(sprPalettesModified, 0, sizeof(sprPalettesModified));
@@ -85,6 +86,14 @@ void GameboyPPU::drawScanline_P2(int scanline) {
                 updateSprPalette(i);
             sprPalettesModified[i] = false;
         }
+    }
+
+    if (screenWasDisabled) {
+        // Leave it white for one extra frame
+        for (int i=0; i<160; i++) {
+            gfxDrawPixel(i, scanline, RGB24(0xff,0xff,0xff));
+        }
+        return;
     }
 
     if(gameboy->ioRam[0x40] & 0x10) {    // Tile Data location
@@ -383,6 +392,7 @@ void GameboyPPU::drawSprite(int scanline, int spriteNum) {
 }
 
 void GameboyPPU::drawScreen() {
+    screenWasDisabled = false;
     gfxDrawScreen();
 }
 
@@ -413,6 +423,17 @@ void GameboyPPU::writeHram(u16 addr, u8 val) {
 
 void GameboyPPU::handleVideoRegister(u8 ioReg, u8 val) {
     switch(ioReg) {
+        case 0x40:
+            if ((gameboy->ioRam[ioReg] & 0x80) && !(val & 0x80)) {
+                for (int j=0; j<144; j++) {
+                    for (int i=0; i<160; i++) {
+                        gfxDrawPixel(i, j, RGB24(0xff,0xff,0xff));
+                    }
+                }
+            }
+            else if (!(gameboy->ioRam[ioReg] & 0x80) && (val & 0x80))
+                screenWasDisabled = true;
+            break;
         case 0x47:
             if(gameboy->gbMode == GB)
                 bgPalettesModified[0] = true;

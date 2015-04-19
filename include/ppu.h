@@ -55,7 +55,7 @@ private:
 
     Gameboy* gameboy;
 
-    int lastGameScreen = -1;
+    bool screenWasDisabled;
 
     u32 gbColors[4];
     u32 pixels[32 * 32 * 64];
