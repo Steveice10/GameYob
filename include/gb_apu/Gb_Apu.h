@@ -55,7 +55,7 @@ public:
 	// sound to one of the left/right buffers, false if they only added
 	// to the center buffer.
 	bool end_frame( gb_time_t );
-	
+
 private:
 	// noncopyable
 	Gb_Apu( const Gb_Apu& );

@@ -900,17 +900,18 @@ int Gameboy::runEmul() {
 
                 requestInterrupt(INT_SERIAL);
                 ioRam[0x02] &= ~0x80;
-            }
-            else
+            } else {
                 setEventCycles(serialCounter);
+            }
         }
 
         updateTimers(cycles);
 
         soundCycles += cycles >> doubleSpeed;
         if(soundCycles >= CYCLES_PER_FRAME * 8) {
-            apu->end_frame(soundCycles);
-            apuBuffer->end_frame(soundCycles);
+            apu->end_frame(CYCLES_PER_FRAME * 8);
+            apuBuffer->end_frame(CYCLES_PER_FRAME * 8);
+            soundCycles -= CYCLES_PER_FRAME * 8;
 
             static blip_sample_t buf[APU_BUFFER_SIZE];
             long count = apuBuffer->read_samples(buf, APU_BUFFER_SIZE);
@@ -919,15 +920,10 @@ int Gameboy::runEmul() {
             } else {
                 apuBuffer->clear();
             }
-
-            soundCycles = 0;
         }
-
-        setEventCycles(10000);
 
         emuRet |= updateLCD(cycles);
 
-        //interruptTriggered = ioRam[0x0F] & ioRam[0xFF];
         if(interruptTriggered) {
             /* Hack to fix Robocop 2 and LEGO Racers, possibly others. 
              * Interrupts can occur in the middle of an opcode. The result of 
@@ -937,8 +933,9 @@ int Gameboy::runEmul() {
              * This has been known to break Megaman V boss intros, that's fixed 
              * by the "opTriggeredInterrupt" stuff.
              */
-            if(!halt && !opTriggeredInterrupt)
+            if(!halt && !opTriggeredInterrupt) {
                 extraCycles += runOpcode(4);
+            }
 
             if(interruptTriggered) {
                 extraCycles += handleInterrupts(interruptTriggered);
