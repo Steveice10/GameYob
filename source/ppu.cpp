@@ -45,6 +45,8 @@ void GameboyPPU::initPPU() {
         bgPalettesRef[i][3] = &bgPalettes[i][3];
     }
 
+    gfxMask = 0;
+
     memset(bgPalettesModified, 0, sizeof(bgPalettesModified));
     memset(sprPalettesModified, 0, sizeof(sprPalettesModified));
 }
@@ -113,155 +115,171 @@ void GameboyPPU::drawScanline_P2(int scanline) {
     memset(spritePixels, 0, sizeof(spritePixels));
     memset(spritePixelsLow, 0, sizeof(spritePixelsLow));
 
-    if(gameboy->ioRam[0x40] & 0x2) { // Sprites enabled
-        for(int i = 39; i >= 0; i--) {
-            drawSprite(scanline, i);
+    if (gfxMask == 2) {
+        for (int i=0; i<160; i++) {
+            gfxDrawPixel(i, scanline, 0);
         }
+        return;
+    }
+    else if (gfxMask == 3) {
+        int c = bgPalettes[0][0];
+        for (int i=0; i<160; i++) {
+            gfxDrawPixel(i, scanline, c);
+        }
+        return;
     }
 
-    int winX = gameboy->ioRam[0x4B] - 7;
-    int winY = gameboy->ioRam[0x4A];
-    bool drawingWindow = scanline >= winY && gameboy->ioRam[0x40] & 0x20;
-
-    int BGOn = 1;
-    if(!(gameboy->gbMode == CGB) && (gameboy->ioRam[0x40] & 1) == 0)
-        BGOn = 0;
-
-    if(BGOn) {
-        u8 scrollX = gameboy->ioRam[0x43];
-        int scrollY = gameboy->ioRam[0x42];
-        // The y position (measured in tiles)
-        int tileY = ((scanline + scrollY) & 0xFF) / 8;
-
-        int numTilesX = 20;
-        if(drawingWindow)
-            numTilesX = (winX + 7) / 8;
-        int startTile = scrollX / 8;
-        int endTile = (startTile + numTilesX + 1) & 31;
-
-        for(int i = startTile; i != endTile; i = (i + 1) & 31) {
-            int mapAddr = BGMapAddr + i +
-                          (tileY * 32);        // The address (from beginning of gameboy->vram) of the tile's mapping
-            // This is the tile id.
-            int tileNum = gameboy->vram[0][mapAddr];
-            if(tileSigned)
-                tileNum = ((s8) tileNum) + 256;
-
-            int flipX = 0, flipY = 0;
-            int bank = 0;
-            int paletteid = 0;
-            int priority = 0;
-
-            if(gameboy->gbMode == CGB) {
-                flipX = gameboy->vram[1][mapAddr] & 0x20;
-                flipY = gameboy->vram[1][mapAddr] & 0x40;
-                bank = !!(gameboy->vram[1][mapAddr] & 0x8);
-                paletteid = gameboy->vram[1][mapAddr] & 0x7;
-                priority = gameboy->vram[1][mapAddr] & 0x80;
-            }
-
-            // This is the tile's Y position to be read (0-7)
-            int pixelY = (scanline + scrollY) % 8;
-            if(flipY)
-                pixelY = 7 - pixelY;
-
-            for(int x = 0; x < 8; x++) {
-                // The x position to write to pixels[].
-                u32 writeX = ((i * 8) + x - scrollX) & 0xFF;
-                if (writeX >= 160)
-                    continue;
-
-                int colorid;
-                u32 color;
-
-                if(flipX) {
-                    colorid = !!(gameboy->vram[bank][(tileNum << 4) + (pixelY << 1)] & (0x80 >> (7 - x)));
-                    colorid |= !!(gameboy->vram[bank][(tileNum << 4) + (pixelY << 1) + 1] & (0x80 >> (7 - x))) << 1;
-                }
-                else {
-                    colorid = !!(gameboy->vram[bank][(tileNum << 4) + (pixelY << 1)] & (0x80 >> x));
-                    colorid |= !!(gameboy->vram[bank][(tileNum << 4) + (pixelY << 1) + 1] & (0x80 >> x)) << 1;
-                }
-
-                if (gameboy->sgbMode)
-                    paletteid = gameboy->sgbMap[scanline/8*20 + writeX/8];
-
-                color = *bgPalettesRef[paletteid][colorid];
-                if(priority) {
-                    bgPixels[writeX] = colorid;
-                    bgPixelsTrue[writeX] = color;
-                    bgPixelsLow[writeX] = colorid;
-                    bgPixelsTrueLow[writeX] = color;
-                }
-                else {
-                    bgPixelsLow[writeX] = colorid;
-                    bgPixelsTrueLow[writeX] = color;
-                }
-                //spritePixels[writeX] = 0;
+    if (gfxMask == 0) {
+        if(gameboy->ioRam[0x40] & 0x2) { // Sprites enabled
+            for(int i = 39; i >= 0; i--) {
+                drawSprite(scanline, i);
             }
         }
-    }
 
-    // Draw window
+        int winX = gameboy->ioRam[0x4B] - 7;
+        int winY = gameboy->ioRam[0x4A];
+        bool drawingWindow = scanline >= winY && gameboy->ioRam[0x40] & 0x20;
 
-    if(drawingWindow) {
-        int tileY = (scanline - winY) / 8;
+        int BGOn = 1;
+        if(!(gameboy->gbMode == CGB) && (gameboy->ioRam[0x40] & 1) == 0)
+            BGOn = 0;
 
-        int endTile = 21 - winX / 8;
-        for(int i = 0; i < endTile; i++) {
-            int mapAddr = winMapAddr + i + (tileY * 32);
-            // This is the tile id.
-            int tileNum = gameboy->vram[0][mapAddr];
-            if(tileSigned)
-                tileNum = ((s8) tileNum) + 128 + 0x80;
+        if(BGOn) {
+            u8 scrollX = gameboy->ioRam[0x43];
+            int scrollY = gameboy->ioRam[0x42];
+            // The y position (measured in tiles)
+            int tileY = ((scanline + scrollY) & 0xFF) / 8;
 
-            int flipX = 0, flipY = 0;
-            int bank = 0;
-            int paletteid = 0;
-            int priority = 0;
+            int numTilesX = 20;
+            if(drawingWindow)
+                numTilesX = (winX + 7) / 8;
+            int startTile = scrollX / 8;
+            int endTile = (startTile + numTilesX + 1) & 31;
 
-            if(gameboy->gbMode == CGB) {
-                flipX = gameboy->vram[1][mapAddr] & 0x20;
-                flipY = gameboy->vram[1][mapAddr] & 0x40;
-                bank = !!(gameboy->vram[1][mapAddr] & 0x8);
-                paletteid = gameboy->vram[1][mapAddr] & 0x7;
-                priority = gameboy->vram[1][mapAddr] & 0x80;
+            for(int i = startTile; i != endTile; i = (i + 1) & 31) {
+                int mapAddr = BGMapAddr + i +
+                    (tileY * 32);        // The address (from beginning of gameboy->vram) of the tile's mapping
+                // This is the tile id.
+                int tileNum = gameboy->vram[0][mapAddr];
+                if(tileSigned)
+                    tileNum = ((s8) tileNum) + 256;
+
+                int flipX = 0, flipY = 0;
+                int bank = 0;
+                int paletteid = 0;
+                int priority = 0;
+
+                if(gameboy->gbMode == CGB) {
+                    flipX = gameboy->vram[1][mapAddr] & 0x20;
+                    flipY = gameboy->vram[1][mapAddr] & 0x40;
+                    bank = !!(gameboy->vram[1][mapAddr] & 0x8);
+                    paletteid = gameboy->vram[1][mapAddr] & 0x7;
+                    priority = gameboy->vram[1][mapAddr] & 0x80;
+                }
+
+                // This is the tile's Y position to be read (0-7)
+                int pixelY = (scanline + scrollY) % 8;
+                if(flipY)
+                    pixelY = 7 - pixelY;
+
+                for(int x = 0; x < 8; x++) {
+                    // The x position to write to pixels[].
+                    u32 writeX = ((i * 8) + x - scrollX) & 0xFF;
+                    if (writeX >= 160)
+                        continue;
+
+                    int colorid;
+                    u32 color;
+
+                    if(flipX) {
+                        colorid = !!(gameboy->vram[bank][(tileNum << 4) + (pixelY << 1)] & (0x80 >> (7 - x)));
+                        colorid |= !!(gameboy->vram[bank][(tileNum << 4) + (pixelY << 1) + 1] & (0x80 >> (7 - x))) << 1;
+                    }
+                    else {
+                        colorid = !!(gameboy->vram[bank][(tileNum << 4) + (pixelY << 1)] & (0x80 >> x));
+                        colorid |= !!(gameboy->vram[bank][(tileNum << 4) + (pixelY << 1) + 1] & (0x80 >> x)) << 1;
+                    }
+
+                    if (gameboy->sgbMode)
+                        paletteid = gameboy->sgbMap[scanline/8*20 + writeX/8];
+
+                    color = *bgPalettesRef[paletteid][colorid];
+                    if(priority) {
+                        bgPixels[writeX] = colorid;
+                        bgPixelsTrue[writeX] = color;
+                        bgPixelsLow[writeX] = colorid;
+                        bgPixelsTrueLow[writeX] = color;
+                    }
+                    else {
+                        bgPixelsLow[writeX] = colorid;
+                        bgPixelsTrueLow[writeX] = color;
+                    }
+                    //spritePixels[writeX] = 0;
+                }
             }
+        }
 
-            int pixelY = (scanline - winY) % 8;
-            if(flipY)
-                pixelY = 7 - pixelY;
-            for(int x = 0; x < 8; x++) {
-                int writeX = (i * 8) + x + winX;
-                if (writeX >= 160)
-                    continue;
+        // Draw window
 
-                int colorid;
-                u32 color;
+        if(drawingWindow) {
+            int tileY = (scanline - winY) / 8;
 
-                if(flipX) {
-                    colorid = !!(gameboy->vram[bank][(tileNum << 4) + (pixelY << 1)] & (0x80 >> (7 - x)));
-                    colorid |= !!(gameboy->vram[bank][(tileNum << 4) + (pixelY << 1) + 1] & (0x80 >> (7 - x))) << 1;
+            int endTile = 21 - winX / 8;
+            for(int i = 0; i < endTile; i++) {
+                int mapAddr = winMapAddr + i + (tileY * 32);
+                // This is the tile id.
+                int tileNum = gameboy->vram[0][mapAddr];
+                if(tileSigned)
+                    tileNum = ((s8) tileNum) + 128 + 0x80;
+
+                int flipX = 0, flipY = 0;
+                int bank = 0;
+                int paletteid = 0;
+                int priority = 0;
+
+                if(gameboy->gbMode == CGB) {
+                    flipX = gameboy->vram[1][mapAddr] & 0x20;
+                    flipY = gameboy->vram[1][mapAddr] & 0x40;
+                    bank = !!(gameboy->vram[1][mapAddr] & 0x8);
+                    paletteid = gameboy->vram[1][mapAddr] & 0x7;
+                    priority = gameboy->vram[1][mapAddr] & 0x80;
                 }
-                else {
-                    colorid = !!(gameboy->vram[bank][(tileNum << 4) + (pixelY << 1)] & (0x80 >> x));
-                    colorid |= !!(gameboy->vram[bank][(tileNum << 4) + (pixelY << 1) + 1] & (0x80 >> x)) << 1;
-                }
 
-                if (gameboy->sgbMode)
-                    paletteid = gameboy->sgbMap[scanline/8*20 + writeX/8];
+                int pixelY = (scanline - winY) % 8;
+                if(flipY)
+                    pixelY = 7 - pixelY;
+                for(int x = 0; x < 8; x++) {
+                    int writeX = (i * 8) + x + winX;
+                    if (writeX >= 160)
+                        continue;
 
-                color = *bgPalettesRef[paletteid][colorid];
-                if(priority) {
-                    bgPixels[writeX] = colorid;
-                    bgPixelsTrue[writeX] = color;
-                    bgPixelsLow[writeX] = colorid;
-                    bgPixelsTrueLow[writeX] = color;
-                }
-                else {
-                    bgPixelsLow[writeX] = colorid;
-                    bgPixelsTrueLow[writeX] = color;
-                    bgPixels[writeX] = 0;
+                    int colorid;
+                    u32 color;
+
+                    if(flipX) {
+                        colorid = !!(gameboy->vram[bank][(tileNum << 4) + (pixelY << 1)] & (0x80 >> (7 - x)));
+                        colorid |= !!(gameboy->vram[bank][(tileNum << 4) + (pixelY << 1) + 1] & (0x80 >> (7 - x))) << 1;
+                    }
+                    else {
+                        colorid = !!(gameboy->vram[bank][(tileNum << 4) + (pixelY << 1)] & (0x80 >> x));
+                        colorid |= !!(gameboy->vram[bank][(tileNum << 4) + (pixelY << 1) + 1] & (0x80 >> x)) << 1;
+                    }
+
+                    if (gameboy->sgbMode)
+                        paletteid = gameboy->sgbMap[scanline/8*20 + writeX/8];
+
+                    color = *bgPalettesRef[paletteid][colorid];
+                    if(priority) {
+                        bgPixels[writeX] = colorid;
+                        bgPixelsTrue[writeX] = color;
+                        bgPixelsLow[writeX] = colorid;
+                        bgPixelsTrueLow[writeX] = color;
+                    }
+                    else {
+                        bgPixelsLow[writeX] = colorid;
+                        bgPixelsTrueLow[writeX] = color;
+                        bgPixels[writeX] = 0;
+                    }
                 }
             }
         }
@@ -373,7 +391,7 @@ void GameboyPPU::displayIcon(int iconid) {
 }
 
 void GameboyPPU::setSgbMask(int mask) {
-
+    gfxMask = mask;
 }
 
 void GameboyPPU::setSgbTiles(u8* src, u8 flags) {
