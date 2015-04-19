@@ -907,23 +907,29 @@ int Gameboy::runEmul() {
 
         updateTimers(cycles);
 
-        soundCycles += cycles >> doubleSpeed;
-        if(soundCycles >= CYCLES_PER_FRAME * 8) {
-            setEventCycles(10000);
-            apu->end_frame(CYCLES_PER_FRAME * 8);
-            apuBuffer->end_frame(CYCLES_PER_FRAME * 8);
-            soundCycles -= CYCLES_PER_FRAME * 8;
+        emuRet |= updateLCD(cycles);
 
-            static blip_sample_t buf[APU_BUFFER_SIZE];
-            long count = apuBuffer->read_samples(buf, APU_BUFFER_SIZE);
-            if(!soundDisabled && !gameboyPaused) {
-                playAudio(buf, count);
-            } else {
-                apuBuffer->clear();
+        soundCycles += cycles >> doubleSpeed;
+        if(emuRet & RET_VBLANK) {
+            soundFrames++;
+            if(soundFrames >= FRAMES_PER_BUFFER) {
+                apu->end_frame(CYCLES_PER_FRAME * 8);
+                apuBuffer->end_frame(CYCLES_PER_FRAME * 8);
+
+                static blip_sample_t buf[APU_BUFFER_SIZE];
+                long count = apuBuffer->read_samples(buf, APU_BUFFER_SIZE);
+                if(!soundDisabled && !gameboyPaused) {
+                    playAudio(buf, count);
+                } else {
+                    apuBuffer->clear();
+                }
+
+                soundCycles = 0;
+                soundFrames = 0;
             }
         }
 
-        emuRet |= updateLCD(cycles);
+        setEventCycles(10000);
 
         if(interruptTriggered) {
             /* Hack to fix Robocop 2 and LEGO Racers, possibly others. 

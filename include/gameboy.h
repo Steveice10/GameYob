@@ -172,6 +172,7 @@ public:
     int ime;
     int extraCycles;
     int soundCycles;
+    int soundFrames;
     int cyclesToExecute;
     struct Registers gbRegs;
 

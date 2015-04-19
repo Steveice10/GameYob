@@ -9,6 +9,7 @@
 #include <ctrcommon/gpu.hpp>
 
 #include "shader_vsh_shbin.h"
+#include "printer_icon_bin.h"
 
 static u8* screenBuffer = (u8*) gpuAlloc(256 * 256 * 3);
 
@@ -28,6 +29,9 @@ static u32 borderWidth = 0;
 static u32 borderHeight = 0;
 static u32 gpuBorderWidth = 0;
 static u32 gpuBorderHeight = 0;
+
+static u32 printerIconVbo = 0;
+static u32 printerIconTexture = 0;
 
 bool gfxInit() {
     // Initialize the GPU and setup the state.
