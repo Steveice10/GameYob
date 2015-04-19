@@ -911,11 +911,12 @@ int Gameboy::runEmul() {
 
         soundCycles += cycles >> doubleSpeed;
         if(emuRet & RET_VBLANK) {
+            apu->end_frame(soundCycles);
+            apuBuffer->end_frame(soundCycles);
+            soundCycles = 0;
+
             soundFrames++;
             if(soundFrames >= FRAMES_PER_BUFFER) {
-                apu->end_frame(CYCLES_PER_FRAME * 8);
-                apuBuffer->end_frame(CYCLES_PER_FRAME * 8);
-
                 static blip_sample_t buf[APU_BUFFER_SIZE];
                 long count = apuBuffer->read_samples(buf, APU_BUFFER_SIZE);
                 if(!soundDisabled && !gameboyPaused) {
@@ -924,11 +925,11 @@ int Gameboy::runEmul() {
                     apuBuffer->clear();
                 }
 
-                soundCycles = 0;
                 soundFrames = 0;
             }
         }
 
+        // TODO: Hack to get Pokemon Pinball working. Need proper timing.
         setEventCycles(10000);
 
         if(interruptTriggered) {
