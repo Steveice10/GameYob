@@ -4,11 +4,6 @@
 
 class Gameboy;
 
-enum Icons {
-    ICON_NULL = 0,
-    ICON_PRINTER
-};
-
 enum {
     BORDER_NONE = 0,
     BORDER_SGB,
@@ -26,8 +21,6 @@ public:
     void drawScanline(int scanline);
     void drawScanline_P2(int scanline);
     void drawScreen();
-
-    void displayIcon(int iconid);
 
     void setSgbMask(int mask);
     void setSgbTiles(u8* src, u8 flags);

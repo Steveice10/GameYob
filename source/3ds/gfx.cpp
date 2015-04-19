@@ -7,9 +7,9 @@
 #include <3ds.h>
 
 #include <ctrcommon/gpu.hpp>
+#include <malloc.h>
 
 #include "shader_vsh_shbin.h"
-#include "printer_icon_bin.h"
 
 static u8* screenBuffer = (u8*) gpuAlloc(256 * 256 * 3);
 
@@ -29,9 +29,6 @@ static u32 borderWidth = 0;
 static u32 borderHeight = 0;
 static u32 gpuBorderWidth = 0;
 static u32 gpuBorderHeight = 0;
-
-static u32 printerIconVbo = 0;
-static u32 printerIconTexture = 0;
 
 bool gfxInit() {
     // Initialize the GPU and setup the state.
@@ -80,6 +77,12 @@ void gfxCleanup() {
         gpuFreeTexture(borderTexture);
         borderTexture = 0;
     }
+
+    // Free border VBO.
+    if(borderVbo != 0) {
+        gpuFreeVbo(borderVbo);
+        borderVbo = 0;
+    }
 }
 
 void gfxToggleFastForward() {
@@ -116,6 +119,7 @@ void gfxLoadBorder(const char* filename) {
     }
 
     gfxLoadBorderBuffer(imgData, imgWidth, imgHeight);
+    free(imgData);
 }
 
 void gfxLoadBorderBuffer(u8* imgData, u32 imgWidth, u32 imgHeight) {
@@ -163,6 +167,14 @@ void gfxLoadBorderBuffer(u8* imgData, u32 imgWidth, u32 imgHeight) {
 
     // Free the buffer.
     gpuFree(borderBuffer);
+}
+
+void gfxClearScreen(u8 color) {
+    memset(screenBuffer, color, 256 * 256 * 3);
+}
+
+void gfxClearLine(u32 line, u8 color) {
+    memset(screenBuffer + (line * 256 * 3), color, 256 * 3);
 }
 
 void gfxDrawPixel(int x, int y, u32 pixel) {

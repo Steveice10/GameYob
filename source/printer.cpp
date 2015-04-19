@@ -3,6 +3,7 @@
 #include <string.h>
 #include <unistd.h>
 
+#include "platform/gfx.h"
 #include "ui/menu.h"
 #include "printer.h"
 #include "gameboy.h"
@@ -163,7 +164,6 @@ void GameboyPrinter::updateGbPrinter() {
         if(printCounter == 0) {
             if(printerStatus & PRINTER_STATUS_PRINTING) {
                 printerStatus &= ~PRINTER_STATUS_PRINTING;
-                gameboy->getPPU()->displayIcon(ICON_NULL); // Disable the printing icon
             }
             else {
                 printerStatus |= PRINTER_STATUS_REQUESTED;
@@ -214,8 +214,6 @@ void GameboyPrinter::printerSendVariableLenData(u8 dat) {
 
 // Save the image as a 4bpp bitmap
 void GameboyPrinter::printerSaveFile() {
-    gameboy->getPPU()->displayIcon(ICON_PRINTER);
-
     // if "appending" is true, this image will be slapped onto the old one.
     // Some games have a tendency to print an image in multiple goes.
     bool appending = false;
