@@ -165,6 +165,7 @@ u8 Gameboy::readIO(u8 ioReg) {
         case 0x23:
         case 0x24:
         case 0x25:
+        case 0x26:
         case 0x30:
         case 0x31:
         case 0x32:
