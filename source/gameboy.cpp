@@ -909,6 +909,7 @@ int Gameboy::runEmul() {
 
         soundCycles += cycles >> doubleSpeed;
         if(soundCycles >= CYCLES_PER_FRAME * 8) {
+            setEventCycles(10000);
             apu->end_frame(CYCLES_PER_FRAME * 8);
             apuBuffer->end_frame(CYCLES_PER_FRAME * 8);
             soundCycles -= CYCLES_PER_FRAME * 8;
