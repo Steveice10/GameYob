@@ -1005,7 +1005,8 @@ void Gameboy::initGFXPalette() {
         }
 
         memcpy(bgPaletteData, palette, 4 * sizeof(u16));
-        memcpy(sprPaletteData, palette + 4, 8 * sizeof(u16));
+        memcpy(sprPaletteData, palette + 4, 4 * sizeof(u16));
+        memcpy(sprPaletteData + 4*8, palette + 8, 4 * sizeof(u16));
     }
 }
 

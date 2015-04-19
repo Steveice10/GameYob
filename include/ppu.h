@@ -38,6 +38,11 @@ public:
     void writeHram(u16 addr, u8 val);
     void handleVideoRegister(u8 ioReg, u8 val);
 
+    void updateBgPalette(int paletteid);
+    void updateBgPaletteDMG();
+    void updateSprPalette(int paletteid);
+    void updateSprPaletteDMG(int paletteid);
+
     bool probingForBorder;
     
     u8 gfxMask;
@@ -47,11 +52,6 @@ public:
 
 private:
     void drawSprite(int scanline, int spriteNum);
-
-    void updateBgPalette(int paletteid);
-    void updateBgPaletteDMG();
-    void updateSprPalette(int paletteid);
-    void updateSprPaletteDMG(int paletteid);
 
     Gameboy* gameboy;
 
