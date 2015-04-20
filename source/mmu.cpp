@@ -15,11 +15,11 @@ typedef void (Gameboy::*mbcWrite)(u16, u8);
 typedef u8   (Gameboy::*mbcRead )(u16);
 
 const mbcRead mbcReads[] = {
-        NULL, NULL, NULL, &Gameboy::m3r, NULL, &Gameboy::m7r, NULL, &Gameboy::h3r
+        NULL, NULL, NULL, &Gameboy::m3r, NULL, &Gameboy::m7r, NULL, NULL, &Gameboy::h3r
 };
 
 const mbcWrite mbcWrites[] = {
-        &Gameboy::m0w, &Gameboy::m1w, &Gameboy::m2w, &Gameboy::m3w, &Gameboy::m5w, &Gameboy::m7w, &Gameboy::h1w,
+        &Gameboy::m0w, &Gameboy::m1w, &Gameboy::m2w, &Gameboy::m3w, &Gameboy::m5w, &Gameboy::m7w, &Gameboy::mmm01w, &Gameboy::h1w,
         &Gameboy::h3w
 };
 
@@ -103,6 +103,20 @@ void Gameboy::initMMU() {
     ioRam[0x55] = 0xff;
 
     memset(dirtySectors, 0, sizeof(dirtySectors));
+
+    mbc7WriteEnable = false;
+    mbc7Idle = false;
+    mbc7Cs = 0;
+    mbc7Sk = 0;
+    mbc7OpCode = 0;
+    mbc7Addr = 0;
+    mbc7Count = 0;
+    mbc7State = 0;
+    mbc7Buffer = 0;
+    mbc7RA = 0; // Ram Access register 0xa080
+
+    mmm01BankSelected = false;
+    mmm01RomBaseBank = 0;
 
     if(!biosOn)
         initGameboyMode();

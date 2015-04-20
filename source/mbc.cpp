@@ -450,6 +450,53 @@ void Gameboy::m7w(u16 addr, u8 val) {
     }
 }
 
+/* MMM01 */
+void Gameboy::mmm01w(u16 addr, u8 val) {
+    switch(addr >> 12) {
+        case 0x0: /* 0000 - 1fff */
+        case 0x1:
+            if(mmm01BankSelected) {
+                ramEnabled = (val & 0xF) == 0xA;
+            } else {
+                mmm01BankSelected = true;
+
+                memory[0x0] = romFile->romSlot0 + (mmm01RomBaseBank * 0x4000);
+                memory[0x1] = memory[0x0] + 0x1000;
+                memory[0x2] = memory[0x0] + 0x2000;
+                memory[0x3] = memory[0x0] + 0x3000;
+                refreshRomBank(mmm01RomBaseBank + 1);
+            }
+
+            break;
+        case 0x2: /* 2000 - 3fff */
+        case 0x3:
+            if(mmm01BankSelected) {
+                refreshRomBank(mmm01RomBaseBank + (val ? val : 1));
+            } else {
+                mmm01RomBaseBank = (u8) ((val & (romFile->getNumRomBanks() - 3)) + 2);
+            }
+
+            break;
+        case 0x4: /* 4000 - 5fff */
+        case 0x5:
+            if(mmm01BankSelected) {
+                refreshRamBank(val);
+            }
+
+            break;
+        case 0x6: /* 6000 - 7fff */
+        case 0x7:
+            break;
+        case 0xa: /* a000 - bfff */
+        case 0xb:
+            if(mmm01BankSelected && ramEnabled && numRamBanks) {
+                writeSram(addr & 0x1fff, val);
+            }
+
+            break;
+    }
+}
+
 /* HUC1 */
 void Gameboy::h1w(u16 addr, u8 val) {
     switch(addr >> 12) {

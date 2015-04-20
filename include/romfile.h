@@ -15,6 +15,7 @@ enum {
     MBC3,
     MBC5,
     MBC7,
+    MMM01,
     HUC1,
     HUC3,
     MBC_MAX,

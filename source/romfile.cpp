@@ -113,10 +113,20 @@ RomFile::RomFile(Gameboy* gb, const char* f) {
         romTitle[i] = (char) romSlot0[i + 0x134];
     romTitle[nameLength] = '\0';
 
+    // MMM01 games may have the actual header at the last section of the ROM instead of the first, so we need to shift things around if we detect the wrong header.
+    if(strcmp(romTitle, "SAGAIA") == 0 || strcmp(romTitle, "BUBBLEBOBBLE SET3") == 0 || strcmp(romTitle, "MOMOTARODENGEKI218") == 0) {
+        u8* temp = (u8*) malloc(numLoadedRomBanks * 0x4000);
+        memcpy(temp, romBankSlots, numLoadedRomBanks * 0x4000);
+
+        memcpy(romBankSlots, temp + ((numLoadedRomBanks * 0x4000) - 0x8000), 0x8000);
+        memcpy(romBankSlots + 0x8000, temp, (numLoadedRomBanks * 0x4000) - 0x8000);
+
+        free(temp);
+    }
+
     if(gameboy->getGBSPlayer()->gbsMode) {
         MBC = MBC5;
-    }
-    else {
+    } else {
         switch(getMapper()) {
             case 0:
             case 8:
@@ -132,9 +142,11 @@ RomFile::RomFile(Gameboy* gb, const char* f) {
             case 6:
                 MBC = MBC2;
                 break;
-                //case 0xb: case 0xc: case 0xd:
-                //MBC = MMM01;
-                //break;
+            case 0xb:
+            case 0xc:
+            case 0xd:
+                MBC = MMM01;
+                break;
             case 0xf:
             case 0x10:
             case 0x11:
@@ -193,7 +205,6 @@ RomFile::~RomFile() {
     free(romBankSlots);
 #endif
 }
-
 
 void RomFile::loadRomBank(int romBank) {
     if(bankSlotIDs[romBank] != -1 || numRomBanks <= numLoadedRomBanks || romBank == 0) {

@@ -1247,7 +1247,7 @@ void Gameboy::unloadRom() {
     cheatEngine->setRomFile(NULL);
 }
 
-const char* mbcNames[] = {"ROM", "MBC1", "MBC2", "MBC3", "MBC5", "MBC7", "HUC1", "HUC3"};
+const char* mbcNames[] = {"ROM", "MBC1", "MBC2", "MBC3", "MBC5", "MBC7", "MMM01", "HUC1", "HUC3"};
 
 void Gameboy::printRomInfo() {
     iprintf("\x1b[2J");

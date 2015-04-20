@@ -327,6 +327,7 @@ public:
     void m3w(u16 addr, u8 val);
     void m5w(u16 addr, u8 val);
     void m7w(u16 addr, u8 val);
+    void mmm01w(u16 addr, u8 val);
     void h1w(u16 addr, u8 val);
     void h3w(u16 addr, u8 val);
 
@@ -365,6 +366,9 @@ public:
     u8 mbc7State;
     u16 mbc7Buffer;
     u8 mbc7RA; // Ram Access register 0xa080
+
+    bool mmm01BankSelected;
+    u8 mmm01RomBaseBank;
 
     // sgb.cpp
 public:
