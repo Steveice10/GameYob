@@ -11,7 +11,7 @@ u8 Gameboy::m3r(u16 addr) {
     if(!ramEnabled)
         return 0xff;
 
-    switch(currentRamBank) { // Check for RTC register
+    switch(ramBankNum) { // Check for RTC register
         case 0x8:
             return gbClock.mbc3.s;
         case 0x9:
@@ -84,7 +84,7 @@ void Gameboy::m0w(u16 addr, u8 val) {
             break;
         case 0xa: /* a000 - bfff */
         case 0xb:
-            if(numRamBanks)
+            if(romFile->getRamBanks() > 0)
                 writeSram(addr & 0x1fff, val);
             break;
     }
@@ -105,16 +105,16 @@ void Gameboy::m1w(u16 addr, u8 val) {
             if(rockmanMapper)
                 newBank = ((val > 0xf) ? val - 8 : val);
             else
-                newBank = (romBank & 0xe0) | val;
-            refreshRomBank((newBank) ? newBank : 1);
+                newBank = (romBank1Num & 0xe0) | val;
+            refreshRomBank1((newBank) ? newBank : 1);
             break;
         case 0x4: /* 4000 - 5fff */
         case 0x5:
             val &= 3;
             /* ROM mode */
             if(memoryModel == 0) {
-                newBank = (romBank & 0x1F) | (val << 5);
-                refreshRomBank((newBank) ? newBank : 1);
+                newBank = (romBank1Num & 0x1F) | (val << 5);
+                refreshRomBank1((newBank) ? newBank : 1);
             }
                 /* RAM mode */
             else
@@ -126,7 +126,7 @@ void Gameboy::m1w(u16 addr, u8 val) {
             break;
         case 0xa: /* a000 - bfff */
         case 0xb:
-            if(ramEnabled && numRamBanks)
+            if(ramEnabled && romFile->getRamBanks() > 0)
                 writeSram(addr & 0x1fff, val);
             break;
     }
@@ -141,7 +141,7 @@ void Gameboy::m2w(u16 addr, u8 val) {
             break;
         case 0x2: /* 2000 - 3fff */
         case 0x3:
-            refreshRomBank((val) ? val : 1);
+            refreshRomBank1((val) ? val : 1);
             break;
         case 0x4: /* 4000 - 5fff */
         case 0x5:
@@ -151,7 +151,7 @@ void Gameboy::m2w(u16 addr, u8 val) {
             break;
         case 0xa: /* a000 - bfff */
         case 0xb:
-            if(ramEnabled && numRamBanks)
+            if(ramEnabled && romFile->getRamBanks() > 0)
                 writeSram(addr & 0x1fff, val & 0xf);
             break;
     }
@@ -167,7 +167,7 @@ void Gameboy::m3w(u16 addr, u8 val) {
         case 0x2: /* 2000 - 3fff */
         case 0x3:
             val &= 0x7f;
-            refreshRomBank((val) ? val : 1);
+            refreshRomBank1((val) ? val : 1);
             break;
         case 0x4: /* 4000 - 5fff */
         case 0x5:
@@ -176,7 +176,7 @@ void Gameboy::m3w(u16 addr, u8 val) {
             if(val <= 0x3)
                 refreshRamBank(val);
             else if(val >= 8 && val <= 0xc)
-                currentRamBank = val;
+                ramBankNum = val;
             break;
         case 0x6: /* 6000 - 7fff */
         case 0x7:
@@ -188,7 +188,7 @@ void Gameboy::m3w(u16 addr, u8 val) {
             if(!ramEnabled)
                 break;
 
-            switch(currentRamBank) { // Check for RTC register
+            switch(ramBankNum) { // Check for RTC register
                 case 0x8:
                     if(gbClock.mbc3.s != val) {
                         gbClock.mbc3.s = val;
@@ -223,7 +223,7 @@ void Gameboy::m3w(u16 addr, u8 val) {
                     }
                     return;
                 default: // Not an RTC register
-                    if(numRamBanks)
+                    if(romFile->getRamBanks() > 0)
                         writeSram(addr & 0x1fff, val);
             }
             break;
@@ -232,7 +232,7 @@ void Gameboy::m3w(u16 addr, u8 val) {
 
 void Gameboy::writeClockStruct() {
     if(autoSavingEnabled) {
-        fseek(saveFile, numRamBanks * 0x2000, SEEK_SET);
+        fseek(saveFile, romFile->getRamBanks() * 0x2000, SEEK_SET);
         fwrite(&gbClock, 1, sizeof(gbClock), saveFile);
         saveModified = true;
     }
@@ -247,10 +247,10 @@ void Gameboy::m5w(u16 addr, u8 val) {
             ramEnabled = ((val & 0xf) == 0xa);
             break;
         case 0x2: /* 2000 - 3fff */
-            refreshRomBank((romBank & 0x100) | val);
+            refreshRomBank1((romBank1Num & 0x100) | val);
             break;
         case 0x3:
-            refreshRomBank((romBank & 0xff) | (val & 1) << 8);
+            refreshRomBank1((romBank1Num & 0xff) | (val & 1) << 8);
             break;
         case 0x4: /* 4000 - 5fff */
         case 0x5:
@@ -269,7 +269,7 @@ void Gameboy::m5w(u16 addr, u8 val) {
             break;
         case 0xa: /* a000 - bfff */
         case 0xb:
-            if(ramEnabled && numRamBanks) {
+            if(ramEnabled && romFile->getRamBanks() > 0) {
                 writeSram(addr & 0x1fff, val);
             }
 
@@ -290,10 +290,10 @@ void Gameboy::m7w(u16 addr, u8 val) {
             ramEnabled = ((val & 0xf) == 0xa);
             break;
         case 0x2: /* 2000 - 3fff */
-            refreshRomBank((romBank & 0x100) | val);
+            refreshRomBank1((romBank1Num & 0x100) | val);
             break;
         case 0x3:
-            refreshRomBank((romBank & 0xff) | (val & 1) << 8);
+            refreshRomBank1((romBank1Num & 0xff) | (val & 1) << 8);
             break;
         case 0x4: /* 4000 - 5fff */
         case 0x5:
@@ -460,20 +460,17 @@ void Gameboy::mmm01w(u16 addr, u8 val) {
             } else {
                 mmm01BankSelected = true;
 
-                memory[0x0] = romFile->romSlot0 + (mmm01RomBaseBank * 0x4000);
-                memory[0x1] = memory[0x0] + 0x1000;
-                memory[0x2] = memory[0x0] + 0x2000;
-                memory[0x3] = memory[0x0] + 0x3000;
-                refreshRomBank(mmm01RomBaseBank + 1);
+                refreshRomBank0(mmm01RomBaseBank);
+                refreshRomBank1(mmm01RomBaseBank + 1);
             }
 
             break;
         case 0x2: /* 2000 - 3fff */
         case 0x3:
             if(mmm01BankSelected) {
-                refreshRomBank(mmm01RomBaseBank + (val ? val : 1));
+                refreshRomBank1(mmm01RomBaseBank + (val ? val : 1));
             } else {
-                mmm01RomBaseBank = (u8) ((val & (romFile->getNumRomBanks() - 3)) + 2);
+                mmm01RomBaseBank = (u8) ((val & (romFile->getRomBanks() - 3)) + 2);
             }
 
             break;
@@ -489,7 +486,7 @@ void Gameboy::mmm01w(u16 addr, u8 val) {
             break;
         case 0xa: /* a000 - bfff */
         case 0xb:
-            if(mmm01BankSelected && ramEnabled && numRamBanks) {
+            if(mmm01BankSelected && ramEnabled && romFile->getRamBanks() > 0) {
                 writeSram(addr & 0x1fff, val);
             }
 
@@ -506,14 +503,14 @@ void Gameboy::h1w(u16 addr, u8 val) {
             break;
         case 0x2: /* 2000 - 3fff */
         case 0x3:
-            refreshRomBank(val & 0x3f);
+            refreshRomBank1(val & 0x3f);
             break;
         case 0x4: /* 4000 - 5fff */
         case 0x5:
             val &= 3;
             if(memoryModel == 0)
                 /* ROM mode */
-                refreshRomBank(val);
+                refreshRomBank1(val);
             else
                 /* RAM mode */
                 refreshRamBank(val);
@@ -524,7 +521,7 @@ void Gameboy::h1w(u16 addr, u8 val) {
             break;
         case 0xa: /* a000 - bfff */
         case 0xb:
-            if(ramEnabled && numRamBanks)
+            if(ramEnabled && romFile->getRamBanks() > 0)
                 writeSram(addr & 0x1fff, val);
             break;
     }
@@ -541,7 +538,7 @@ void Gameboy::h3w(u16 addr, u8 val) {
             break;
         case 0x2: /* 2000 - 3fff */
         case 0x3:
-            refreshRomBank((val) ? val : 1);
+            refreshRomBank1((val) ? val : 1);
             break;
         case 0x4: /* 4000 - 5fff */
         case 0x5:
@@ -561,7 +558,7 @@ void Gameboy::h3w(u16 addr, u8 val) {
                 case 0xe:
                     break;
                 default:
-                    if(ramEnabled && numRamBanks)
+                    if(ramEnabled && romFile->getRamBanks() > 0)
                         writeSram(addr & 0x1fff, val);
             }
             break;
@@ -608,7 +605,7 @@ void Gameboy::handleHuC3Command(u8 cmd) {
             HuC3Value = 1;
             break;
         default:
-            if(consoleDebugOutput) {
+            if(showConsoleDebug()) {
                 printf("unhandled HuC3 cmd %02x\n", cmd);
             }
     }
@@ -658,6 +655,7 @@ void Gameboy::latchClock() {
             OVERFLOW(gbClock.huc3.d, 365, gbClock.huc3.y);
             gbClock.huc3.y += lt->tm_year - 70;
             break;
+
     }
 
     gbClock.last = now;

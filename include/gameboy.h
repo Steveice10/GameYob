@@ -112,7 +112,6 @@ public:
 
     void setRomFile(const char* filename);
     void unloadRom();
-    void printRomInfo();
     bool isRomLoaded();
 
     int loadSave(int saveId);
@@ -144,9 +143,10 @@ public:
 
     u8 controllers[4];
 
-    int doubleSpeed;
+    bool doubleSpeed;
 
-    // whether the bios is mapped to memory
+    u8 bios[0x900];
+    bool biosLoaded;
     bool biosOn;
 
     int gbMode;
@@ -261,13 +261,12 @@ public:
     bool updateHBlankDMA();
     void latchClock();
 
-    inline int getNumRamBanks() { return numRamBanks; }
-
     inline u8 getWramBank() { return wramBank; }
 
     inline void setWramBank(u8 bank) { wramBank = bank; }
 
-    void refreshRomBank(int bank);
+    void refreshRomBank0(int bank);
+    void refreshRomBank1(int bank);
     void refreshRamBank(int bank);
     void writeSram(u16 addr, u8 val);
 
@@ -339,14 +338,15 @@ public:
 
     ClockStruct gbClock;
 
-    int numRamBanks;
-
     bool ramEnabled;
 
     int memoryModel;
     bool hasClock;
-    int romBank;
-    int currentRamBank;
+    int romBank0Num;
+    u8* romBank0;
+    int romBank1Num;
+    u8* romBank1;
+    int ramBankNum;
 
     bool rockmanMapper;
 
@@ -367,6 +367,7 @@ public:
     u16 mbc7Buffer;
     u8 mbc7RA; // Ram Access register 0xa080
 
+    // MMM01
     bool mmm01BankSelected;
     u8 mmm01RomBaseBank;
 

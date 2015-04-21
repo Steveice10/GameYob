@@ -1,264 +1,207 @@
+#include <sys/stat.h>
+#include <math.h>
 #include <string.h>
-#include <stdio.h>
-#include <stdlib.h>
+#include <string>
+#include <algorithm>
 
-#include "platform/gfx.h"
-#include "platform/system.h"
-#include "ui/config.h"
-#include "ui/manager.h"
 #include "ui/menu.h"
+#include "gameboy.h"
+#include "romfile.h"
 
-#ifdef EMBEDDED_ROM
-#include "rom_gb.h"
-#endif
+RomFile::RomFile(Gameboy* gb, const std::string path) {
+    this->file = fopen(path.c_str(), "r");
+    if(!this->file) {
+        this->loaded = false;
+        return;
+    }
 
-RomFile::RomFile(Gameboy* gb, const char* f) {
     this->gameboy = gb;
-    romFile = NULL;
-    maxLoadedRomBanks = 512;
+    this->gameboy->getGBSPlayer()->gbsMode = (strcasecmp(strrchr(path.c_str(), '.'), ".gbs") == 0);
 
-    strcpy(filename, f);
-
-#ifdef EMBEDDED_ROM
-    gbsMode = false;
-
-    numRomBanks = rom_gb_size/0x4000;
-    numLoadedRomBanks = numRomBanks;
-    romBankSlots = (u8*)rom_gb;
-
-    for (int i=0; i<numRomBanks; i++) {
-        bankSlotIDs[i] = i;
-        lastBanksUsed.push_back(i);
+    this->fileName = path;
+    std::string::size_type dot = this->fileName.find_last_of('.');
+    if(dot != std::string::npos) {
+        this->fileName = this->fileName.substr(0, dot);
     }
-#else
-    romBankSlots = (u8*) malloc(maxLoadedRomBanks * 0x4000);
 
-    // Check if this is a GBS file
-    gameboy->getGBSPlayer()->gbsMode = (strcasecmp(strrchr(filename, '.'), ".gbs") == 0);
+    struct stat st;
+    fstat(fileno(this->file), &st);
 
-    romFile = fopen(filename, "rb");
-    if(romFile == NULL) {
-        printf("Error opening %s.", filename);
-        printf("\n\nPlease restart GameYob.\n");
-        while(true) {
-            systemCheckRunning();
-            gfxWaitForVBlank();
+    this->totalRomBanks = (int) pow(2, ceil(log(((u32) st.st_size + 0x3FFF) / 0x4000) / log(2)));
+    this->banks = new u8*[this->totalRomBanks]();
+
+    u8* bank0 = this->getRomBank(0);
+    if(bank0 == NULL) {
+        this->loaded = false;
+        return;
+    }
+
+    this->romTitle = std::string(reinterpret_cast<char*>(&bank0[0x0134]), bank0[0x0143] == 0x80 || bank0[0x0143] == 0xC0 ? 15 : 16);
+    this->romTitle.erase(std::find_if(this->romTitle.rbegin(), this->romTitle.rend(), [](int c) { return c != 0; }).base(), this->romTitle.end());
+
+    // Most MMM01 dumps have the initial banks at the end of the ROM rather than the beginning, so detect wrong initial banks and compensate.
+    if(this->romTitle.compare("SAGAIA") == 0 || this->romTitle.compare("BUBBLEBOBBLE SET3") == 0 || this->romTitle.compare("MOMOTARODENGEKI218") == 0) {
+        this->firstBanksAtEnd = true;
+
+        delete this->banks[0];
+        this->banks[0] = NULL;
+
+        bank0 = this->getRomBank(0);
+        if(bank0 == NULL) {
+            this->loaded = false;
+            return;
         }
+
+        this->romTitle = std::string(reinterpret_cast<char*>(&bank0[0x0134]), bank0[0x0143] == 0x80 || bank0[0x0143] == 0xC0 ? 15 : 16);
     }
 
-    if(gameboy->getGBSPlayer()->gbsMode) {
-        fread(gameboy->getGBSPlayer()->gbsHeader, 1, 0x70, romFile);
-        gameboy->getGBSPlayer()->gbsReadHeader();
-        fseek(romFile, 0, SEEK_END);
-        numRomBanks = (ftell(romFile) - 0x70 + 0x3fff) / 0x4000; // Get number of banks, rounded up
-        printf("%.2x\n", numRomBanks);
-    }
-    else {
-        fseek(romFile, 0, SEEK_END);
-        numRomBanks = (ftell(romFile) + 0x3fff) / 0x4000; // Get number of banks, rounded up
-    }
+    this->cgbSupported = bank0[0x0143] == 0x80 || bank0[0x0143] == 0xC0;
+    this->cgbRequired = bank0[0x0143] == 0xC0;
+    this->sgb = bank0[0x014b] == 0x33 && bank0[0x146] == 0x03;
 
-    // Round numRomBanks to a power of 2
-    int n = 1;
-    while(n < numRomBanks) n *= 2;
-    numRomBanks = n;
+    this->rawMBC = !this->gameboy->getGBSPlayer()->gbsMode ? bank0[0x0147] : (u8) 0x1C;
+    switch(this->rawMBC) {
+        case 0x00:
+        case 0x08:
+        case 0x09:
+            this->mbc = MBC0;
+            break;
+        case 0x01:
+        case 0x02:
+        case 0x03:
+            this->mbc = MBC1;
+            break;
+        case 0x05:
+        case 0x06:
+            this->mbc = MBC2;
+            break;
+        case 0x0B:
+        case 0x0C:
+        case 0x0D:
+            this->mbc = MMM01;
+            break;
+        case 0x0F:
+        case 0x010:
+        case 0x11:
+        case 0x12:
+        case 0x13:
+            this->mbc = MBC3;
+            break;
+        case 0x19:
+        case 0x1A:
+        case 0x1B:
+            this->mbc = MBC5;
+            break;
+        case 0x1C:
+        case 0x1D:
+        case 0x1E:
+            this->mbc = MBC5;
+            this->rumble = true;
+            break;
+        case 0x22:
+            this->mbc = MBC7;
+            break;
+        case 0xEA: // Hack for SONIC5
+            this->mbc = MBC1;
+            break;
+        case 0xFE:
+            this->mbc = HUC3;
+            break;
+        case 0xFF:
+            this->mbc = HUC1;
+            break;
+        default:
+            if(showConsoleDebug()) {
+                printf("Unsupported mapper value %02x\n", bank0[0x0147]);
+            }
 
-    //int rawRomSize = ftell(romFile);
-    fseek(romFile, 0, SEEK_SET);
-
-    if(numRomBanks <= maxLoadedRomBanks)
-        numLoadedRomBanks = numRomBanks;
-    else
-        numLoadedRomBanks = maxLoadedRomBanks;
-
-    for(int i = 0; i < numRomBanks; i++) {
-        bankSlotIDs[i] = -1;
-    }
-
-    // Load rom banks and initialize all those "bank" arrays
-    lastBanksUsed = std::vector<int>();
-    // Read bank 0
-    if(gameboy->getGBSPlayer()->gbsMode) {
-        bankSlotIDs[0] = 0;
-        fseek(romFile, 0x70, SEEK_SET);
-        fread(romBankSlots + gameboy->getGBSPlayer()->gbsLoadAddress, 1, 0x4000 - gameboy->getGBSPlayer()->gbsLoadAddress, romFile);
-    }
-    else {
-        bankSlotIDs[0] = 0;
-        fseek(romFile, 0, SEEK_SET);
-        fread(romBankSlots, 1, 0x4000, romFile);
-    }
-    // Read the rest of the banks
-    for(int i = 1; i < numLoadedRomBanks; i++) {
-        bankSlotIDs[i] = i;
-        fread(romBankSlots + 0x4000 * i, 1, 0x4000, romFile);
-        lastBanksUsed.push_back(i);
-    }
-
-#endif
-
-    romSlot0 = romBankSlots;
-    romSlot1 = romBankSlots + 0x4000;
-
-
-    strcpy(basename, filename);
-    *(strrchr(basename, '.')) = '\0';
-
-    u8 cgbFlag = getCgbFlag();
-
-    int nameLength = 16;
-    if(cgbFlag == 0x80 || cgbFlag == 0xc0)
-        nameLength = 15;
-    for(int i = 0; i < nameLength; i++)
-        romTitle[i] = (char) romSlot0[i + 0x134];
-    romTitle[nameLength] = '\0';
-
-    // MMM01 games may have the actual header at the last section of the ROM instead of the first, so we need to shift things around if we detect the wrong header.
-    if(strcmp(romTitle, "SAGAIA") == 0 || strcmp(romTitle, "BUBBLEBOBBLE SET3") == 0 || strcmp(romTitle, "MOMOTARODENGEKI218") == 0) {
-        u8* temp = (u8*) malloc(numLoadedRomBanks * 0x4000);
-        memcpy(temp, romBankSlots, numLoadedRomBanks * 0x4000);
-
-        memcpy(romBankSlots, temp + ((numLoadedRomBanks * 0x4000) - 0x8000), 0x8000);
-        memcpy(romBankSlots + 0x8000, temp, (numLoadedRomBanks * 0x4000) - 0x8000);
-
-        free(temp);
+            this->mbc = MBC5;
+            break;
     }
 
-    if(gameboy->getGBSPlayer()->gbsMode) {
-        MBC = MBC5;
-    } else {
-        switch(getMapper()) {
-            case 0:
-            case 8:
-            case 9:
-                MBC = MBC0;
-                break;
-            case 1:
-            case 2:
-            case 3:
-                MBC = MBC1;
-                break;
-            case 5:
-            case 6:
-                MBC = MBC2;
-                break;
-            case 0xb:
-            case 0xc:
-            case 0xd:
-                MBC = MMM01;
-                break;
-            case 0xf:
-            case 0x10:
-            case 0x11:
-            case 0x12:
-            case 0x13:
-                MBC = MBC3;
-                break;
-            case 0x19:
-            case 0x1a:
-            case 0x1b:
-                MBC = MBC5;
-                break;
-            case 0x1c:
-            case 0x1d:
-            case 0x1e: // MBC5 with rumble
-                MBC = MBC5;
-                break;
-            case 0x22:
-                MBC = MBC7;
-                break;
-            case 0xea: /* Hack for SONIC5 */
-                MBC = MBC1;
-                break;
-            case 0xfe:
-                MBC = HUC3;
-                break;
-            case 0xff:
-                MBC = HUC1;
-                break;
-            default:
-                if(consoleDebugOutput) {
-                    printf("Unsupported MBC %02x\n", getMapper());
-                }
+    this->rawRomSize = bank0[0x0148];
+    this->rawRamSize = this->mbc != MBC2 && this->mbc != MBC7 && !this->gameboy->getGBSPlayer()->gbsMode ? bank0[0x0149] : (u8) 1;
+    switch(this->rawRamSize) {
+        case 0:
+            this->totalRamBanks = 0;
+            break;
+        case 1:
+        case 2:
+            this->totalRamBanks = 1;
+            break;
+        case 3:
+            this->totalRamBanks = 4;
+            break;
+        case 4:
+            this->totalRamBanks = 16;
+            break;
+        default:
+            if(showConsoleDebug()) {
+                printf("Invalid RAM bank number: %x\nDefaulting to 4 banks.\n", this->rawRamSize);
+            }
 
-                MBC = MBC5;
-                break;
-        }
+            this->totalRamBanks = 4;
+            break;
     }
-
-    loadBios(biosPath);
-    gameboy->biosOn = hasBios && !gameboy->getPPU()->probingForBorder && !gameboy->getGBSPlayer()->gbsMode && biosEnabled == 1;
-
-#ifndef EMBEDDED_ROM
-    // If we've loaded everything, close the rom file
-    if(numRomBanks <= numLoadedRomBanks) {
-        fclose(romFile);
-        romFile = NULL;
-    }
-#endif
 }
 
 RomFile::~RomFile() {
-    if(romFile != NULL)
-        fclose(romFile);
-#ifndef EMBEDDED_ROM
-    free(romBankSlots);
-#endif
-}
-
-void RomFile::loadRomBank(int romBank) {
-    if(bankSlotIDs[romBank] != -1 || numRomBanks <= numLoadedRomBanks || romBank == 0) {
-        romSlot1 = romBankSlots + bankSlotIDs[romBank] * 0x4000;
-        return;
-    }
-    int bankToUnload = lastBanksUsed.back();
-    lastBanksUsed.pop_back();
-    int slot = bankSlotIDs[bankToUnload];
-    bankSlotIDs[bankToUnload] = -1;
-    bankSlotIDs[romBank] = slot;
-
-    fseek(romFile, 0x4000 * romBank, SEEK_SET);
-    fread(romBankSlots + slot * 0x4000, 1, 0x4000, romFile);
-
-    lastBanksUsed.insert(lastBanksUsed.begin(), romBank);
-
-    gameboy->getCheatEngine()->applyGGCheatsToBank(romBank);
-
-    romSlot1 = romBankSlots + slot * 0x4000;
-
-    loadBios(biosPath);
-}
-
-bool RomFile::isRomBankLoaded(int bank) {
-    return bankSlotIDs[bank] != -1;
-}
-
-u8* RomFile::getRomBank(int bank) {
-    if(!isRomBankLoaded(bank))
-        return 0;
-    return romBankSlots + bankSlotIDs[bank] * 0x4000;
-}
-
-const char* RomFile::getBasename() {
-    return basename;
-}
-
-char* RomFile::getRomTitle() {
-    return romTitle;
-}
-
-void RomFile::loadBios(const char* filename) {
-    if(!hasBios) {
-        FILE* file = fopen(filename, "rb");
-        hasBios = file != NULL;
-        if(hasBios) {
-            fread(bios, 1, 0x900, file);
-            fclose(file);
+    for(int i = 0; i < this->totalRomBanks; i++) {
+        if(this->banks[i] != NULL) {
+            delete this->banks[i];
+            this->banks[i] = NULL;
         }
     }
 
-    // Little hack to preserve "quickread" from gbcpu.cpp.
-    for(int i = 0x100; i < 0x150; i++) {
-        bios[i] = romSlot0[i];
+    if(this->banks != NULL) {
+        delete this->banks;
+        this->banks = NULL;
     }
+
+    if(this->file != NULL) {
+        fclose(this->file);
+        this->file = NULL;
+    }
+}
+
+u8* RomFile::getRomBank(int bank) {
+    if(bank < 0 || bank >= this->totalRomBanks) {
+        return NULL;
+    }
+
+    if(this->banks[bank] == NULL) {
+        this->banks[bank] = new u8[0x4000]();
+
+        if(bank == 0 && this->gameboy->getGBSPlayer()->gbsMode) {
+            fseek(this->file, 0x70, SEEK_SET);
+            fread(this->banks[bank] + this->gameboy->getGBSPlayer()->gbsLoadAddress, 1, (size_t) (0x4000 - this->gameboy->getGBSPlayer()->gbsLoadAddress), this->file);
+        } else {
+            if(this->firstBanksAtEnd) {
+                if(bank < 2) {
+                    fseek(this->file, -((2 - bank) * 0x4000), SEEK_END);
+                } else {
+                    fseek(this->file, (bank - 2) * 0x4000, SEEK_SET);
+                }
+            } else {
+                fseek(this->file, bank * 0x4000, SEEK_SET);
+            }
+
+            fread(this->banks[bank], 1, 0x4000, this->file);
+        }
+    }
+
+    return this->banks[bank];
+}
+
+void RomFile::printInfo() {
+    static const char* mbcNames[] = {"ROM", "MBC1", "MBC2", "MBC3", "MBC5", "MBC7", "MMM01", "HUC1", "HUC3"};
+
+    u8* bank0 = getRomBank(0);
+
+    iprintf("\x1b[2J");
+    printf("Cartridge type: %.2x (%s)\n", this->rawMBC, mbcNames[this->mbc]);
+    printf("ROM Title: \"%s\"\n", this->romTitle.c_str());
+    printf("ROM Size: %.2x (%d banks)\n", this->rawRomSize, this->totalRomBanks);
+    printf("RAM Size: %.2x (%d banks)\n", this->rawRamSize, this->totalRamBanks);
+    printf("CGB Flags: 0x%x, Supported: %d, Required: %d\n", bank0[0x0143], this->cgbSupported, this->cgbRequired);
 }

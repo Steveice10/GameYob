@@ -38,6 +38,13 @@ void generalParseConfig(char* line) {
             strcpy(borderPath, value);
         }
     }
+
+    FILE* file = fopen(biosPath, "rb");
+    gameboy->biosLoaded = file != NULL;
+    if(gameboy->biosLoaded) {
+        fread(gameboy->bios, 1, 0x900, file);
+        fclose(file);
+    }
 }
 
 void generalPrintConfig(FILE* file) {
@@ -104,9 +111,11 @@ void writeConfigFile() {
     controlsPrintConfig(file);
     fclose(file);
 
-    char nameBuf[256];
-    sprintf(nameBuf, "%s.cht", gameboy->getRomFile()->getBasename());
-    gameboy->getCheatEngine()->saveCheats(nameBuf);
+    if(gameboy->isRomLoaded()) {
+        char nameBuf[256];
+        sprintf(nameBuf, "%s.cht", gameboy->getRomFile()->getFileName().c_str());
+        gameboy->getCheatEngine()->saveCheats(nameBuf);
+    }
 }
 
 
@@ -248,6 +257,7 @@ void controlsParseConfig(char* line2) {
 
             config->funcKeys[20] = FUNC_KEY_MENU; // BUTTON_TOUCH
         }
+
         return;
     }
     char* equalsPos;

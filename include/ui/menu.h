@@ -2,7 +2,6 @@
 
 #include <stdio.h>
 
-extern bool consoleDebugOutput;
 extern int gbcModeOption;
 extern bool gbaModeOption;
 extern int sgbModeOption;
@@ -42,4 +41,6 @@ void disableMenuOption(const char* name);
 
 void menuParseConfig(char* line);
 void menuPrintConfig(FILE* file);
+
+bool showConsoleDebug();
 

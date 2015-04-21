@@ -119,7 +119,7 @@ u8 GameboyPrinter::sendGbPrinterByte(u8 dat) {
         case 10: // Status
             if(printerChecksum != printerExpectedChecksum) {
                 printerStatus |= PRINTER_STATUS_CHECKSUM;
-                if(consoleDebugOutput) {
+                if(showConsoleDebug()) {
                     printf("Checksum %.4x, expected %.4x\n", printerChecksum, printerExpectedChecksum);
                 }
             }
@@ -226,14 +226,14 @@ void GameboyPrinter::printerSaveFile() {
     // Find the first available "print number".
     char filename[300];
     while(true) {
-        printf(filename, "%s-%d.bmp", gameboy->getRomFile()->getBasename(), numPrinted);
+        printf(filename, "%s-%d.bmp", gameboy->getRomFile()->getFileName().c_str(), numPrinted);
         if(appending ||                        // If appending, the last file written to is already selected.
            access(filename, R_OK) != 0) {  // Else, if the file doesn't exist, we're done searching.
 
             if(appending && access(filename, R_OK) != 0) {
                 // This is a failsafe, this shouldn't happen
                 appending = false;
-                if(consoleDebugOutput) {
+                if(showConsoleDebug()) {
                     printf("The image to be appended to doesn't exist!");
                 }
 

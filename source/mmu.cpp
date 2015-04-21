@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <string.h>
+#include <malloc.h>
 
 #include "ui/config.h"
 #include "ui/manager.h"
@@ -23,45 +24,67 @@ const mbcWrite mbcWrites[] = {
         &Gameboy::h3w
 };
 
-void Gameboy::refreshRomBank(int bank) {
-    if(bank < romFile->getNumRomBanks()) {
-        romBank = bank;
-        romFile->loadRomBank(romBank);
-        memory[0x4] = romFile->romSlot1;
-        memory[0x5] = romFile->romSlot1 + 0x1000;
-        memory[0x6] = romFile->romSlot1 + 0x2000;
-        memory[0x7] = romFile->romSlot1 + 0x3000;
-    } else if(consoleDebugOutput) {
-        printf("Tried to access bank %x\n", bank);
+void Gameboy::refreshRomBank0(int bank) {
+    if(bank < romFile->getRomBanks()) {
+        romBank0Num = bank;
+        romBank0 = romFile->getRomBank(romBank0Num);
+        memory[0x0] = romBank0;
+        memory[0x1] = romBank0 + 0x1000;
+        memory[0x2] = romBank0 + 0x2000;
+        memory[0x3] = romBank0 + 0x3000;
+    } else if(showConsoleDebug()) {
+        printf("Tried to access ROM bank %x\n", bank);
+    }
+}
+
+void Gameboy::refreshRomBank1(int bank) {
+    if(bank < romFile->getRomBanks()) {
+        romBank1Num = bank;
+        romBank1 = romFile->getRomBank(romBank1Num);
+        memory[0x4] = romBank1;
+        memory[0x5] = romBank1 + 0x1000;
+        memory[0x6] = romBank1 + 0x2000;
+        memory[0x7] = romBank1 + 0x3000;
+    } else if(showConsoleDebug()) {
+        printf("Tried to access ROM bank %x\n", bank);
     }
 }
 
 void Gameboy::refreshRamBank(int bank) {
-    if(bank < numRamBanks) {
-        currentRamBank = bank;
-        memory[0xa] = externRam + currentRamBank * 0x2000;
-        memory[0xb] = externRam + currentRamBank * 0x2000 + 0x1000;
-    } else if(consoleDebugOutput) {
-        printf("Tried to access ram bank %x\n", bank);
+    if(bank < romFile->getRamBanks()) {
+        ramBankNum = bank;
+        memory[0xa] = externRam + ramBankNum * 0x2000;
+        memory[0xb] = externRam + ramBankNum * 0x2000 + 0x1000;
+    } else if(showConsoleDebug()) {
+        printf("Tried to access RAM bank %x\n", bank);
     }
 }
 
 void Gameboy::writeSram(u16 addr, u8 val) {
-    int pos = addr + currentRamBank * 0x2000;
-    if(externRam[pos] != val) {
-        externRam[pos] = val;
-        if(autoSavingEnabled) {
-            saveModified = true;
-            dirtySectors[pos / 512] = true;
+    if(externRam != NULL) {
+        int pos = addr + ramBankNum * 0x2000;
+        if(externRam[pos] != val) {
+            externRam[pos] = val;
+            if(autoSavingEnabled) {
+                saveModified = true;
+                dirtySectors[pos / 512] = true;
+            }
         }
+    } else if(showConsoleDebug()) {
+        printf("Tried to access RAM when none exists.");
     }
 }
 
 void Gameboy::initMMU() {
+    biosOn = biosLoaded && !ppu->probingForBorder && !gbsPlayer->gbsMode && biosEnabled == 1;
+
     wramBank = 1;
     vramBank = 0;
-    romBank = 1;
-    currentRamBank = 0;
+    romBank0Num = 0;
+    romBank0 = NULL;
+    romBank1Num = 1;
+    romBank1 = NULL;
+    ramBankNum = 0;
 
     memoryModel = 0;
     dmaSource = 0;
@@ -75,7 +98,7 @@ void Gameboy::initMMU() {
     HuC3Shift = 0;
 
     /* Rockman8 by Yang Yang uses a silghtly different MBC1 variant */
-    rockmanMapper = !strcmp(romFile->getRomTitle(), "ROCKMAN 99");
+    rockmanMapper = !romFile->getRomTitle().compare("ROCKMAN 99");
 
     readFunc = mbcReads[romFile->getMBC()];
     writeFunc = mbcWrites[romFile->getMBC()];
@@ -123,17 +146,19 @@ void Gameboy::initMMU() {
 }
 
 void Gameboy::mapMemory() {
+    refreshRomBank0(romBank0Num);
     if(biosOn) {
-        memory[0x0] = romFile->bios;
-    } else {
-        memory[0x0] = romFile->romSlot0;
+        // Little hack to preserve "quickread" from gbcpu.cpp.
+        u8* bank0 = romFile->getRomBank(0);
+        for(int i = 0x100; i < 0x150; i++) {
+            bios[i] = bank0[i];
+        }
+
+        memory[0x0] = bios;
     }
 
-    memory[0x1] = romFile->romSlot0 + 0x1000;
-    memory[0x2] = romFile->romSlot0 + 0x2000;
-    memory[0x3] = romFile->romSlot0 + 0x3000;
-    refreshRomBank(romBank);
-    refreshRamBank(currentRamBank);
+    refreshRomBank1(romBank1Num);
+    refreshRamBank(ramBankNum);
     refreshVramBank();
     memory[0xc] = wram[0];
     refreshWramBank();
@@ -219,7 +244,7 @@ u8 Gameboy::readMemoryOther(u16 addr) {
         /* Check if there's an handler for this mbc */
         if(readFunc != NULL)
             return (*this.*readFunc)(addr);
-        else if(!numRamBanks)
+        else if(romFile->getRamBanks() == 0)
             return 0xff;
     }
     return memory[area][addr & 0xfff];
@@ -381,7 +406,7 @@ void Gameboy::writeIO(u8 ioReg, u8 val) {
             return;
         case 0x44:
             //ioRam[0x44] = 0;
-            if(consoleDebugOutput) {
+            if(showConsoleDebug()) {
                 printf("LY Write %d\n", val);
             }
 
@@ -410,7 +435,8 @@ void Gameboy::writeIO(u8 ioReg, u8 val) {
             ioRam[ioReg] = val & 1;
             return;
         case 0x50: // BIOS Lockdown
-            memory[0x0] = romFile->romSlot0;
+            biosOn = false;
+            refreshRomBank0(romBank0Num);
             initGameboyMode();
             return;
         case 0x55: // CGB DMA

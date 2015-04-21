@@ -35,7 +35,7 @@ void GBSPlayer::gbsRedraw() {
 }
 
 void GBSPlayer::gbsLoadSong() {
-    u8* romSlot0 = gameboy->getRomFile()->getRomBank(0);
+    u8* romBank0 = gameboy->getRomFile()->getRomBank(0);
     gameboy->initMMU();
     gameboy->ime = 0;
 
@@ -48,18 +48,18 @@ void GBSPlayer::gbsLoadSong() {
     tac &= ~0x80;
     if(tma == 0 && tac == 0) {
         // Vblank interrupt handler
-        romSlot0[0x40] = 0xcd; // call
-        romSlot0[0x41] = gbsPlayAddress & 0xff;
-        romSlot0[0x42] = gbsPlayAddress >> 8;
-        romSlot0[0x43] = 0xd9; // reti
+        romBank0[0x40] = 0xcd; // call
+        romBank0[0x41] = gbsPlayAddress & 0xff;
+        romBank0[0x42] = gbsPlayAddress >> 8;
+        romBank0[0x43] = 0xd9; // reti
         gameboy->writeIO(0xff, INT_VBLANK);
     }
     else {
         // Timer interrupt handler
-        romSlot0[0x50] = 0xcd; // call
-        romSlot0[0x51] = gbsPlayAddress & 0xff;
-        romSlot0[0x52] = gbsPlayAddress >> 8;
-        romSlot0[0x53] = 0xd9; // reti
+        romBank0[0x50] = 0xcd; // call
+        romBank0[0x51] = gbsPlayAddress & 0xff;
+        romBank0[0x52] = gbsPlayAddress >> 8;
+        romBank0[0x53] = 0xd9; // reti
         gameboy->writeIO(0xff, INT_TIMER);
     }
 

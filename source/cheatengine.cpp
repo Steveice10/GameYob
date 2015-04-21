@@ -53,7 +53,7 @@ bool CheatEngine::addCheat(const char* str) {
         cheats[i].compare = (cheats[i].compare >> 2) | (cheats[i].compare & 0x3) << 6;
         cheats[i].compare ^= 0xba;
 
-        if(consoleDebugOutput) {
+        if(showConsoleDebug()) {
             printf("GG %04x / %02x -> %02x\n", cheats[i].address, cheats[i].data, cheats[i].compare);
         }
     }
@@ -65,7 +65,7 @@ bool CheatEngine::addCheat(const char* str) {
         cheats[i].address = TO_INT(str[6]) << 12 | TO_INT(str[2]) << 8 |
                             TO_INT(str[4]) << 4 | TO_INT(str[5]);
 
-        if(consoleDebugOutput) {
+        if(showConsoleDebug()) {
             printf("GG1 %04x / %02x\n", cheats[i].address, cheats[i].data);
         }
     }
@@ -78,7 +78,7 @@ bool CheatEngine::addCheat(const char* str) {
         cheats[i].address = TO_INT(str[6]) << 12 | TO_INT(str[7]) << 8 |
                             TO_INT(str[4]) << 4 | TO_INT(str[5]);
 
-        if(consoleDebugOutput) {
+        if(showConsoleDebug()) {
             printf("GS (%02x)%04x/ %02x\n", cheats[i].bank, cheats[i].address, cheats[i].data);
         }
     }
@@ -94,9 +94,8 @@ void CheatEngine::toggleCheat(int i, bool enabled) {
     if(enabled) {
         cheats[i].flags |= CHEAT_FLAG_ENABLED;
         if((cheats[i].flags & CHEAT_FLAG_TYPE_MASK) != CHEAT_FLAG_GAMESHARK) {
-            for(int j = 0; j < romFile->getNumRomBanks(); j++) {
-                if(romFile->isRomBankLoaded(j))
-                    applyGGCheatsToBank(j);
+            for(int j = 0; j < romFile->getRomBanks(); j++) {
+                applyGGCheatsToBank(j);
             }
         }
     }
@@ -109,10 +108,7 @@ void CheatEngine::toggleCheat(int i, bool enabled) {
 void CheatEngine::unapplyGGCheat(int cheat) {
     if((cheats[cheat].flags & CHEAT_FLAG_TYPE_MASK) != CHEAT_FLAG_GAMESHARK) {
         for(unsigned int i = 0; i < cheats[cheat].patchedBanks.size(); i++) {
-            int bank = cheats[cheat].patchedBanks[i];
-            if(romFile->isRomBankLoaded(bank)) {
-                romFile->getRomBank(bank)[cheats[cheat].address & 0x3fff] = cheats[cheat].patchedValues[i];
-            }
+            romFile->getRomBank(cheats[cheat].patchedBanks[i])[cheats[cheat].address & 0x3fff] = (u8) cheats[cheat].patchedValues[i];
         }
         cheats[cheat].patchedBanks = std::vector<int>();
         cheats[cheat].patchedValues = std::vector<int>();
@@ -162,14 +158,14 @@ void CheatEngine::applyGSCheats() {
 
 void CheatEngine::loadCheats(const char* filename) {
     // TODO: get rid of the "cheatsRomTitle" stuff
-    if(strcmp(cheatsRomTitle, romFile->getRomTitle()) == 0) {
+    if(romFile->getRomTitle().compare(cheatsRomTitle) == 0) {
         // Rom hasn't been changed
         for(int i = 0; i < numCheats; i++) {
             unapplyGGCheat(i);
         }
     } else {
         // Rom has been changed
-        strncpy(cheatsRomTitle, romFile->getRomTitle(), 20);
+        strncpy(cheatsRomTitle, romFile->getRomTitle().c_str(), 20);
     }
 
     numCheats = 0;

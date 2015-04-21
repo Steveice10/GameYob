@@ -1,14 +1,12 @@
 #pragma once
 
 #include <stdio.h>
-#include <vector>
+#include <string>
 
 #include <ctrcommon/types.hpp>
 
-#define MAX_ROM_BANKS   0x200
-
 /* All the possible MBC */
-enum {
+typedef enum {
     MBC0 = 0,
     MBC1,
     MBC2,
@@ -17,59 +15,77 @@ enum {
     MBC7,
     MMM01,
     HUC1,
-    HUC3,
-    MBC_MAX,
-};
+    HUC3
+} MBC;
 
 class Gameboy;
 
 class RomFile {
 public:
-    RomFile(Gameboy* gb, const char* filename);
+    RomFile(Gameboy* gb, const std::string path);
     ~RomFile();
 
-    void loadRomBank(int romBank);
-    bool isRomBankLoaded(int bank);
     u8* getRomBank(int bank);
-    const char* getBasename();
+    void printInfo();
 
-    char* getRomTitle();
+    inline bool isLoaded() {
+        return this->loaded;
+    }
 
-    void loadBios(const char* filename);
+    inline std::string getFileName() {
+        return this->fileName;
+    }
 
-    inline int getNumRomBanks() { return numRomBanks; }
+    inline const std::string getRomTitle() {
+        return this->romTitle;
+    }
 
-    inline int getCgbFlag() { return romSlot0[0x143]; }
+    inline bool isCgbSupported() {
+        return this->cgbSupported;
+    }
 
-    inline int getRamSize() { return romSlot0[0x149]; }
+    inline bool isCgbRequired() {
+        return this->cgbRequired;
+    }
 
-    inline int getMapper() { return romSlot0[0x147]; }
+    inline int getRomBanks() {
+        return this->totalRomBanks;
+    }
 
-    inline int getMBC() { return MBC; }
+    inline int getRamBanks() {
+        return this->totalRamBanks;
+    }
 
-    inline bool hasRumble() { return getMapper() == 0x1c || getMapper() == 0x1d || getMapper() == 0x1e; }
+    inline bool isSgbEnhanced() {
+        return this->sgb;
+    }
 
-    u8* romSlot0;
-    u8* romSlot1;
+    inline MBC getMBC() {
+        return this->mbc;
+    }
 
-    bool hasBios = false;
-    u8 bios[0x900];
-
+    inline bool hasRumble() {
+        return this->rumble;
+    }
 private:
-    Gameboy* gameboy;
+    Gameboy* gameboy = NULL;
+    FILE* file = NULL;
 
-    u8* romBankSlots = NULL; // Each 0x4000 bytes = one slot
+    bool loaded = true;
 
-    int numRomBanks;
-    int maxLoadedRomBanks;
-    int numLoadedRomBanks;
-    int bankSlotIDs[MAX_ROM_BANKS]; // Keeps track of which bank occupies which slot
-    std::vector<int> lastBanksUsed;
+    u8** banks = NULL;
+    bool firstBanksAtEnd = false;
 
-    FILE* romFile;
-    char filename[256];
-    char basename[256];
-    char romTitle[20];
-
-    int MBC;
+    std::string fileName = "";
+    std::string romTitle = "";
+    bool cgbSupported = false;
+    bool cgbRequired = false;
+    u8 rawRomSize = 0;
+    int totalRomBanks = 0;
+    u8 rawRamSize = 0;
+    int totalRamBanks = 0;
+    bool sgb = false;
+    u8 rawMBC = 0;
+    MBC mbc = MBC0;
+    bool rumble = false;
 };

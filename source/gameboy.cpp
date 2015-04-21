@@ -2,9 +2,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <platform/audio.h>
 
 #include "gb_apu/Gb_Apu.h"
+#include "platform/audio.h"
 #include "platform/gfx.h"
 #include "platform/input.h"
 #include "platform/system.h"
@@ -532,24 +532,22 @@ void Gameboy::init() {
                 initGBMode();
                 break;
             case 1: // GBC if needed
-                if(romFile->romSlot0[0x143] == 0xC0)
+                if(romFile->isCgbRequired())
                     initGBCMode();
                 else
                     initGBMode();
                 break;
             case 2: // GBC
-                if(romFile->romSlot0[0x143] == 0x80 || romFile->romSlot0[0x143] == 0xC0)
+                if(romFile->isCgbSupported())
                     initGBCMode();
                 else
                     initGBMode();
                 break;
         }
 
-        bool sgbEnhanced = romFile->romSlot0[0x14b] == 0x33 && romFile->romSlot0[0x146] == 0x03;
-        if(sgbEnhanced && resultantGBMode != 2 && ppu->probingForBorder) {
+        if(romFile->isSgbEnhanced() && resultantGBMode != 2 && ppu->probingForBorder) {
             resultantGBMode = 2;
-        }
-        else {
+        } else {
             ppu->probingForBorder = false;
         }
     }
@@ -603,7 +601,7 @@ void Gameboy::init() {
 }
 
 void Gameboy::initGBMode() {
-    if(sgbModeOption != 0 && romFile->romSlot0[0x14b] == 0x33 && romFile->romSlot0[0x146] == 0x03)
+    if(sgbModeOption != 0 && romFile->isSgbEnhanced())
         resultantGBMode = 2;
     else {
         resultantGBMode = 0;
@@ -611,7 +609,7 @@ void Gameboy::initGBMode() {
 }
 
 void Gameboy::initGBCMode() {
-    if(sgbModeOption == 2 && romFile->romSlot0[0x14b] == 0x33 && romFile->romSlot0[0x146] == 0x03)
+    if(sgbModeOption == 2 && romFile->isSgbEnhanced())
         resultantGBMode = 2;
     else {
         resultantGBMode = 1;
@@ -663,7 +661,7 @@ void Gameboy::initGameboyMode() {
         case 0: // GB
             gbRegs.af.b.h = 0x01;
             gbMode = GB;
-            if(romFile->romSlot0[0x143] == 0x80 || romFile->romSlot0[0x143] == 0xC0 || biosOn)
+            if(romFile->isCgbSupported() || biosOn)
                 // Init the palette in case it was overwritten.
                 initGFXPalette();
             break;
@@ -967,7 +965,7 @@ void Gameboy::initGFXPalette() {
                 palette = findPalette("GBC - Grayscale");
                 break;
             case 1:
-                palette = findPalette(romFile->getRomTitle());
+                palette = findPalette(romFile->getRomTitle().c_str());
                 if(!palette) {
                     palette = findPalette("GBC - Grayscale");
                 }
@@ -1198,6 +1196,18 @@ void Gameboy::setRomFile(const char* filename) {
     }
 
     romFile = new RomFile(this, filename);
+    if(!romFile->isLoaded()) {
+        delete romFile;
+        romFile = NULL;
+
+        printf("Error opening %s.", filename);
+        printf("\n\nPlease restart GameYob.\n");
+        while(true) {
+            systemCheckRunning();
+            gfxWaitForVBlank();
+        }
+    }
+
     cheatEngine->setRomFile(romFile);
 
     std::string border = std::string(filename) + ".png";
@@ -1222,7 +1232,7 @@ void Gameboy::setRomFile(const char* filename) {
         cheatEngine->loadCheats("");
     else {
         char nameBuf[256];
-        sprintf(nameBuf, "%s.cht", romFile->getBasename());
+        sprintf(nameBuf, "%s.cht", romFile->getFileName().c_str());
         cheatEngine->loadCheats(nameBuf);
     }
 }
@@ -1231,6 +1241,7 @@ void Gameboy::unloadRom() {
     ppu->clearPPU();
 
     gameboySyncAutosave();
+
     if(saveFile != NULL)
         fclose(saveFile);
     saveFile = NULL;
@@ -1247,22 +1258,12 @@ void Gameboy::unloadRom() {
     cheatEngine->setRomFile(NULL);
 }
 
-const char* mbcNames[] = {"ROM", "MBC1", "MBC2", "MBC3", "MBC5", "MBC7", "MMM01", "HUC1", "HUC3"};
-
-void Gameboy::printRomInfo() {
-    iprintf("\x1b[2J");
-    printf("ROM Title: \"%s\"\n", romFile->getRomTitle());
-    printf("Cartridge type: %.2x (%s)\n", romFile->getMapper(), mbcNames[romFile->getMBC()]);
-    printf("ROM Size: %.2x (%d banks)\n", romFile->romSlot0[0x148], romFile->getNumRomBanks());
-    printf("RAM Size: %.2x (%d banks)\n", romFile->getRamSize(), numRamBanks);
-}
-
 bool Gameboy::isRomLoaded() {
     return romFile != NULL;
 }
 
 int Gameboy::loadSave(int saveId) {
-    strcpy(savename, romFile->getBasename());
+    strcpy(savename, romFile->getFileName().c_str());
     if(saveId == 1)
         strcat(savename, ".sav");
     else {
@@ -1271,42 +1272,10 @@ int Gameboy::loadSave(int saveId) {
         strcat(savename, buf);
     }
 
-    if(gbsPlayer->gbsMode)
-        numRamBanks = 1;
-    else {
-        // Get the game's external memory size and allocate the memory
-        switch(romFile->getRamSize()) {
-            case 0:
-                numRamBanks = 0;
-                break;
-            case 1:
-            case 2:
-                numRamBanks = 1;
-                break;
-            case 3:
-                numRamBanks = 4;
-                break;
-            case 4:
-                numRamBanks = 16;
-                break;
-            default:
-                if(consoleDebugOutput) {
-                    printf("Invalid RAM bank number: %x\nDefaulting to 4 banks\n", romFile->getRamSize());
-                }
-
-                numRamBanks = 4;
-                break;
-        }
-        if(romFile->getMBC() == MBC2)
-            numRamBanks = 1;
-        else if(romFile->getMBC() == MBC7) // Probably not correct behaviour
-            numRamBanks = 1;
-    }
-
-    if(numRamBanks == 0)
+    if(romFile->getRamBanks() == 0)
         return 0;
 
-    externRam = (u8*) malloc(numRamBanks * 0x2000);
+    externRam = (u8*) malloc(romFile->getRamBanks() * 0x2000);
 
     if(gbsPlayer->gbsMode || saveId == -1)
         return 0;
@@ -1314,7 +1283,7 @@ int Gameboy::loadSave(int saveId) {
     // Now load the data.
     saveFile = fopen(savename, "r+b");
 
-    int neededFileSize = numRamBanks * 0x2000;
+    int neededFileSize = romFile->getRamBanks() * 0x2000;
     if(romFile->getMBC() == MBC3 || romFile->getMBC() == HUC3)
         neededFileSize += sizeof(ClockStruct);
 
@@ -1338,12 +1307,14 @@ int Gameboy::loadSave(int saveId) {
         saveFile = fopen(savename, "r+b");
     }
 
-    fread(externRam, 1, 0x2000 * numRamBanks, saveFile);
+    fread(externRam, 1, 0x2000 * romFile->getRamBanks(), saveFile);
 
     switch(romFile->getMBC()) {
         case MBC3:
         case HUC3:
             fread(&gbClock, 1, sizeof(gbClock), saveFile);
+            break;
+        default:
             break;
     }
 
@@ -1351,17 +1322,19 @@ int Gameboy::loadSave(int saveId) {
 }
 
 int Gameboy::saveGame() {
-    if(numRamBanks == 0 || saveFile == NULL)
+    if(romFile->getRamBanks() == 0 || saveFile == NULL)
         return 0;
 
     fseek(saveFile, 0, SEEK_SET);
 
-    fwrite(externRam, 1, 0x2000 * numRamBanks, saveFile);
+    fwrite(externRam, 1, 0x2000 * romFile->getRamBanks(), saveFile);
 
     switch(romFile->getMBC()) {
         case MBC3:
         case HUC3:
             fwrite(&gbClock, 1, sizeof(gbClock), saveFile);
+            break;
+        default:
             break;
     }
 
@@ -1376,7 +1349,7 @@ void Gameboy::gameboySyncAutosave() {
 
     int numSectors = 0;
     // iterate over each 512-byte sector
-    for(int i = 0; i < numRamBanks * 0x2000 / 512; i++) {
+    for(int i = 0; i < romFile->getRamBanks() * 0x2000 / 512; i++) {
         if(dirtySectors[i]) {
             dirtySectors[i] = false;
             numSectors++;
@@ -1386,7 +1359,7 @@ void Gameboy::gameboySyncAutosave() {
         }
     }
 
-    if(consoleDebugOutput) {
+    if(showConsoleDebug()) {
         printf("SAVE %d sectors\n", numSectors);
     }
 
@@ -1409,52 +1382,22 @@ void Gameboy::updateAutosave() {
     }
 }
 
-
-const int STATE_VERSION = 5;
-
-struct StateStruct {
-    // version
-    // bg/sprite PaletteData
-    // vram
-    // wram
-    // hram
-    // sram
-    Registers regs;
-    int halt, ime;
-    bool doubleSpeed, biosOn;
-    int gbMode;
-    int romBank, ramBank, wramBank, vramBank;
-    int memoryModel;
-    ClockStruct clock;
-    int scanlineCounter, timerCounter, phaseCounter, dividerCounter;
-    // v2
-    int serialCounter;
-    // v3
-    bool ramEnabled;
-    // MBC-specific stuff
-    // v4
-    //  bool sgbMode;
-    //  If sgbMode == true:
-    //   int sgbPacketLength;
-    //   int sgbPacketsTransferred;
-    //   int sgbPacketBit;
-    //   u8 sgbCommand;
-    //   u8 gfxMask;
-    //   u8[20*18] sgbMap;
-};
+const int STATE_VERSION = 6;
 
 void Gameboy::saveState(int stateNum) {
-    if(!isRomLoaded())
+    if(!isRomLoaded()) {
         return;
+    }
 
     FILE* outFile;
-    StateStruct state;
     char statename[100];
 
-    if(stateNum == -1)
-        sprintf(statename, "%s.yss", romFile->getBasename());
-    else
-        sprintf(statename, "%s.ys%d", romFile->getBasename(), stateNum);
+    if(stateNum == -1) {
+        sprintf(statename, "%s.yss", romFile->getFileName().c_str());
+    } else {
+        sprintf(statename, "%s.ys%d", romFile->getFileName().c_str(), stateNum);
+    }
+
     outFile = fopen(statename, "w");
 
     if(outFile == 0) {
@@ -1462,50 +1405,68 @@ void Gameboy::saveState(int stateNum) {
         return;
     }
 
-    state.regs = gbRegs;
-    state.halt = halt;
-    state.ime = ime;
-    state.doubleSpeed = doubleSpeed;
-    state.biosOn = biosOn;
-    state.gbMode = gbMode;
-    state.romBank = romBank;
-    state.ramBank = currentRamBank;
-    state.wramBank = wramBank;
-    state.vramBank = vramBank;
-    state.memoryModel = memoryModel;
-    state.clock = gbClock;
-    state.scanlineCounter = scanlineCounter;
-    state.timerCounter = timerCounter;
-    state.phaseCounter = phaseCounter;
-    state.dividerCounter = dividerCounter;
-    state.serialCounter = serialCounter;
-    state.ramEnabled = ramEnabled;
+    fwrite(&STATE_VERSION, 1, sizeof(int), outFile);
+    fwrite(bgPaletteData, 1, sizeof(bgPaletteData), outFile);
+    fwrite(sprPaletteData, 1, sizeof(sprPaletteData), outFile);
+    fwrite(vram, 1, sizeof(vram), outFile);
+    fwrite(wram, 1, sizeof(wram), outFile);
+    fwrite(hram, 1, 0x200, outFile);
+    fwrite(externRam, 1, 0x2000 * romFile->getRamBanks(), outFile);
 
-    fwrite(&STATE_VERSION, sizeof(int), 1, outFile);
-    fwrite((char*) bgPaletteData, 1, sizeof(bgPaletteData), outFile);
-    fwrite((char*) sprPaletteData, 1, sizeof(sprPaletteData), outFile);
-    fwrite((char*) vram, 1, sizeof(vram), outFile);
-    fwrite((char*) wram, 1, sizeof(wram), outFile);
-    fwrite((char*) hram, 1, 0x200, outFile);
-    fwrite((char*) externRam, 1, 0x2000 * numRamBanks, outFile);
-
-    fwrite((char*) &state, 1, sizeof(StateStruct), outFile);
+    fwrite(&gbRegs, 1, sizeof(gbRegs), outFile);
+    fwrite(&halt, 1, sizeof(halt), outFile);
+    fwrite(&ime, 1, sizeof(ime), outFile);
+    fwrite(&doubleSpeed, 1, sizeof(doubleSpeed), outFile);
+    fwrite(&biosOn, 1, sizeof(biosOn), outFile);
+    fwrite(&gbMode, 1, sizeof(gbMode), outFile);
+    fwrite(&romBank1Num, 1, sizeof(romBank1Num), outFile);
+    fwrite(&ramBankNum, 1, sizeof(ramBankNum), outFile);
+    fwrite(&wramBank, 1, sizeof(wramBank), outFile);
+    fwrite(&vramBank, 1, sizeof(vramBank), outFile);
+    fwrite(&memoryModel, 1, sizeof(memoryModel), outFile);
+    fwrite(&gbClock, 1, sizeof(gbClock), outFile);
+    fwrite(&scanlineCounter, 1, sizeof(scanlineCounter), outFile);
+    fwrite(&timerCounter, 1, sizeof(timerCounter), outFile);
+    fwrite(&phaseCounter, 1, sizeof(phaseCounter), outFile);
+    fwrite(&dividerCounter, 1, sizeof(dividerCounter), outFile);
+    fwrite(&serialCounter, 1, sizeof(serialCounter), outFile);
+    fwrite(&ramEnabled, 1, sizeof(ramEnabled), outFile);
+    fwrite(&romBank0Num, 1, sizeof(romBank0Num), outFile);
 
     switch(romFile->getMBC()) {
         case HUC3:
-            fwrite(&HuC3Mode, 1, sizeof(u8), outFile);
-            fwrite(&HuC3Value, 1, sizeof(u8), outFile);
-            fwrite(&HuC3Shift, 1, sizeof(u8), outFile);
+            fwrite(&HuC3Mode, 1, sizeof(HuC3Mode), outFile);
+            fwrite(&HuC3Value, 1, sizeof(HuC3Value), outFile);
+            fwrite(&HuC3Shift, 1, sizeof(HuC3Shift), outFile);
+            break;
+        case MBC7:
+            fwrite(&mbc7WriteEnable, 1, sizeof(mbc7WriteEnable), outFile);
+            fwrite(&mbc7Idle, 1, sizeof(mbc7Idle), outFile);
+            fwrite(&mbc7Cs, 1, sizeof(mbc7Cs), outFile);
+            fwrite(&mbc7Sk, 1, sizeof(mbc7Sk), outFile);
+            fwrite(&mbc7OpCode, 1, sizeof(mbc7OpCode), outFile);
+            fwrite(&mbc7Addr, 1, sizeof(mbc7Addr), outFile);
+            fwrite(&mbc7Cs, 1, sizeof(mbc7Cs), outFile);
+            fwrite(&mbc7Count, 1, sizeof(mbc7Count), outFile);
+            fwrite(&mbc7State, 1, sizeof(mbc7State), outFile);
+            fwrite(&mbc7Buffer, 1, sizeof(mbc7Buffer), outFile);
+            fwrite(&mbc7RA, 1, sizeof(mbc7RA), outFile);
+            break;
+        case MMM01:
+            fwrite(&mmm01BankSelected, 1, sizeof(mmm01BankSelected), outFile);
+            fwrite(&mmm01RomBaseBank, 1, sizeof(mmm01RomBaseBank), outFile);
+            break;
+        default:
             break;
     }
 
-    fwrite(&sgbMode, 1, sizeof(bool), outFile);
+    fwrite(&sgbMode, 1, sizeof(sgbMode), outFile);
     if(sgbMode) {
-        fwrite(&sgbPacketLength, 1, sizeof(int), outFile);
-        fwrite(&sgbPacketsTransferred, 1, sizeof(int), outFile);
-        fwrite(&sgbPacketBit, 1, sizeof(int), outFile);
-        fwrite(&sgbCommand, 1, sizeof(u8), outFile);
-        fwrite(&ppu->gfxMask, 1, sizeof(u8), outFile);
+        fwrite(&sgbPacketLength, 1, sizeof(sgbPacketLength), outFile);
+        fwrite(&sgbPacketsTransferred, 1, sizeof(sgbPacketsTransferred), outFile);
+        fwrite(&sgbPacketBit, 1, sizeof(sgbPacketBit), outFile);
+        fwrite(&sgbCommand, 1, sizeof(sgbCommand), outFile);
+        fwrite(&ppu->gfxMask, 1, sizeof(ppu->gfxMask), outFile);
         fwrite(sgbMap, 1, sizeof(sgbMap), outFile);
     }
 
@@ -1513,20 +1474,20 @@ void Gameboy::saveState(int stateNum) {
 }
 
 int Gameboy::loadState(int stateNum) {
-    if(!isRomLoaded())
+    if(!isRomLoaded()) {
         return 1;
+    }
 
     FILE* inFile;
-    StateStruct state;
     char statename[256];
     int version;
 
-    memset(&state, 0, sizeof(StateStruct));
+    if(stateNum == -1) {
+        sprintf(statename, "%s.yss", romFile->getFileName().c_str());
+    } else {
+        sprintf(statename, "%s.ys%d", romFile->getFileName().c_str(), stateNum);
+    }
 
-    if(stateNum == -1)
-        sprintf(statename, "%s.yss", romFile->getBasename());
-    else
-        sprintf(statename, "%s.ys%d", romFile->getBasename(), stateNum);
     inFile = fopen(statename, "r");
 
     if(inFile == 0) {
@@ -1534,7 +1495,7 @@ int Gameboy::loadState(int stateNum) {
         return 1;
     }
 
-    fread(&version, sizeof(int), 1, inFile);
+    fread(&version, 1, sizeof(version), inFile);
 
     if(version == 0 || version > STATE_VERSION) {
         printMenuMessage("State is incompatible.");
@@ -1547,13 +1508,58 @@ int Gameboy::loadState(int stateNum) {
     fread((char*) wram, 1, sizeof(wram), inFile);
     fread((char*) hram, 1, 0x200, inFile);
 
-    if(version <= 4 && romFile->getRamSize() == 0x04)
+    if(version <= 4 && romFile->getRamBanks() == 16) {
         // Value "0x04" for ram size wasn't interpreted correctly before
         fread((char*) externRam, 1, 0x2000 * 4, inFile);
-    else
-        fread((char*) externRam, 1, 0x2000 * numRamBanks, inFile);
+    } else {
+        fread((char*) externRam, 1, (size_t) (0x2000 * romFile->getRamBanks()), inFile);
+    }
 
-    fread((char*) &state, 1, sizeof(StateStruct), inFile);
+    fread(&gbRegs, 1, sizeof(gbRegs), inFile);
+    fread(&halt, 1, sizeof(halt), inFile);
+    fread(&ime, 1, sizeof(ime), inFile);
+    fread(&doubleSpeed, 1, sizeof(doubleSpeed), inFile);
+    fread(&biosOn, 1, sizeof(biosOn), inFile);
+    if(!biosLoaded) {
+        biosOn = false;
+    }
+
+    if(version < 6) {
+        fseek(inFile, 2, SEEK_CUR);
+    }
+
+    fread(&gbMode, 1, sizeof(gbMode), inFile);
+    fread(&romBank1Num, 1, sizeof(romBank1Num), inFile);
+    fread(&ramBankNum, 1, sizeof(ramBankNum), inFile);
+    fread(&wramBank, 1, sizeof(wramBank), inFile);
+    fread(&vramBank, 1, sizeof(vramBank), inFile);
+    fread(&memoryModel, 1, sizeof(memoryModel), inFile);
+    fread(&gbClock, 1, sizeof(gbClock), inFile);
+    fread(&scanlineCounter, 1, sizeof(scanlineCounter), inFile);
+    fread(&timerCounter, 1, sizeof(timerCounter), inFile);
+    fread(&phaseCounter, 1, sizeof(phaseCounter), inFile);
+    fread(&dividerCounter, 1, sizeof(dividerCounter), inFile);
+
+    if(version >= 2) {
+        fread(&serialCounter, 1, sizeof(serialCounter), inFile);
+    } else {
+        serialCounter = 0;
+    }
+
+    if(version >= 3) {
+        fread(&ramEnabled, 1, sizeof(ramEnabled), inFile);
+        if(version < 6) {
+            fseek(inFile, 3, SEEK_CUR);
+        }
+    } else {
+        ramEnabled = true;
+    }
+
+    if(version >= 6) {
+        fread(&romBank0Num, 1, sizeof(romBank0Num), inFile);
+    } else {
+        romBank0Num = 0;
+    }
 
     /* MBC-specific values have been introduced in v3 */
     if(version >= 3) {
@@ -1561,59 +1567,62 @@ int Gameboy::loadState(int stateNum) {
             case MBC3:
                 if(version == 3) {
                     u8 rtcReg;
-                    fread(&rtcReg, 1, sizeof(u8), inFile);
+                    fread(&rtcReg, 1, sizeof(rtcReg), inFile);
                     if(rtcReg != 0)
-                        currentRamBank = rtcReg;
+                        ramBankNum = rtcReg;
                 }
                 break;
+            case MBC7:
+                if(version >= 6) {
+                    fread(&mbc7WriteEnable, 1, sizeof(mbc7WriteEnable), inFile);
+                    fread(&mbc7Idle, 1, sizeof(mbc7Idle), inFile);
+                    fread(&mbc7Cs, 1, sizeof(mbc7Cs), inFile);
+                    fread(&mbc7Sk, 1, sizeof(mbc7Sk), inFile);
+                    fread(&mbc7OpCode, 1, sizeof(mbc7OpCode), inFile);
+                    fread(&mbc7Addr, 1, sizeof(mbc7Addr), inFile);
+                    fread(&mbc7Cs, 1, sizeof(mbc7Cs), inFile);
+                    fread(&mbc7Count, 1, sizeof(mbc7Count), inFile);
+                    fread(&mbc7State, 1, sizeof(mbc7State), inFile);
+                    fread(&mbc7Buffer, 1, sizeof(mbc7Buffer), inFile);
+                    fread(&mbc7RA, 1, sizeof(mbc7RA), inFile);
+                }
+
+                break;
+            case MMM01:
+                if(version >= 6) {
+                    fread(&mmm01BankSelected, 1, sizeof(mmm01BankSelected), inFile);
+                    fread(&mmm01RomBaseBank, 1, sizeof(mmm01RomBaseBank), inFile);
+                }
+
+                break;
             case HUC3:
-                fread(&HuC3Mode, 1, sizeof(u8), inFile);
-                fread(&HuC3Value, 1, sizeof(u8), inFile);
-                fread(&HuC3Shift, 1, sizeof(u8), inFile);
+                fread(&HuC3Mode, 1, sizeof(HuC3Mode), inFile);
+                fread(&HuC3Value, 1, sizeof(HuC3Value), inFile);
+                fread(&HuC3Shift, 1, sizeof(HuC3Shift), inFile);
+                break;
+            default:
                 break;
         }
+    }
 
-        fread(&sgbMode, 1, sizeof(bool), inFile);
+    if(version >= 4) {
+        fread(&sgbMode, 1, sizeof(sgbMode), inFile);
         if(sgbMode) {
-            fread(&sgbPacketLength, 1, sizeof(int), inFile);
-            fread(&sgbPacketsTransferred, 1, sizeof(int), inFile);
-            fread(&sgbPacketBit, 1, sizeof(int), inFile);
-            fread(&sgbCommand, 1, sizeof(u8), inFile);
-            fread(&ppu->gfxMask, 1, sizeof(u8), inFile);
+            fread(&sgbPacketLength, 1, sizeof(sgbPacketLength), inFile);
+            fread(&sgbPacketsTransferred, 1, sizeof(sgbPacketsTransferred), inFile);
+            fread(&sgbPacketBit, 1, sizeof(sgbPacketBit), inFile);
+            fread(&sgbCommand, 1, sizeof(sgbCommand), inFile);
+            fread(&ppu->gfxMask, 1, sizeof(ppu->gfxMask), inFile);
             fread(sgbMap, 1, sizeof(sgbMap), inFile);
         }
-    }
-    else
+    } else {
         sgbMode = false;
-
+    }
 
     fclose(inFile);
     if(stateNum == -1) {
         systemDelete(statename);
     }
-
-    gbRegs = state.regs;
-    halt = state.halt;
-    ime = state.ime;
-    doubleSpeed = state.doubleSpeed;
-    biosOn = state.biosOn;
-    if(!romFile->hasBios)
-        biosOn = false;
-    gbMode = state.gbMode;
-    romBank = state.romBank;
-    currentRamBank = state.ramBank;
-    wramBank = state.wramBank;
-    vramBank = state.vramBank;
-    memoryModel = state.memoryModel;
-    gbClock = state.clock;
-    scanlineCounter = state.scanlineCounter;
-    timerCounter = state.timerCounter;
-    phaseCounter = state.phaseCounter;
-    dividerCounter = state.dividerCounter;
-    serialCounter = state.serialCounter;
-    ramEnabled = state.ramEnabled;
-    if(version < 3)
-        ramEnabled = true;
 
     timerPeriod = periods[ioRam[0x07] & 0x3];
     cyclesToEvent = 1;
@@ -1621,9 +1630,9 @@ int Gameboy::loadState(int stateNum) {
     mapMemory();
     setDoubleSpeed(doubleSpeed);
 
-
-    if(autoSavingEnabled && stateNum != -1)
+    if(autoSavingEnabled && stateNum != -1) {
         saveGame(); // Synchronize save file on sd with file in ram
+    }
 
     ppu->refreshPPU();
     apu->reset();
@@ -1641,9 +1650,9 @@ void Gameboy::deleteState(int stateNum) {
     char statename[256];
 
     if(stateNum == -1)
-        sprintf(statename, "%s.yss", romFile->getBasename());
+        sprintf(statename, "%s.yss", romFile->getFileName().c_str());
     else
-        sprintf(statename, "%s.ys%d", romFile->getBasename(), stateNum);
+        sprintf(statename, "%s.ys%d", romFile->getFileName().c_str(), stateNum);
     systemDelete(statename);
 }
 
@@ -1654,9 +1663,9 @@ bool Gameboy::checkStateExists(int stateNum) {
     char statename[256];
 
     if(stateNum == -1)
-        sprintf(statename, "%s.yss", romFile->getBasename());
+        sprintf(statename, "%s.yss", romFile->getFileName().c_str());
     else
-        sprintf(statename, "%s.ys%d", romFile->getBasename(), stateNum);
+        sprintf(statename, "%s.ys%d", romFile->getFileName().c_str(), stateNum);
     return systemExists(statename);
     /*
     file = fopen(statename, "r");

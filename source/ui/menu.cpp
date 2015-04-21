@@ -3,6 +3,7 @@
 #include <stdlib.h>
 
 #include <string>
+#include <ctrcommon/platform.hpp>
 
 #include "platform/gfx.h"
 #include "platform/input.h"
@@ -69,7 +70,7 @@ void subMenuGenericUpdateFunc() {
 // Functions corresponding to menu options
 
 void suspendFunc(int value) {
-    if(!autoSavingEnabled && gameboy->getNumRamBanks()) {
+    if(!autoSavingEnabled && gameboy->isRomLoaded() && gameboy->getRomFile()->getRamBanks() > 0) {
         printMenuMessage("Saving SRAM...");
         mgrSave();
     }
@@ -82,7 +83,7 @@ void suspendFunc(int value) {
 }
 
 void exitFunc(int value) {
-    if(!autoSavingEnabled && gameboy->getNumRamBanks()) {
+    if(!autoSavingEnabled && gameboy->isRomLoaded() && gameboy->getRomFile()->getRamBanks() > 0) {
         printMenuMessage("Saving SRAM...");
         mgrSave();
     }
@@ -220,6 +221,13 @@ void selectBiosFunc(int value) {
     if(filename != NULL) {
         strcpy(biosPath, filename);
         free(filename);
+
+        FILE* file = fopen(biosPath, "rb");
+        gameboy->biosLoaded = file != NULL;
+        if(gameboy->biosLoaded) {
+            fread(gameboy->bios, 1, 0x900, file);
+            fclose(file);
+        }
     }
 }
 
@@ -252,14 +260,14 @@ void setScaleFilterFunc(int value) {
 
 void gbColorizeFunc(int value) {
     gbColorize = value;
-    if(gameboy->getRomFile() != NULL && gameboy->gbMode == GB) {
+    if(gameboy->isRomLoaded() && gameboy->gbMode == GB) {
         gameboy->initGFXPalette();
         gameboy->getPPU()->refreshPPU();
     }
 }
 
 void customBorderEnableFunc(int value) {
-    customBordersEnabled = value;
+    customBordersEnabled = (bool) value;
 }
 
 void selectBorderFunc(int value) {
@@ -290,8 +298,10 @@ void soundEnableFunc(int value) {
 }
 
 void romInfoFunc(int value) {
-    displaySubMenu(subMenuGenericUpdateFunc);
-    gameboy->printRomInfo();
+    if(gameboy->isRomLoaded()) {
+        displaySubMenu(subMenuGenericUpdateFunc);
+        gameboy->getRomFile()->printInfo();
+    }
 }
 
 void versionInfoFunc(int value) {
@@ -321,17 +331,21 @@ void chan4Func(int value) {
 }
 
 void setAutoSaveFunc(int value) {
-    if(autoSavingEnabled) {
-        gameboy->gameboySyncAutosave();
-    } else {
-        gameboy->saveGame(); // Synchronizes save file with filesystem
-    }
+    bool prev = autoSavingEnabled;
+    autoSavingEnabled = (bool) value;
 
-    autoSavingEnabled = value;
-    if(gameboy->isRomLoaded() && gameboy->getNumRamBanks() && !gameboy->getGBSPlayer()->gbsMode && !autoSavingEnabled) {
-        enableMenuOption("Exit without saving");
-    } else {
-        disableMenuOption("Exit without saving");
+    if(gameboy->isRomLoaded()) {
+        if(prev) {
+            gameboy->gameboySyncAutosave();
+        } else {
+            gameboy->saveGame(); // Synchronizes save file with filesystem
+        }
+
+        if(!autoSavingEnabled && gameboy->getRomFile()->getRamBanks() > 0 && !gameboy->getGBSPlayer()->gbsMode) {
+            enableMenuOption("Exit without saving");
+        } else {
+            disableMenuOption("Exit without saving");
+        }
     }
 }
 
@@ -832,5 +846,9 @@ void menuPrintConfig(FILE* file) {
             }
         }
     }
+}
+
+bool showConsoleDebug() {
+    return consoleDebugOutput && !isMenuOn();
 }
 

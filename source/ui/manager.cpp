@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <string.h>
+#include <ctrcommon/platform.hpp>
 
 #include "platform/gfx.h"
 #include "platform/input.h"
@@ -66,19 +67,19 @@ void mgrLoadRom(const char* filename) {
             disableMenuOption("Delete State");
         }
 
-        if(gameboy->getNumRamBanks() && !autoSavingEnabled) {
+        if(gameboy->isRomLoaded() && gameboy->getRomFile()->getRamBanks() > 0 && !autoSavingEnabled) {
             enableMenuOption("Exit without saving");
         } else {
             disableMenuOption("Exit without saving");
         }
 
-        if(gameboy->getRomFile()->hasBios) {
+        if(gameboy->biosLoaded) {
             enableMenuOption("GBC Bios");
         } else {
             disableMenuOption("GBC Bios");
         }
 
-        if(gameboy->getRomFile()->getMBC() == MBC7) {
+        if(gameboy->isRomLoaded() && gameboy->getRomFile()->getMBC() == MBC7) {
             enableMenuOption("Accelerometer Pad");
         } else {
             disableMenuOption("Accelerometer Pad");
@@ -154,7 +155,7 @@ void mgrRun() {
     time(&rawTime);
     fps++;
     if(rawTime > lastPrintTime) {
-        if(!isMenuOn() && !consoleDebugOutput && (fpsOutput || timeOutput)) {
+        if(!isMenuOn() && !showConsoleDebug() && (fpsOutput || timeOutput)) {
             iprintf("\x1b[2J");
             int fpsLength = 0;
             if(fpsOutput) {
