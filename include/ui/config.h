@@ -1,5 +1,7 @@
 #pragma once
 
+#include "platform/input.h"
+
 // Function keys
 enum {
     FUNC_KEY_NONE,
@@ -33,6 +35,11 @@ enum {
     NUM_MENU_KEYS,
 };
 
+struct KeyConfig {
+    char name[NUM_BINDABLE_BUTTONS];
+    int funcKeys[NUM_BINDABLE_BUTTONS];
+};
+
 extern char biosPath[256];
 extern char romPath[256];
 extern char borderPath[256];
@@ -41,7 +48,4 @@ bool readConfigFile();
 void writeConfigFile();
 
 void startKeyConfigChooser();
-
-int mapFuncKey(int gbKey); // Maps a functional key to a physical key.
-int mapMenuKey(int menuKey);
 

@@ -411,7 +411,7 @@ char* FileChooser::startFileChooser(const char* extensions[], bool romExtensions
                 gfxWaitForVBlank();
                 inputUpdate();
 
-                if(inputKeyPressed(mapMenuKey(MENU_KEY_A))) {
+                if(inputKeyPressed(inputMapMenuKey(MENU_KEY_A))) {
                     if(flags[selection] & FLAG_DIRECTORY) {
                         if(strcmp(filenames[selection].c_str(), "..") == 0)
                             goto lowerDirectory;
@@ -428,7 +428,7 @@ char* FileChooser::startFileChooser(const char* extensions[], bool romExtensions
                         strcpy(retval + (directory.length() * sizeof(char)), filenames[selection].c_str());
                         goto end;
                     }
-                } else if(inputKeyPressed(mapMenuKey(MENU_KEY_B))) {
+                } else if(inputKeyPressed(inputMapMenuKey(MENU_KEY_B))) {
                     lowerDirectory:
                     // Select this directory when going up
                     std::string currDir = directory;
@@ -443,27 +443,27 @@ char* FileChooser::startFileChooser(const char* extensions[], bool romExtensions
                     directory = matchFile + "/";
                     readDirectory = true;
                     break;
-                } else if(inputKeyRepeat(mapMenuKey(MENU_KEY_UP))) {
+                } else if(inputKeyRepeat(inputMapMenuKey(MENU_KEY_UP))) {
                     if(selection > 0) {
                         selection--;
                         updateScrollUp();
                         break;
                     }
-                } else if(inputKeyRepeat(mapMenuKey(MENU_KEY_DOWN))) {
+                } else if(inputKeyRepeat(inputMapMenuKey(MENU_KEY_DOWN))) {
                     if(selection < numFiles - 1) {
                         selection++;
                         updateScrollDown();
                         break;
                     }
-                } else if(inputKeyRepeat(mapMenuKey(MENU_KEY_RIGHT))) {
+                } else if(inputKeyRepeat(inputMapMenuKey(MENU_KEY_RIGHT))) {
                     selection += filesPerPage / 2;
                     updateScrollDown();
                     break;
-                } else if(inputKeyRepeat(mapMenuKey(MENU_KEY_LEFT))) {
+                } else if(inputKeyRepeat(inputMapMenuKey(MENU_KEY_LEFT))) {
                     selection -= filesPerPage / 2;
                     updateScrollUp();
                     break;
-                } else if(inputKeyPressed(mapMenuKey(MENU_KEY_Y))) {
+                } else if(inputKeyPressed(inputMapMenuKey(MENU_KEY_Y))) {
                     if(canQuit) {
                         retval = NULL;
                         goto end;

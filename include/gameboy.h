@@ -4,6 +4,7 @@
 #include <vector>
 #include <stdarg.h>
 
+#include "types.h"
 #include "gb_apu/Gb_Apu.h"
 #include "gb_apu/Multi_Buffer.h"
 #include "cheatengine.h"
@@ -11,8 +12,6 @@
 #include "ppu.h"
 #include "printer.h"
 #include "romfile.h"
-
-#include <ctrcommon/types.hpp>
 
 #define MAX_SRAM_SIZE   0x20000
 

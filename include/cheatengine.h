@@ -1,8 +1,7 @@
 #pragma once
 
+#include "types.h"
 #include "romfile.h"
-
-#include <ctrcommon/types.hpp>
 
 #define MAX_CHEAT_NAME_LEN    24
 #define MAX_CHEATS            900

@@ -58,36 +58,36 @@ void updateCheatMenu() {
         cheatMenuSelection = 0;
     }
 
-    if(inputKeyRepeat(mapMenuKey(MENU_KEY_UP))) {
+    if(inputKeyRepeat(inputMapMenuKey(MENU_KEY_UP))) {
         if(cheatMenuSelection > 0) {
             cheatMenuSelection--;
             redraw = true;
         }
     }
-    else if(inputKeyRepeat(mapMenuKey(MENU_KEY_DOWN))) {
+    else if(inputKeyRepeat(inputMapMenuKey(MENU_KEY_DOWN))) {
         if(cheatMenuSelection < numCheats - 1) {
             cheatMenuSelection++;
             redraw = true;
         }
     }
-    else if(inputKeyPressed(mapMenuKey(MENU_KEY_RIGHT)) |
-            inputKeyPressed(mapMenuKey(MENU_KEY_LEFT))) {
+    else if(inputKeyPressed(inputMapMenuKey(MENU_KEY_RIGHT)) |
+            inputKeyPressed(inputMapMenuKey(MENU_KEY_LEFT))) {
         cheatEngine->toggleCheat(cheatMenuSelection, !cheatEngine->isCheatEnabled(cheatMenuSelection));
         redraw = true;
     }
-    else if(inputKeyPressed(mapMenuKey(MENU_KEY_R))) {
+    else if(inputKeyPressed(inputMapMenuKey(MENU_KEY_R))) {
         cheatMenuSelection += cheatsPerPage;
         if(cheatMenuSelection >= numCheats)
             cheatMenuSelection = 0;
         redraw = true;
     }
-    else if(inputKeyPressed(mapMenuKey(MENU_KEY_L))) {
+    else if(inputKeyPressed(inputMapMenuKey(MENU_KEY_L))) {
         cheatMenuSelection -= cheatsPerPage;
         if(cheatMenuSelection < 0)
             cheatMenuSelection = numCheats - 1;
         redraw = true;
     }
-    if(inputKeyPressed(mapMenuKey(MENU_KEY_B))) {
+    if(inputKeyPressed(inputMapMenuKey(MENU_KEY_B))) {
         closeSubMenu();
         if(!cheatMenu_gameboyWasPaused) {
             gameboy->unpause();

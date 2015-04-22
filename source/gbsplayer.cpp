@@ -113,21 +113,21 @@ void GBSPlayer::gbsInit() {
 
 // Called at vblank each frame
 void GBSPlayer::gbsCheckInput() {
-    if(inputKeyRepeat(mapMenuKey(MENU_KEY_LEFT))) {
+    if(inputKeyRepeat(inputMapMenuKey(MENU_KEY_LEFT))) {
         if(gbsSelectedSong == 0)
             gbsSelectedSong = gbsNumSongs - 1;
         else
             gbsSelectedSong--;
     }
-    if(inputKeyRepeat(mapMenuKey(MENU_KEY_RIGHT))) {
+    if(inputKeyRepeat(inputMapMenuKey(MENU_KEY_RIGHT))) {
         gbsSelectedSong++;
         if(gbsSelectedSong == gbsNumSongs)
             gbsSelectedSong = 0;
     }
-    if(inputKeyPressed(mapMenuKey(MENU_KEY_A))) {
+    if(inputKeyPressed(inputMapMenuKey(MENU_KEY_A))) {
         gbsLoadSong();
     }
-    if(inputKeyPressed(mapMenuKey(MENU_KEY_B))) { // Stop playing music
+    if(inputKeyPressed(inputMapMenuKey(MENU_KEY_B))) { // Stop playing music
         gbsPlayingSong = -1;
         gameboy->ime = 0;
         gameboy->writeIO(0xff, 0);

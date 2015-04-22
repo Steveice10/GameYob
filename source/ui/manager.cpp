@@ -1,6 +1,5 @@
 #include <stdlib.h>
 #include <string.h>
-#include <ctrcommon/platform.hpp>
 #include <sys/dirent.h>
 
 #include "platform/gfx.h"

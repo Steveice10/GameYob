@@ -1,6 +1,6 @@
 #pragma once
 
-#include <ctrcommon/types.hpp>
+#include "types.h"
 
 #define PRINTER_WIDTH 160
 #define PRINTER_HEIGHT 208 // The actual value is 200, but 16 divides 208.

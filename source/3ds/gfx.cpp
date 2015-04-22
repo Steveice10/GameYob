@@ -277,12 +277,12 @@ void gfxDrawScreen() {
     // Flush GPU framebuffer.
     gpuFlushBuffer();
 
-    if(inputKeyPressed(mapFuncKey(FUNC_KEY_SCREENSHOT))) {
+    if(inputKeyPressed(inputMapFuncKey(FUNC_KEY_SCREENSHOT))) {
         screenTakeScreenshot();
     }
 
     // Swap buffers and wait for VBlank.
-    gpuSwapBuffers(!(fastForward || inputKeyHeld(mapFuncKey(FUNC_KEY_FAST_FORWARD))));
+    gpuSwapBuffers(!(fastForward || inputKeyHeld(inputMapFuncKey(FUNC_KEY_FAST_FORWARD))));
 }
 
 void gfxFlush() {

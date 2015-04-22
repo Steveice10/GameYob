@@ -3,7 +3,6 @@
 #include <stdlib.h>
 
 #include <string>
-#include <ctrcommon/platform.hpp>
 
 #include "platform/gfx.h"
 #include "platform/input.h"
@@ -63,7 +62,7 @@ FileChooser borderChooser("/");
 
 // Private function used for simple submenus
 void subMenuGenericUpdateFunc() {
-    if(inputKeyPressed(mapMenuKey(MENU_KEY_A)) || inputKeyPressed(mapMenuKey(MENU_KEY_B)))
+    if(inputKeyPressed(inputMapMenuKey(MENU_KEY_A)) || inputKeyPressed(inputMapMenuKey(MENU_KEY_B)))
         closeSubMenu();
 }
 
@@ -180,7 +179,7 @@ void stateDeleteFunc(int value) {
 
 void accelPadFunc(int value) {
     accelPadMode = true;
-    inputKeyRelease(mapMenuKey(MENU_KEY_A));
+    inputKeyRelease(inputMapMenuKey(MENU_KEY_A));
     closeMenu();
 
     printf("Exit");
@@ -663,13 +662,13 @@ void updateMenu() {
 
     bool redraw = false;
     // Get input
-    if(inputKeyRepeat(mapMenuKey(MENU_KEY_UP))) {
+    if(inputKeyRepeat(inputMapMenuKey(MENU_KEY_UP))) {
         menuCursorUp();
         redraw = true;
-    } else if(inputKeyRepeat(mapMenuKey(MENU_KEY_DOWN))) {
+    } else if(inputKeyRepeat(inputMapMenuKey(MENU_KEY_DOWN))) {
         menuCursorDown();
         redraw = true;
-    } else if(inputKeyRepeat(mapMenuKey(MENU_KEY_LEFT))) {
+    } else if(inputKeyRepeat(inputMapMenuKey(MENU_KEY_LEFT))) {
         if(option == -1) {
             menu--;
             if(menu < 0)
@@ -683,7 +682,7 @@ void updateMenu() {
             menuList[menu].options[option].function(selection);
         }
         redraw = true;
-    } else if(inputKeyRepeat(mapMenuKey(MENU_KEY_RIGHT))) {
+    } else if(inputKeyRepeat(inputMapMenuKey(MENU_KEY_RIGHT))) {
         if(option == -1) {
             menu++;
             if(menu >= numMenus)
@@ -697,23 +696,23 @@ void updateMenu() {
             menuList[menu].options[option].function(selection);
         }
         redraw = true;
-    } else if(inputKeyPressed(mapMenuKey(MENU_KEY_A))) {
-        inputKeyRelease(mapMenuKey(MENU_KEY_A));
+    } else if(inputKeyPressed(inputMapMenuKey(MENU_KEY_A))) {
+        inputKeyRelease(inputMapMenuKey(MENU_KEY_A));
         if(option >= 0 && menuList[menu].options[option].numValues == 0 && menuList[menu].options[option].enabled) {
             menuList[menu].options[option].function(menuList[menu].options[option].selection);
         }
         redraw = true;
-    } else if(inputKeyPressed(mapMenuKey(MENU_KEY_B))) {
-        inputKeyRelease(mapMenuKey(MENU_KEY_B));
+    } else if(inputKeyPressed(inputMapMenuKey(MENU_KEY_B))) {
+        inputKeyRelease(inputMapMenuKey(MENU_KEY_B));
         closeMenu();
-    } else if(inputKeyPressed(mapMenuKey(MENU_KEY_L))) {
+    } else if(inputKeyPressed(inputMapMenuKey(MENU_KEY_L))) {
         int row = menuGetOptionRow();
         menu--;
         if(menu < 0)
             menu = numMenus - 1;
         menuSetOptionRow(row);
         redraw = true;
-    } else if(inputKeyPressed(mapMenuKey(MENU_KEY_R))) {
+    } else if(inputKeyPressed(inputMapMenuKey(MENU_KEY_R))) {
         int row = menuGetOptionRow();
         menu++;
         if(menu >= numMenus)

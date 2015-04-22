@@ -1,6 +1,6 @@
 #pragma once
 
-#include <ctrcommon/types.hpp>
+#include "types.h"
 
 bool gfxInit();
 void gfxCleanup();

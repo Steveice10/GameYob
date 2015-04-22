@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <string>
 
-#include <ctrcommon/types.hpp>
+#include "types.h"
 
 /* All the possible MBC */
 typedef enum {

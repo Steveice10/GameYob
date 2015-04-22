@@ -10,7 +10,6 @@
 #include "ui/menu.h"
 #include "gameboy.h"
 
-#include <ctrcommon/input.hpp>
 #include <strings.h>
 
 #define INI_PATH "/gameyob.ini"
@@ -118,9 +117,6 @@ void writeConfigFile() {
     }
 }
 
-
-// Keys: 3DS specific code
-
 const char* gbKeyNames[] = {
         "-",
         "A",
@@ -143,96 +139,8 @@ const char* gbKeyNames[] = {
         "Screenshot"
 };
 
-const char* dsKeyNames[] = {
-        "A",         // 0
-        "B",         // 1
-        "Select",    // 2
-        "Start",     // 3
-        "Right",     // 4
-        "Left",      // 5
-        "Up",        // 6
-        "Down",      // 7
-        "R",         // 8
-        "L",         // 9
-        "X",         // 10
-        "Y",         // 11
-        "",          // 12
-        "",          // 13
-        "ZL",        // 14
-        "ZR",        // 15
-        "",          // 16
-        "",          // 17
-        "",          // 18
-        "",          // 19
-        "",          // 20
-        "",          // 21
-        "",          // 22
-        "",          // 23
-        "C-Right",   // 24
-        "C-Left",    // 25
-        "C-Up",      // 26
-        "C-Down",    // 27
-        "Pad-Right", // 28
-        "Pad-Left",  // 29
-        "Pad-Up",    // 30
-        "Pad-Down"   // 31
-};
-
-int keyMapping[NUM_FUNC_KEYS];
-#define NUM_BINDABLE_BUTTONS 32
-struct KeyConfig {
-    char name[32];
-    int funcKeys[32];
-};
-
-KeyConfig defaultKeyConfig = {
-        "Main",
-        {
-                FUNC_KEY_A,            // 0 = BUTTON_A
-                FUNC_KEY_B,            // 1 = BUTTON_B
-                FUNC_KEY_SELECT,       // 2 = BUTTON_SELECT
-                FUNC_KEY_START,        // 3 = BUTTON_START
-                FUNC_KEY_RIGHT,        // 4 = BUTTON_DRIGHT
-                FUNC_KEY_LEFT,         // 5 = BUTTON_DLEFT
-                FUNC_KEY_UP,           // 6 = BUTTON_DUP
-                FUNC_KEY_DOWN,         // 7 = BUTTON_DDOWN
-                FUNC_KEY_MENU,         // 8 = BUTTON_R
-                FUNC_KEY_FAST_FORWARD, // 9 = BUTTON_L
-                FUNC_KEY_START,        // 10 = BUTTON_X
-                FUNC_KEY_SELECT,       // 11 = BUTTON_Y
-                FUNC_KEY_NONE,         // 12 = BUTTON_NONE
-                FUNC_KEY_NONE,         // 13 = BUTTON_NONE
-                FUNC_KEY_SCREENSHOT,   // 14 = BUTTON_ZL
-                FUNC_KEY_SCALE,        // 15 = BUTTON_ZR
-                FUNC_KEY_NONE,         // 16 = BUTTON_NONE
-                FUNC_KEY_NONE,         // 17 = BUTTON_NONE
-                FUNC_KEY_NONE,         // 18 = BUTTON_NONE
-                FUNC_KEY_NONE,         // 19 = BUTTON_NONE
-                FUNC_KEY_MENU,         // 20 = BUTTON_TOUCH
-                FUNC_KEY_NONE,         // 21 = BUTTON_NONE
-                FUNC_KEY_NONE,         // 22 = BUTTON_NONE
-                FUNC_KEY_NONE,         // 23 = BUTTON_NONE
-                FUNC_KEY_RIGHT,        // 24 = BUTTON_CSTICK_RIGHT
-                FUNC_KEY_LEFT,         // 25 = BUTTON_CSTICK_LEFT
-                FUNC_KEY_UP,           // 26 = BUTTON_CSTICK_UP
-                FUNC_KEY_DOWN,         // 27 = BUTTON_CSTICK_DOWN
-                FUNC_KEY_RIGHT,        // 28 = BUTTON_CPAD_RIGHT
-                FUNC_KEY_LEFT,         // 29 = BUTTON_CPAD_LEFT
-                FUNC_KEY_UP,           // 30 = BUTTON_CPAD_UP
-                FUNC_KEY_DOWN          // 31 = BUTTON_CPAD_DOWN
-        }
-};
-
 std::vector<KeyConfig> keyConfigs;
 unsigned int selectedKeyConfig = 0;
-
-void loadKeyConfig() {
-    KeyConfig* keyConfig = &keyConfigs[selectedKeyConfig];
-    memset(keyMapping, 0, NUM_FUNC_KEYS * sizeof(int));
-    for(int i = 0; i < NUM_BINDABLE_BUTTONS; i++) {
-        keyMapping[keyConfig->funcKeys[i]] |= (1 << i);
-    }
-}
 
 void controlsParseConfig(char* line2) {
     char line[100];
@@ -250,12 +158,10 @@ void controlsParseConfig(char* line2) {
             strncpy(config->name, name, 32);
             config->name[31] = '\0';
             for(int i = 0; i < NUM_BINDABLE_BUTTONS; i++) {
-                if(strlen(dsKeyNames[i]) > 0) {
+                if(strlen(inputGetKeyName(i)) > 0) {
                     config->funcKeys[i] = FUNC_KEY_NONE;
                 }
             }
-
-            config->funcKeys[20] = FUNC_KEY_MENU; // BUTTON_TOUCH
         }
 
         return;
@@ -270,7 +176,7 @@ void controlsParseConfig(char* line2) {
             if(strlen(line) > 0) {
                 int dsKey = -1;
                 for(int i = 0; i < NUM_BINDABLE_BUTTONS; i++) {
-                    if(strcasecmp(line, dsKeyNames[i]) == 0) {
+                    if(strcasecmp(line, inputGetKeyName(i)) == 0) {
                         dsKey = i;
                         break;
                     }
@@ -295,10 +201,10 @@ void controlsParseConfig(char* line2) {
 
 void controlsCheckConfig() {
     if(keyConfigs.empty())
-        keyConfigs.push_back(defaultKeyConfig);
+        keyConfigs.push_back(inputGetDefaultKeyConfig());
     if(selectedKeyConfig >= keyConfigs.size())
         selectedKeyConfig = 0;
-    loadKeyConfig();
+    inputLoadKeyConfig(&keyConfigs[selectedKeyConfig]);
 }
 
 void controlsPrintConfig(FILE* file) {
@@ -306,8 +212,8 @@ void controlsPrintConfig(FILE* file) {
     for(unsigned int i = 0; i < keyConfigs.size(); i++) {
         fprintf(file, "(%s)\n", keyConfigs[i].name);
         for(int j = 0; j < NUM_BINDABLE_BUTTONS; j++) {
-            if(strlen(dsKeyNames[j]) > 0) {
-                fprintf(file, "%s=%s\n", dsKeyNames[j], gbKeyNames[keyConfigs[i].funcKeys[j]]);
+            if(strlen(inputGetKeyName(j)) > 0) {
+                fprintf(file, "%s=%s\n", inputGetKeyName(j), gbKeyNames[keyConfigs[i].funcKeys[j]]);
             }
         }
     }
@@ -330,20 +236,19 @@ void redrawKeyConfigChooser() {
     printf("       Button   Function\n\n");
 
     for(int i = 0; i < NUM_BINDABLE_BUTTONS; i++) {
-        // These button bits aren't assigned to anything, so no strings for them
-        if((i > 15 && i < 24) || i == 12 || i == 13)
+        if(!inputIsValidKey(i))
             continue;
 
-        int len = 11 - strlen(dsKeyNames[i]);
+        int len = 11 - strlen(inputGetKeyName(i));
         while(len > 0) {
             printf(" ");
             len--;
         }
 
         if(option == i) {
-            printf("\x1b[1m\x1b[33m* %s | %s *\n\x1b[0m", dsKeyNames[i], gbKeyNames[config->funcKeys[i]]);
+            printf("\x1b[1m\x1b[33m* %s | %s *\n\x1b[0m", inputGetKeyName(i), gbKeyNames[config->funcKeys[i]]);
         } else {
-            printf("  %s | %s  \n", dsKeyNames[i], gbKeyNames[config->funcKeys[i]]);
+            printf("  %s | %s  \n", inputGetKeyName(i), gbKeyNames[config->funcKeys[i]]);
         }
     }
     printf("\nPress X to make a new config.");
@@ -358,10 +263,10 @@ void updateKeyConfigChooser() {
     int &option = keyConfigChooser_option;
     KeyConfig* config = &keyConfigs[selectedKeyConfig];
 
-    if(inputKeyPressed(mapMenuKey(MENU_KEY_B))) {
-        loadKeyConfig();
+    if(inputKeyPressed(inputMapMenuKey(MENU_KEY_B))) {
+        inputLoadKeyConfig(config);
         closeSubMenu();
-    } else if(inputKeyPressed(mapMenuKey(MENU_KEY_X))) {
+    } else if(inputKeyPressed(inputMapMenuKey(MENU_KEY_X))) {
         keyConfigs.push_back(KeyConfig(*config));
         selectedKeyConfig = keyConfigs.size() - 1;
         char name[32];
@@ -369,34 +274,36 @@ void updateKeyConfigChooser() {
         strcpy(keyConfigs.back().name, name);
         option = -1;
         redraw = true;
-    } else if(inputKeyPressed(mapMenuKey(MENU_KEY_Y))) {
+    } else if(inputKeyPressed(inputMapMenuKey(MENU_KEY_Y))) {
         if(selectedKeyConfig != 0) /* can't erase the default */ {
             keyConfigs.erase(keyConfigs.begin() + selectedKeyConfig);
             if(selectedKeyConfig >= keyConfigs.size())
                 selectedKeyConfig = keyConfigs.size() - 1;
             redraw = true;
         }
-    } else if(inputKeyRepeat(mapMenuKey(MENU_KEY_DOWN))) {
-        if(option == NUM_BINDABLE_BUTTONS - 1)
+    } else if(inputKeyRepeat(inputMapMenuKey(MENU_KEY_DOWN))) {
+        if(option == NUM_BINDABLE_BUTTONS - 1) {
             option = -1;
-        else if(option == 11) //Skip nonexistant keys
-            option = 14;
-        else if(option == 15)
-            option = 24;
-        else
+        } else {
             option++;
+            while(!inputIsValidKey(option)) {
+                option++;
+            }
+        }
+
         redraw = true;
-    } else if(inputKeyRepeat(mapMenuKey(MENU_KEY_UP))) {
-        if(option == -1)
+    } else if(inputKeyRepeat(inputMapMenuKey(MENU_KEY_UP))) {
+        if(option == -1) {
             option = NUM_BINDABLE_BUTTONS - 1;
-        else if(option == 14) //Skip nonexistant keys
-            option = 11;
-        else if(option == 24)
-            option = 15;
-        else
+        } else {
             option--;
+            while(!inputIsValidKey(option)) {
+                option--;
+            }
+        }
+
         redraw = true;
-    } else if(inputKeyRepeat(mapMenuKey(MENU_KEY_LEFT))) {
+    } else if(inputKeyRepeat(inputMapMenuKey(MENU_KEY_LEFT))) {
         if(option == -1) {
             if(selectedKeyConfig == 0)
                 selectedKeyConfig = keyConfigs.size() - 1;
@@ -409,7 +316,7 @@ void updateKeyConfigChooser() {
                 config->funcKeys[option] = NUM_FUNC_KEYS - 1;
         }
         redraw = true;
-    } else if(inputKeyRepeat(mapMenuKey(MENU_KEY_RIGHT))) {
+    } else if(inputKeyRepeat(inputMapMenuKey(MENU_KEY_RIGHT))) {
         if(option == -1) {
             selectedKeyConfig++;
             if(selectedKeyConfig >= keyConfigs.size())
@@ -432,35 +339,4 @@ void startKeyConfigChooser() {
     keyConfigChooser_option = -1;
     displaySubMenu(updateKeyConfigChooser);
     redrawKeyConfigChooser();
-}
-
-int mapFuncKey(int funcKey) {
-    return keyMapping[funcKey];
-}
-
-int mapMenuKey(int menuKey) {
-    switch(menuKey) {
-        case MENU_KEY_A:
-            return BUTTON_A;
-        case MENU_KEY_B:
-            return BUTTON_B;
-        case MENU_KEY_LEFT:
-            return BUTTON_LEFT;
-        case MENU_KEY_RIGHT:
-            return BUTTON_RIGHT;
-        case MENU_KEY_UP:
-            return BUTTON_UP;
-        case MENU_KEY_DOWN:
-            return BUTTON_DOWN;
-        case MENU_KEY_R:
-            return BUTTON_R;
-        case MENU_KEY_L:
-            return BUTTON_L;
-        case MENU_KEY_X:
-            return BUTTON_X;
-        case MENU_KEY_Y:
-            return BUTTON_Y;
-    }
-
-    return 0;
 }
