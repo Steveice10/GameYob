@@ -134,9 +134,4 @@ void GBSPlayer::gbsCheckInput() {
         gameboy->initSND();
     }
     gbsRedraw();
-
-    if(gbsPlayingSong != -1)
-        systemDisableSleepMode();
-    else
-        systemEnableSleepMode();
 }

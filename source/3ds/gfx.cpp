@@ -1,3 +1,6 @@
+#include <malloc.h>
+#include <math.h>
+
 #include "lodepng/lodepng.h"
 #include "platform/gfx.h"
 #include "platform/input.h"
@@ -7,7 +10,6 @@
 #include <3ds.h>
 
 #include <ctrcommon/gpu.hpp>
-#include <malloc.h>
 
 #include "shader_vsh_shbin.h"
 
@@ -93,17 +95,6 @@ void gfxSetFastForward(bool fastforward) {
     fastForward = fastforward;
 }
 
-unsigned int gfxNextPowerOfTwo(unsigned int v) {
-    v--;
-    v |= v >> 1;
-    v |= v >> 2;
-    v |= v >> 4;
-    v |= v >> 8;
-    v |= v >> 16;
-    v++;
-    return v;
-}
-
 void gfxLoadBorder(const char* filename) {
     if(filename == NULL) {
         gfxLoadBorderBuffer(NULL, 0, 0);
@@ -145,8 +136,8 @@ void gfxLoadBorderBuffer(u8* imgData, u32 imgWidth, u32 imgHeight) {
     // Adjust the texture to power-of-two dimensions.
     borderWidth = imgWidth;
     borderHeight = imgHeight;
-    gpuBorderWidth = gfxNextPowerOfTwo(borderWidth);
-    gpuBorderHeight = gfxNextPowerOfTwo(borderHeight);
+    gpuBorderWidth = (u32) pow(2, ceil(log(borderWidth / log(2))));
+    gpuBorderHeight = (u32) pow(2, ceil(log(borderHeight / log(2))));
     u8* borderBuffer = (u8*) gpuAlloc(gpuBorderWidth * gpuBorderHeight * 4);
     for(u32 x = 0; x < borderWidth; x++) {
         for(u32 y = 0; y < borderHeight; y++) {

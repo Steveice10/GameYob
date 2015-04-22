@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctrcommon/platform.hpp>
+#include <sys/dirent.h>
 
 #include "platform/gfx.h"
 #include "platform/input.h"
@@ -16,6 +17,7 @@ int fps;
 time_t lastPrintTime;
 
 FileChooser romChooser("/");
+bool chooserInitialized = false;
 
 void mgrInit() {
     gameboy = new Gameboy();
@@ -99,8 +101,14 @@ void mgrUnloadRom() {
 void mgrSelectRom() {
     mgrUnloadRom();
 
-    if(romChooser.getDirectory().compare(romPath) != 0 && systemIsDirectory(romPath)) {
-        romChooser.setDirectory(romPath);
+    if(!chooserInitialized) {
+        chooserInitialized = true;
+
+        DIR* dir = opendir(romPath);
+        if(dir) {
+            closedir(dir);
+            romChooser.setDirectory(romPath);
+        }
     }
 
     const char* extraExtensions[] = {"gbs"};
@@ -117,8 +125,6 @@ void mgrSelectRom() {
 
     mgrLoadRom(filename);
     free(filename);
-
-    systemUpdateConsole();
 }
 
 void mgrSave() {
@@ -130,11 +136,11 @@ void mgrSave() {
 }
 
 void mgrRun() {
+    systemCheckRunning();
+
     if(gameboy == NULL) {
         return;
     }
-
-    systemCheckRunning();
 
     while(!gameboy->isGameboyPaused() && !(gameboy->runEmul() & RET_VBLANK));
 

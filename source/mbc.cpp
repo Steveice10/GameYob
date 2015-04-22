@@ -1,3 +1,5 @@
+#include <sys/types.h>
+
 #include "platform/input.h"
 #include "platform/system.h"
 #include "ui/manager.h"
@@ -276,11 +278,6 @@ void Gameboy::m5w(u16 addr, u8 val) {
             break;
     }
 }
-
-enum {
-    MBC7_RA_IDLE,
-    MBC7_RA_READY,
-};
 
 /* MBC7 */
 void Gameboy::m7w(u16 addr, u8 val) {
@@ -655,7 +652,8 @@ void Gameboy::latchClock() {
             OVERFLOW(gbClock.huc3.d, 365, gbClock.huc3.y);
             gbClock.huc3.y += lt->tm_year - 70;
             break;
-
+        default:
+            break;
     }
 
     gbClock.last = now;

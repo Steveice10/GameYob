@@ -66,6 +66,12 @@ void systemRun() {
     }
 }
 
+void systemCheckRunning() {
+    if(!platformIsRunning()) {
+        systemExit();
+    }
+}
+
 int systemGetConsoleWidth() {
     PrintConsole* console = !gameScreen == 0 ? topConsole : bottomConsole;
     return console->consoleWidth;
@@ -97,28 +103,4 @@ void systemUpdateConsole() {
         console->frameBuffer = framebuffer;
         consoleSelect(console);
     }
-}
-
-void systemCheckRunning() {
-    if(!platformIsRunning()) {
-        systemExit();
-    }
-}
-
-void systemDisableSleepMode() {
-}
-
-void systemEnableSleepMode() {
-}
-
-bool systemExists(std::string path) {
-    return fsExists(path);
-}
-
-bool systemIsDirectory(std::string path) {
-    return fsIsDirectory(path);
-}
-
-void systemDelete(std::string path) {
-    fsDelete(path);
 }

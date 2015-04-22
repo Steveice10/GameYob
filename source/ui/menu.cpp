@@ -168,7 +168,6 @@ void stateLoadFunc(int value) {
     printMenuMessage("Loading state...");
     if(gameboy->loadState(stateNum) == 0) {
         closeMenu();
-        systemUpdateConsole();
         printMessage[0] = '\0';
     }
 }
@@ -183,20 +182,17 @@ void accelPadFunc(int value) {
     accelPadMode = true;
     inputKeyRelease(mapMenuKey(MENU_KEY_A));
     closeMenu();
-    systemUpdateConsole();
 
     printf("Exit");
 }
 
 void resetFunc(int value) {
     closeMenu();
-    systemUpdateConsole();
     gameboy->init();
 }
 
 void returnFunc(int value) {
     closeMenu();
-    systemUpdateConsole();
 }
 
 void gameboyModeFunc(int value) {
@@ -249,9 +245,6 @@ void setPauseOnMenuFunc(int value) {
 
 void setScaleModeFunc(int value) {
     scaleMode = value;
-    if(!isMenuOn()) {
-        systemUpdateConsole();
-    }
 }
 
 void setScaleFilterFunc(int value) {
@@ -463,7 +456,6 @@ void setMenuDefaults() {
 
 void displayMenu() {
     menuOn = true;
-    systemUpdateConsole();
     redrawMenu();
 }
 
@@ -674,12 +666,10 @@ void updateMenu() {
     if(inputKeyRepeat(mapMenuKey(MENU_KEY_UP))) {
         menuCursorUp();
         redraw = true;
-    }
-    else if(inputKeyRepeat(mapMenuKey(MENU_KEY_DOWN))) {
+    } else if(inputKeyRepeat(mapMenuKey(MENU_KEY_DOWN))) {
         menuCursorDown();
         redraw = true;
-    }
-    else if(inputKeyRepeat(mapMenuKey(MENU_KEY_LEFT))) {
+    } else if(inputKeyRepeat(mapMenuKey(MENU_KEY_LEFT))) {
         if(option == -1) {
             menu--;
             if(menu < 0)
@@ -693,8 +683,7 @@ void updateMenu() {
             menuList[menu].options[option].function(selection);
         }
         redraw = true;
-    }
-    else if(inputKeyRepeat(mapMenuKey(MENU_KEY_RIGHT))) {
+    } else if(inputKeyRepeat(mapMenuKey(MENU_KEY_RIGHT))) {
         if(option == -1) {
             menu++;
             if(menu >= numMenus)
@@ -708,20 +697,16 @@ void updateMenu() {
             menuList[menu].options[option].function(selection);
         }
         redraw = true;
-    }
-    else if(inputKeyPressed(mapMenuKey(MENU_KEY_A))) {
+    } else if(inputKeyPressed(mapMenuKey(MENU_KEY_A))) {
         inputKeyRelease(mapMenuKey(MENU_KEY_A));
         if(option >= 0 && menuList[menu].options[option].numValues == 0 && menuList[menu].options[option].enabled) {
             menuList[menu].options[option].function(menuList[menu].options[option].selection);
         }
         redraw = true;
-    }
-    else if(inputKeyPressed(mapMenuKey(MENU_KEY_B))) {
+    } else if(inputKeyPressed(mapMenuKey(MENU_KEY_B))) {
         inputKeyRelease(mapMenuKey(MENU_KEY_B));
         closeMenu();
-        systemUpdateConsole();
-    }
-    else if(inputKeyPressed(mapMenuKey(MENU_KEY_L))) {
+    } else if(inputKeyPressed(mapMenuKey(MENU_KEY_L))) {
         int row = menuGetOptionRow();
         menu--;
         if(menu < 0)

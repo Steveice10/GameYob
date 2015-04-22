@@ -520,8 +520,6 @@ Gameboy::~Gameboy() {
 }
 
 void Gameboy::init() {
-    systemEnableSleepMode();
-
     if(gbsPlayer->gbsMode) {
         resultantGBMode = 1; // GBC
         ppu->probingForBorder = false;
@@ -651,7 +649,7 @@ void Gameboy::initSND() {
     apu->reset();
 }
 
-// Called either from startup, or when FF50 is written to.
+// Called either from startup or when FF50 is written to.
 void Gameboy::initGameboyMode() {
     gbRegs.af.b.l = 0xB0;
     gbRegs.bc.w = 0x0013;
@@ -661,14 +659,18 @@ void Gameboy::initGameboyMode() {
         case 0: // GB
             gbRegs.af.b.h = 0x01;
             gbMode = GB;
-            if(romFile->isCgbSupported() || biosOn)
+            if(romFile->isCgbSupported() || biosOn) {
                 // Init the palette in case it was overwritten.
                 initGFXPalette();
+            }
+
             break;
         case 1: // GBC
             gbRegs.af.b.h = 0x11;
-            if(gbaModeOption)
+            if(gbaModeOption) {
                 gbRegs.bc.b.h |= 1;
+            }
+
             gbMode = CGB;
             break;
         case 2: // SGB
@@ -915,10 +917,9 @@ int Gameboy::runEmul() {
 
             soundFrames++;
             if(soundFrames >= FRAMES_PER_BUFFER) {
-                static blip_sample_t buf[APU_BUFFER_SIZE];
-                long count = apuBuffer->read_samples(buf, APU_BUFFER_SIZE);
+                long count = apuBuffer->read_samples(getAudioBuffer(), APU_BUFFER_SIZE);
                 if(!soundDisabled && !gameboyPaused) {
-                    playAudio(buf, count);
+                    playAudio(count);
                 } else {
                     apuBuffer->clear();
                 }
@@ -1011,7 +1012,7 @@ void Gameboy::initGFXPalette() {
 
         memcpy(bgPaletteData, palette, 4 * sizeof(u16));
         memcpy(sprPaletteData, palette + 4, 4 * sizeof(u16));
-        memcpy(sprPaletteData + 4*8, palette + 8, 4 * sizeof(u16));
+        memcpy(sprPaletteData + 4 * 8, palette + 8, 4 * sizeof(u16));
     }
 }
 
@@ -1307,7 +1308,7 @@ int Gameboy::loadSave(int saveId) {
         saveFile = fopen(savename, "r+b");
     }
 
-    fread(externRam, 1, 0x2000 * romFile->getRamBanks(), saveFile);
+    fread(externRam, 1, (size_t) (0x2000 * romFile->getRamBanks()), saveFile);
 
     switch(romFile->getMBC()) {
         case MBC3:
@@ -1384,6 +1385,7 @@ void Gameboy::updateAutosave() {
 
 const int STATE_VERSION = 6;
 
+// TODO: Write APU state to state file.
 void Gameboy::saveState(int stateNum) {
     if(!isRomLoaded()) {
         return;
@@ -1411,7 +1413,7 @@ void Gameboy::saveState(int stateNum) {
     fwrite(vram, 1, sizeof(vram), outFile);
     fwrite(wram, 1, sizeof(wram), outFile);
     fwrite(hram, 1, 0x200, outFile);
-    fwrite(externRam, 1, 0x2000 * romFile->getRamBanks(), outFile);
+    fwrite(externRam, 1, (size_t) (0x2000 * romFile->getRamBanks()), outFile);
 
     fwrite(&gbRegs, 1, sizeof(gbRegs), outFile);
     fwrite(&halt, 1, sizeof(halt), outFile);
@@ -1621,7 +1623,7 @@ int Gameboy::loadState(int stateNum) {
 
     fclose(inFile);
     if(stateNum == -1) {
-        systemDelete(statename);
+        remove(statename);
     }
 
     timerPeriod = periods[ioRam[0x07] & 0x3];
@@ -1649,11 +1651,13 @@ void Gameboy::deleteState(int stateNum) {
 
     char statename[256];
 
-    if(stateNum == -1)
+    if(stateNum == -1) {
         sprintf(statename, "%s.yss", romFile->getFileName().c_str());
-    else
+    } else {
         sprintf(statename, "%s.ys%d", romFile->getFileName().c_str(), stateNum);
-    systemDelete(statename);
+    }
+
+    remove(statename);
 }
 
 bool Gameboy::checkStateExists(int stateNum) {
@@ -1662,18 +1666,16 @@ bool Gameboy::checkStateExists(int stateNum) {
 
     char statename[256];
 
-    if(stateNum == -1)
+    if(stateNum == -1) {
         sprintf(statename, "%s.yss", romFile->getFileName().c_str());
-    else
+    } else {
         sprintf(statename, "%s.ys%d", romFile->getFileName().c_str(), stateNum);
-    return systemExists(statename);
-    /*
-    file = fopen(statename, "r");
-
-    if (file == 0) {
-        return false;
     }
-    fclose(file);
-    return true;
-    */
+
+    FILE* fd = fopen(statename, "r");
+    if(fd != NULL) {
+        fclose(fd);
+    }
+
+    return fd != NULL;
 }

@@ -343,9 +343,7 @@ public:
     int memoryModel;
     bool hasClock;
     int romBank0Num;
-    u8* romBank0;
     int romBank1Num;
-    u8* romBank1;
     int ramBankNum;
 
     bool rockmanMapper;

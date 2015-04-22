@@ -5,9 +5,12 @@
 
 #include <ctrcommon/sound.hpp>
 
-s16* playBuffer = (s16*) soundAlloc(2 * APU_BUFFER_SIZE);
+static blip_sample_t* audioBuffer = (blip_sample_t*) soundAlloc(APU_BUFFER_SIZE * sizeof(blip_sample_t));
 
-void playAudio(s16* samples, long count) {
-    memcpy(playBuffer, samples, (u32) count * 2);
-    soundPlay(0, FORMAT_PCM16, (u32) SAMPLE_RATE, playBuffer, (u32) count);
+blip_sample_t* getAudioBuffer() {
+    return audioBuffer;
+}
+
+void playAudio(long samples) {
+    soundPlay(0, FORMAT_PCM16, (u32) SAMPLE_RATE, audioBuffer, (u32) samples);
 }

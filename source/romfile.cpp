@@ -30,6 +30,21 @@ RomFile::RomFile(Gameboy* gb, const std::string path) {
     this->totalRomBanks = (int) pow(2, ceil(log(((u32) st.st_size + 0x3FFF) / 0x4000) / log(2)));
     this->banks = new u8*[this->totalRomBanks]();
 
+    // Most MMM01 dumps have the initial banks at the end of the ROM rather than the beginning, so check if this is the case and compensate.
+    if(this->totalRomBanks > 2) {
+        u8 cgbFlag;
+        fseek(this->file, -0x8000 + 0x0143, SEEK_END);
+        fread(&cgbFlag, 1, sizeof(cgbFlag), this->file);
+
+        char buffer[cgbFlag == 0x80 || cgbFlag == 0xC0 ? 15 : 16] = {'\0'};
+        fseek(this->file, -0x8000 + 0x0134, SEEK_END);
+        fread(&buffer, 1, sizeof(buffer), this->file);
+
+        if(strcmp(buffer, "VARIETY PACK") == 0 || strcmp(buffer, "MOMOCOL2") == 0 || strcmp(buffer, "BUBBLEBOBBLE SET") == 0 || strcmp(buffer, "TETRIS SET") == 0 || strcmp(buffer, "GANBARUGA SET") == 0) {
+            this->firstBanksAtEnd = true;
+        }
+    }
+
     u8* bank0 = this->getRomBank(0);
     if(bank0 == NULL) {
         this->loaded = false;
@@ -38,22 +53,6 @@ RomFile::RomFile(Gameboy* gb, const std::string path) {
 
     this->romTitle = std::string(reinterpret_cast<char*>(&bank0[0x0134]), bank0[0x0143] == 0x80 || bank0[0x0143] == 0xC0 ? 15 : 16);
     this->romTitle.erase(std::find_if(this->romTitle.rbegin(), this->romTitle.rend(), [](int c) { return c != 0; }).base(), this->romTitle.end());
-
-    // Most MMM01 dumps have the initial banks at the end of the ROM rather than the beginning, so detect wrong initial banks and compensate.
-    if(this->romTitle.compare("SAGAIA") == 0 || this->romTitle.compare("BUBBLEBOBBLE SET3") == 0 || this->romTitle.compare("MOMOTARODENGEKI218") == 0) {
-        this->firstBanksAtEnd = true;
-
-        delete this->banks[0];
-        this->banks[0] = NULL;
-
-        bank0 = this->getRomBank(0);
-        if(bank0 == NULL) {
-            this->loaded = false;
-            return;
-        }
-
-        this->romTitle = std::string(reinterpret_cast<char*>(&bank0[0x0134]), bank0[0x0143] == 0x80 || bank0[0x0143] == 0xC0 ? 15 : 16);
-    }
 
     this->cgbSupported = bank0[0x0143] == 0x80 || bank0[0x0143] == 0xC0;
     this->cgbRequired = bank0[0x0143] == 0xC0;
@@ -81,7 +80,7 @@ RomFile::RomFile(Gameboy* gb, const std::string path) {
             this->mbc = MMM01;
             break;
         case 0x0F:
-        case 0x010:
+        case 0x10:
         case 0x11:
         case 0x12:
         case 0x13:
@@ -196,12 +195,10 @@ u8* RomFile::getRomBank(int bank) {
 void RomFile::printInfo() {
     static const char* mbcNames[] = {"ROM", "MBC1", "MBC2", "MBC3", "MBC5", "MBC7", "MMM01", "HUC1", "HUC3"};
 
-    u8* bank0 = getRomBank(0);
-
     iprintf("\x1b[2J");
     printf("Cartridge type: %.2x (%s)\n", this->rawMBC, mbcNames[this->mbc]);
     printf("ROM Title: \"%s\"\n", this->romTitle.c_str());
     printf("ROM Size: %.2x (%d banks)\n", this->rawRomSize, this->totalRomBanks);
     printf("RAM Size: %.2x (%d banks)\n", this->rawRamSize, this->totalRamBanks);
-    printf("CGB Flags: 0x%x, Supported: %d, Required: %d\n", bank0[0x0143], this->cgbSupported, this->cgbRequired);
+    printf("CGB: Supported: %d, Required: %d\n", this->cgbSupported, this->cgbRequired);
 }

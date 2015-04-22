@@ -27,11 +27,11 @@ const mbcWrite mbcWrites[] = {
 void Gameboy::refreshRomBank0(int bank) {
     if(bank < romFile->getRomBanks()) {
         romBank0Num = bank;
-        romBank0 = romFile->getRomBank(romBank0Num);
-        memory[0x0] = romBank0;
-        memory[0x1] = romBank0 + 0x1000;
-        memory[0x2] = romBank0 + 0x2000;
-        memory[0x3] = romBank0 + 0x3000;
+        u8* romBank = romFile->getRomBank(romBank0Num);
+        memory[0x0] = romBank;
+        memory[0x1] = romBank + 0x1000;
+        memory[0x2] = romBank + 0x2000;
+        memory[0x3] = romBank + 0x3000;
     } else if(showConsoleDebug()) {
         printf("Tried to access ROM bank %x\n", bank);
     }
@@ -40,11 +40,11 @@ void Gameboy::refreshRomBank0(int bank) {
 void Gameboy::refreshRomBank1(int bank) {
     if(bank < romFile->getRomBanks()) {
         romBank1Num = bank;
-        romBank1 = romFile->getRomBank(romBank1Num);
-        memory[0x4] = romBank1;
-        memory[0x5] = romBank1 + 0x1000;
-        memory[0x6] = romBank1 + 0x2000;
-        memory[0x7] = romBank1 + 0x3000;
+        u8* romBank = romFile->getRomBank(romBank1Num);
+        memory[0x4] = romBank;
+        memory[0x5] = romBank + 0x1000;
+        memory[0x6] = romBank + 0x2000;
+        memory[0x7] = romBank + 0x3000;
     } else if(showConsoleDebug()) {
         printf("Tried to access ROM bank %x\n", bank);
     }
@@ -53,8 +53,9 @@ void Gameboy::refreshRomBank1(int bank) {
 void Gameboy::refreshRamBank(int bank) {
     if(bank < romFile->getRamBanks()) {
         ramBankNum = bank;
-        memory[0xa] = externRam + ramBankNum * 0x2000;
-        memory[0xb] = externRam + ramBankNum * 0x2000 + 0x1000;
+        u8* ramBank = externRam + ramBankNum * 0x2000;
+        memory[0xa] = ramBank;
+        memory[0xb] = ramBank + 0x1000;
     } else if(showConsoleDebug()) {
         printf("Tried to access RAM bank %x\n", bank);
     }
@@ -81,9 +82,7 @@ void Gameboy::initMMU() {
     wramBank = 1;
     vramBank = 0;
     romBank0Num = 0;
-    romBank0 = NULL;
     romBank1Num = 1;
-    romBank1 = NULL;
     ramBankNum = 0;
 
     memoryModel = 0;

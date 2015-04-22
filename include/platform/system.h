@@ -6,15 +6,8 @@ bool systemInit();
 void systemExit();
 void systemRun();
 
+void systemCheckRunning();
+
 int systemGetConsoleWidth();
 int systemGetConsoleHeight();
 void systemUpdateConsole();
-
-void systemCheckRunning();
-
-void systemDisableSleepMode();
-void systemEnableSleepMode();
-
-bool systemExists(std::string path);
-bool systemIsDirectory(std::string path);
-void systemDelete(std::string path);

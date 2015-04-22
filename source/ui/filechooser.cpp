@@ -208,13 +208,10 @@ void FileChooser::setDirectory(std::string directory) {
  */
 char* FileChooser::startFileChooser(const char* extensions[], bool romExtensions, bool canQuit) {
     filesPerPage = systemGetConsoleHeight();
-
     filesPerPage--;
-
-    if(canQuit)
+    if(canQuit) {
         filesPerPage--;
-
-    systemUpdateConsole(); // Screen may need to be enabled
+    }
 
     int numExtensions = sizeof(extensions) / sizeof(const char*);
     char* retval;

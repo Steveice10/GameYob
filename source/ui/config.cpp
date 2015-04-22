@@ -2,7 +2,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
 #include <vector>
 
 #include "platform/input.h"
@@ -12,11 +11,12 @@
 #include "gameboy.h"
 
 #include <ctrcommon/input.hpp>
+#include <strings.h>
 
 #define INI_PATH "/gameyob.ini"
 
-char biosPath[256] = "";
-char borderPath[256] = "";
+char biosPath[256] = "/gbc_bios.bin";
+char borderPath[256] = "/default_border.png";
 char romPath[256] = "/gb/";
 
 void controlsParseConfig(char* line);
