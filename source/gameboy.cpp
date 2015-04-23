@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctrcommon/platform.hpp>
 
 #include "gb_apu/Gb_Apu.h"
 #include "platform/audio.h"

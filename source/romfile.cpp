@@ -27,7 +27,15 @@ RomFile::RomFile(Gameboy* gb, const std::string path) {
     struct stat st;
     fstat(fileno(this->file), &st);
 
-    this->totalRomBanks = (int) pow(2, ceil(log(((u32) st.st_size + 0x3FFF) / 0x4000) / log(2)));
+    int sizeMod = 0;
+    if(gameboy->getGBSPlayer()->gbsMode) {
+        fread(gameboy->getGBSPlayer()->gbsHeader, 1, 0x70, this->file);
+        gameboy->getGBSPlayer()->gbsReadHeader();
+
+        sizeMod = -0x70;
+    }
+
+    this->totalRomBanks = (int) pow(2, ceil(log(((u32) st.st_size + 0x3FFF + sizeMod) / 0x4000) / log(2)));
     this->banks = new u8*[this->totalRomBanks]();
 
     // Most MMM01 dumps have the initial banks at the end of the ROM rather than the beginning, so check if this is the case and compensate.
@@ -58,7 +66,7 @@ RomFile::RomFile(Gameboy* gb, const std::string path) {
     this->cgbRequired = bank0[0x0143] == 0xC0;
     this->sgb = bank0[0x014b] == 0x33 && bank0[0x146] == 0x03;
 
-    this->rawMBC = !this->gameboy->getGBSPlayer()->gbsMode ? bank0[0x0147] : (u8) 0x1C;
+    this->rawMBC = !this->gameboy->getGBSPlayer()->gbsMode ? bank0[0x0147] : (u8) 0x19;
     switch(this->rawMBC) {
         case 0x00:
         case 0x08:
@@ -187,6 +195,8 @@ u8* RomFile::getRomBank(int bank) {
 
             fread(this->banks[bank], 1, 0x4000, this->file);
         }
+
+        this->gameboy->getCheatEngine()->applyGGCheatsToBank(bank);
     }
 
     return this->banks[bank];
