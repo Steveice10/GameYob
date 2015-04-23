@@ -93,12 +93,13 @@ u64 nextRepeat = 0;
 void inputUpdate() {
     inputPoll();
     for(int i = 0; i < 32; i++) {
-        if(!inputIsPressed((Button) (1 << i))) {
+        if(!inputIsHeld((Button) (1 << i))) {
             keysForceReleased &= ~(1 << i);
         }
     }
 
     if(accelPadMode && inputIsPressed(BUTTON_TOUCH) && inputGetTouch().x <= screenGetStrWidth("Exit") && inputGetTouch().y <= screenGetStrHeight("Exit")) {
+        inputKeyRelease(BUTTON_TOUCH);
         accelPadMode = false;
         consoleClear();
     }

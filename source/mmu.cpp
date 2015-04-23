@@ -434,9 +434,9 @@ void Gameboy::writeIO(u8 ioReg, u8 val) {
             ioRam[ioReg] = val & 1;
             return;
         case 0x50: // BIOS Lockdown
+            initGameboyMode();
             biosOn = false;
             refreshRomBank0(romBank0Num);
-            initGameboyMode();
             return;
         case 0x55: // CGB DMA
             if(gbMode == CGB) {

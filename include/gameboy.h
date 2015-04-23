@@ -4,9 +4,9 @@
 #include <vector>
 #include <stdarg.h>
 
-#include "types.h"
-#include "gb_apu/Gb_Apu.h"
 #include "gb_apu/Multi_Buffer.h"
+#include "gb_apu/Gb_Apu.h"
+#include "types.h"
 #include "cheatengine.h"
 #include "gbsplayer.h"
 #include "ppu.h"
@@ -21,9 +21,11 @@
 // Same deal
 #define CYCLES_PER_FRAME 70224
 #define CYCLES_UNTIL_SAMPLE 84
-#define SAMPLE_RATE (CYCLES_PER_FRAME * 59.7 / CYCLES_UNTIL_SAMPLE)
+
 #define FRAMES_PER_BUFFER 8
-#define APU_BUFFER_SIZE ((CYCLES_PER_FRAME / CYCLES_UNTIL_SAMPLE) * FRAMES_PER_BUFFER)
+#define SAMPLE_RATE (CYCLES_PER_FRAME * 59.7 / CYCLES_UNTIL_SAMPLE)
+#define CYCLES_PER_BUFFER (CYCLES_PER_FRAME * FRAMES_PER_BUFFER)
+#define APU_BUFFER_SIZE (CYCLES_PER_BUFFER / CYCLES_UNTIL_SAMPLE)
 
 #define GB            0
 #define CGB            1
@@ -89,7 +91,7 @@ public:
 
     inline void setEventCycles(int cycles) {
         if(cycles < cyclesToEvent) {
-            cyclesToEvent = cycles;
+            cyclesToEvent = cycles > 0 ? cycles : 0;
         }
     }
 
@@ -131,8 +133,6 @@ public:
 
     inline Gb_Apu* getAPU() { return apu; }
 
-    inline Mono_Buffer* getAPUBuffer() { return apuBuffer; }
-
     inline CheatEngine* getCheatEngine() { return cheatEngine; }
 
     inline RomFile* getRomFile() { return romFile; }
@@ -171,7 +171,6 @@ public:
     int ime;
     int extraCycles;
     int soundCycles;
-    int soundFrames;
     int cyclesToExecute;
     struct Registers gbRegs;
 

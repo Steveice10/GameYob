@@ -89,7 +89,7 @@ void mgrLoadRom(const char* filename) {
 }
 
 void mgrUnloadRom() {
-    if(gameboy == NULL) {
+    if(gameboy == NULL || !gameboy->isRomLoaded()) {
         return;
     }
 
@@ -127,7 +127,7 @@ void mgrSelectRom() {
 }
 
 void mgrSave() {
-    if(gameboy == NULL) {
+    if(gameboy == NULL || !gameboy->isRomLoaded()) {
         return;
     }
 
@@ -137,7 +137,7 @@ void mgrSave() {
 void mgrRun() {
     systemCheckRunning();
 
-    if(gameboy == NULL) {
+    if(gameboy == NULL || !gameboy->isRomLoaded()) {
         return;
     }
 

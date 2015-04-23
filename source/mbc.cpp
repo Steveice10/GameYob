@@ -619,9 +619,10 @@ void Gameboy::handleHuC3Command(u8 cmd) {
     } while (0)
 
 void Gameboy::latchClock() {
-    // +2h, the same as lameboy
     time_t rawTime = 0;
     time(&rawTime);
+
+    // +2h, the same as lameboy
     time_t now = rawTime - 120 * 60;
     time_t difference = now - gbClock.last;
     struct tm* lt = gmtime((const time_t*) &difference);

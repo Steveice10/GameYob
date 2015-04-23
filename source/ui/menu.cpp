@@ -179,7 +179,6 @@ void stateDeleteFunc(int value) {
 
 void accelPadFunc(int value) {
     accelPadMode = true;
-    inputKeyRelease(inputMapMenuKey(MENU_KEY_A));
     closeMenu();
 
     printf("Exit");
@@ -454,11 +453,13 @@ void setMenuDefaults() {
 }
 
 void displayMenu() {
+    inputKeyRelease(0xFFFFFFFF);
     menuOn = true;
     redrawMenu();
 }
 
 void closeMenu() {
+    inputKeyRelease(0xFFFFFFFF);
     menuOn = false;
     iprintf("\x1b[2J");
     gameboy->unpause();
@@ -697,13 +698,12 @@ void updateMenu() {
         }
         redraw = true;
     } else if(inputKeyPressed(inputMapMenuKey(MENU_KEY_A))) {
-        inputKeyRelease(inputMapMenuKey(MENU_KEY_A));
         if(option >= 0 && menuList[menu].options[option].numValues == 0 && menuList[menu].options[option].enabled) {
             menuList[menu].options[option].function(menuList[menu].options[option].selection);
         }
+
         redraw = true;
     } else if(inputKeyPressed(inputMapMenuKey(MENU_KEY_B))) {
-        inputKeyRelease(inputMapMenuKey(MENU_KEY_B));
         closeMenu();
     } else if(inputKeyPressed(inputMapMenuKey(MENU_KEY_L))) {
         int row = menuGetOptionRow();
@@ -833,6 +833,6 @@ void menuPrintConfig(FILE* file) {
 }
 
 bool showConsoleDebug() {
-    return consoleDebugOutput && !isMenuOn();
+    return consoleDebugOutput && !isMenuOn() && !accelPadMode;
 }
 

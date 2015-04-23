@@ -504,7 +504,7 @@ Gameboy::Gameboy() : hram(highram + 0xe00), ioRam(highram + 0xf00) {
     apuBuffer->bass_freq(461);
     apuBuffer->clock_rate(clockSpeed);
     apuBuffer->set_sample_rate((long) SAMPLE_RATE);
-    apu->output(apuBuffer->center(), apuBuffer->center(), apuBuffer->center());
+    apu->set_output(apuBuffer->center(), apuBuffer->center(), apuBuffer->center());
 
     ppu->probingForBorder = false;
 }
@@ -646,7 +646,7 @@ void Gameboy::initSND() {
     for(int i = 1; i < 0x10; i += 2)
         ioRam[0x30 + i] = 0xff;
 
-    apu->reset();
+    apu->reset(gbMode == GB ? Gb_Apu::mode_dmg : Gb_Apu::mode_cgb);
 }
 
 // Called either from startup or when FF50 is written to.
@@ -769,7 +769,6 @@ void Gameboy::gameboyCheckInput() {
             pause();
         }
 
-        inputKeyRelease(0xffffffff);
         gfxSetFastForward(false);
         displayMenu();
     }
@@ -853,7 +852,7 @@ int Gameboy::runEmul() {
 
         cycles += extraCycles;
 
-        cyclesToEvent = MAX_WAIT_CYCLES;
+        cyclesToEvent = 1000;
         extraCycles = 0;
 
         cyclesSinceVBlank += cycles;
@@ -907,29 +906,21 @@ int Gameboy::runEmul() {
 
         updateTimers(cycles);
 
-        emuRet |= updateLCD(cycles);
-
         soundCycles += cycles >> doubleSpeed;
-        if(emuRet & RET_VBLANK) {
-            apu->end_frame(soundCycles);
-            apuBuffer->end_frame(soundCycles);
-            soundCycles = 0;
+        if(soundCycles >= CYCLES_PER_BUFFER) {
+            apu->end_frame(CYCLES_PER_BUFFER);
+            apuBuffer->end_frame(CYCLES_PER_BUFFER);
+            soundCycles -= CYCLES_PER_BUFFER;
 
-            soundFrames++;
-            if(soundFrames >= FRAMES_PER_BUFFER) {
-                long count = apuBuffer->read_samples(getAudioBuffer(), APU_BUFFER_SIZE);
-                if(!soundDisabled && !gameboyPaused) {
-                    playAudio(count);
-                } else {
-                    apuBuffer->clear();
-                }
-
-                soundFrames = 0;
+            long count = apuBuffer->read_samples(getAudioBuffer(), APU_BUFFER_SIZE);
+            if(!soundDisabled && !gameboyPaused) {
+                playAudio(count);
+            } else {
+                apuBuffer->clear();
             }
         }
 
-        // TODO: Hack to get Pokemon Pinball working. Need proper timing.
-        setEventCycles(10000);
+        emuRet |= updateLCD(cycles);
 
         if(interruptTriggered) {
             /* Hack to fix Robocop 2 and LEGO Racers, possibly others. 
@@ -1383,9 +1374,8 @@ void Gameboy::updateAutosave() {
     }
 }
 
-const int STATE_VERSION = 6;
+const int STATE_VERSION = 7;
 
-// TODO: Write APU state to state file.
 void Gameboy::saveState(int stateNum) {
     if(!isRomLoaded()) {
         return;
@@ -1472,6 +1462,10 @@ void Gameboy::saveState(int stateNum) {
         fwrite(sgbMap, 1, sizeof(sgbMap), outFile);
     }
 
+    gb_apu_state_t apuState;
+    apu->save_state(&apuState);
+    fwrite(&apuState, 1, sizeof(apuState), outFile);
+
     fclose(outFile);
 }
 
@@ -1522,7 +1516,7 @@ int Gameboy::loadState(int stateNum) {
     fread(&ime, 1, sizeof(ime), inFile);
     fread(&doubleSpeed, 1, sizeof(doubleSpeed), inFile);
     fread(&biosOn, 1, sizeof(biosOn), inFile);
-    if(!biosLoaded) {
+    if(version == 5 || !biosLoaded) { // Some version 5 states will have the wrong BIOS flag set. Doubt many people have save states on the BIOS screen anyway.
         biosOn = false;
     }
 
@@ -1621,6 +1615,22 @@ int Gameboy::loadState(int stateNum) {
         sgbMode = false;
     }
 
+    soundCycles = 0;
+    apu->reset(gbMode == GB ? Gb_Apu::mode_dmg : Gb_Apu::mode_cgb);
+    apuBuffer->clear();
+
+    gb_apu_state_t apuState;
+    if(version >= 7) {
+        fread(&apuState, 1, sizeof(apuState), inFile);
+    } else {
+        apu->save_state(&apuState);
+        for(int i = 0x10; i < 0x40; i++) {
+            apuState.regs[i - 0x10] = ioRam[i];
+        }
+    }
+
+    apu->load_state(apuState);
+
     fclose(inFile);
     if(stateNum == -1) {
         remove(statename);
@@ -1637,7 +1647,6 @@ int Gameboy::loadState(int stateNum) {
     }
 
     ppu->refreshPPU();
-    apu->reset();
 
     return 0;
 }
