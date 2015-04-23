@@ -442,6 +442,7 @@ char* FileChooser::startFileChooser(const char* extensions[], bool romExtensions
 
                     directory = matchFile + "/";
                     readDirectory = true;
+                    selection = 1;
                     break;
                 } else if(inputKeyRepeat(inputMapMenuKey(MENU_KEY_UP))) {
                     if(selection > 0) {
