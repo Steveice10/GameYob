@@ -647,6 +647,7 @@ void Gameboy::initSND() {
         ioRam[0x30 + i] = 0xff;
 
     apu->reset(gbMode == GB ? Gb_Apu::mode_dmg : Gb_Apu::mode_cgb);
+    apuBuffer->clear();
 }
 
 // Called either from startup or when FF50 is written to.
