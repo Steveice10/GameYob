@@ -5,12 +5,10 @@
  */
 
 #include <string.h>
-#include <malloc.h>
 
 #include "platform/gfx.h"
-#include "platform/system.h"
-#include "ui/filechooser.h"
-#include "ui/menu.h"
+#include "platform/input.h"
+#include "ui/config.h"
 #include "gameboy.h"
 
 #define RGB24(r, g, b) ((r) << 16 | (g) << 8 | (b))
@@ -391,7 +389,11 @@ void GameboyPPU::drawSprite(int scanline, int spriteNum) {
 
 void GameboyPPU::drawScreen() {
     screenWasDisabled = false;
-    gfxDrawScreen();
+    if(!gameboy->getRomFile()->isGBS()) {
+        gfxDrawScreen();
+    } else if(!gfxGetFastForward() && !inputKeyHeld(inputMapFuncKey(FUNC_KEY_FAST_FORWARD))) {
+        gfxWaitForVBlank();
+    }
 }
 
 void GameboyPPU::setSgbMask(int mask) {

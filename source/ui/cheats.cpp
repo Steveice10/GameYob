@@ -70,8 +70,7 @@ void updateCheatMenu() {
             redraw = true;
         }
     }
-    else if(inputKeyPressed(inputMapMenuKey(MENU_KEY_RIGHT)) |
-            inputKeyPressed(inputMapMenuKey(MENU_KEY_LEFT))) {
+    else if(inputKeyPressed(inputMapMenuKey(MENU_KEY_RIGHT)) || inputKeyPressed(inputMapMenuKey(MENU_KEY_LEFT))) {
         cheatEngine->toggleCheat(cheatMenuSelection, !cheatEngine->isCheatEnabled(cheatMenuSelection));
         redraw = true;
     }

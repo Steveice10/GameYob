@@ -2,7 +2,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <ctrcommon/platform.hpp>
 
 #include "gb_apu/Gb_Apu.h"
 #include "platform/audio.h"
@@ -10,6 +9,7 @@
 #include "platform/input.h"
 #include "platform/system.h"
 #include "ui/config.h"
+#include "ui/gbsplayer.h"
 #include "ui/manager.h"
 #include "ui/menu.h"
 
@@ -498,7 +498,6 @@ Gameboy::Gameboy() : hram(highram + 0xe00), ioRam(highram + 0xf00) {
     ppu = new GameboyPPU(this);
 
     printer = new GameboyPrinter(this);
-    gbsPlayer = new GBSPlayer(this);
 
     cheatEngine = new CheatEngine(this);
 
@@ -513,19 +512,18 @@ Gameboy::Gameboy() : hram(highram + 0xe00), ioRam(highram + 0xf00) {
 Gameboy::~Gameboy() {
     unloadRom();
 
-    delete cheatEngine;
     delete apu;
+    delete apuBuffer;
     delete ppu;
     delete printer;
-    delete gbsPlayer;
+    delete cheatEngine;
 }
 
 void Gameboy::init() {
-    if(gbsPlayer->gbsMode) {
+    if(gameboy->getRomFile()->isGBS()) {
         resultantGBMode = 1; // GBC
         ppu->probingForBorder = false;
-    }
-    else {
+    } else {
         switch(gbcModeOption) {
             case 0: // GB
                 initGBMode();
@@ -591,12 +589,14 @@ void Gameboy::init() {
     ppu->initPPU();
     initSND();
 
-    if(!gbsPlayer->gbsMode && !ppu->probingForBorder && checkStateExists(-1)) {
+    if(!gameboy->getRomFile()->isGBS() && !ppu->probingForBorder && checkStateExists(-1)) {
         loadState(-1);
     }
 
-    if(gbsPlayer->gbsMode)
-        gbsPlayer->gbsInit();
+    if(gameboy->getRomFile()->isGBS()) {
+        gbsPlayerReset();
+        gameboy->getRomFile()->getGBS()->init(this);
+    }
 }
 
 void Gameboy::initGBMode() {
@@ -763,7 +763,7 @@ void Gameboy::gameboyCheckInput() {
     }
 
     if(inputKeyPressed(inputMapFuncKey(FUNC_KEY_FAST_FORWARD_TOGGLE))) {
-        gfxToggleFastForward();
+        gfxSetFastForward(!gfxGetFastForward());
     }
 
     if(inputKeyPressed(inputMapFuncKey(FUNC_KEY_MENU) | inputMapFuncKey(FUNC_KEY_MENU_PAUSE)) && !accelPadMode) {
@@ -788,7 +788,7 @@ void Gameboy::gameboyCheckInput() {
 void Gameboy::gameboyUpdateVBlank() {
     gameboyFrameCounter++;
 
-    if(!gbsPlayer->gbsMode) {
+    if(!gameboy->getRomFile()->isGBS()) {
         if(resettingGameboy) {
             init();
             resettingGameboy = false;
@@ -1202,8 +1202,6 @@ void Gameboy::setRomFile(const char* filename) {
         }
     }
 
-    cheatEngine->setRomFile(romFile);
-
     std::string border = std::string(filename) + ".png";
     FILE* file = fopen(border.c_str(), "r");
     if(file != NULL) {
@@ -1222,9 +1220,9 @@ void Gameboy::setRomFile(const char* filename) {
 
 
     // Load cheats
-    if(gbsPlayer->gbsMode)
+    if(gameboy->getRomFile()->isGBS()) {
         cheatEngine->loadCheats("");
-    else {
+    } else {
         char nameBuf[256];
         sprintf(nameBuf, "%s.cht", romFile->getFileName().c_str());
         cheatEngine->loadCheats(nameBuf);
@@ -1249,7 +1247,6 @@ void Gameboy::unloadRom() {
         romFile = NULL;
         romHasBorder = false;
     }
-    cheatEngine->setRomFile(NULL);
 }
 
 bool Gameboy::isRomLoaded() {
@@ -1271,8 +1268,9 @@ int Gameboy::loadSave(int saveId) {
 
     externRam = (u8*) malloc(romFile->getRamBanks() * 0x2000);
 
-    if(gbsPlayer->gbsMode || saveId == -1)
+    if(gameboy->getRomFile()->isGBS() || saveId == -1) {
         return 0;
+    }
 
     // Now load the data.
     saveFile = fopen(savename, "r+b");

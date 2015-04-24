@@ -4,7 +4,7 @@
 
 bool gfxInit();
 void gfxCleanup();
-void gfxToggleFastForward();
+bool gfxGetFastForward();
 void gfxSetFastForward(bool fastforward);
 void gfxLoadBorder(const char* filename);
 void gfxLoadBorderBuffer(u8* imgData, u32 imgWidth, u32 imgHeight);

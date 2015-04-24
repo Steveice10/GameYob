@@ -77,7 +77,7 @@ void Gameboy::writeSram(u16 addr, u8 val) {
 }
 
 void Gameboy::initMMU() {
-    biosOn = biosLoaded && !ppu->probingForBorder && !gbsPlayer->gbsMode && biosEnabled == 1;
+    biosOn = biosLoaded && !ppu->probingForBorder && !gameboy->getRomFile()->isGBS() && biosEnabled == 1;
 
     wramBank = 1;
     vramBank = 0;

@@ -87,8 +87,8 @@ void gfxCleanup() {
     }
 }
 
-void gfxToggleFastForward() {
-    fastForward = !fastForward;
+bool gfxGetFastForward() {
+    return fastForward;
 }
 
 void gfxSetFastForward(bool fastforward) {
@@ -282,7 +282,7 @@ void gfxDrawScreen() {
     }
 
     // Swap buffers and wait for VBlank.
-    gpuSwapBuffers(!(fastForward || inputKeyHeld(inputMapFuncKey(FUNC_KEY_FAST_FORWARD))));
+    gpuSwapBuffers(!fastForward && !inputKeyHeld(inputMapFuncKey(FUNC_KEY_FAST_FORWARD)));
 }
 
 void gfxFlush() {

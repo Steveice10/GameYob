@@ -332,7 +332,7 @@ void setAutoSaveFunc(int value) {
             gameboy->saveGame(); // Synchronizes save file with filesystem
         }
 
-        if(!autoSavingEnabled && gameboy->getRomFile()->getRamBanks() > 0 && !gameboy->getGBSPlayer()->gbsMode) {
+        if(!autoSavingEnabled && gameboy->getRomFile()->getRamBanks() > 0 && !gameboy->getRomFile()->isGBS()) {
             enableMenuOption("Exit without saving");
         } else {
             disableMenuOption("Exit without saving");
@@ -833,6 +833,6 @@ void menuPrintConfig(FILE* file) {
 }
 
 bool showConsoleDebug() {
-    return consoleDebugOutput && !isMenuOn() && !accelPadMode;
+    return consoleDebugOutput && !isMenuOn() && !accelPadMode && !(gameboy->isRomLoaded() && gameboy->getRomFile()->isGBS());
 }
 

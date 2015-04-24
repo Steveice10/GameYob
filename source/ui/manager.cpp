@@ -7,6 +7,7 @@
 #include "platform/system.h"
 #include "ui/config.h"
 #include "ui/filechooser.h"
+#include "ui/gbsplayer.h"
 #include "ui/manager.h"
 #include "ui/menu.h"
 
@@ -49,7 +50,7 @@ void mgrLoadRom(const char* filename) {
 
     gameboy->init();
 
-    if(gameboy->getGBSPlayer()->gbsMode) {
+    if(gameboy->getRomFile()->isGBS()) {
         disableMenuOption("State Slot");
         disableMenuOption("Save State");
         disableMenuOption("Load State");
@@ -150,10 +151,11 @@ void mgrRun() {
     if(isMenuOn()) {
         updateMenu();
     } else {
-        gameboy->gameboyCheckInput();
-        if(gameboy->getGBSPlayer()->gbsMode) {
-            gameboy->getGBSPlayer()->gbsCheckInput();
+        if(gameboy->getRomFile()->isGBS()) {
+            gbsPlayerRefresh();
         }
+
+        gameboy->gameboyCheckInput();
     }
 
     time_t rawTime = 0;

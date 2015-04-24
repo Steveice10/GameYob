@@ -8,7 +8,6 @@
 #include "gb_apu/Gb_Apu.h"
 #include "types.h"
 #include "cheatengine.h"
-#include "gbsplayer.h"
 #include "ppu.h"
 #include "printer.h"
 #include "romfile.h"
@@ -127,8 +126,6 @@ public:
 
     inline GameboyPrinter* getPrinter() { return printer; }
 
-    inline GBSPlayer* getGBSPlayer() { return gbsPlayer; }
-
     inline GameboyPPU* getPPU() { return ppu; }
 
     inline Gb_Apu* getAPU() { return apu; }
@@ -181,7 +178,6 @@ private:
     bool resettingGameboy;
 
     GameboyPrinter* printer;
-    GBSPlayer* gbsPlayer;
 
     GameboyPPU* ppu;
 

@@ -32,7 +32,6 @@ class Gameboy;
 class CheatEngine {
 public:
     CheatEngine(Gameboy* g);
-    void setRomFile(RomFile* r);
 
     void enableCheats(bool enable);
     bool addCheat(const char* str);
@@ -61,5 +60,4 @@ private:
     char cheatsRomTitle[20];
 
     Gameboy* gameboy;
-    RomFile* romFile;
 };
