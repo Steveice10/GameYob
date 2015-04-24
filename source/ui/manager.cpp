@@ -97,6 +97,7 @@ void mgrUnloadRom() {
     gameboy->unloadRom();
     gameboy->linkedGameboy = NULL;
 
+    gfxLoadBorder(NULL);
     gfxClearScreen(0);
     gfxDrawScreen();
 }
