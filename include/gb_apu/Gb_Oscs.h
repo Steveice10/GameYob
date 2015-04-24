@@ -30,7 +30,7 @@ public:
 	
 	Blip_Buffer*    outputs [4];// NULL, right, left, center
 	Blip_Buffer*    output;     // where to output sound
-	BOOST::uint8_t* regs;       // osc's 5 registers
+	uint8_t* regs;       // osc's 5 registers
 	int             mode;       // mode_dmg, mode_cgb, mode_agb
 	int             dac_off_amp;// amplitude when DAC is off
 	int             last_amp;   // current amplitude in Blip_Buffer
@@ -156,7 +156,7 @@ private:
 	enum { bank_size   = 32 };
 	
 	int agb_mask;               // 0xFF if AGB features enabled, 0 otherwise
-	BOOST::uint8_t* wave_ram;   // 32 bytes (64 nybbles), stored in APU
+	uint8_t* wave_ram;   // 32 bytes (64 nybbles), stored in APU
 	
 	friend class Gb_Apu;
 	
@@ -168,7 +168,7 @@ private:
 	
 	void corrupt_wave();
 	
-	BOOST::uint8_t* wave_bank() const { return &wave_ram [(~regs [0] & bank40_mask) >> 2 & agb_mask]; }
+	uint8_t* wave_bank() const { return &wave_ram [(~regs [0] & bank40_mask) >> 2 & agb_mask]; }
 	
 	// Wave index that would be accessed, or -1 if no access would occur
 	int access( unsigned addr ) const;

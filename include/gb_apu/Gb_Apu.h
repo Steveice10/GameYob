@@ -118,7 +118,7 @@ private:
 	blip_time_t     frame_time;     // time of next frame sequencer action
 	int             frame_phase;    // phase of next frame sequencer step
 	enum { regs_size = register_count + 0x10 };
-	BOOST::uint8_t  regs [regs_size];// last values written to registers
+	uint8_t  regs [regs_size];// last values written to registers
 	
 	// large objects after everything else
 	Gb_Osc::Good_Synth  good_synth;
