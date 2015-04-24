@@ -136,8 +136,8 @@ void gfxLoadBorderBuffer(u8* imgData, u32 imgWidth, u32 imgHeight) {
     // Adjust the texture to power-of-two dimensions.
     borderWidth = imgWidth;
     borderHeight = imgHeight;
-    gpuBorderWidth = (u32) pow(2, ceil(log(borderWidth / log(2))));
-    gpuBorderHeight = (u32) pow(2, ceil(log(borderHeight / log(2))));
+    gpuBorderWidth = (u32) pow(2, ceil(log(borderWidth) / log(2)));
+    gpuBorderHeight = (u32) pow(2, ceil(log(borderHeight) / log(2)));
     u8* borderBuffer = (u8*) gpuAlloc(gpuBorderWidth * gpuBorderHeight * 4);
     for(u32 x = 0; x < borderWidth; x++) {
         for(u32 y = 0; y < borderHeight; y++) {
