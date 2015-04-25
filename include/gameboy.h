@@ -313,6 +313,7 @@ public:
     u8 m3r(u16 addr);
     u8 m7r(u16 addr);
     u8 h3r(u16 addr);
+    u8 camr(u16 addr);
 
     void m0w(u16 addr, u8 val);
     void m1w(u16 addr, u8 val);
@@ -323,8 +324,8 @@ public:
     void mmm01w(u16 addr, u8 val);
     void h1w(u16 addr, u8 val);
     void h3w(u16 addr, u8 val);
+    void camw(u16 addr, u8 val);
 
-    void handleHuC3Command(u8 command);
     void writeClockStruct();
 
 
@@ -362,6 +363,9 @@ public:
     // MMM01
     bool mmm01BankSelected;
     u8 mmm01RomBaseBank;
+
+    // CAMERA
+    bool cameraIO;
 
     // sgb.cpp
 public:

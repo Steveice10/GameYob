@@ -1,4 +1,5 @@
 #include <sys/types.h>
+#include <ctrcommon/platform.hpp>
 
 #include "platform/input.h"
 #include "platform/system.h"
@@ -64,6 +65,16 @@ u8 Gameboy::h3r(u16 addr) {
             return 1;
     }
     return (ramEnabled) ? memory[addr >> 12][addr & 0xfff] : 0xff;
+}
+
+/* CAMERA */
+u8 Gameboy::camr(u16 addr) {
+    if(cameraIO) {
+        // 0xA000: hardware ready, Others: write only
+        return addr == 0xA000 ? 0x00 : 0xFF;
+    } else {
+        return memory[addr >> 12][addr & 0xfff];
+    }
 }
 
 
@@ -525,7 +536,6 @@ void Gameboy::h1w(u16 addr, u8 val) {
 }
 
 /* HUC3 */
-
 void Gameboy::h3w(u16 addr, u8 val) {
     switch(addr >> 12) {
         case 0x0: /* 0000 - 1fff */
@@ -548,63 +558,102 @@ void Gameboy::h3w(u16 addr, u8 val) {
         case 0xb:
             switch(HuC3Mode) {
                 case 0xb:
-                    handleHuC3Command(val);
+                    switch(val & 0xf0) {
+                        case 0x10: /* Read clock */
+                            if(HuC3Shift > 24) {
+                                break;
+                            }
+
+                            switch(HuC3Shift) {
+                                case 0:
+                                case 4:
+                                case 8:     /* Minutes */
+                                    HuC3Value = (gbClock.huc3.m >> HuC3Shift) & 0xf;
+                                    break;
+                                case 12:
+                                case 16:
+                                case 20:  /* Days */
+                                    HuC3Value = (gbClock.huc3.d >> (HuC3Shift - 12)) & 0xf;
+                                    break;
+                                case 24:                    /* Year */
+                                    HuC3Value = gbClock.huc3.y & 0xf;
+                                    break;
+                                default:
+                                    break;
+                            }
+                            HuC3Shift += 4;
+                            break;
+                        case 0x40:
+                            switch(val & 0xf) {
+                                case 0:
+                                case 4:
+                                case 7:
+                                    HuC3Shift = 0;
+                                    break;
+                                default:
+                                    break;
+                            }
+
+                            latchClock();
+                            break;
+                        case 0x50:
+                            break;
+                        case 0x60:
+                            HuC3Value = 1;
+                            break;
+                        default:
+                            if(showConsoleDebug()) {
+                                printf("unhandled HuC3 cmd %02x\n", val);
+                            }
+                    }
+
                     break;
                 case 0xc:
                 case 0xd:
                 case 0xe:
                     break;
                 default:
-                    if(ramEnabled && romFile->getRamBanks() > 0)
+                    if(ramEnabled && romFile->getRamBanks() > 0) {
                         writeSram(addr & 0x1fff, val);
+                    }
             }
             break;
     }
 }
 
-void Gameboy::handleHuC3Command(u8 cmd) {
-    switch(cmd & 0xf0) {
-        case 0x10: /* Read clock */
-            if(HuC3Shift > 24)
-                break;
-
-            switch(HuC3Shift) {
-                case 0:
-                case 4:
-                case 8:     /* Minutes */
-                    HuC3Value = (gbClock.huc3.m >> HuC3Shift) & 0xf;
-                    break;
-                case 12:
-                case 16:
-                case 20:  /* Days */
-                    HuC3Value = (gbClock.huc3.d >> (HuC3Shift - 12)) & 0xf;
-                    break;
-                case 24:                    /* Year */
-                    HuC3Value = gbClock.huc3.y & 0xf;
-                    break;
-            }
-            HuC3Shift += 4;
+/* CAMERA */
+void Gameboy::camw(u16 addr, u8 val) {
+    switch(addr >> 12) {
+        case 0x0:
+        case 0x1:
+            ramEnabled = (val & 0xF) == 0xA;
             break;
-        case 0x40:
-            switch(cmd & 0xf) {
-                case 0:
-                case 4:
-                case 7:
-                    HuC3Shift = 0;
-                    break;
+        case 0x2:
+        case 0x3:
+            refreshRomBank1(val ? val : 1);
+            break;
+        case 0x4:
+        case 0x5:
+            cameraIO = val == 0x10;
+            if(!cameraIO) {
+                refreshRamBank(val & 0xF);
             }
 
-            latchClock();
             break;
-        case 0x50:
+        case 0x6:
+        case 0x7:
             break;
-        case 0x60:
-            HuC3Value = 1;
+        case 0xA:
+        case 0xB:
+            if(cameraIO) {
+                // TODO: Handle I/O registers?
+            } else if(ramEnabled && romFile->getRamBanks() > 0) {
+                writeSram(addr & 0x1fff, val);
+            }
+
             break;
         default:
-            if(showConsoleDebug()) {
-                printf("unhandled HuC3 cmd %02x\n", cmd);
-            }
+            break;
     }
 }
 

@@ -15,7 +15,8 @@ typedef enum {
     MBC7,
     MMM01,
     HUC1,
-    HUC3
+    HUC3,
+    CAMERA
 } MBC;
 
 class Gameboy;

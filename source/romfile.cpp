@@ -208,6 +208,9 @@ RomFile::RomFile(Gameboy* gb, const std::string path) {
         case 0xEA: // Hack for SONIC5
             this->mbc = MBC1;
             break;
+        case 0xFC:
+            this->mbc = CAMERA;
+            break;
         case 0xFE:
             this->mbc = HUC3;
             break;
@@ -306,7 +309,7 @@ u8* RomFile::getRomBank(int bank) {
 }
 
 void RomFile::printInfo() {
-    static const char* mbcNames[] = {"ROM", "MBC1", "MBC2", "MBC3", "MBC5", "MBC7", "MMM01", "HUC1", "HUC3"};
+    static const char* mbcNames[] = {"ROM", "MBC1", "MBC2", "MBC3", "MBC5", "MBC7", "MMM01", "HUC1", "HUC3", "CAMERA"};
 
     iprintf("\x1b[2J");
     printf("Cartridge type: %.2x (%s)\n", this->rawMBC, mbcNames[this->mbc]);

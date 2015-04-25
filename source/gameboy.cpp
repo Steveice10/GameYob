@@ -1374,7 +1374,7 @@ void Gameboy::updateAutosave() {
     }
 }
 
-const int STATE_VERSION = 7;
+const int STATE_VERSION = 8;
 
 void Gameboy::saveState(int stateNum) {
     if(!isRomLoaded()) {
@@ -1448,6 +1448,8 @@ void Gameboy::saveState(int stateNum) {
             fwrite(&mmm01BankSelected, 1, sizeof(mmm01BankSelected), outFile);
             fwrite(&mmm01RomBaseBank, 1, sizeof(mmm01RomBaseBank), outFile);
             break;
+        case CAMERA:
+            fwrite(&cameraIO, 1, sizeof(cameraIO), outFile);
         default:
             break;
     }
@@ -1595,6 +1597,12 @@ int Gameboy::loadState(int stateNum) {
                 fread(&HuC3Mode, 1, sizeof(HuC3Mode), inFile);
                 fread(&HuC3Value, 1, sizeof(HuC3Value), inFile);
                 fread(&HuC3Shift, 1, sizeof(HuC3Shift), inFile);
+                break;
+            case CAMERA:
+                if(version >= 8) {
+                    fread(&cameraIO, 1, sizeof(cameraIO), inFile);
+                }
+
                 break;
             default:
                 break;
