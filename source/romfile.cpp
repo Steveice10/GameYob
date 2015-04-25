@@ -211,6 +211,9 @@ RomFile::RomFile(Gameboy* gb, const std::string path) {
         case 0xFC:
             this->mbc = CAMERA;
             break;
+        case 0xFD:
+            this->mbc = TAMA5;
+            break;
         case 0xFE:
             this->mbc = HUC3;
             break;
@@ -227,7 +230,7 @@ RomFile::RomFile(Gameboy* gb, const std::string path) {
     }
 
     this->rawRomSize = bank0[0x0148];
-    this->rawRamSize = this->mbc != MBC2 && this->mbc != MBC7 && !this->gbs ? bank0[0x0149] : (u8) 1;
+    this->rawRamSize = this->mbc != MBC2 && this->mbc != MBC7 && this->mbc != TAMA5 && !this->gbs ? bank0[0x0149] : (u8) 1;
     switch(this->rawRamSize) {
         case 0:
             this->totalRamBanks = 0;
@@ -309,7 +312,7 @@ u8* RomFile::getRomBank(int bank) {
 }
 
 void RomFile::printInfo() {
-    static const char* mbcNames[] = {"ROM", "MBC1", "MBC2", "MBC3", "MBC5", "MBC7", "MMM01", "HUC1", "HUC3", "CAMERA"};
+    static const char* mbcNames[] = {"ROM", "MBC1", "MBC2", "MBC3", "MBC5", "MBC7", "MMM01", "HUC1", "HUC3", "CAMERA", "TAMA5"};
 
     iprintf("\x1b[2J");
     printf("Cartridge type: %.2x (%s)\n", this->rawMBC, mbcNames[this->mbc]);

@@ -1450,6 +1450,12 @@ void Gameboy::saveState(int stateNum) {
             break;
         case CAMERA:
             fwrite(&cameraIO, 1, sizeof(cameraIO), outFile);
+            break;
+        case TAMA5:
+            fwrite(&tama5CommandNumber, 1, sizeof(tama5CommandNumber), outFile);
+            fwrite(&tama5RamByteSelect, 1, sizeof(tama5RamByteSelect), outFile);
+            fwrite(&tama5Commands, 1, sizeof(tama5Commands), outFile);
+            fwrite(&tama5RAM, 1, sizeof(tama5RAM), outFile);
         default:
             break;
     }
@@ -1601,6 +1607,15 @@ int Gameboy::loadState(int stateNum) {
             case CAMERA:
                 if(version >= 8) {
                     fread(&cameraIO, 1, sizeof(cameraIO), inFile);
+                }
+
+                break;
+            case TAMA5:
+                if(version >= 8) {
+                    fread(&tama5CommandNumber, 1, sizeof(tama5CommandNumber), inFile);
+                    fread(&tama5RamByteSelect, 1, sizeof(tama5RamByteSelect), inFile);
+                    fread(&tama5Commands, 1, sizeof(tama5Commands), inFile);
+                    fread(&tama5RAM, 1, sizeof(tama5RAM), inFile);
                 }
 
                 break;

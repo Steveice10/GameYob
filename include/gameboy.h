@@ -45,13 +45,19 @@ struct ClockStruct {
     union {
         struct {
             int s, m, h, d, ctrl;
+            int u[1]; /* Unused */
         } mbc3;
         struct {
             int m, d, y;
-            int u[2]; /* Unused */
+            int u[3]; /* Unused */
         } huc3;
+        struct {
+            int s, m, h, d, mon, y;
+        } tama5;
     };
-    int latch[5];
+
+    /* Unused */
+    int u[4];
     /* For VBA/Lameboy compatibility */
     time_t last;
 };
@@ -325,6 +331,7 @@ public:
     void h1w(u16 addr, u8 val);
     void h3w(u16 addr, u8 val);
     void camw(u16 addr, u8 val);
+    void t5w(u16 addr, u8 val);
 
     void writeClockStruct();
 
@@ -366,6 +373,12 @@ public:
 
     // CAMERA
     bool cameraIO;
+
+    // TAMA5
+    int tama5CommandNumber;
+    int tama5RamByteSelect;
+    u8 tama5Commands[0x10];
+    u8 tama5RAM[0x100];
 
     // sgb.cpp
 public:

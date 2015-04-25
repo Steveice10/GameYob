@@ -1,11 +1,8 @@
 #include <sys/types.h>
-#include <ctrcommon/platform.hpp>
 
 #include "platform/input.h"
-#include "platform/system.h"
 #include "ui/manager.h"
 #include "ui/menu.h"
-#include "gameboy.h"
 
 /* MBC read handlers */
 
@@ -295,26 +292,24 @@ void Gameboy::m7w(u16 addr, u8 val) {
     switch(addr >> 12) {
         case 0x0: /* 0000 - 1fff */
         case 0x1:
-            ramEnabled = ((val & 0xf) == 0xa);
+            ramEnabled = ((val & 0xF) == 0xA);
             break;
         case 0x2: /* 2000 - 3fff */
             refreshRomBank1((romBank1Num & 0x100) | val);
             break;
         case 0x3:
-            refreshRomBank1((romBank1Num & 0xff) | (val & 1) << 8);
+            refreshRomBank1((romBank1Num & 0xFF) | (val & 1) << 8);
             break;
         case 0x4: /* 4000 - 5fff */
         case 0x5:
-            val &= 0xf;
-
-            refreshRamBank(val);
+            refreshRamBank(val & 0xF);
             break;
         case 0x6: /* 6000 - 7fff */
         case 0x7:
             break;
         case 0xa: /* a000 - bfff */
         case 0xb:
-            if(addr == 0xa080) {
+            if(addr == 0xA080) {
                 int oldCs = mbc7Cs;
                 int oldSk = mbc7Sk;
 
@@ -435,7 +430,12 @@ void Gameboy::m7w(u16 addr, u8 val) {
                                         }
 
                                         break;
+                                    default:
+                                        break;
                                 }
+
+                                break;
+                            default:
                                 break;
                         }
                     }
@@ -657,6 +657,149 @@ void Gameboy::camw(u16 addr, u8 val) {
     }
 }
 
+/* TAMA5 */
+void Gameboy::t5w(u16 addr, u8 val) {
+    if(addr <= 0xa001) {
+        switch(addr & 1) {
+            case 0: {
+                val &= 0xf;
+                tama5Commands[tama5CommandNumber] = val;
+                memory[0xA][0] = val;
+                if((tama5CommandNumber & 0xE) == 0) {
+                    refreshRomBank1(tama5Commands[0] | (tama5Commands[1] << 4));
+                    tama5Commands[0x0F] = 0;
+                } else if((tama5CommandNumber & 0xE) == 4) {
+                    tama5Commands[0x0F] = 1;
+                    if(tama5CommandNumber == 4) {
+                        tama5Commands[0x05] = 0;
+                    }
+                } else if((tama5CommandNumber & 0xE) == 6) {
+                    tama5RamByteSelect = (tama5Commands[7] << 4) | (tama5Commands[6] & 0x0F);
+                    if(tama5Commands[0x0F] && tama5CommandNumber == 7) {
+                        int data = (tama5Commands[0x04] & 0x0F) | (tama5Commands[0x05] << 4);
+                        if(tama5RamByteSelect == 0x8) {
+                            switch (data & 0xF) {
+                                case 0x7:
+                                    gbClock.tama5.d = (gbClock.tama5.d / 10) * 10 + (data >> 4);
+                                    break;
+                                case 0x8:
+                                    gbClock.tama5.d = (gbClock.tama5.d % 10) + (data >> 4) * 10;
+                                    break;
+                                case 0x9:
+                                    gbClock.tama5.mon = (gbClock.tama5.mon / 10) * 10 + (data >> 4);
+                                    break;
+                                case 0xa:
+                                    gbClock.tama5.mon = (gbClock.tama5.mon % 10) + (data >> 4) * 10;
+                                    break;
+                                case 0xb:
+                                    gbClock.tama5.y = (gbClock.tama5.y % 1000) + (data >> 4) * 1000;
+                                    break;
+                                case 0xc:
+                                    gbClock.tama5.y = (gbClock.tama5.y % 100) + (gbClock.tama5.y / 1000) * 1000 + (data >> 4) * 100;
+                                    break;
+                                default:
+                                    break;
+                            }
+                        } else if(tama5RamByteSelect == 0x18) {
+                            latchClock();
+
+                            int seconds = (gbClock.tama5.s / 10) * 16 + gbClock.tama5.s % 10;
+                            int secondsL = (gbClock.tama5.s % 10);
+                            int secondsH = (gbClock.tama5.s / 10);
+                            int minutes = (gbClock.tama5.m / 10) * 16 + gbClock.tama5.m % 10;
+                            int hours = (gbClock.tama5.h / 10) * 16 + gbClock.tama5.h % 10;
+                            int DaysL = gbClock.tama5.d % 10;
+                            int DaysH = gbClock.tama5.d /10;
+                            int MonthsL = gbClock.tama5.mon % 10;
+                            int MonthsH = gbClock.tama5.mon / 10;
+                            int Years3 = (gbClock.tama5.y / 100) % 10;
+                            int Years4 = (gbClock.tama5.y / 1000);
+
+                            switch(data & 0xF) {
+                                case 0x0:
+                                    tama5RAM[tama5RamByteSelect] = secondsL;
+                                    break;
+                                case 0x1:
+                                    tama5RAM[tama5RamByteSelect] = secondsH;
+                                    break;
+                                case 0x7:
+                                    tama5RAM[tama5RamByteSelect] = DaysL;
+                                    break;
+                                case 0x8:
+                                    tama5RAM[tama5RamByteSelect] = DaysH;
+                                    break;
+                                case 0x9:
+                                    tama5RAM[tama5RamByteSelect] = MonthsL;
+                                    break;
+                                case 0xA:
+                                    tama5RAM[tama5RamByteSelect] = MonthsH;
+                                    break;
+                                case 0xB:
+                                    tama5RAM[tama5RamByteSelect] = Years4;
+                                    break;
+                                case 0xC:
+                                    tama5RAM[tama5RamByteSelect] = Years3;
+                                    break;
+                                default :
+                                    break;
+                            }
+
+                            tama5RAM[0x54] = seconds;
+                            tama5RAM[0x64] = minutes;
+                            tama5RAM[0x74] = hours;
+                            tama5RAM[0x84] = DaysH * 16 + DaysL;
+                            tama5RAM[0x94] = MonthsH * 16 + MonthsL;
+
+                            memory[0xA][0] = 1;
+                        } else if(tama5RamByteSelect == 0x28) {
+                            if((data & 0xF) == 0xB) {
+                                gbClock.tama5.y = ((gbClock.tama5.y >> 2) << 2) + (data & 3);
+                            }
+                        } else if(tama5RamByteSelect == 0x44) {
+                            gbClock.tama5.m = (data / 16) * 10 + data % 16;
+                        } else if(tama5RamByteSelect == 0x54) {
+                            gbClock.tama5.h = (data / 16) * 10 + data % 16;
+                        } else {
+                            tama5RAM[tama5RamByteSelect] = data;
+                        }
+                    }
+                }
+
+                break;
+            }
+            case 1: {
+                tama5CommandNumber = val;
+                memory[0xA][1] = val;
+                if(val == 0x0A) {
+                    for(int i = 0; i < 0x10; i++) {
+                        for(int j = 0; j < 0x10; j++) {
+                            if(!(j & 2)) {
+                                tama5RAM[((i * 0x10) + j) | 2] = tama5RAM[(i * 0x10) + j];
+                            }
+                        }
+                    }
+
+                    ramEnabled = true;
+                    memory[0xA][0] = 1;
+                } else if((val & 0x0E) == 0x0C) {
+                    tama5RamByteSelect = tama5Commands[6] | (tama5Commands[7] << 4);
+
+                    u8 byte = tama5RAM[tama5RamByteSelect];
+                    memory[0xA][0] = (u8) ((val & 1) ? byte >> 4 : byte & 0x0F);
+
+                    tama5Commands[0x0F] = 0;
+                }
+
+                break;
+            }
+            default:
+                break;
+        }
+    } else if(ramEnabled && romFile->getRamBanks() > 0) {
+        writeSram(addr & 0x1FFF, val);
+    }
+}
+
 
 /* Increment y if x is greater than val */
 #define OVERFLOW(x, val, y)   \
@@ -667,12 +810,16 @@ void Gameboy::camw(u16 addr, u8 val) {
         }                   \
     } while (0)
 
-void Gameboy::latchClock() {
-    time_t rawTime = 0;
-    time(&rawTime);
+static int daysInMonth[12] = {
+        31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31
+};
 
-    // +2h, the same as lameboy
-    time_t now = rawTime - 120 * 60;
+static int daysInLeapMonth[12] = {
+        31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31
+};
+
+void Gameboy::latchClock() {
+    time_t now = time(NULL) - 120 * 60;
     time_t difference = now - gbClock.last;
     struct tm* lt = gmtime((const time_t*) &difference);
 
@@ -701,6 +848,19 @@ void Gameboy::latchClock() {
             gbClock.huc3.d += lt->tm_yday;
             OVERFLOW(gbClock.huc3.d, 365, gbClock.huc3.y);
             gbClock.huc3.y += lt->tm_year - 70;
+            break;
+        case TAMA5:
+            gbClock.tama5.s += lt->tm_sec;
+            OVERFLOW(gbClock.tama5.s, 60, gbClock.tama5.m);
+            gbClock.tama5.m += lt->tm_min;
+            OVERFLOW(gbClock.tama5.m, 60, gbClock.tama5.h);
+            gbClock.tama5.h += lt->tm_hour;
+            OVERFLOW(gbClock.tama5.h, 24, gbClock.tama5.d);
+            gbClock.tama5.d += lt->tm_mday;
+            OVERFLOW(gbClock.tama5.d, ((gbClock.tama5.y & 3) == 0 ? daysInLeapMonth : daysInMonth)[gbClock.tama5.mon], gbClock.tama5.mon);
+            gbClock.tama5.mon += lt->tm_mon;
+            OVERFLOW(gbClock.tama5.mon, 12, gbClock.tama5.y);
+            gbClock.tama5.y += lt->tm_year - 70;
             break;
         default:
             break;

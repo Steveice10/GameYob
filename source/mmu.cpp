@@ -25,7 +25,8 @@ const mbcRead mbcReads[] = {
         NULL,
         NULL,
         &Gameboy::h3r,
-        &Gameboy::camr
+        &Gameboy::camr,
+        NULL
 };
 
 const mbcWrite mbcWrites[] = {
@@ -38,7 +39,8 @@ const mbcWrite mbcWrites[] = {
         &Gameboy::mmm01w,
         &Gameboy::h1w,
         &Gameboy::h3w,
-        &Gameboy::camw
+        &Gameboy::camw,
+        &Gameboy::t5w
 };
 
 void Gameboy::refreshRomBank0(int bank) {
