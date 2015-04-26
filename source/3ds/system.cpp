@@ -11,6 +11,7 @@
 
 #include <3ds.h>
 #include <ctrcommon/fs.hpp>
+#include <ctrcommon/ir.hpp>
 #include <ctrcommon/platform.hpp>
 #include <ctrcommon/screen.hpp>
 
@@ -103,4 +104,12 @@ void systemUpdateConsole() {
         console->frameBuffer = framebuffer;
         consoleSelect(console);
     }
+}
+
+u32 systemGetIRState() {
+    return !irGetState();
+}
+
+void systemSetIRState(u32 state) {
+    irSetState(state);
 }

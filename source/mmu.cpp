@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <string.h>
-#include <malloc.h>
 
+#include "platform/system.h"
 #include "ui/config.h"
 #include "ui/manager.h"
 #include "ui/menu.h"
@@ -240,6 +240,12 @@ u8 Gameboy::readIO(u8 ioReg) {
         case 0x3E:
         case 0x3F:
             return (u8) apu->read_register(soundCycles, 0xFF00 + ioReg);
+        case 0x56:
+            if(ioRam[ioReg] & 0xC0) {
+                return ioRam[ioReg] | (u8) systemGetIRState();
+            } else {
+                return ioRam[ioReg];
+            }
         case 0x70: // wram register
             return ioRam[ioReg] | 0xf8;
         default:
@@ -380,6 +386,10 @@ void Gameboy::writeIO(u8 ioReg, u8 val) {
         case 0x4A:
         case 0x4B:
             ppu->handleVideoRegister(ioReg, val);
+            ioRam[ioReg] = val;
+            return;
+        case 0x56:
+            systemSetIRState((u32) (val & (1 << 0)));
             ioRam[ioReg] = val;
             return;
         case 0x69: // CGB BG Palette
