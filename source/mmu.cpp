@@ -241,11 +241,7 @@ u8 Gameboy::readIO(u8 ioReg) {
         case 0x3F:
             return (u8) apu->read_register(soundCycles, 0xFF00 + ioReg);
         case 0x56:
-            if(ioRam[ioReg] & 0xC0) {
-                return ioRam[ioReg] | (u8) systemGetIRState();
-            } else {
-                return ioRam[ioReg];
-            }
+            return ioRam[ioReg] | (u8) ((ioRam[ioReg] & 0xC0) && systemGetIRState() ? 0 : (1 << 1));
         case 0x70: // wram register
             return ioRam[ioReg] | 0xf8;
         default:
@@ -389,8 +385,8 @@ void Gameboy::writeIO(u8 ioReg, u8 val) {
             ioRam[ioReg] = val;
             return;
         case 0x56:
-            systemSetIRState((u32) (val & (1 << 0)));
-            ioRam[ioReg] = val;
+            systemSetIRState((val & (1 << 0)) == 1);
+            ioRam[ioReg] = (u8) (val & ~(1 << 1));
             return;
         case 0x69: // CGB BG Palette
             ppu->handleVideoRegister(ioReg, val);

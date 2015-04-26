@@ -14,5 +14,5 @@ int systemGetConsoleWidth();
 int systemGetConsoleHeight();
 void systemUpdateConsole();
 
-u32 systemGetIRState();
-void systemSetIRState(u32 state);
+bool systemGetIRState();
+void systemSetIRState(bool state);

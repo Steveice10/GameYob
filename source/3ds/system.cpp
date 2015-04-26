@@ -106,10 +106,10 @@ void systemUpdateConsole() {
     }
 }
 
-u32 systemGetIRState() {
-    return !irGetState();
+bool systemGetIRState() {
+    return irGetState() == 1;
 }
 
-void systemSetIRState(u32 state) {
-    irSetState(state);
+void systemSetIRState(bool state) {
+    irSetState(state ? 1 : 0);
 }
