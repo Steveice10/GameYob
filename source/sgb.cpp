@@ -34,26 +34,30 @@ void Gameboy::sgbHandleP1(u8 val) {
         ioRam[0x00] = 0xcf;
         return;
     }
+
     if(sgbPacketBit != -1) {
         u8 oldVal = ioRam[0x00];
         ioRam[0x00] = val;
 
         int shift = sgbPacketBit % 8;
         int byte = (sgbPacketBit / 8) % 16;
-        if(shift == 0)
+        if(shift == 0) {
             sgbPacket[byte] = 0;
+        }
 
         int bit;
         if((oldVal & 0x30) == 0 && (val & 0x30) != 0x30) { // A bit of speculation here. Fixes castlevania.
             sgbPacketBit = -1;
             return;
         }
-        if(!(val & 0x10))
+
+        if(!(val & 0x10)) {
             bit = 0;
-        else if(!(val & 0x20))
+        } else if(!(val & 0x20)) {
             bit = 1;
-        else
+        } else {
             return;
+        }
 
         sgbPacket[byte] |= bit << shift;
         sgbPacketBit++;
@@ -62,8 +66,10 @@ void Gameboy::sgbHandleP1(u8 val) {
                 sgbCommand = sgbPacket[0] / 8;
                 sgbPacketLength = sgbPacket[0] & 7;
             }
-            if(sgbCommands[sgbCommand] != 0)
+
+            if(sgbCommands[sgbCommand] != 0) {
                 (this->*sgbCommands[sgbCommand])(sgbPacketsTransferred);
+            }
 
             sgbPacketBit = -1;
             sgbPacketsTransferred++;
@@ -72,23 +78,25 @@ void Gameboy::sgbHandleP1(u8 val) {
                 sgbPacketsTransferred = 0;
             }
         }
-    }
-    else {
+    } else {
         if((val & 0x30) == 0x30) {
             if(sgbButtonsChecked == 3) {
                 sgbSelectedController++;
-                if(sgbSelectedController >= sgbNumControllers)
+                if(sgbSelectedController >= sgbNumControllers) {
                     sgbSelectedController = 0;
+                }
+
                 sgbButtonsChecked = 0;
             }
+
             ioRam[0x00] = 0xff - sgbSelectedController;
-        }
-        else {
+        } else {
             ioRam[0x00] = val | 0xcf;
-            if((val & 0x30) == 0x10)
+            if((val & 0x30) == 0x10) {
                 sgbButtonsChecked |= 1;
-            else if((val & 0x30) == 0x20)
+            } else if((val & 0x30) == 0x20) {
                 sgbButtonsChecked |= 2;
+            }
         }
     }
 }
@@ -96,17 +104,17 @@ void Gameboy::sgbHandleP1(u8 val) {
 u8 Gameboy::sgbReadP1() {
     u8 p1 = ioRam[0x00];
 
-    if(sgbMode) {
-        if((p1 & 0x30) == 0x30)
-            return 0xff - sgbSelectedController;
+    if(sgbMode && (p1 & 0x30) == 0x30) {
+        return 0xff - sgbSelectedController;
     }
 
-    if(!(p1 & 0x20))
+    if(!(p1 & 0x20)) {
         return 0xc0 | (p1 & 0xF0) | (controllers[sgbSelectedController] & 0xF);
-    else if(!(p1 & 0x10))
+    } else if(!(p1 & 0x10)) {
         return 0xc0 | (p1 & 0xF0) | ((controllers[sgbSelectedController] & 0xF0) >> 4);
-    else
+    } else {
         return p1 | 0xcf;
+    }
 }
 
 void Gameboy::setBackdrop(u16 val) {
@@ -118,8 +126,11 @@ void Gameboy::setBackdrop(u16 val) {
         sprPaletteData[(i + 4) * 8] = val & 0xff;
         sprPaletteData[(i + 4) * 8 + 1] = val >> 8;
     }
-    for (int i=0; i<8; i++)
+
+    for (int i = 0; i < 8; i++) {
         ppu->updateSprPaletteDMG(i);
+    }
+
     ppu->updateBgPaletteDMG();
 }
 
@@ -127,7 +138,7 @@ void Gameboy::sgbLoadAttrFile(int index) {
     if(index > 0x2c) {
         return;
     }
-    //printLog("Load Attr %x\n", index);
+
     int src = index * 90;
     int dest = 0;
     for(int i = 0; i < 20 * 18 / 4; i++) {
@@ -144,13 +155,17 @@ void Gameboy::sgbDoVramTransfer(u8* dest) {
     int index = 0;
     for(int y = 0; y < 18; y++) {
         for(int x = 0; x < 20; x++) {
-            if(index == 0x1000)
+            if(index == 0x1000) {
                 return;
+            }
+
             int tile = vram[0][map + y * 32 + x];
-            if(ioRam[0x40] & 0x10)
+            if(ioRam[0x40] & 0x10) {
                 memcpy(dest + index, vram[0] + tile * 16, 16);
-            else
+            } else {
                 memcpy(dest + index, vram[0] + 0x1000 + ((s8) tile) * 16, 16);
+            }
+
             index += 16;
         }
     }
@@ -198,15 +213,16 @@ void Gameboy::sgbAttrBlock(int block) {
         sgbCmdData.attrBlock.dataBytes = 0;
         sgbCmdData.numDataSets = sgbPacket[1];
         pos = 2;
-    }
-    else
+    } else {
         pos = 0;
+    }
 
     u8* const data = sgbCmdData.attrBlock.data;
     while(pos < 16 && sgbCmdData.numDataSets > 0) {
         for(; sgbCmdData.attrBlock.dataBytes < 6 && pos < 16; sgbCmdData.attrBlock.dataBytes++, pos++) {
             data[sgbCmdData.attrBlock.dataBytes] = sgbPacket[pos];
         }
+
         if(sgbCmdData.attrBlock.dataBytes == 6) {
             int pIn = data[1] & 3;
             int pLine = (data[1] >> 2) & 3;
@@ -220,8 +236,7 @@ void Gameboy::sgbAttrBlock(int block) {
                 if((data[0] & 7) == 1) {
                     changeLine = true;
                     pLine = pIn;
-                }
-                else if((data[0] & 7) == 4) {
+                } else if((data[0] & 7) == 4) {
                     changeLine = true;
                     pLine = pOut;
                 }
@@ -234,6 +249,7 @@ void Gameboy::sgbAttrBlock(int block) {
                     }
                 }
             }
+
             if(data[0] & 4) { // Outside block
                 for(int x = 0; x < 20; x++) {
                     if(x < x1 || x > x2) {
@@ -245,11 +261,13 @@ void Gameboy::sgbAttrBlock(int block) {
                     }
                 }
             }
+
             if(changeLine) { // Line surrounding block
                 for(int x = x1; x <= x2; x++) {
                     sgbMap[y1 * 20 + x] = pLine;
                     sgbMap[y2 * 20 + x] = pLine;
                 }
+
                 for(int y = y1; y <= y2; y++) {
                     sgbMap[y * 20 + x1] = pLine;
                     sgbMap[y * 20 + x2] = pLine;
@@ -268,6 +286,7 @@ void Gameboy::sgbAttrLin(int block) {
         sgbCmdData.numDataSets = sgbPacket[1];
         index = 2;
     }
+
     while(sgbCmdData.numDataSets > 0 && index < 16) {
         u8 dat = sgbPacket[index++];
         sgbCmdData.numDataSets--;
@@ -279,8 +298,7 @@ void Gameboy::sgbAttrLin(int block) {
             for(int i = 0; i < 20; i++) {
                 sgbMap[i + line * 20] = pal;
             }
-        }
-        else { // Vertical
+        } else { // Vertical
             for(int i = 0; i < 18; i++) {
                 sgbMap[line + i * 20] = pal;
             }
@@ -295,29 +313,38 @@ void Gameboy::sgbAttrDiv(int block) {
 
     if(sgbPacket[1] & 0x40) {
         for(int y = 0; y < sgbPacket[2] && y < 18; y++) {
-            for(int x = 0; x < 20; x++)
+            for(int x = 0; x < 20; x++) {
                 sgbMap[y * 20 + x] = p0;
-        }
-        if(sgbPacket[2] < 18) {
-            for(int x = 0; x < 20; x++)
-                sgbMap[sgbPacket[2] * 20 + x] = p1;
-            for(int y = sgbPacket[2] + 1; y < 18; y++) {
-                for(int x = 0; x < 20; x++)
-                    sgbMap[y * 20 + x] = p2;
             }
         }
-    }
-    else {
-        for(int x = 0; x < sgbPacket[2] && x < 20; x++) {
-            for(int y = 0; y < 18; y++)
-                sgbMap[y * 20 + x] = p0;
-        }
-        if(sgbPacket[2] < 20) {
-            for(int y = 0; y < 18; y++)
-                sgbMap[y * 20 + sgbPacket[2]] = p1;
-            for(int x = sgbPacket[2] + 1; x < 20; x++) {
-                for(int y = 0; y < 18; y++)
+
+        if(sgbPacket[2] < 18) {
+            for(int x = 0; x < 20; x++) {
+                sgbMap[sgbPacket[2] * 20 + x] = p1;
+            }
+
+            for(int y = sgbPacket[2] + 1; y < 18; y++) {
+                for(int x = 0; x < 20; x++) {
                     sgbMap[y * 20 + x] = p2;
+                }
+            }
+        }
+    } else {
+        for(int x = 0; x < sgbPacket[2] && x < 20; x++) {
+            for(int y = 0; y < 18; y++) {
+                sgbMap[y * 20 + x] = p0;
+            }
+        }
+
+        if(sgbPacket[2] < 20) {
+            for(int y = 0; y < 18; y++) {
+                sgbMap[y * 20 + sgbPacket[2]] = p1;
+            }
+
+            for(int x = sgbPacket[2] + 1; x < 20; x++) {
+                for(int y = 0; y < 18; y++) {
+                    sgbMap[y * 20 + x] = p2;
+                }
             }
         }
     }
@@ -344,19 +371,21 @@ void Gameboy::sgbAttrChr(int block) {
             if(x == 20) {
                 x = 0;
                 y++;
-                if(y == 18)
+                if(y == 18) {
                     y = 0;
+                }
             }
-        }
-        else {
+        } else {
             y++;
             if(y == 18) {
                 y = 0;
                 x++;
-                if(x == 20)
+                if(x == 20) {
                     x = 0;
+                }
             }
         }
+
         index++;
         sgbCmdData.numDataSets--;
     }
@@ -373,19 +402,21 @@ void Gameboy::sgbSouTrn(int block) {
 void Gameboy::sgbPalSet(int block) {
     for(int i = 0; i < 4; i++) {
         int paletteid = (sgbPacket[i * 2 + 1] | (sgbPacket[i * 2 + 2] << 8)) & 0x1ff;
-        //printLog("%d: %x\n", i, paletteid);
         memcpy(bgPaletteData + i * 8 + 2, sgbPalettes + paletteid * 8 + 2, 6);
         memcpy(sprPaletteData + i * 8 + 2, sgbPalettes + paletteid * 8 + 2, 6);
         memcpy(sprPaletteData + (i+4) * 8 + 2, sgbPalettes + paletteid * 8 + 2, 6);
     }
+
     int color0Paletteid = (sgbPacket[1] | (sgbPacket[2] << 8)) & 0x1ff;
     setBackdrop(sgbPalettes[color0Paletteid * 8] | (sgbPalettes[color0Paletteid * 8 + 1] << 8));
 
     if(sgbPacket[9] & 0x80) {
         sgbLoadAttrFile(sgbPacket[9] & 0x3f);
     }
-    if(sgbPacket[9] & 0x40)
+
+    if(sgbPacket[9] & 0x40) {
         ppu->setSgbMask(0);
+    }
 }
 
 void Gameboy::sgbPalTrn(int block) {
@@ -414,10 +445,7 @@ void Gameboy::sgbDataTrn(int block) {
 
 void Gameboy::sgbMltReq(int block) {
     sgbNumControllers = (sgbPacket[1] & 3) + 1;
-    if(sgbNumControllers > 1)
-        sgbSelectedController = 1;
-    else
-        sgbSelectedController = 0;
+    sgbSelectedController = sgbNumControllers > 1 ? 1 : 0;
 }
 
 void Gameboy::sgbJump(int block) {
@@ -444,8 +472,9 @@ void Gameboy::sgbAttrTrn(int block) {
 
 void Gameboy::sgbAttrSet(int block) {
     sgbLoadAttrFile(sgbPacket[1] & 0x3f);
-    if(sgbPacket[1] & 0x40)
+    if(sgbPacket[1] & 0x40) {
         ppu->setSgbMask(0);
+    }
 }
 
 void Gameboy::sgbMaskEn(int block) {

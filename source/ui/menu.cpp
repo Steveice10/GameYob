@@ -62,8 +62,9 @@ FileChooser borderChooser("/");
 
 // Private function used for simple submenus
 void subMenuGenericUpdateFunc() {
-    if(inputKeyPressed(inputMapMenuKey(MENU_KEY_A)) || inputKeyPressed(inputMapMenuKey(MENU_KEY_B)))
+    if(inputKeyPressed(inputMapMenuKey(MENU_KEY_A)) || inputKeyPressed(inputMapMenuKey(MENU_KEY_B))) {
         closeSubMenu();
+    }
 }
 
 // Functions corresponding to menu options
@@ -125,12 +126,14 @@ void printerEnableFunc(int value) {
     if(value) {
         gameboy->getPrinter()->initGbPrinter();
     }
+
     printerEnabled = value;
 }
 
 void cheatFunc(int value) {
-    if(!startCheatMenu())
+    if(!startCheatMenu()) {
         printMenuMessage("No cheats found!");
+    }
 }
 
 void keyConfigFunc(int value) {
@@ -148,8 +151,7 @@ void stateSelectFunc(int value) {
     if(gameboy->checkStateExists(stateNum)) {
         enableMenuOption("Load State");
         enableMenuOption("Delete State");
-    }
-    else {
+    } else {
         disableMenuOption("Load State");
         disableMenuOption("Delete State");
     }
@@ -360,7 +362,6 @@ struct SubMenu {
     int selection;
 };
 
-
 SubMenu menuList[] = {
         {
                 "ROM",
@@ -516,6 +517,7 @@ void menuSetOptionRow(int row) {
         option = -1;
         return;
     }
+
     row++;
     int lastValidRow = -1;
     for(int i = 0; i < menuList[menu].numOptions; i++) {
@@ -529,6 +531,7 @@ void menuSetOptionRow(int row) {
             return;
         }
     }
+
     // Too high
     option = lastValidRow;
 }
@@ -640,11 +643,15 @@ void redrawMenu() {
     if(printMessage[0] != '\0') {
         int rows = menuGetNumRows();
         int newlines = height - 1 - (rows * 2 + 2) - 1;
-        for(int i = 0; i < newlines; i++)
+        for(int i = 0; i < newlines; i++) {
             printf("\n");
+        }
+
         int spaces = width - 1 - strlen(printMessage);
-        for(int i = 0; i < spaces; i++)
+        for(int i = 0; i < spaces; i++) {
             printf(" ");
+        }
+
         printf("%s\n", printMessage);
 
         printMessage[0] = '\0';
@@ -672,27 +679,32 @@ void updateMenu() {
     } else if(inputKeyRepeat(inputMapMenuKey(MENU_KEY_LEFT))) {
         if(option == -1) {
             menu--;
-            if(menu < 0)
+            if(menu < 0) {
                 menu = numMenus - 1;
-        }
-        else if(menuList[menu].options[option].numValues != 0 && menuList[menu].options[option].enabled) {
+            }
+        } else if(menuList[menu].options[option].numValues != 0 && menuList[menu].options[option].enabled) {
             int selection = menuList[menu].options[option].selection - 1;
-            if(selection < 0)
+            if(selection < 0) {
                 selection = menuList[menu].options[option].numValues - 1;
+            }
+
             menuList[menu].options[option].selection = selection;
             menuList[menu].options[option].function(selection);
         }
+
         redraw = true;
     } else if(inputKeyRepeat(inputMapMenuKey(MENU_KEY_RIGHT))) {
         if(option == -1) {
             menu++;
-            if(menu >= numMenus)
+            if(menu >= numMenus) {
                 menu = 0;
-        }
-        else if(menuList[menu].options[option].numValues != 0 && menuList[menu].options[option].enabled) {
+            }
+        } else if(menuList[menu].options[option].numValues != 0 && menuList[menu].options[option].enabled) {
             int selection = menuList[menu].options[option].selection + 1;
-            if(selection >= menuList[menu].options[option].numValues)
+            if(selection >= menuList[menu].options[option].numValues) {
                 selection = 0;
+            }
+
             menuList[menu].options[option].selection = selection;
             menuList[menu].options[option].function(selection);
         }
@@ -708,15 +720,19 @@ void updateMenu() {
     } else if(inputKeyPressed(inputMapMenuKey(MENU_KEY_L))) {
         int row = menuGetOptionRow();
         menu--;
-        if(menu < 0)
+        if(menu < 0) {
             menu = numMenus - 1;
+        }
+
         menuSetOptionRow(row);
         redraw = true;
     } else if(inputKeyPressed(inputMapMenuKey(MENU_KEY_R))) {
         int row = menuGetOptionRow();
         menu++;
-        if(menu >= numMenus)
+        if(menu >= numMenus) {
             menu = 0;
+        }
+
         menuSetOptionRow(row);
         redraw = true;
     }
@@ -738,15 +754,18 @@ void printMenuMessage(const char* s) {
 
     if(hadPreviousMessage) {
         printf("\r");
-    }
-    else {
+    } else {
         int newlines = height - 1 - (rows * 2 + 2) - 1;
-        for(int i = 0; i < newlines; i++)
+        for(int i = 0; i < newlines; i++) {
             printf("\n");
+        }
     }
+
     int spaces = width - 1 - strlen(printMessage);
-    for(int i = 0; i < spaces; i++)
+    for(int i = 0; i < spaces; i++) {
         printf(" ");
+    }
+
     printf("%s", printMessage);
 
     fflush(stdout);
@@ -761,7 +780,6 @@ void closeSubMenu() {
     redrawMenu();
 }
 
-
 int getMenuOption(const char* optionName) {
     for(int i = 0; i < numMenus; i++) {
         for(int j = 0; j < menuList[i].numOptions; j++) {
@@ -770,6 +788,7 @@ int getMenuOption(const char* optionName) {
             }
         }
     }
+
     return 0;
 }
 
@@ -813,8 +832,10 @@ void disableMenuOption(const char* optionName) {
 
 void menuParseConfig(char* line) {
     char* equalsPos = strchr(line, '=');
-    if(equalsPos == 0)
+    if(equalsPos == 0) {
         return;
+    }
+
     *equalsPos = '\0';
     const char* option = line;
     const char* value = equalsPos + 1;

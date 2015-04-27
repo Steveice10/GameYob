@@ -24,8 +24,9 @@ bool CheatEngine::addCheat(const char* str) {
     int len;
     int i = numCheats;
 
-    if(i == MAX_CHEATS)
+    if(i == MAX_CHEATS) {
         return false;
+    }
 
     // Clear all flags
     cheats[i].flags = 0;
@@ -40,8 +41,7 @@ bool CheatEngine::addCheat(const char* str) {
         cheats[i].flags |= CHEAT_FLAG_GAMEGENIE;
 
         cheats[i].data = TO_INT(str[0]) << 4 | TO_INT(str[1]);
-        cheats[i].address = TO_INT(str[6]) << 12 | TO_INT(str[2]) << 8 |
-                            TO_INT(str[4]) << 4 | TO_INT(str[5]);
+        cheats[i].address = TO_INT(str[6]) << 12 | TO_INT(str[2]) << 8 | TO_INT(str[4]) << 4 | TO_INT(str[5]);
         cheats[i].compare = TO_INT(str[8]) << 4 | TO_INT(str[10]);
 
         cheats[i].address ^= 0xf000;
@@ -51,33 +51,26 @@ bool CheatEngine::addCheat(const char* str) {
         if(showConsoleDebug()) {
             printf("GG %04x / %02x -> %02x\n", cheats[i].address, cheats[i].data, cheats[i].compare);
         }
-    }
-        // GameGenie (6digit version) AAA-BBB
-    else if(len == 7) {
+    } else if(len == 7) { // GameGenie (6digit version) AAA-BBB
         cheats[i].flags |= CHEAT_FLAG_GAMEGENIE1;
 
         cheats[i].data = TO_INT(str[0]) << 4 | TO_INT(str[1]);
-        cheats[i].address = TO_INT(str[6]) << 12 | TO_INT(str[2]) << 8 |
-                            TO_INT(str[4]) << 4 | TO_INT(str[5]);
+        cheats[i].address = TO_INT(str[6]) << 12 | TO_INT(str[2]) << 8 | TO_INT(str[4]) << 4 | TO_INT(str[5]);
 
         if(showConsoleDebug()) {
             printf("GG1 %04x / %02x\n", cheats[i].address, cheats[i].data);
         }
-    }
-        // Gameshark AAAAAAAA
-    else if(len == 8) {
+    } else if(len == 8) { // Gameshark AAAAAAAA
         cheats[i].flags |= CHEAT_FLAG_GAMESHARK;
 
         cheats[i].data = TO_INT(str[2]) << 4 | TO_INT(str[3]);
         cheats[i].bank = TO_INT(str[0]) << 4 | TO_INT(str[1]);
-        cheats[i].address = TO_INT(str[6]) << 12 | TO_INT(str[7]) << 8 |
-                            TO_INT(str[4]) << 4 | TO_INT(str[5]);
+        cheats[i].address = TO_INT(str[6]) << 12 | TO_INT(str[7]) << 8 | TO_INT(str[4]) << 4 | TO_INT(str[5]);
 
         if(showConsoleDebug()) {
             printf("GS (%02x)%04x/ %02x\n", cheats[i].bank, cheats[i].address, cheats[i].data);
         }
-    }
-    else { // dafuq did i just read ?
+    } else { // dafuq did i just read ?
         return false;
     }
 
@@ -129,14 +122,11 @@ void CheatEngine::applyGGCheatsToBank(int bank) {
 }
 
 void CheatEngine::applyGSCheats() {
-    int i;
-    int compareBank;
-
-    for(i = 0; i < numCheats; i++) {
+    for(int i = 0; i < numCheats; i++) {
         if(cheats[i].flags & CHEAT_FLAG_ENABLED && ((cheats[i].flags & CHEAT_FLAG_TYPE_MASK) == CHEAT_FLAG_GAMESHARK)) {
+            int compareBank = gameboy->getWramBank();
             switch(cheats[i].bank & 0xf0) {
                 case 0x90:
-                    compareBank = gameboy->getWramBank();
                     gameboy->setWramBank(cheats[i].bank & 0x7);
                     gameboy->writeMemory(cheats[i].address, cheats[i].data);
                     gameboy->setWramBank(compareBank);
@@ -152,17 +142,6 @@ void CheatEngine::applyGSCheats() {
 }
 
 void CheatEngine::loadCheats(const char* filename) {
-    // TODO: get rid of the "cheatsRomTitle" stuff
-    if(gameboy->getRomFile()->getRomTitle().compare(cheatsRomTitle) == 0) {
-        // Rom hasn't been changed
-        for(int i = 0; i < numCheats; i++) {
-            unapplyGGCheat(i);
-        }
-    } else {
-        // Rom has been changed
-        strncpy(cheatsRomTitle, gameboy->getRomFile()->getRomTitle().c_str(), 20);
-    }
-
     numCheats = 0;
 
     // Begin loading new cheat file
@@ -204,11 +183,14 @@ void CheatEngine::loadCheats(const char* filename) {
 }
 
 void CheatEngine::saveCheats(const char* filename) {
-    if(numCheats == 0)
+    if(numCheats == 0) {
         return;
+    }
+
     FILE* file = fopen(filename, "w");
     for(int i = 0; i < numCheats; i++) {
         fprintf(file, "%s %d%s\n", cheats[i].cheatString, !!(cheats[i].flags & CHEAT_FLAG_ENABLED), cheats[i].name);
     }
+
     fclose(file);
 }

@@ -55,10 +55,11 @@ void generalPrintConfig(FILE* file) {
 bool readConfigFile() {
     FILE* file = fopen(INI_PATH, "r");
     char line[100];
-    void (* configParser)(char*) = generalParseConfig;
+    void (*configParser)(char*) = generalParseConfig;
 
-    if(file == NULL)
+    if(file == NULL) {
         goto end;
+    }
 
     struct stat s;
     fstat(fileno(file), &s);
@@ -76,11 +77,9 @@ bool readConfigFile() {
                 const char* section = line + 1;
                 if(strcasecmp(section, "general") == 0) {
                     configParser = generalParseConfig;
-                }
-                else if(strcasecmp(section, "console") == 0) {
+                } else if(strcasecmp(section, "console") == 0) {
                     configParser = menuParseConfig;
-                }
-                else if(strcasecmp(section, "controls") == 0) {
+                } else if(strcasecmp(section, "controls") == 0) {
                     configParser = controlsParseConfig;
                 }
             }
@@ -88,10 +87,11 @@ bool readConfigFile() {
             configParser(line);
         }
     }
+
     fclose(file);
+
     end:
     controlsCheckConfig();
-
     return file != NULL;
 }
 
@@ -145,8 +145,10 @@ unsigned int selectedKeyConfig = 0;
 void controlsParseConfig(char* line2) {
     char line[100];
     strncpy(line, line2, 100);
-    while(strlen(line) > 0 && (line[strlen(line) - 1] == '\n' || line[strlen(line) - 1] == ' '))
+    while(strlen(line) > 0 && (line[strlen(line) - 1] == '\n' || line[strlen(line) - 1] == ' ')) {
         line[strlen(line) - 1] = '\0';
+    }
+
     if(line[0] == '(') {
         char* bracketEnd;
         if((bracketEnd = strrchr(line, ')')) != 0) {
@@ -166,6 +168,7 @@ void controlsParseConfig(char* line2) {
 
         return;
     }
+
     char* equalsPos;
     if((equalsPos = strrchr(line, '=')) != 0 && equalsPos != line + strlen(line) - 1) {
         *equalsPos = '\0';
@@ -200,10 +203,14 @@ void controlsParseConfig(char* line2) {
 }
 
 void controlsCheckConfig() {
-    if(keyConfigs.empty())
+    if(keyConfigs.empty()) {
         keyConfigs.push_back(inputGetDefaultKeyConfig());
-    if(selectedKeyConfig >= keyConfigs.size())
+    }
+
+    if(selectedKeyConfig >= keyConfigs.size()) {
         selectedKeyConfig = 0;
+    }
+
     inputLoadKeyConfig(&keyConfigs[selectedKeyConfig]);
 }
 
@@ -228,16 +235,18 @@ void redrawKeyConfigChooser() {
     iprintf("\x1b[2J");
 
     printf("Config: ");
-    if(option == -1)
+    if(option == -1) {
         printf("\x1b[1m\x1b[33m* %s *\n\n\x1b[0m", config->name);
-    else
+    } else {
         printf("  %s  \n\n", config->name);
+    }
 
     printf("       Button   Function\n\n");
 
     for(int i = 0; i < NUM_BINDABLE_BUTTONS; i++) {
-        if(!inputIsValidKey(i))
+        if(!inputIsValidKey(i)) {
             continue;
+        }
 
         int len = 11 - strlen(inputGetKeyName(i));
         while(len > 0) {
@@ -251,6 +260,7 @@ void redrawKeyConfigChooser() {
             printf("  %s | %s  \n", inputGetKeyName(i), gbKeyNames[config->funcKeys[i]]);
         }
     }
+
     printf("\nPress X to make a new config.");
     if(selectedKeyConfig != 0) /* can't erase the default */ {
         printf("\n\nPress Y to delete this config.");
@@ -277,8 +287,10 @@ void updateKeyConfigChooser() {
     } else if(inputKeyPressed(inputMapMenuKey(MENU_KEY_Y))) {
         if(selectedKeyConfig != 0) /* can't erase the default */ {
             keyConfigs.erase(keyConfigs.begin() + selectedKeyConfig);
-            if(selectedKeyConfig >= keyConfigs.size())
+            if(selectedKeyConfig >= keyConfigs.size()) {
                 selectedKeyConfig = keyConfigs.size() - 1;
+            }
+
             redraw = true;
         }
     } else if(inputKeyRepeat(inputMapMenuKey(MENU_KEY_DOWN))) {
@@ -305,28 +317,32 @@ void updateKeyConfigChooser() {
         redraw = true;
     } else if(inputKeyRepeat(inputMapMenuKey(MENU_KEY_LEFT))) {
         if(option == -1) {
-            if(selectedKeyConfig == 0)
+            if(selectedKeyConfig == 0) {
                 selectedKeyConfig = keyConfigs.size() - 1;
-            else
+            } else {
                 selectedKeyConfig--;
-        }
-        else {
+            }
+        } else {
             config->funcKeys[option]--;
-            if(config->funcKeys[option] < 0)
+            if(config->funcKeys[option] < 0) {
                 config->funcKeys[option] = NUM_FUNC_KEYS - 1;
+            }
         }
+
         redraw = true;
     } else if(inputKeyRepeat(inputMapMenuKey(MENU_KEY_RIGHT))) {
         if(option == -1) {
             selectedKeyConfig++;
-            if(selectedKeyConfig >= keyConfigs.size())
+            if(selectedKeyConfig >= keyConfigs.size()) {
                 selectedKeyConfig = 0;
-        }
-        else {
+            }
+        } else {
             config->funcKeys[option]++;
-            if(config->funcKeys[option] >= NUM_FUNC_KEYS)
+            if(config->funcKeys[option] >= NUM_FUNC_KEYS) {
                 config->funcKeys[option] = 0;
+            }
         }
+
         redraw = true;
     }
 

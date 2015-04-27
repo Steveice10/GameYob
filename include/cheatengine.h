@@ -56,8 +56,6 @@ private:
     // variables
     bool cheatsEnabled;
     int numCheats;
-    // Use this to check whether another rom has been loaded
-    char cheatsRomTitle[20];
 
     Gameboy* gameboy;
 };

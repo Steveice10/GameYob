@@ -1032,6 +1032,7 @@ int Gameboy::runOpcode(int cycles) {
                     setCFlag();
                     g_gbRegs.af.b.h |= 1;
                 }
+
                 break;
             }
 
@@ -1041,8 +1042,10 @@ int Gameboy::runOpcode(int cycles) {
                 g_gbRegs.af.b.h <<= 1;
                 g_gbRegs.af.b.h |= carryBit();
                 locF = 0;
-                if(val)
+                if(val) {
                     setCFlag();
+                }
+
                 break;
             }
 
@@ -1055,6 +1058,7 @@ int Gameboy::runOpcode(int cycles) {
                     setCFlag();
                     g_gbRegs.af.b.h |= 0x80;
                 }
+
                 break;
             }
 
@@ -1064,8 +1068,10 @@ int Gameboy::runOpcode(int cycles) {
                 g_gbRegs.af.b.h >>= 1;
                 g_gbRegs.af.b.h |= (carryBit() << 7);
                 locF = 0;
-                if(val)
+                if(val) {
                     setCFlag();
+                }
+
                 break;
             }
 
@@ -1076,8 +1082,7 @@ int Gameboy::runOpcode(int cycles) {
                 if(!zeroSet()) {
                     setPC(readPC16_noinc());
                     break;
-                }
-                else {
+                } else {
                     pcAddr += 2;
                     totalCycles -= 4;
                     break;
@@ -1086,8 +1091,7 @@ int Gameboy::runOpcode(int cycles) {
                 if(zeroSet()) {
                     setPC(readPC16_noinc());
                     break;
-                }
-                else {
+                } else {
                     pcAddr += 2;
                     totalCycles -= 4;
                     break;
@@ -1096,8 +1100,7 @@ int Gameboy::runOpcode(int cycles) {
                 if(!carrySet()) {
                     setPC(readPC16_noinc());
                     break;
-                }
-                else {
+                } else {
                     pcAddr += 2;
                     totalCycles -= 4;
                     break;
@@ -1106,14 +1109,13 @@ int Gameboy::runOpcode(int cycles) {
                 if(carrySet()) {
                     setPC(readPC16_noinc());
                     break;
-                }
-                else {
+                } else {
                     totalCycles -= 4;
                     pcAddr += 2;
                     break;
                 }
             case 0xE9:        // JP (hl)	4
-            setPC(g_gbRegs.hl.w);
+                setPC(g_gbRegs.hl.w);
                 break;
             case 0x18:        // JR n 12
                 OP_JR(true);

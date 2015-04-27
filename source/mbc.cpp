@@ -8,8 +8,9 @@
 
 /* MBC3 */
 u8 Gameboy::m3r(u16 addr) {
-    if(!ramEnabled)
+    if(!ramEnabled) {
         return 0xff;
+    }
 
     switch(ramBankNum) { // Check for RTC register
         case 0x8:
@@ -61,6 +62,7 @@ u8 Gameboy::h3r(u16 addr) {
              * boot, the meaning is unknown. */
             return 1;
     }
+
     return (ramEnabled) ? memory[addr >> 12][addr & 0xfff] : 0xff;
 }
 
@@ -94,8 +96,10 @@ void Gameboy::m0w(u16 addr, u8 val) {
             break;
         case 0xa: /* a000 - bfff */
         case 0xb:
-            if(romFile->getRamBanks() > 0)
+            if(romFile->getRamBanks() > 0) {
                 writeSram(addr & 0x1fff, val);
+            }
+
             break;
     }
 }
@@ -112,23 +116,24 @@ void Gameboy::m1w(u16 addr, u8 val) {
         case 0x2: /* 2000 - 3fff */
         case 0x3:
             val &= 0x1f;
-            if(rockmanMapper)
+            if(rockmanMapper) {
                 newBank = ((val > 0xf) ? val - 8 : val);
-            else
+            } else {
                 newBank = (romBank1Num & 0xe0) | val;
+            }
+
             refreshRomBank1((newBank) ? newBank : 1);
             break;
         case 0x4: /* 4000 - 5fff */
         case 0x5:
             val &= 3;
-            /* ROM mode */
-            if(memoryModel == 0) {
+            if(memoryModel == 0) { /* ROM mode */
                 newBank = (romBank1Num & 0x1F) | (val << 5);
                 refreshRomBank1((newBank) ? newBank : 1);
-            }
-                /* RAM mode */
-            else
+            } else { /* RAM mode */
                 refreshRamBank(val);
+            }
+
             break;
         case 0x6: /* 6000 - 7fff */
         case 0x7:
@@ -136,8 +141,10 @@ void Gameboy::m1w(u16 addr, u8 val) {
             break;
         case 0xa: /* a000 - bfff */
         case 0xb:
-            if(ramEnabled && romFile->getRamBanks() > 0)
+            if(ramEnabled && romFile->getRamBanks() > 0) {
                 writeSram(addr & 0x1fff, val);
+            }
+
             break;
     }
 }
@@ -161,8 +168,10 @@ void Gameboy::m2w(u16 addr, u8 val) {
             break;
         case 0xa: /* a000 - bfff */
         case 0xb:
-            if(ramEnabled && romFile->getRamBanks() > 0)
+            if(ramEnabled && romFile->getRamBanks() > 0) {
                 writeSram(addr & 0x1fff, val & 0xf);
+            }
+
             break;
     }
 }
@@ -183,20 +192,25 @@ void Gameboy::m3w(u16 addr, u8 val) {
         case 0x5:
             /* The RTC register is selected by writing values 0x8-0xc, ram banks
              * are selected by values 0x0-0x3 */
-            if(val <= 0x3)
+            if(val <= 0x3) {
                 refreshRamBank(val);
-            else if(val >= 8 && val <= 0xc)
+            } else if(val >= 8 && val <= 0xc) {
                 ramBankNum = val;
+            }
+
             break;
         case 0x6: /* 6000 - 7fff */
         case 0x7:
-            if(val)
+            if(val) {
                 latchClock();
+            }
+
             break;
         case 0xa: /* a000 - bfff */
         case 0xb:
-            if(!ramEnabled)
+            if(!ramEnabled) {
                 break;
+            }
 
             switch(ramBankNum) { // Check for RTC register
                 case 0x8:
@@ -204,18 +218,21 @@ void Gameboy::m3w(u16 addr, u8 val) {
                         gbClock.mbc3.s = val;
                         writeClockStruct();
                     }
+
                     return;
                 case 0x9:
                     if(gbClock.mbc3.m != val) {
                         gbClock.mbc3.m = val;
                         writeClockStruct();
                     }
+
                     return;
                 case 0xA:
                     if(gbClock.mbc3.h != val) {
                         gbClock.mbc3.h = val;
                         writeClockStruct();
                     }
+
                     return;
                 case 0xB:
                     if((gbClock.mbc3.d & 0xff) != val) {
@@ -223,6 +240,7 @@ void Gameboy::m3w(u16 addr, u8 val) {
                         gbClock.mbc3.d |= val;
                         writeClockStruct();
                     }
+
                     return;
                 case 0xC:
                     if(gbClock.mbc3.ctrl != val) {
@@ -231,11 +249,14 @@ void Gameboy::m3w(u16 addr, u8 val) {
                         gbClock.mbc3.ctrl = val;
                         writeClockStruct();
                     }
+
                     return;
                 default: // Not an RTC register
-                    if(romFile->getRamBanks() > 0)
+                    if(romFile->getRamBanks() > 0) {
                         writeSram(addr & 0x1fff, val);
+                    }
             }
+
             break;
     }
 }
@@ -516,12 +537,14 @@ void Gameboy::h1w(u16 addr, u8 val) {
         case 0x4: /* 4000 - 5fff */
         case 0x5:
             val &= 3;
-            if(memoryModel == 0)
+            if(memoryModel == 0) {
                 /* ROM mode */
                 refreshRomBank1(val);
-            else
+            } else {
                 /* RAM mode */
                 refreshRamBank(val);
+            }
+
             break;
         case 0x6: /* 6000 - 7fff */
         case 0x7:
@@ -529,8 +552,10 @@ void Gameboy::h1w(u16 addr, u8 val) {
             break;
         case 0xa: /* a000 - bfff */
         case 0xb:
-            if(ramEnabled && romFile->getRamBanks() > 0)
+            if(ramEnabled && romFile->getRamBanks() > 0) {
                 writeSram(addr & 0x1fff, val);
+            }
+
             break;
     }
 }
@@ -581,6 +606,7 @@ void Gameboy::h3w(u16 addr, u8 val) {
                                 default:
                                     break;
                             }
+
                             HuC3Shift += 4;
                             break;
                         case 0x40:
@@ -617,6 +643,7 @@ void Gameboy::h3w(u16 addr, u8 val) {
                         writeSram(addr & 0x1fff, val);
                     }
             }
+
             break;
     }
 }
@@ -838,6 +865,7 @@ void Gameboy::latchClock() {
                 gbClock.mbc3.ctrl |= 0x80;
                 gbClock.mbc3.d &= 0x1FF;
             }
+
             /* The 9th bit of the day register is in the control register */
             gbClock.mbc3.ctrl &= ~1;
             gbClock.mbc3.ctrl |= (gbClock.mbc3.d > 0xff);

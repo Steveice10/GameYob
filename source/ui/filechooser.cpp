@@ -23,25 +23,31 @@ FileChooser::FileChooser(std::string directory) {
 }
 
 void FileChooser::updateScrollDown() {
-    if(selection >= numFiles)
+    if(selection >= numFiles) {
         selection = numFiles - 1;
+    }
+
     if(numFiles > filesPerPage) {
-        if(selection == numFiles - 1)
+        if(selection == numFiles - 1) {
             scrollY = selection - filesPerPage + 1;
-        else if(selection - scrollY >= filesPerPage - 1)
+        } else if(selection - scrollY >= filesPerPage - 1) {
             scrollY = selection - filesPerPage + 2;
+        }
     }
 }
 
 void FileChooser::updateScrollUp() {
-    if(selection < 0)
+    if(selection < 0) {
         selection = 0;
-    if(selection == 0)
+    }
+
+    if(selection == 0) {
         scrollY = 0;
-    else if(selection == scrollY)
+    } else if(selection == scrollY) {
         scrollY--;
-    else if(selection < scrollY)
+    } else if(selection < scrollY) {
         scrollY = selection - 1;
+    }
 
 }
 
@@ -50,14 +56,15 @@ int nameSortFunction(string &a, string &b) {
     bool aIsParent = strcmp(a.c_str(), "..") == 0;
     bool bIsParent = strcmp(b.c_str(), "..") == 0;
 
-    if(aIsParent && bIsParent)
+    if(aIsParent && bIsParent) {
         return 0;
-    else if(aIsParent) // Sorts before
+    } else if(aIsParent) {// Sorts before
         return -1;
-    else if(bIsParent) // Sorts after
+    } else if(bIsParent) {// Sorts after
         return 1;
-    else
+    } else {
         return strcasecmp(a.c_str(), b.c_str());
+    }
 }
 
 /*
@@ -73,19 +80,23 @@ int nameSortFunction(string &a, string &b) {
  *   true if the range is one or no elements, or if from > to.
  *   false otherwise.
  */
-template<class Data> bool isSorted(std::vector<Data> &data, int (* sortFunction)(Data &, Data &),
-                                   const unsigned int from, const unsigned int to) {
-    if(from >= to)
+template<class Data> bool isSorted(std::vector<Data> &data, int (* sortFunction)(Data &, Data &), const unsigned int from, const unsigned int to) {
+    if(from >= to) {
         return true;
+    }
 
     Data* prev = &data[from];
     for(unsigned int i = from + 1; i < to; i++) {
-        if((*sortFunction)(*prev, data[i]) > 0)
+        if((*sortFunction)(*prev, data[i]) > 0) {
             return false;
+        }
+
         prev = &data[i];
     }
-    if((*sortFunction)(*prev, data[to]) > 0)
+
+    if((*sortFunction)(*prev, data[to]) > 0) {
         return false;
+    }
 
     return true;
 }
@@ -101,17 +112,12 @@ template<class Data> bool isSorted(std::vector<Data> &data, int (* sortFunction)
  *        'to', index of the last element in the range to be sorted.
  * Output: a valid index into data, between 'from' and 'to' inclusive.
  */
-template<class Data> unsigned int choosePivot(std::vector<Data> &data, int (* sortFunction)(Data &, Data &),
-                                              const unsigned int from, const unsigned int to) {
+template<class Data> unsigned int choosePivot(std::vector<Data> &data, int (* sortFunction)(Data &, Data &), const unsigned int from, const unsigned int to) {
     // The highest of the two extremities is calculated first.
-    unsigned int highest = ((*sortFunction)(data[from], data[to]) > 0)
-                           ? from
-                           : to;
+    unsigned int highest = ((*sortFunction)(data[from], data[to]) > 0) ? from : to;
     // Then the lowest of that highest extremity and the middle
     // becomes the pivot.
-    return ((*sortFunction)(data[from + (to - from) / 2], data[highest]) < 0)
-           ? (from + (to - from) / 2)
-           : highest;
+    return ((*sortFunction)(data[from + (to - from) / 2], data[highest]) < 0) ? (from + (to - from) / 2) : highest;
 }
 
 /*
@@ -128,18 +134,14 @@ template<class Data> unsigned int choosePivot(std::vector<Data> &data, int (* so
  * Output: the index of the value chosen as the pivot after it has been moved
  *   after all the values that are less than it.
  */
-template<class Data, class Metadata> unsigned int partition(std::vector<Data> &data, std::vector<Metadata> &metadata,
-                                                            int (* sortFunction)(Data &, Data &),
-                                                            const unsigned int from, const unsigned int to,
-                                                            const unsigned int pivotIndex) {
+template<class Data, class Metadata> unsigned int partition(std::vector<Data> &data, std::vector<Metadata> &metadata, int (* sortFunction)(Data &, Data &), const unsigned int from, const unsigned int to, const unsigned int pivotIndex) {
     Data pivotValue = data[pivotIndex];
     data[pivotIndex] = data[to];
     data[to] = pivotValue;
-    {
-        const Metadata tM = metadata[pivotIndex];
-        metadata[pivotIndex] = metadata[to];
-        metadata[to] = tM;
-    }
+
+    const Metadata tM = metadata[pivotIndex];
+    metadata[pivotIndex] = metadata[to];
+    metadata[to] = tM;
 
     unsigned int storeIndex = from;
     for(unsigned int i = from; i < to; i++) {
@@ -147,21 +149,19 @@ template<class Data, class Metadata> unsigned int partition(std::vector<Data> &d
             const Data tD = data[storeIndex];
             data[storeIndex] = data[i];
             data[i] = tD;
-            const Metadata tM = metadata[storeIndex];
+            const Metadata tM2 = metadata[storeIndex];
             metadata[storeIndex] = metadata[i];
-            metadata[i] = tM;
+            metadata[i] = tM2;
             ++storeIndex;
         }
     }
 
-    {
-        const Data tD = data[to];
-        data[to] = data[storeIndex];
-        data[storeIndex] = tD;
-        const Metadata tM = metadata[to];
-        metadata[to] = metadata[storeIndex];
-        metadata[storeIndex] = tM;
-    }
+    const Data tD = data[to];
+    data[to] = data[storeIndex];
+    data[storeIndex] = tD;
+    const Metadata tM2 = metadata[to];
+    metadata[to] = metadata[storeIndex];
+    metadata[storeIndex] = tM2;
     return storeIndex;
 }
 
@@ -179,18 +179,20 @@ template<class Data, class Metadata> unsigned int partition(std::vector<Data> &d
  *        'from', index of the first element in the range to sort.
  *        'to', index of the last element in the range to sort.
  */
-template<class Data, class Metadata> void quickSort(std::vector<Data> &data, std::vector<Metadata> &metadata,
-                                                    int (* sortFunction)(Data &, Data &), const unsigned int from,
-                                                    const unsigned int to) {
-    if(isSorted(data, sortFunction, from, to))
+template<class Data, class Metadata> void quickSort(std::vector<Data> &data, std::vector<Metadata> &metadata, int (* sortFunction)(Data &, Data &), const unsigned int from, const unsigned int to) {
+    if(isSorted(data, sortFunction, from, to)) {
         return;
+    }
 
     unsigned int pivotIndex = choosePivot(data, sortFunction, from, to);
     unsigned int newPivotIndex = partition(data, metadata, sortFunction, from, to, pivotIndex);
-    if(newPivotIndex > 0)
+    if(newPivotIndex > 0) {
         quickSort(data, metadata, sortFunction, from, newPivotIndex - 1);
-    if(newPivotIndex < to)
+    }
+
+    if(newPivotIndex < to) {
         quickSort(data, metadata, sortFunction, newPivotIndex + 1, to);
+    }
 }
 
 std::string FileChooser::getDirectory() {
@@ -234,8 +236,10 @@ char* FileChooser::startFileChooser(const char* extensions[], bool romExtensions
             // Read file list
             while((entry = readdir(dir)) != NULL) {
                 char* ext = strrchr(entry->d_name, '.') + 1;
-                if(strrchr(entry->d_name, '.') == 0)
+                if(strrchr(entry->d_name, '.') == 0) {
                     ext = 0;
+                }
+
                 bool isValidExtension = false;
                 bool isRomFile = false;
                 if(!(entry->d_type & DT_DIR)) {
@@ -246,6 +250,7 @@ char* FileChooser::startFileChooser(const char* extensions[], bool romExtensions
                                 break;
                             }
                         }
+
                         if(romExtensions) {
                             isRomFile = strcasecmp(ext, "cgb") == 0 || strcasecmp(ext, "gbc") == 0 || strcasecmp(ext, "gb") == 0 || strcasecmp(ext, "sgb") == 0;
                             if(isRomFile) {
@@ -285,8 +290,7 @@ char* FileChooser::startFileChooser(const char* extensions[], bool romExtensions
                         filenames.push_back(string(entry->d_name));
                         numFiles++;
                     }
-                }
-                else if(ext && strcasecmp(ext, "yss") == 0 && !(entry->d_type & DT_DIR)) {
+                } else if(ext && strcasecmp(ext, "yss") == 0 && !(entry->d_type & DT_DIR)) {
                     bool matched = false;
                     char buffer2[256];
                     strcpy(buffer2, entry->d_name);
@@ -302,8 +306,10 @@ char* FileChooser::startFileChooser(const char* extensions[], bool romExtensions
                             }
                         }
                     }
-                    if(!matched)
+
+                    if(!matched) {
                         unmatchedStates.push_back(string(buffer2));
+                    }
                 }
             }
 
@@ -338,8 +344,9 @@ char* FileChooser::startFileChooser(const char* extensions[], bool romExtensions
             strncpy(buffer, directory.c_str(), screenLen);
             buffer[screenLen] = '\0';
             printf("%s", buffer);
-            for(uint j = 0; j < screenLen - strlen(buffer); j++)
+            for(uint j = 0; j < screenLen - strlen(buffer); j++) {
                 printf(" ");
+            }
 
             for(int i = scrollY; i < scrollY + filesPerPage && i < numFiles; i++) {
                 if(i == selection) {
@@ -413,8 +420,10 @@ char* FileChooser::startFileChooser(const char* extensions[], bool romExtensions
 
                 if(inputKeyPressed(inputMapMenuKey(MENU_KEY_A))) {
                     if(flags[selection] & FLAG_DIRECTORY) {
-                        if(strcmp(filenames[selection].c_str(), "..") == 0)
+                        if(strcmp(filenames[selection].c_str(), "..") == 0) {
                             goto lowerDirectory;
+                        }
+
                         directory += filenames[selection] + "/";
                         readDirectory = true;
                         selection = 1;
@@ -422,8 +431,7 @@ char* FileChooser::startFileChooser(const char* extensions[], bool romExtensions
                     } else {
                         // Copy the result to a new allocation, as the
                         // filename would become unavailable when freed.
-                        retval = (char*) malloc(
-                                sizeof(char) * (directory.length() + strlen(filenames[selection].c_str()) + 1));
+                        retval = (char*) malloc(sizeof(char) * (directory.length() + strlen(filenames[selection].c_str()) + 1));
                         strcpy(retval, directory.c_str());
                         strcpy(retval + (directory.length() * sizeof(char)), filenames[selection].c_str());
                         goto end;
@@ -473,8 +481,8 @@ char* FileChooser::startFileChooser(const char* extensions[], bool romExtensions
             }
         }
     }
+
     end:
     iprintf("\x1b[2J");
-
     return retval;
 }

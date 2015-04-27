@@ -122,8 +122,10 @@ void Gameboy::initMMU() {
     writeFunc = mbcWrites[romFile->getMBC()];
 
     mapMemory();
-    for(int i = 0; i < 8; i++)
+    for(int i = 0; i < 8; i++) {
         memset(wram[i], 0, 0x1000);
+    }
+
     memset(highram, 0, 0x1000); // Initializes sprites and IO registers
 
     writeIO(0x02, 0x00);
@@ -159,8 +161,9 @@ void Gameboy::initMMU() {
     mmm01BankSelected = false;
     mmm01RomBaseBank = 0;
 
-    if(!biosOn)
+    if(!biosOn) {
         initGameboyMode();
+    }
 }
 
 void Gameboy::mapMemory() {
@@ -253,20 +256,20 @@ u8 Gameboy::readMemoryOther(u16 addr) {
     int area = addr >> 12;
 
     if(area == 0xf) {
-        if(addr >= 0xff00)
+        if(addr >= 0xff00) {
             return readIO(addr & 0xff);
-            // Check for echo area
-        else if(addr < 0xfe00)
+        } else if(addr < 0xfe00) { // Check for echo area
             addr -= 0x2000;
-    }
-        /* Check if in range a000-bfff */
-    else if(area == 0xa || area == 0xb) {
+        }
+    } else if(area == 0xa || area == 0xb) { /* Check if in range a000-bfff */
         /* Check if there's an handler for this mbc */
-        if(readFunc != NULL)
+        if(readFunc != NULL) {
             return (*this.*readFunc)(addr);
-        else if(romFile->getRamBanks() == 0)
+        } else if(romFile->getRamBanks() == 0) {
             return 0xff;
+        }
     }
+
     return memory[area][addr & 0xfff];
 }
 
@@ -282,28 +285,32 @@ void Gameboy::writeMemoryOther(u16 addr, u8 val) {
             wram[0][addr & 0xFFF] = val;
             return;
         case 0xF:
-            if(addr >= 0xFF00)
+            if(addr >= 0xFF00) {
                 writeIO(addr & 0xFF, val);
-            else if(addr >= 0xFE00) {
+            } else if(addr >= 0xFE00) {
                 ppu->writeHram(addr & 0x1ff, val);
                 hram[addr & 0x1ff] = val;
-            }
-            else // Echo area
+            } else {// Echo area
                 wram[wramBank][addr & 0xFFF] = val;
+            }
+
             return;
     }
-    if(writeFunc != NULL)
+
+    if(writeFunc != NULL) {
         (*this.*writeFunc)(addr, val);
+    }
 }
 
 void Gameboy::writeIO(u8 ioReg, u8 val) {
     switch(ioReg) {
         case 0x00:
-            if(sgbMode)
+            if(sgbMode) {
                 sgbHandleP1(val);
-            else {
+            } else {
                 ioRam[0x00] = val;
             }
+
             return;
         case 0x01:
             ioRam[ioReg] = val;
@@ -313,12 +320,14 @@ void Gameboy::writeIO(u8 ioReg, u8 val) {
             if(val & 0x80 && val & 0x01) {
                 if(serialCounter == 0) {
                     serialCounter = clockSpeed / 1024;
-                    if(cyclesToExecute > serialCounter)
+                    if(cyclesToExecute > serialCounter) {
                         cyclesToExecute = serialCounter;
+                    }
                 }
-            }
-            else
+            } else {
                 serialCounter = 0;
+            }
+
             return;
         }
         case 0x04:
@@ -371,8 +380,8 @@ void Gameboy::writeIO(u8 ioReg, u8 val) {
         case 0x3D:
         case 0x3E:
         case 0x3F:
-            ioRam[ioReg] = val;
             apu->write_register(soundCycles, 0xFF00 + ioReg, val);
+            ioRam[ioReg] = val;
             return;
         case 0x42:
         case 0x43:
@@ -391,30 +400,35 @@ void Gameboy::writeIO(u8 ioReg, u8 val) {
         case 0x69: // CGB BG Palette
             ppu->handleVideoRegister(ioReg, val);
             bgPaletteData[ioRam[0x68] & 0x3F] = val;
-            if(ioRam[0x68] & 0x80)
+            if(ioRam[0x68] & 0x80) {
                 ioRam[0x68] = 0x80 | (ioRam[0x68] + 1);
+            }
+
             ioRam[0x69] = bgPaletteData[ioRam[0x68] & 0x3F];
             return;
         case 0x6B: // CGB Sprite palette
             ppu->handleVideoRegister(ioReg, val);
             sprPaletteData[ioRam[0x6A] & 0x3F] = val;
-            if(ioRam[0x6A] & 0x80)
+            if(ioRam[0x6A] & 0x80) {
                 ioRam[0x6A] = 0x80 | (ioRam[0x6A] + 1);
+            }
+
             ioRam[0x6B] = sprPaletteData[ioRam[0x6A] & 0x3F];
             return;
-        case 0x46: // Sprite DMA
+        case 0x46: { // Sprite DMA
             ppu->handleVideoRegister(ioReg, val);
             ioRam[ioReg] = val;
-            {
-                int src = val << 8;
-                u8* mem = memory[src >> 12];
-                src &= 0xfff;
-                for(int i = 0; i < 0xA0; i++) {
-                    u8 val = mem[src++];
-                    hram[i] = val;
-                }
+
+            int src = val << 8;
+            u8* mem = memory[src >> 12];
+            src &= 0xfff;
+            for(int i = 0; i < 0xA0; i++) {
+                u8 val = mem[src++];
+                hram[i] = val;
             }
+
             return;
+        }
         case 0x40: // LCDC
             ppu->handleVideoRegister(ioReg, val);
             ioRam[ioReg] = val;
@@ -422,8 +436,8 @@ void Gameboy::writeIO(u8 ioReg, u8 val) {
                 ioRam[0x44] = 0;
                 ioRam[0x41] &= ~3; // Set video mode 0
             }
-            return;
 
+            return;
         case 0x41:
             ioRam[ioReg] &= 0x7;
             ioRam[ioReg] |= val & 0xF8;
@@ -456,6 +470,7 @@ void Gameboy::writeIO(u8 ioReg, u8 val) {
                 vramBank = val & 1;
                 refreshVramBank();
             }
+
             ioRam[ioReg] = val & 1;
             return;
         case 0x50: // BIOS Lockdown
@@ -470,8 +485,10 @@ void Gameboy::writeIO(u8 ioReg, u8 val) {
                         ioRam[ioReg] |= 0x80;
                         dmaLength = 0;
                     }
+
                     return;
                 }
+
                 dmaLength = ((val & 0x7F) + 1);
                 dmaSource = (ioRam[0x51] << 8) | (ioRam[0x52]);
                 dmaSource &= 0xFFF0;
@@ -480,13 +497,15 @@ void Gameboy::writeIO(u8 ioReg, u8 val) {
                 dmaMode = val >> 7;
                 ioRam[ioReg] = dmaLength - 1;
                 if(dmaMode == 0) {
-                    int i;
-                    for(i = 0; i < dmaLength; i++) {
+                    for(int i = 0; i < dmaLength; i++) {
                         ppu->writeVram16(dmaDest, dmaSource);
-                        for(int i = 0; i < 16; i++)
+                        for(int j = 0; j < 16; j++) {
                             vram[vramBank][dmaDest++] = quickRead(dmaSource++);
+                        }
+
                         dmaDest &= 0x1FF0;
                     }
+
                     extraCycles += dmaLength * 8 * (doubleSpeed + 1);
                     dmaLength = 0;
                     ioRam[ioReg] = 0xFF;
@@ -495,30 +514,38 @@ void Gameboy::writeIO(u8 ioReg, u8 val) {
                     ioRam[0x53] = dmaDest >> 8;
                     ioRam[0x54] = dmaDest & 0xff;
                 }
-            }
-            else
+            } else {
                 ioRam[ioReg] = val;
+            }
+
             return;
         case 0x70:                // WRAM bank, for CGB only
             if(gbMode == CGB) {
                 wramBank = val & 0x7;
-                if(wramBank == 0)
+                if(wramBank == 0) {
                     wramBank = 1;
+                }
+
                 refreshWramBank();
             }
+
             ioRam[ioReg] = val & 0x7;
             return;
         case 0x0F: // IF
             ioRam[ioReg] = val;
             interruptTriggered = val & ioRam[0xff];
-            if(interruptTriggered)
+            if(interruptTriggered) {
                 cyclesToExecute = -1;
+            }
+
             break;
         case 0xFF: // IE
             ioRam[ioReg] = val;
             interruptTriggered = val & ioRam[0x0f];
-            if(interruptTriggered)
+            if(interruptTriggered) {
                 cyclesToExecute = -1;
+            }
+
             break;
         default:
             ioRam[ioReg] = val;
@@ -532,16 +559,18 @@ void Gameboy::refreshP1() {
     // Check if input register is being used for sgb packets
     if(sgbPacketBit == -1) {
         if((ioRam[0x00] & 0x30) == 0x30) {
-            if(!sgbMode)
+            if(!sgbMode) {
                 ioRam[0x00] |= 0x0F;
-        }
-        else {
+            }
+        } else {
             ioRam[0x00] &= 0xF0;
-            if(!(ioRam[0x00] & 0x20))
+            if(!(ioRam[0x00] & 0x20)) {
                 ioRam[0x00] |= (controllers[controller] & 0xF);
-            else
+            } else {
                 ioRam[0x00] |= ((controllers[controller] & 0xF0) >> 4);
+            }
         }
+
         ioRam[0x00] |= 0xc0;
     }
 }
@@ -549,8 +578,10 @@ void Gameboy::refreshP1() {
 bool Gameboy::updateHBlankDMA() {
     if(dmaLength > 0) {
         ppu->writeVram16(dmaDest, dmaSource);
-        for(int i = 0; i < 16; i++)
+        for(int i = 0; i < 16; i++) {
             vram[vramBank][dmaDest++] = quickRead(dmaSource++);
+        }
+
         dmaDest &= 0x1FF0;
         dmaLength--;
         ioRam[0x55] = dmaLength - 1;
@@ -559,7 +590,7 @@ bool Gameboy::updateHBlankDMA() {
         ioRam[0x53] = dmaDest >> 8;
         ioRam[0x54] = dmaDest & 0xff;
         return true;
-    }
-    else
+    } else {
         return false;
+    }
 }

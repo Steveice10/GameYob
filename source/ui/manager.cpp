@@ -42,8 +42,9 @@ void mgrLoadRom(const char* filename) {
 
     // Border probing is broken
 #if 0
-    if (sgbBordersEnabled)
+    if(sgbBordersEnabled) {
         probingForBorder = true; // This will be ignored if starting in sgb mode, or if there is no sgb mode.
+    }
 #endif
 
     gameboy->getPPU()->sgbBorderLoaded = false; // Effectively unloads any sgb border
