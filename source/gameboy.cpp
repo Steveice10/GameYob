@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/errno.h>
 
 #include "gb_apu/Gb_Apu.h"
 #include "platform/audio.h"
@@ -904,7 +905,7 @@ int Gameboy::runEmul() {
                     ioRam[0x01] = linkedGameboy->ioRam[0x01];
                     linkedGameboy->ioRam[0x01] = tmp;
                     emuRet |= RET_LINK;
-                    // Execution will be passed back to the other gameboy (the 
+                    // Execution will be passed back to the other gameboy (the
                     // internal clock gameboy).
                 } else {
                     linkedGameboy->ioRam[0x01] = 0xff;
@@ -925,8 +926,8 @@ int Gameboy::runEmul() {
                 if(linkedGameboy != NULL) {
                     linkedGameboy->cycleToSerialTransfer = cyclesSinceVBlank;
                     emuRet |= RET_LINK;
-                    // Execution will stop here, and this gameboy's SB will be 
-                    // updated when the other gameboy runs to the appropriate 
+                    // Execution will stop here, and this gameboy's SB will be
+                    // updated when the other gameboy runs to the appropriate
                     // cycle.
                 } else if(printerEnabled) {
                     ioRam[0x01] = printer->sendGbPrinterByte(ioRam[0x01]);

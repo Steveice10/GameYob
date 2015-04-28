@@ -13,7 +13,6 @@ CheatEngine::CheatEngine(Gameboy* g) {
     gameboy = g;
     cheatsEnabled = true;
     numCheats = 0;
-    cheatsRomTitle[0] = '\0';
 }
 
 void CheatEngine::enableCheats(bool enable) {

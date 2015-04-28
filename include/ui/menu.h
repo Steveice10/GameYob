@@ -20,6 +20,7 @@ extern int scaleFilter;
 extern bool fpsOutput;
 extern bool timeOutput;
 extern int biosEnabled;
+extern FILE* linkSocket;
 
 void setMenuDefaults();
 

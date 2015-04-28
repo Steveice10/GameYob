@@ -1,3 +1,4 @@
+#include <arpa/inet.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <malloc.h>
@@ -14,6 +15,7 @@
 #include <ctrcommon/ir.hpp>
 #include <ctrcommon/platform.hpp>
 #include <ctrcommon/screen.hpp>
+#include <ctrcommon/socket.hpp>
 
 gfxScreen_t currConsole;
 
@@ -112,4 +114,20 @@ bool systemGetIRState() {
 
 void systemSetIRState(bool state) {
     irSetState(state ? 1 : 0);
+}
+
+const std::string systemGetIP() {
+    return inet_ntoa({socketGetHostIP()});
+}
+
+int systemSocketListen(u16 port) {
+    return socketListen(port);
+}
+
+FILE* systemSocketAccept(int listeningSocket, std::string* acceptedIp) {
+    return socketAccept(listeningSocket, acceptedIp);
+}
+
+FILE* systemSocketConnect(const std::string ipAddress, u16 port) {
+    return socketConnect(ipAddress, port);
 }

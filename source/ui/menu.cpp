@@ -4,6 +4,9 @@
 
 #include <string>
 
+#include <arpa/inet.h>
+#include <sys/errno.h>
+
 #include "platform/gfx.h"
 #include "platform/input.h"
 #include "platform/system.h"
@@ -342,6 +345,190 @@ void setAutoSaveFunc(int value) {
     }
 }
 
+int listenSocket = -1;
+FILE* linkSocket = NULL;
+std::string linkIp = "";
+
+void listenUpdateFunc() {
+    if(inputKeyPressed(inputMapMenuKey(MENU_KEY_A)) || inputKeyPressed(inputMapMenuKey(MENU_KEY_B))) {
+        if(listenSocket != -1) {
+            closesocket(listenSocket);
+            listenSocket = -1;
+        }
+
+        closeSubMenu();
+    }
+
+    if(listenSocket != -1 && linkSocket == NULL) {
+        linkSocket = systemSocketAccept(listenSocket, &linkIp);
+        if(linkSocket != NULL) {
+            closesocket(listenSocket);
+            listenSocket = -1;
+
+            iprintf("\x1b[2J");
+            printf("Connected to %s.\n", linkIp.c_str());
+            printf("Press A or B to continue.\n");
+        }
+    }
+}
+
+void listenFunc(int value) {
+    displaySubMenu(listenUpdateFunc);
+    iprintf("\x1b[2J");
+
+    if(linkSocket != NULL) {
+        printf("Already connected.\n");
+        printf("Press A or B to continue.\n");
+    } else {
+        listenSocket = systemSocketListen(5000);
+        if(listenSocket >= 0) {
+            printf("Listening for connection...\n");
+            printf("Local IP: %s\n", systemGetIP().c_str());
+            printf("Press A or B to cancel.\n");
+        } else {
+            printf("Failed to open socket: %s\n", strerror(errno));
+            printf("Press A or B to continue.\n");
+        }
+    }
+}
+
+bool connectPerformed = false;
+std::string connectIp = "000.000.000.000";
+u32 connectSelection = 0;
+
+void drawConnectSelector() {
+    iprintf("\x1b[2J");
+    printf("Input IP to connect to:\n");
+    printf("%s\n", connectIp.c_str());
+    for(u32 i = 0; i < connectSelection; i++) {
+        printf(" ");
+    }
+
+    printf("^\n");
+    printf("Press A to confirm, B to cancel.\n");
+}
+
+void connectUpdateFunc() {
+    if((connectPerformed && inputKeyPressed(inputMapMenuKey(MENU_KEY_A))) || inputKeyPressed(inputMapMenuKey(MENU_KEY_B))) {
+        connectPerformed = false;
+        connectIp = "000.000.000.000";
+        connectSelection = 0;
+
+        closeSubMenu();
+        return;
+    }
+
+    if(!connectPerformed) {
+        if(inputKeyPressed(inputMapMenuKey(MENU_KEY_A))) {
+            std::string trimmedIp = connectIp;
+
+            bool removeZeros = true;
+            for(std::string::size_type i = 0; i < trimmedIp.length(); i++) {
+                if(removeZeros && trimmedIp[i] == '0' && i != trimmedIp.length() - 1 && trimmedIp[i + 1] != '.') {
+                    trimmedIp.erase(i, 1);
+                    i--;
+                } else {
+                    removeZeros = trimmedIp[i] == '.';
+                }
+            }
+
+            connectPerformed = true;
+            iprintf("\x1b[2J");
+            printf("Connecting to %s...\n", trimmedIp.c_str());
+
+            linkSocket = systemSocketConnect(trimmedIp, 5000);
+            if(linkSocket != NULL) {
+                linkIp = trimmedIp;;
+                printf("Connected to %s.\n", linkIp.c_str());
+            } else {
+                printf("Failed to connect to socket: %s\n", strerror(errno));
+            }
+
+            printf("Press A or B to continue.\n");
+        }
+
+        bool redraw = false;
+        if(inputKeyRepeat(inputMapMenuKey(MENU_KEY_LEFT)) && connectSelection > 0) {
+            connectSelection--;
+            if(connectIp[connectSelection] == '.') {
+                connectSelection--;
+            }
+
+            redraw = true;
+        }
+
+        if(inputKeyRepeat(inputMapMenuKey(MENU_KEY_RIGHT)) && connectSelection < connectIp.length() - 1) {
+            connectSelection++;
+            if(connectIp[connectSelection] == '.') {
+                connectSelection++;
+            }
+
+            redraw = true;
+        }
+
+        if(inputKeyRepeat(inputMapMenuKey(MENU_KEY_UP))) {
+            connectIp[connectSelection]++;
+            if(connectIp[connectSelection] > '9') {
+                connectIp[connectSelection] = '0';
+            }
+
+            redraw = true;
+        }
+
+        if(inputKeyRepeat(inputMapMenuKey(MENU_KEY_DOWN))) {
+            connectIp[connectSelection]--;
+            if(connectIp[connectSelection] < '0') {
+                connectIp[connectSelection] = '9';
+            }
+
+            redraw = true;
+        }
+
+        if(redraw) {
+            drawConnectSelector();
+        }
+    }
+}
+
+void connectFunc(int value) {
+    displaySubMenu(connectUpdateFunc);
+    if(linkSocket != NULL) {
+        connectPerformed = true;
+        iprintf("\x1b[2J");
+
+        printf("Already connected.\n");
+        printf("Press A or B to continue.\n");
+    } else {
+        drawConnectSelector();
+    }
+}
+
+void disconnectFunc(int value) {
+    displaySubMenu(subMenuGenericUpdateFunc);
+    iprintf("\x1b[2J");
+
+    if(linkSocket != NULL) {
+        fclose(linkSocket);
+        linkSocket = NULL;
+        linkIp = "";
+
+        printf("Disconnected.\n");
+    } else {
+        printf("Not connected.\n");
+    }
+
+    printf("Press A or B to continue.\n");
+}
+
+void connectionInfoFunc(int value) {
+    displaySubMenu(subMenuGenericUpdateFunc);
+    iprintf("\x1b[2J");
+    printf("Status: %s\n", linkSocket != NULL ? "\x1b[1m\x1b[32mConnected\x1b[0m" : "\x1b[1m\x1b[31mDisconnected\x1b[0m");
+    printf("IP: %s\n", linkIp.c_str());
+    printf("\n");
+    printf("Press A or B to continue.\n");
+}
+
 struct MenuOption {
     const char* name;
     void (* function)(int);
@@ -433,6 +620,16 @@ SubMenu menuList[] = {
                         {"Channel 2", chan2Func, 2, {"Off", "On"}, 1, MENU_ALL},
                         {"Channel 3", chan3Func, 2, {"Off", "On"}, 1, MENU_ALL},
                         {"Channel 4", chan4Func, 2, {"Off", "On"}, 1, MENU_ALL}
+                }
+        },
+        {
+                "Link",
+                4,
+                {
+                        {"Listen", listenFunc, 0, {}, 0, MENU_ALL},
+                        {"Connect", connectFunc, 0, {}, 0, MENU_ALL},
+                        {"Disconnect", disconnectFunc, 0, {}, 0, MENU_ALL},
+                        {"Connection Info", connectionInfoFunc, 0, {}, 0, MENU_ALL}
                 }
         }
 };
