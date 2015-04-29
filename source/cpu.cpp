@@ -99,6 +99,7 @@ void Gameboy::initCPU() {
     gbRegs.sp.w = 0xFFFE;
     ime = 1;            // Correct default value?
     halt = 0;
+    haltBug = false;
 
     if(biosOn) {
         gbRegs.pc.w = 0;
@@ -151,12 +152,17 @@ int Gameboy::runOpcode(int cycles) {
     firstPcAddr = pcAddr;
     int locSP = g_gbRegs.sp.w;
     int locF = g_gbRegs.af.b.l;
+    int baseSoundCycles = soundCycles;
 
     register int totalCycles = 0;
 
     while(totalCycles < cyclesToExecute) {
-        u8 opcode = *pcAddr;
-        pcAddr++;
+        u8 opcode = *pcAddr++;
+        if(haltBug) {
+            pcAddr--;
+            haltBug = false;
+        }
+
         totalCycles += opCycles[opcode];
 
         switch(opcode) {
@@ -979,25 +985,15 @@ int Gameboy::runOpcode(int cycles) {
                 break;
 
             case 0x76:        // HALT					4
-                if(!ime) {
-                    if(gbMode == CGB)
-                        break;
-                    else {
-                        // DI + Halt bug
-                        // Fixes smurfs
-                        if(haltBugAddr == NULL) {
-                            haltBugAddr = pcAddr - 1;
-                            // Write over 'halt' to produce the effect.
-                            *haltBugAddr = *pcAddr;
-                            pcAddr--;
-                            cyclesToExecute = totalCycles + 1;
-                            // 'halt' will be restored after the opcode is executed.
-                        }
+                if(!ime && (ioRam[0x0F] & ioRam[0xFF] & 0x1F)) {
+                    if(gbMode != CGB) {
+                        haltBug = true;
                         break;
                     }
+                } else {
+                    halt = 1;
+                    goto end;
                 }
-                halt = 1;
-                goto end;
 
             case 0x10:        // STOP					4
                 if(ioRam[0x4D] & 1 && gbMode == CGB) {
@@ -1280,7 +1276,7 @@ int Gameboy::runOpcode(int cycles) {
                     break;
                 }
                 else {
-                    totalCycles -= 16;
+                    totalCycles -= 12;
                     break;
                 }
             case 0xD0:        // RET NC				8/20
@@ -1290,7 +1286,7 @@ int Gameboy::runOpcode(int cycles) {
                     break;
                 }
                 else {
-                    totalCycles -= 16;
+                    totalCycles -= 12;
                     break;
                 }
             case 0xD8:        // RET C				8/20
@@ -1300,7 +1296,7 @@ int Gameboy::runOpcode(int cycles) {
                     break;
                 }
                 else {
-                    totalCycles -= 16;
+                    totalCycles -= 12;
                     break;
                 }
             case 0xD9:        // RETI					16
@@ -2336,13 +2332,12 @@ int Gameboy::runOpcode(int cycles) {
             default:
                 break;
         }
+
+        soundCycles = baseSoundCycles + (totalCycles >> doubleSpeed);
     }
 
     end:
-    if(haltBugAddr != NULL) {
-        *haltBugAddr = 0x76;
-        haltBugAddr = NULL;
-    }
+    soundCycles = baseSoundCycles;
     g_gbRegs.af.b.l = locF;
     g_gbRegs.pc.w += (pcAddr - firstPcAddr);
     g_gbRegs.sp.w = locSP;

@@ -877,7 +877,13 @@ int Gameboy::runEmul() {
     }
 
     while(true) {
+        if(cyclesToEvent == MAX_WAIT_CYCLES) {
+            cyclesToEvent = 1000;
+        }
+
         cyclesToEvent -= extraCycles;
+        soundCycles += (extraCycles >> doubleSpeed);
+
         int cycles;
         if(halt) {
             cycles = cyclesToEvent;
@@ -885,12 +891,13 @@ int Gameboy::runEmul() {
             cycles = runOpcode(cyclesToEvent);
         }
 
-        bool opTriggeredInterrupt = cyclesToExecute == -1;
-
+        soundCycles += (cycles >> doubleSpeed);
         cycles += extraCycles;
 
-        cyclesToEvent = 1000;
+        cyclesToEvent = MAX_WAIT_CYCLES;
         extraCycles = 0;
+
+        bool opTriggeredInterrupt = cyclesToExecute == -1;
 
         cyclesSinceVBlank += cycles;
 
@@ -944,7 +951,6 @@ int Gameboy::runEmul() {
 
         updateTimers(cycles);
 
-        soundCycles += cycles >> doubleSpeed;
         if(soundCycles >= CYCLES_PER_BUFFER) {
             apu->end_frame(CYCLES_PER_BUFFER);
             apuBuffer->end_frame(CYCLES_PER_BUFFER);
@@ -957,6 +963,8 @@ int Gameboy::runEmul() {
                 apuBuffer->clear();
             }
         }
+
+        setEventCycles(CYCLES_PER_BUFFER - soundCycles);
 
         emuRet |= updateLCD(cycles);
 
@@ -1422,7 +1430,7 @@ void Gameboy::updateAutosave() {
     }
 }
 
-const int STATE_VERSION = 8;
+const int STATE_VERSION = 9;
 
 void Gameboy::saveState(int stateNum) {
     if(!isRomLoaded()) {
@@ -1471,6 +1479,7 @@ void Gameboy::saveState(int stateNum) {
     fwrite(&serialCounter, 1, sizeof(serialCounter), outFile);
     fwrite(&ramEnabled, 1, sizeof(ramEnabled), outFile);
     fwrite(&romBank0Num, 1, sizeof(romBank0Num), outFile);
+    fwrite(&haltBug, 1, sizeof(haltBug), outFile);
 
     switch(romFile->getMBC()) {
         case HUC3:
@@ -1610,6 +1619,12 @@ int Gameboy::loadState(int stateNum) {
         fread(&romBank0Num, 1, sizeof(romBank0Num), inFile);
     } else {
         romBank0Num = 0;
+    }
+
+    if(version >= 9) {
+        fread(&haltBug, 1, sizeof(haltBug), inFile);
+    } else {
+        haltBug = false;
     }
 
     /* MBC-specific values have been introduced in v3 */

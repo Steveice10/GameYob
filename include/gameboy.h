@@ -171,6 +171,7 @@ public:
     int cycleToSerialTransfer;
 
     int halt;
+    bool haltBug;
     int ime;
     int extraCycles;
     int soundCycles;
@@ -216,7 +217,6 @@ public:
 
 private:
     struct Registers g_gbRegs;
-    u8* haltBugAddr = NULL;
     u8* firstPcAddr;
 
     // mmu.cpp
