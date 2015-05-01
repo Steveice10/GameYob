@@ -167,7 +167,7 @@ void mgrRun() {
     time(&rawTime);
     fps++;
     if(rawTime > lastPrintTime) {
-        if(!isMenuOn() && !showConsoleDebug() && (fpsOutput || timeOutput)) {
+        if(!isMenuOn() && !showConsoleDebug() && (!gameboy->isRomLoaded() || !gameboy->getRomFile()->isGBS()) && (fpsOutput || timeOutput)) {
             iprintf("\x1b[2J");
             int fpsLength = 0;
             if(fpsOutput) {

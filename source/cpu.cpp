@@ -145,18 +145,27 @@ int Gameboy::handleInterrupts(unsigned int interruptTriggered) {
 }
 
 int Gameboy::runOpcode(int cycles) {
-    cyclesToExecute = cycles;
+    int addedCycles = extraCycles;
+    extraCycles = 0;
+
+    if(halt) {
+        return cycles;
+    }
+
+    int baseSoundCycles = soundCycles;
+    soundCycles = baseSoundCycles + (addedCycles >> doubleSpeed);
+
+    cyclesToExecute = cycles - addedCycles;
     // Having these commonly-used registers in local variables should improve speed
     register u8* pcAddr;
     pcAddr = memory[g_gbRegs.pc.w >> 12] + (g_gbRegs.pc.w & 0xfff);
     firstPcAddr = pcAddr;
     int locSP = g_gbRegs.sp.w;
     int locF = g_gbRegs.af.b.l;
-    int baseSoundCycles = soundCycles;
 
     register int totalCycles = 0;
 
-    while(totalCycles < cyclesToExecute) {
+    while(!halt && totalCycles < cyclesToExecute) {
         u8 opcode = *pcAddr++;
         if(haltBug) {
             pcAddr--;
@@ -992,7 +1001,7 @@ int Gameboy::runOpcode(int cycles) {
                     }
                 } else {
                     halt = 1;
-                    goto end;
+                    break;
                 }
 
             case 0x10:        // STOP					4
@@ -1003,10 +1012,9 @@ int Gameboy::runOpcode(int cycles) {
                         setDoubleSpeed(1);
 
                     ioRam[0x4D] &= ~1;
-                }
-                else {
+                } else {
                     halt = 2;
-                    goto end;
+                    break;
                 }
                 pcAddr++;
                 break;
@@ -2333,13 +2341,12 @@ int Gameboy::runOpcode(int cycles) {
                 break;
         }
 
-        soundCycles = baseSoundCycles + (totalCycles >> doubleSpeed);
+        soundCycles = baseSoundCycles + ((addedCycles + totalCycles) >> doubleSpeed);
     }
 
-    end:
     soundCycles = baseSoundCycles;
     g_gbRegs.af.b.l = locF;
     g_gbRegs.pc.w += (pcAddr - firstPcAddr);
     g_gbRegs.sp.w = locSP;
-    return totalCycles;
+    return totalCycles + addedCycles;
 }

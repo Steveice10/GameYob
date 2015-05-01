@@ -11,25 +11,25 @@
 #include "ui/config.h"
 #include "gameboy.h"
 
-#define RGB24(r, g, b) ((r) << 16 | (g) << 8 | (b))
+#define RGBA32(r, g, b) ((u32) ((r) << 24 | (g) << 16 | (b) << 8 | 0xFF))
 
 GameboyPPU::GameboyPPU(Gameboy* gb) {
     this->gameboy = gb;
 }
 
 void GameboyPPU::initPPU() {
-    bgPalettes[0][0] = RGB24(255, 255, 255);
-    bgPalettes[0][1] = RGB24(192, 192, 192);
-    bgPalettes[0][2] = RGB24(94, 94, 94);
-    bgPalettes[0][3] = RGB24(0, 0, 0);
-    sprPalettes[0][0] = RGB24(255, 255, 255);
-    sprPalettes[0][1] = RGB24(192, 192, 192);
-    sprPalettes[0][2] = RGB24(94, 94, 94);
-    sprPalettes[0][3] = RGB24(0, 0, 0);
-    sprPalettes[1][0] = RGB24(255, 255, 255);
-    sprPalettes[1][1] = RGB24(192, 192, 192);
-    sprPalettes[1][2] = RGB24(94, 94, 94);
-    sprPalettes[1][3] = RGB24(0, 0, 0);
+    bgPalettes[0][0] = RGBA32(255, 255, 255);
+    bgPalettes[0][1] = RGBA32(192, 192, 192);
+    bgPalettes[0][2] = RGBA32(94, 94, 94);
+    bgPalettes[0][3] = RGBA32(0, 0, 0);
+    sprPalettes[0][0] = RGBA32(255, 255, 255);
+    sprPalettes[0][1] = RGBA32(192, 192, 192);
+    sprPalettes[0][2] = RGBA32(94, 94, 94);
+    sprPalettes[0][3] = RGBA32(0, 0, 0);
+    sprPalettes[1][0] = RGBA32(255, 255, 255);
+    sprPalettes[1][1] = RGBA32(192, 192, 192);
+    sprPalettes[1][2] = RGBA32(94, 94, 94);
+    sprPalettes[1][3] = RGBA32(0, 0, 0);
 
     for(int i = 0; i < 8; i++) {
         sprPalettesRef[i][0] = &sprPalettes[i][0];
@@ -480,7 +480,7 @@ void GameboyPPU::updateBgPalette(int paletteid) {
         int red = (gameboy->bgPaletteData[(paletteid * 8) + (i * 2)] & 0x1F) * multiplier;
         int green = (((gameboy->bgPaletteData[(paletteid * 8) + (i * 2)] & 0xE0) >> 5) | ((gameboy->bgPaletteData[(paletteid * 8) + (i * 2) + 1]) & 0x3) << 3) * multiplier;
         int blue = ((gameboy->bgPaletteData[(paletteid * 8) + (i * 2) + 1] >> 2) & 0x1F) * multiplier;
-        bgPalettes[paletteid][i] = RGB24(red, green, blue);
+        bgPalettes[paletteid][i] = RGBA32(red, green, blue);
     }
 }
 
@@ -496,7 +496,7 @@ void GameboyPPU::updateBgPaletteDMG() {
             int red = (gameboy->bgPaletteData[(j * 8) + (col * 2)] & 0x1F) * multiplier;
             int green = (((gameboy->bgPaletteData[(j * 8) + (col * 2)] & 0xE0) >> 5) | ((gameboy->bgPaletteData[(j * 8) + (col * 2) + 1]) & 0x3) << 3) * multiplier;
             int blue = ((gameboy->bgPaletteData[(j * 8) + (col * 2) + 1] >> 2) & 0x1F) * multiplier;
-            bgPalettes[j][i] = RGB24(red, green, blue);
+            bgPalettes[j][i] = RGBA32(red, green, blue);
         }
     }
 }
@@ -507,12 +507,12 @@ void GameboyPPU::updateSprPalette(int paletteid) {
         int red = (gameboy->sprPaletteData[(paletteid * 8) + (i * 2)] & 0x1F) * multiplier;
         int green = (((gameboy->sprPaletteData[(paletteid * 8) + (i * 2)] & 0xE0) >> 5) | ((gameboy->sprPaletteData[(paletteid * 8) + (i * 2) + 1]) & 0x3) << 3) * multiplier;
         int blue = ((gameboy->sprPaletteData[(paletteid * 8) + (i * 2) + 1] >> 2) & 0x1F) * multiplier;
-        sprPalettes[paletteid][i] = RGB24(red, green, blue);
+        sprPalettes[paletteid][i] = RGBA32(red, green, blue);
     }
 }
 
 void GameboyPPU::updateSprPaletteDMG(int paletteid) {
-    u8 val = gameboy->ioRam[0x48 + paletteid/4];
+    u8 val = gameboy->ioRam[0x48 + paletteid / 4];
     u8 palette[] = {(u8) (val & 3), (u8) ((val >> 2) & 3), (u8) ((val >> 4) & 3), (u8) (val >> 6)};
 
     int multiplier = 8;
@@ -521,7 +521,7 @@ void GameboyPPU::updateSprPaletteDMG(int paletteid) {
         int red = (gameboy->sprPaletteData[(paletteid * 8) + (col * 2)] & 0x1F) * multiplier;
         int green = (((gameboy->sprPaletteData[(paletteid * 8) + (col * 2)] & 0xE0) >> 5) | ((gameboy->sprPaletteData[(paletteid * 8) + (col * 2) + 1]) & 0x3) << 3) * multiplier;
         int blue = ((gameboy->sprPaletteData[(paletteid * 8) + (col * 2) + 1] >> 2) & 0x1F) * multiplier;
-        sprPalettes[paletteid][i] = RGB24(red, green, blue);
+        sprPalettes[paletteid][i] = RGBA32(red, green, blue);
     }
 }
 

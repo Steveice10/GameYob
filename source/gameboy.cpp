@@ -482,8 +482,6 @@ Gameboy::Gameboy() : hram(highram + 0xe00), ioRam(highram + 0xf00) {
 
     fpsOutput = true;
 
-    cyclesSinceVBlank = 0;
-
     // private
     resettingGameboy = false;
     wroteToSramThisFrame = false;
@@ -560,7 +558,6 @@ void Gameboy::init() {
     initCPU();
     sgbInit();
 
-    cyclesSinceVBlank = 0;
     gameboyFrameCounter = 0;
 
     gameboyPaused = false;
@@ -881,91 +878,15 @@ int Gameboy::runEmul() {
             cyclesToEvent = 1000;
         }
 
-        cyclesToEvent -= extraCycles;
-        soundCycles += (extraCycles >> doubleSpeed);
-
-        int cycles;
-        if(halt) {
-            cycles = cyclesToEvent;
-        } else {
-            cycles = runOpcode(cyclesToEvent);
-        }
-
-        soundCycles += (cycles >> doubleSpeed);
-        cycles += extraCycles;
-
+        int cycles = runOpcode(cyclesToEvent);
         cyclesToEvent = MAX_WAIT_CYCLES;
-        extraCycles = 0;
 
         bool opTriggeredInterrupt = cyclesToExecute == -1;
 
         cyclesSinceVBlank += cycles;
-
-        // For external clock
-        if(cycleToSerialTransfer != -1) {
-            if(cyclesSinceVBlank < cycleToSerialTransfer) {
-                setEventCycles(cycleToSerialTransfer - cyclesSinceVBlank);
-            } else {
-                cycleToSerialTransfer = -1;
-                if((ioRam[0x02] & 0x81) == 0x80) {
-                    u8 tmp = ioRam[0x01];
-                    ioRam[0x01] = linkedGameboy->ioRam[0x01];
-                    linkedGameboy->ioRam[0x01] = tmp;
-                    emuRet |= RET_LINK;
-                    // Execution will be passed back to the other gameboy (the
-                    // internal clock gameboy).
-                } else {
-                    linkedGameboy->ioRam[0x01] = 0xff;
-                }
-
-                if(ioRam[0x02] & 0x80) {
-                    requestInterrupt(INT_SERIAL);
-                    ioRam[0x02] &= ~0x80;
-                }
-            }
-        }
-
-        // For internal clock
-        if(serialCounter > 0) {
-            serialCounter -= cycles;
-            if(serialCounter <= 0) {
-                serialCounter = 0;
-                if(linkedGameboy != NULL) {
-                    linkedGameboy->cycleToSerialTransfer = cyclesSinceVBlank;
-                    emuRet |= RET_LINK;
-                    // Execution will stop here, and this gameboy's SB will be
-                    // updated when the other gameboy runs to the appropriate
-                    // cycle.
-                } else if(printerEnabled) {
-                    ioRam[0x01] = printer->sendGbPrinterByte(ioRam[0x01]);
-                } else {
-                    ioRam[0x01] = 0xff;
-                }
-
-                requestInterrupt(INT_SERIAL);
-                ioRam[0x02] &= ~0x80;
-            } else {
-                setEventCycles(serialCounter);
-            }
-        }
-
         updateTimers(cycles);
-
-        if(soundCycles >= CYCLES_PER_BUFFER) {
-            apu->end_frame(CYCLES_PER_BUFFER);
-            apuBuffer->end_frame(CYCLES_PER_BUFFER);
-            soundCycles -= CYCLES_PER_BUFFER;
-
-            long count = apuBuffer->read_samples(getAudioBuffer(), APU_BUFFER_SIZE);
-            if(!soundDisabled && !gameboyPaused) {
-                playAudio(count);
-            } else {
-                apuBuffer->clear();
-            }
-        }
-
-        setEventCycles(CYCLES_PER_BUFFER - soundCycles);
-
+        updateSerial(cycles);
+        updateSound(cycles);
         emuRet |= updateLCD(cycles);
 
         if(interruptTriggered) {
@@ -978,7 +899,7 @@ int Gameboy::runEmul() {
              * by the "opTriggeredInterrupt" stuff.
              */
             if(!halt && !opTriggeredInterrupt) {
-                extraCycles += runOpcode(4);
+                extraCycles = runOpcode(extraCycles + 4);
             }
 
             if(interruptTriggered) {
@@ -1175,29 +1096,91 @@ inline void Gameboy::updateTimers(int cycles) {
     if(ioRam[0x07] & 0x4) { // Timers enabled
         timerCounter -= cycles;
         while(timerCounter <= 0) {
-            int clocksAdded = (-timerCounter) / timerPeriod + 1;
-            timerCounter += timerPeriod * clocksAdded;
-            int sum = ioRam[0x05] + clocksAdded;
-            if(sum > 0xff) {
+            timerCounter += timerPeriod;
+            ioRam[0x05]++;
+            if(ioRam[0x05] == 0) {
                 requestInterrupt(INT_TIMER);
                 ioRam[0x05] = ioRam[0x06];
-            } else {
-                ioRam[0x05] = (u8) sum;
             }
         }
 
         // Set cycles until the timer will trigger an interrupt.
         // Reads from [0xff05] may be inaccurate.
-        // However Castlevania and Alone in the Dark are extremely slow 
+        // However Castlevania and Alone in the Dark are extremely slow
         // if this is updated each time [0xff05] is changed.
         setEventCycles(timerCounter + timerPeriod * (255 - ioRam[0x05]));
     }
 
     dividerCounter -= cycles;
-    if(dividerCounter <= 0) {
-        int divsAdded = -dividerCounter / 256 + 1;
-        dividerCounter += divsAdded * 256;
-        ioRam[0x04] += divsAdded;
+    while(dividerCounter <= 0) {
+        dividerCounter += 256;
+        ioRam[0x04]++;
+    }
+}
+
+inline void Gameboy::updateSound(int cycles) {
+    soundCycles += (cycles >> doubleSpeed);
+    if(soundCycles >= CYCLES_PER_BUFFER) {
+        apu->end_frame(CYCLES_PER_BUFFER);
+        apuBuffer->end_frame(CYCLES_PER_BUFFER);
+        soundCycles -= CYCLES_PER_BUFFER;
+
+        long count = apuBuffer->read_samples(getAudioBuffer(), APU_BUFFER_SIZE);
+        if(!soundDisabled && !gameboyPaused) {
+            playAudio(count);
+        } else {
+            apuBuffer->clear();
+        }
+    }
+}
+
+inline void Gameboy::updateSerial(int cycles) {
+    // For external clock
+    if(cycleToSerialTransfer != -1) {
+        if(cyclesSinceVBlank < cycleToSerialTransfer) {
+            setEventCycles(cycleToSerialTransfer - cyclesSinceVBlank);
+        } else {
+            cycleToSerialTransfer = -1;
+            if((ioRam[0x02] & 0x81) == 0x80) {
+                u8 tmp = ioRam[0x01];
+                ioRam[0x01] = linkedGameboy->ioRam[0x01];
+                linkedGameboy->ioRam[0x01] = tmp;
+                emuRet |= RET_LINK;
+                // Execution will be passed back to the other gameboy (the
+                // internal clock gameboy).
+            } else {
+                linkedGameboy->ioRam[0x01] = 0xff;
+            }
+
+            if(ioRam[0x02] & 0x80) {
+                requestInterrupt(INT_SERIAL);
+                ioRam[0x02] &= ~0x80;
+            }
+        }
+    }
+
+    // For internal clock
+    if(serialCounter > 0) {
+        serialCounter -= cycles;
+        if(serialCounter <= 0) {
+            serialCounter = 0;
+            if(linkedGameboy != NULL) {
+                linkedGameboy->cycleToSerialTransfer = cyclesSinceVBlank;
+                emuRet |= RET_LINK;
+                // Execution will stop here, and this gameboy's SB will be
+                // updated when the other gameboy runs to the appropriate
+                // cycle.
+            } else if(printerEnabled) {
+                ioRam[0x01] = printer->sendGbPrinterByte(ioRam[0x01]);
+            } else {
+                ioRam[0x01] = 0xff;
+            }
+
+            requestInterrupt(INT_SERIAL);
+            ioRam[0x02] &= ~0x80;
+        } else {
+            setEventCycles(serialCounter);
+        }
     }
 }
 

@@ -113,6 +113,8 @@ public:
     void checkLYC();
     int updateLCD(int cycles);
     void updateTimers(int cycles);
+    void updateSound(int cycles);
+    void updateSerial(int cycles);
     void requestInterrupt(int id);
     void setDoubleSpeed(int val);
 

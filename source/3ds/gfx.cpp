@@ -13,7 +13,7 @@
 
 #include "shader_vsh_shbin.h"
 
-static u8* screenBuffer = (u8*) gpuAlloc(256 * 256 * 3);
+static u8* screenBuffer = (u8*) gpuAlloc(256 * 256 * 4);
 
 static int prevScaleMode = -1;
 static int prevGameScreen = -1;
@@ -161,16 +161,15 @@ void gfxLoadBorderBuffer(u8* imgData, u32 imgWidth, u32 imgHeight) {
 }
 
 void gfxClearScreen(u8 color) {
-    memset(screenBuffer, color, 256 * 256 * 3);
+    memset(screenBuffer, color, 256 * 256 * 4);
 }
 
 void gfxClearLine(u32 line, u8 color) {
-    memset(screenBuffer + (line * 256 * 3), color, 256 * 3);
+    memset(screenBuffer + (line * 256 * 4), color, 256 * 4);
 }
 
 void gfxDrawPixel(int x, int y, u32 pixel) {
-    *(u16*) &screenBuffer[(y * 256 + x) * 3] = (u16) pixel;
-    screenBuffer[(y * 256 + x) * 3 + 2] = (u8) (pixel >> 16);
+    *(u32*) &screenBuffer[(y * 256 + x) * 4] = pixel;
 }
 
 void gfxDrawScreen() {
@@ -256,7 +255,7 @@ void gfxDrawScreen() {
 
     // Update the texture with the new frame.
     TextureFilter filter = scaleFilter == 1 ? FILTER_LINEAR : FILTER_NEAREST;
-    gpuTextureData(texture, screenBuffer, 256, 256, PIXEL_RGB8, 256, 256, PIXEL_RGB8, TEXTURE_MIN_FILTER(filter) | TEXTURE_MAG_FILTER(filter));
+    gpuTextureData(texture, screenBuffer, 256, 256, PIXEL_RGBA8, 256, 256, PIXEL_RGBA8, TEXTURE_MIN_FILTER(filter) | TEXTURE_MAG_FILTER(filter));
 
     // Clear the screen.
     gpuClear();
