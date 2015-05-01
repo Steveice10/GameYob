@@ -161,6 +161,13 @@ void Gameboy::initMMU() {
     mmm01BankSelected = false;
     mmm01RomBaseBank = 0;
 
+    cameraIO = false;
+
+    tama5CommandNumber = 0;
+    tama5RamByteSelect = 0;
+    memset(tama5Commands, 0, sizeof(tama5Commands));
+    memset(tama5RAM, 0, sizeof(tama5RAM));
+
     if(!biosOn) {
         initGameboyMode();
     }
