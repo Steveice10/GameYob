@@ -186,7 +186,10 @@ void Gameboy::mapMemory() {
     }
 
     refreshRomBank1(romBank1Num);
-    refreshRamBank(ramBankNum);
+    if(romFile->getRamBanks() > 0) {
+        refreshRamBank(ramBankNum);
+    }
+
     refreshVramBank();
     memory[0xc] = wram[0];
     refreshWramBank();

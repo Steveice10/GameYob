@@ -499,7 +499,7 @@ void Gameboy::mmm01w(u16 addr, u8 val) {
             if(mmm01BankSelected) {
                 refreshRomBank1(mmm01RomBaseBank + (val ? val : 1));
             } else {
-                mmm01RomBaseBank = (u8) ((val & (romFile->getRomBanks() - 3)) + 2);
+                mmm01RomBaseBank = (u8) (((val & 0x3F) % romFile->getRomBanks()) + 2);
             }
 
             break;

@@ -137,16 +137,26 @@ RomFile::RomFile(Gameboy* gb, const std::string path) {
 
     // Most MMM01 dumps have the initial banks at the end of the ROM rather than the beginning, so check if this is the case and compensate.
     if(!this->gbs && this->totalRomBanks > 2) {
-        u8 cgbFlag;
-        fseek(this->file, -0x8000 + 0x0143, SEEK_END);
-        fread(&cgbFlag, 1, sizeof(cgbFlag), this->file);
+        // Check for the logo.
+        static const u8 logo[] = {
+                0xCE, 0xED, 0x66, 0x66, 0xCC, 0x0D, 0x00, 0x0B, 0x03, 0x73, 0x00, 0x83, 0x00, 0x0C, 0x00, 0x0D,
+                0x00, 0x08, 0x11, 0x1F, 0x88, 0x89, 0x00, 0x0E, 0xDC, 0xCC, 0x6E, 0xE6, 0xDD, 0xDD, 0xD9, 0x99,
+                0xBB, 0xBB, 0x67, 0x63, 0x6E, 0x0E, 0xEC ,0xCC, 0xDD, 0xDC, 0x99, 0x9F, 0xBB, 0xB9, 0x33, 0x3E
+        };
 
-        char buffer[cgbFlag == 0x80 || cgbFlag == 0xC0 ? 15 : 16] = {'\0'};
-        fseek(this->file, -0x8000 + 0x0134, SEEK_END);
-        fread(&buffer, 1, sizeof(buffer), this->file);
+        u8 romLogo[sizeof(logo)];
+        fseek(this->file, -0x8000 + 0x0104, SEEK_END);
+        fread(&romLogo, 1, sizeof(romLogo), this->file);
 
-        if(strcmp(buffer, "VARIETY PACK") == 0 || strcmp(buffer, "MOMOCOL2") == 0 || strcmp(buffer, "BUBBLEBOBBLE SET") == 0 || strcmp(buffer, "TETRIS SET") == 0 || strcmp(buffer, "GANBARUGA SET") == 0) {
-            this->firstBanksAtEnd = true;
+        if(memcmp(logo, romLogo, sizeof(logo)) == 0) {
+            // Check for MMM01.
+            u8 mbcType;
+            fseek(this->file, -0x8000 + 0x0147, SEEK_END);
+            fread(&mbcType, 1, sizeof(mbcType), this->file);
+
+            if(mbcType >= 0x0B && mbcType <= 0x0D) {
+                this->firstBanksAtEnd = true;
+            }
         }
     }
 
@@ -315,9 +325,9 @@ void RomFile::printInfo() {
     static const char* mbcNames[] = {"ROM", "MBC1", "MBC2", "MBC3", "MBC5", "MBC7", "MMM01", "HUC1", "HUC3", "CAMERA", "TAMA5"};
 
     iprintf("\x1b[2J");
-    printf("Cartridge type: %.2x (%s)\n", this->rawMBC, mbcNames[this->mbc]);
     printf("ROM Title: \"%s\"\n", this->romTitle.c_str());
+    printf("CGB: Supported: %d, Required: %d\n", this->cgbSupported, this->cgbRequired);
+    printf("Cartridge type: %.2x (%s)\n", this->rawMBC, mbcNames[this->mbc]);
     printf("ROM Size: %.2x (%d banks)\n", this->rawRomSize, this->totalRomBanks);
     printf("RAM Size: %.2x (%d banks)\n", this->rawRamSize, this->totalRamBanks);
-    printf("CGB: Supported: %d, Required: %d\n", this->cgbSupported, this->cgbRequired);
 }
