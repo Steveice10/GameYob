@@ -191,7 +191,9 @@ private:
     GameboyPPU* ppu;
 
     Gb_Apu* apu;
-    Mono_Buffer* apuBuffer;
+    Mono_Buffer* leftBuffer;
+    Mono_Buffer* rightBuffer;
+    Mono_Buffer* centerBuffer;
 
     CheatEngine* cheatEngine;
     RomFile* romFile;

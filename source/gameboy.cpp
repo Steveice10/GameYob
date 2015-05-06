@@ -499,7 +499,9 @@ Gameboy::Gameboy() : hram(highram + 0xe00), ioRam(highram + 0xf00) {
     autosaveStarted = false;
 
     apu = new Gb_Apu();
-    apuBuffer = new Mono_Buffer();
+    leftBuffer = new Mono_Buffer();
+    rightBuffer = new Mono_Buffer();
+    centerBuffer = new Mono_Buffer();
 
     ppu = new GameboyPPU(this);
 
@@ -507,10 +509,19 @@ Gameboy::Gameboy() : hram(highram + 0xe00), ioRam(highram + 0xf00) {
 
     cheatEngine = new CheatEngine(this);
 
-    apuBuffer->bass_freq(461);
-    apuBuffer->clock_rate(clockSpeed);
-    apuBuffer->set_sample_rate((long) SAMPLE_RATE);
-    apu->set_output(apuBuffer->center(), apuBuffer->center(), apuBuffer->center());
+    leftBuffer->bass_freq(461);
+    leftBuffer->clock_rate(clockSpeed);
+    leftBuffer->set_sample_rate((long) SAMPLE_RATE);
+
+    rightBuffer->bass_freq(461);
+    rightBuffer->clock_rate(clockSpeed);
+    rightBuffer->set_sample_rate((long) SAMPLE_RATE);
+
+    centerBuffer->bass_freq(461);
+    centerBuffer->clock_rate(clockSpeed);
+    centerBuffer->set_sample_rate((long) SAMPLE_RATE);
+
+    apu->set_output(centerBuffer->center(), leftBuffer->center(), rightBuffer->center());
 
     ppu->probingForBorder = false;
 }
@@ -519,7 +530,9 @@ Gameboy::~Gameboy() {
     unloadRom();
 
     delete apu;
-    delete apuBuffer;
+    delete leftBuffer;
+    delete rightBuffer;
+    delete centerBuffer;
     delete ppu;
     delete printer;
     delete cheatEngine;
@@ -578,7 +591,6 @@ void Gameboy::init() {
 
     cyclesToEvent = 0;
     extraCycles = 0;
-    soundCycles = 0;
     cyclesSinceVBlank = 0;
     cycleToSerialTransfer = -1;
 
@@ -660,8 +672,11 @@ void Gameboy::initSND() {
         ioRam[0x30 + i] = 0xff;
     }
 
+    soundCycles = 0;
     apu->reset(gbMode == GB ? Gb_Apu::mode_dmg : Gb_Apu::mode_cgb);
-    apuBuffer->clear();
+    leftBuffer->clear();
+    rightBuffer->clear();
+    centerBuffer->clear();
 }
 
 // Called either from startup or when FF50 is written to.
@@ -1132,14 +1147,20 @@ inline void Gameboy::updateSound(int cycles) {
     soundCycles += (cycles >> doubleSpeed);
     if(soundCycles >= CYCLES_PER_BUFFER) {
         apu->end_frame(CYCLES_PER_BUFFER);
-        apuBuffer->end_frame(CYCLES_PER_BUFFER);
+        leftBuffer->end_frame(CYCLES_PER_BUFFER);
+        rightBuffer->end_frame(CYCLES_PER_BUFFER);
+        centerBuffer->end_frame(CYCLES_PER_BUFFER);
         soundCycles -= CYCLES_PER_BUFFER;
 
-        long count = apuBuffer->read_samples(getAudioBuffer(), APU_BUFFER_SIZE);
         if(!soundDisabled && !gameboyPaused) {
-            playAudio(count);
+            long leftCount = leftBuffer->read_samples(getLeftBuffer(), APU_BUFFER_SIZE);
+            long rightCount = rightBuffer->read_samples(getRightBuffer(), APU_BUFFER_SIZE);
+            long centerCount = centerBuffer->read_samples(getCenterBuffer(), APU_BUFFER_SIZE);
+            playAudio(leftCount, rightCount, centerCount);
         } else {
-            apuBuffer->clear();
+            leftBuffer->clear();
+            rightBuffer->clear();
+            centerBuffer->clear();
         }
     }
 }
@@ -1695,7 +1716,9 @@ int Gameboy::loadState(int stateNum) {
 
     soundCycles = 0;
     apu->reset(gbMode == GB ? Gb_Apu::mode_dmg : Gb_Apu::mode_cgb);
-    apuBuffer->clear();
+    leftBuffer->clear();
+    rightBuffer->clear();
+    centerBuffer->clear();
 
     gb_apu_state_t apuState;
     if(version >= 7) {
