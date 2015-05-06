@@ -334,12 +334,19 @@ static const unsigned short p51C[] = {
         TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x63, 0xA5, 0xFF), TOCGB(0x00, 0x00, 0xFF), TOCGB(0x00, 0x00, 0x00)
 };
 
+static const unsigned short pCls[] = {
+        TOCGB(0x9B, 0xBC, 0x0F), TOCGB(0x8B, 0xAC, 0x0F), TOCGB(0x30, 0x62, 0x30), TOCGB(0x0F, 0x38, 0x0F),
+        TOCGB(0x9B, 0xBC, 0x0F), TOCGB(0x8B, 0xAC, 0x0F), TOCGB(0x30, 0x62, 0x30), TOCGB(0x0F, 0x38, 0x0F),
+        TOCGB(0x9B, 0xBC, 0x0F), TOCGB(0x8B, 0xAC, 0x0F), TOCGB(0x30, 0x62, 0x30), TOCGB(0x0F, 0x38, 0x0F)
+};
+
 struct GbcPaletteEntry {
     const char* title;
     const unsigned short* p;
 };
 
 static const GbcPaletteEntry gbcPalettes[] = {
+        {"GB - Classic",     pCls},
         {"GBC - Blue",       p518},
         {"GBC - Brown",      p012},
         {"GBC - Dark Blue",  p50D},
@@ -962,6 +969,9 @@ void Gameboy::initGFXPalette() {
                 break;
             case 12:
                 palette = findPalette("GBC - Dark Brown");
+                break;
+            case 13:
+                palette = findPalette("GB - Classic");
                 break;
             default:
                 palette = findPalette("GBC - Grayscale");

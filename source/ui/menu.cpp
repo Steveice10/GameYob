@@ -586,8 +586,8 @@ SubMenu menuList[] = {
                         {"Game Screen", setScreenFunc, 2, {"Top", "Bottom"}, 0, MENU_ALL},
                         {"Scaling", setScaleModeFunc, 3, {"Off", "Aspect", "Full"}, 0, MENU_ALL},
                         {"Scale Filter", setScaleFilterFunc, 2, {"Off", "On"}, 1, MENU_ALL},
-                        {"Colorize GB", gbColorizeFunc, 13, {"Off", "Auto", "Inverted", "Pastel Mix", "Red", "Orange", "Yellow", "Green", "Blue", "Brown", "Dark Green", "Dark Blue", "Dark Brown"}, 1, MENU_ALL},
-                        {"SGB Borders", sgbBorderEnableFunc, 2, {"Off", "On"}, 1, MENU_NONE}, // TODO
+                        {"Colorize GB", gbColorizeFunc, 14, {"Off", "Auto", "Inverted", "Pastel Mix", "Red", "Orange", "Yellow", "Green", "Blue", "Brown", "Dark Green", "Dark Blue", "Dark Brown", "Classic Green"}, 1, MENU_ALL},
+                        {"SGB Borders", sgbBorderEnableFunc, 2, {"Off", "On"}, 1, MENU_NONE},
                         {"Custom Border", customBorderEnableFunc, 2, {"Off", "On"}, 1, MENU_ALL},
                         {"Select Border", selectBorderFunc, 0, {}, 0, MENU_ALL}
                 }
