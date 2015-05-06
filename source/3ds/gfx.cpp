@@ -16,6 +16,7 @@
 static u8* screenBuffer = (u8*) gpuAlloc(256 * 256 * 4);
 
 static int prevScaleMode = -1;
+static int prevScaleFilter = -1;
 static int prevGameScreen = -1;
 
 static bool fastForward = false;
@@ -208,7 +209,7 @@ void gfxDrawScreen() {
     }
 
     // Update VBO data if the size has changed.
-    if(prevScaleMode != scaleMode || prevGameScreen != gameScreen) {
+    if(prevScaleMode != scaleMode || prevScaleFilter != scaleFilter || prevGameScreen != gameScreen) {
         u32 fbWidth = gameScreen == 0 ? 400 : 320;
         u32 fbHeight = 240;
 
@@ -233,8 +234,16 @@ void gfxDrawScreen() {
         float vertExtent = vboHeight < fbHeight ? (float) vboHeight / (float) fbHeight : 1;
 
         // Adjust for power-of-two textures.
-        static float horizMod = (float) (256 - 160) / (float) 256;
-        static float vertMod = (float) (256 - 144) / (float) 256;
+        static const float baseHorizMod = (256.0f - 160.0f) / 256.0f;
+        static const float baseVertMod = (256.0f - 144.0f) / 256.0f;
+        static const float filterMod = 0.25f / 256.0f;
+
+        float horizMod = baseHorizMod;
+        float vertMod = baseVertMod;
+        if(scaleMode != 0 && scaleFilter == 1) {
+            horizMod += filterMod;
+            vertMod += filterMod;
+        }
 
         // Prepare new VBO data.
         const float vboData[] = {
@@ -250,6 +259,7 @@ void gfxDrawScreen() {
         gpuVboData(vbo, vboData, sizeof(vboData), sizeof(vboData) / (5 * 4), PRIM_TRIANGLES);
 
         prevScaleMode = scaleMode;
+        prevScaleFilter = scaleFilter;
         prevGameScreen = gameScreen;
     }
 
