@@ -508,6 +508,12 @@ void Gameboy::writeIO(u8 ioReg, u8 val) {
             return;
         case 0x50: // BIOS Lockdown
             initGameboyMode();
+
+            if(gbMode == GB) {
+                // Reinitialize sound so that it'll be in GB mode.
+                initSND();
+            }
+
             biosOn = false;
             refreshRomBank0(romBank0Num);
             return;

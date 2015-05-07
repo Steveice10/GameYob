@@ -637,46 +637,30 @@ void Gameboy::initGBCMode() {
 }
 
 void Gameboy::initSND() {
-    // Sound stuff
-    for(int i = 0x27; i <= 0x2f; i++) {
-        ioRam[i] = 0xff;
-    }
-
-    ioRam[0x26] = 0xf0;
-
-    ioRam[0x10] = 0x80;
-    ioRam[0x11] = 0xBF;
-    ioRam[0x12] = 0xF3;
-    ioRam[0x14] = 0xBF;
-    ioRam[0x16] = 0x3F;
-    ioRam[0x17] = 0x00;
-    ioRam[0x19] = 0xbf;
-    ioRam[0x1a] = 0x7f;
-    ioRam[0x1b] = 0xff;
-    ioRam[0x1c] = 0x9f;
-    ioRam[0x1e] = 0xbf;
-    ioRam[0x20] = 0xff;
-    ioRam[0x21] = 0x00;
-    ioRam[0x22] = 0x00;
-    ioRam[0x23] = 0xbf;
-    ioRam[0x24] = 0x77;
-    ioRam[0x25] = 0xf3;
-
-    // Initial values for the waveform are different depending on the model.
-    // These values are the defaults for the GBC.
-    for(int i = 0; i < 0x10; i += 2) {
-        ioRam[0x30 + i] = 0;
-    }
-
-    for(int i = 1; i < 0x10; i += 2) {
-        ioRam[0x30 + i] = 0xff;
-    }
-
     soundCycles = 0;
     apu->reset(gbMode == GB ? Gb_Apu::mode_dmg : Gb_Apu::mode_cgb);
     leftBuffer->clear();
     rightBuffer->clear();
     centerBuffer->clear();
+
+    writeIO(0x10, 0x80);
+    writeIO(0x11, 0xBF);
+    writeIO(0x12, 0xF3);
+    writeIO(0x14, 0xBF);
+    writeIO(0x16, 0x3F);
+    writeIO(0x17, 0x00);
+    writeIO(0x19, 0xBF);
+    writeIO(0x1A, 0x7F);
+    writeIO(0x1B, 0xFF);
+    writeIO(0x1C, 0x9F);
+    writeIO(0x1E, 0xBF);
+    writeIO(0x20, 0xFF);
+    writeIO(0x21, 0x00);
+    writeIO(0x22, 0x00);
+    writeIO(0x23, 0xBF);
+    writeIO(0x26, 0xF0);
+    writeIO(0x24, 0x77);
+    writeIO(0x25, 0xF3);
 }
 
 // Called either from startup or when FF50 is written to.
