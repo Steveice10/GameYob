@@ -118,6 +118,7 @@ public:
     void requestInterrupt(int id);
     void setDoubleSpeed(int val);
 
+    void loadBorder();
     void setRomFile(const char* filename);
     void unloadRom();
     bool isRomLoaded();

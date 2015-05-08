@@ -263,7 +263,7 @@ void gfxDrawScreen() {
     gpuClear();
 
     // Draw the border.
-    if(borderTexture != 0 && borderVbo != 0 && customBordersEnabled && scaleMode != 2) {
+    if(borderTexture != 0 && borderVbo != 0 && scaleMode != 2) {
         gpuBindTexture(TEXUNIT0, borderTexture);
         gpuDrawVbo(borderVbo);
     }

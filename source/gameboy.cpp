@@ -1226,6 +1226,31 @@ void Gameboy::setDoubleSpeed(int val) {
     }
 }
 
+void Gameboy::loadBorder() {
+    // TODO: SGB?
+
+    if(borderSetting == 1) {
+        if(romFile != NULL) {
+            std::string border = romFile->getFileName() + ".png";
+            FILE* file = fopen(border.c_str(), "r");
+            if(file != NULL) {
+                fclose(file);
+                gfxLoadBorder(border.c_str());
+                return;
+            }
+        }
+
+        FILE* defaultFile = fopen(borderPath, "r");
+        if(defaultFile != NULL) {
+            fclose(defaultFile);
+            gfxLoadBorder(borderPath);
+            return;
+        }
+    }
+
+    gfxLoadBorder(NULL);
+}
+
 void Gameboy::setRomFile(const char* filename) {
     if(romFile != NULL) {
         delete romFile;
@@ -1246,22 +1271,7 @@ void Gameboy::setRomFile(const char* filename) {
         }
     }
 
-    std::string border = std::string(filename) + ".png";
-    FILE* file = fopen(border.c_str(), "r");
-    if(file != NULL) {
-        romHasBorder = true;
-        fclose(file);
-        gfxLoadBorder(border.c_str());
-    } else {
-        FILE* defaultFile = fopen(borderPath, "r");
-        if(defaultFile != NULL) {
-            fclose(defaultFile);
-            gfxLoadBorder(borderPath);
-        } else {
-            gfxLoadBorder(NULL);
-        }
-    }
-
+    loadBorder();
 
     // Load cheats
     if(gameboy->getRomFile()->isGBS()) {

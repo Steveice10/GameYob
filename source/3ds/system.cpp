@@ -12,9 +12,9 @@
 
 #include <3ds.h>
 #include <ctrcommon/fs.hpp>
+#include <ctrcommon/gpu.hpp>
 #include <ctrcommon/ir.hpp>
 #include <ctrcommon/platform.hpp>
-#include <ctrcommon/screen.hpp>
 #include <ctrcommon/socket.hpp>
 
 gfxScreen_t currConsole;
@@ -96,7 +96,7 @@ void systemUpdateConsole() {
         gfxSetScreenFormat(oldScreen, GSP_BGR8_OES);
         gfxSetDoubleBuffering(oldScreen, true);
 
-        screenClearAll(0, 0, 0);
+        gpuClearScreens();
 
         currConsole = screen;
         gfxSetScreenFormat(screen, GSP_RGB565_OES);

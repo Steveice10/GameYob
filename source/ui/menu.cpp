@@ -42,8 +42,7 @@ bool soundDisabled = false;
 
 int gbColorize = 0;
 
-bool customBordersEnabled = false;
-bool sgbBordersEnabled = false;
+int borderSetting = 0;
 bool autoSavingEnabled = false;
 
 int scaleMode = 0;
@@ -262,31 +261,25 @@ void gbColorizeFunc(int value) {
     }
 }
 
-void customBorderEnableFunc(int value) {
-    customBordersEnabled = (bool) value;
-}
-
 void selectBorderFunc(int value) {
     const char* extensions[] = {"png"};
     char* filename = borderChooser.startFileChooser(extensions, false, true);
     if(filename != NULL) {
         strcpy(borderPath, filename);
         free(filename);
-
-        if(!gameboy->romHasBorder) {
-            FILE* file = fopen(borderPath, "r");
-            if(file != NULL) {
-                fclose(file);
-                gfxLoadBorder(borderPath);
-            } else {
-                gfxLoadBorder(NULL);
-            }
-        }
+        gameboy->loadBorder();
     }
 }
 
-void sgbBorderEnableFunc(int value) {
-    sgbBordersEnabled = value;
+void borderFunc(int value) {
+    borderSetting = value;
+    if(borderSetting == 1) {
+        enableMenuOption("Select Border");
+    } else {
+        disableMenuOption("Select Border");
+    }
+
+    gameboy->loadBorder();
 }
 
 void soundEnableFunc(int value) {
@@ -298,12 +291,6 @@ void romInfoFunc(int value) {
         displaySubMenu(subMenuGenericUpdateFunc);
         gameboy->getRomFile()->printInfo();
     }
-}
-
-void versionInfoFunc(int value) {
-    displaySubMenu(subMenuGenericUpdateFunc);
-    iprintf("\x1b[2J");
-    printf("GameYob %s\n", VERSION_STRING);
 }
 
 void setChanEnabled(int chan, int value) {
@@ -544,59 +531,47 @@ struct MenuOption {
 struct SubMenu {
     const char* name;
     int numOptions;
-    MenuOption options[10];
+    MenuOption options[12];
 
     int selection;
 };
 
 SubMenu menuList[] = {
         {
-                "ROM",
-                10,
+                "Game",
+                12,
                 {
                         {"Exit", exitFunc, 0, {}, 0, MENU_ALL},
                         {"Reset", resetFunc, 0, {}, 0, MENU_ALL},
+                        {"Suspend", suspendFunc, 0, {}, 0, MENU_ALL},
+                        {"ROM Info", romInfoFunc, 0, {}, 0, MENU_ALL},
                         {"State Slot", stateSelectFunc, 10, {"0", "1", "2", "3", "4", "5", "6", "7", "8", "9"}, 0, MENU_ALL},
                         {"Save State", stateSaveFunc, 0, {}, 0, MENU_ALL},
                         {"Load State", stateLoadFunc, 0, {}, 0, MENU_ALL},
                         {"Delete State", stateDeleteFunc, 0, {}, 0, MENU_ALL},
+                        {"Manage Cheats", cheatFunc, 0, {}, 0, MENU_ALL},
                         {"Accelerometer Pad", accelPadFunc, 0, {}, 0, MENU_ALL},
-                        {"Quit to Launcher", returnToLauncherFunc, 0, {}, 0, MENU_ALL},
                         {"Exit without saving", exitNoSaveFunc, 0, {}, 0, MENU_ALL},
-                        {"Suspend", suspendFunc, 0, {}, 0, MENU_ALL}
+                        {"Quit to Launcher", returnToLauncherFunc, 0, {}, 0, MENU_ALL}
                 }
         },
         {
-                "Settings",
-                7,
+                "GameYob",
+                5,
                 {
                         {"Button Mapping", keyConfigFunc, 0, {}, 0, MENU_ALL},
-                        {"Manage Cheats", cheatFunc, 0, {}, 0, MENU_ALL},
                         {"Console Output", consoleOutputFunc, 4, {"Off", "Time", "FPS+Time", "Debug"}, 0, MENU_ALL},
-                        {"GB Printer", printerEnableFunc, 2, {"Off", "On"}, 1, MENU_ALL},
                         {"Autosaving", setAutoSaveFunc, 2, {"Off", "On"}, 0, MENU_ALL},
                         {"Pause on Menu", setPauseOnMenuFunc, 2, {"Off", "On"}, 0, MENU_ALL},
                         {"Save Settings", saveSettingsFunc, 0, {}, 0, MENU_ALL}
                 }
         },
         {
-                "Display",
-                7,
+                "Gameboy",
+                6,
                 {
-                        {"Game Screen", setScreenFunc, 2, {"Top", "Bottom"}, 0, MENU_ALL},
-                        {"Scaling", setScaleModeFunc, 3, {"Off", "Aspect", "Full"}, 0, MENU_ALL},
-                        {"Scale Filter", setScaleFilterFunc, 2, {"Off", "On"}, 1, MENU_ALL},
-                        {"Colorize GB", gbColorizeFunc, 14, {"Off", "Auto", "Inverted", "Pastel Mix", "Red", "Orange", "Yellow", "Green", "Blue", "Brown", "Dark Green", "Dark Blue", "Dark Brown", "Classic Green"}, 1, MENU_ALL},
-                        {"SGB Borders", sgbBorderEnableFunc, 2, {"Off", "On"}, 1, MENU_NONE},
-                        {"Custom Border", customBorderEnableFunc, 2, {"Off", "On"}, 1, MENU_ALL},
-                        {"Select Border", selectBorderFunc, 0, {}, 0, MENU_ALL}
-                }
-        },
-        {
-                "GB Modes",
-                5,
-                {
-                        {"Detect GBA", gbaModeFunc, 2, {"Off", "On"}, 0, MENU_ALL},
+                        {"GB Printer", printerEnableFunc, 2, {"Off", "On"}, 1, MENU_ALL},
+                        {"GBA Mode", gbaModeFunc, 2, {"Off", "On"}, 0, MENU_ALL},
                         {"GBC Mode", gameboyModeFunc, 3, {"Off", "If Needed", "On"}, 2, MENU_ALL},
                         {"SGB Mode", sgbModeFunc, 3, {"Off", "Prefer GBC", "Prefer SGB"}, 1, MENU_ALL},
                         {"GBC Bios", biosEnableFunc, 2, {"Off", "On"}, 1, MENU_ALL},
@@ -604,25 +579,29 @@ SubMenu menuList[] = {
                 }
         },
         {
-                "Debug",
-                3,
+                "Display",
+                6,
                 {
-                        {"Sound", soundEnableFunc, 2, {"Off", "On"}, 1, MENU_ALL},
-                        {"ROM Info", romInfoFunc, 0, {}, 0, MENU_ALL},
-                        {"Version Info", versionInfoFunc, 0, {}, 0, MENU_ALL}
+                        {"Game Screen", setScreenFunc, 2, {"Top", "Bottom"}, 0, MENU_ALL},
+                        {"Scaling", setScaleModeFunc, 3, {"Off", "Aspect", "Full"}, 0, MENU_ALL},
+                        {"Scale Filter", setScaleFilterFunc, 2, {"Off", "On"}, 1, MENU_ALL},
+                        {"Colorize GB", gbColorizeFunc, 14, {"Off", "Auto", "Inverted", "Pastel Mix", "Red", "Orange", "Yellow", "Green", "Blue", "Brown", "Dark Green", "Dark Blue", "Dark Brown", "Classic Green"}, 1, MENU_ALL},
+                        {"Borders", borderFunc, 3, {"Off", "Custom", "SGB"}, 1, MENU_ALL},
+                        {"Select Border", selectBorderFunc, 0, {}, 0, MENU_ALL}
                 }
         },
         {
-                "Sound Channels",
-                4,
+                "Sound",
+                5,
                 {
+                        {"Master", soundEnableFunc, 2, {"Off", "On"}, 1, MENU_ALL},
                         {"Channel 1", chan1Func, 2, {"Off", "On"}, 1, MENU_ALL},
                         {"Channel 2", chan2Func, 2, {"Off", "On"}, 1, MENU_ALL},
                         {"Channel 3", chan3Func, 2, {"Off", "On"}, 1, MENU_ALL},
                         {"Channel 4", chan4Func, 2, {"Off", "On"}, 1, MENU_ALL}
                 }
         },
-        {
+        /*{
                 "Link",
                 4,
                 {
@@ -631,7 +610,7 @@ SubMenu menuList[] = {
                         {"Disconnect", disconnectFunc, 0, {}, 0, MENU_ALL},
                         {"Connection Info", connectionInfoFunc, 0, {}, 0, MENU_ALL}
                 }
-        }
+        },*/
 };
 
 const int numMenus = sizeof(menuList) / sizeof(SubMenu);

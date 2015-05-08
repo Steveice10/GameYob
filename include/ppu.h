@@ -50,18 +50,8 @@ private:
 
     bool screenWasDisabled;
 
-    u32 gbColors[4];
-    u32 pixels[32 * 32 * 64];
-
-    int scale = 3;
-
     u32 bgPalettes[8][4];
-    u32* bgPalettesRef[8][4];
     u32 sprPalettes[8][4];
-    u32* sprPalettesRef[8][4];
-
-    int dmaLine;
-    bool lineModified;
 
 // For drawScanline / drawSprite
 
