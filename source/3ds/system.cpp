@@ -39,6 +39,8 @@ bool systemInit() {
     consoleSelect(bottomConsole);
     currConsole = GFX_BOTTOM;
 
+    audioInit();
+
     mgrInit();
 
     setMenuDefaults();
@@ -52,6 +54,8 @@ bool systemInit() {
 void systemExit() {
     mgrSave();
     mgrExit();
+
+    audioCleanup();
 
     free(topConsole);
     free(bottomConsole);

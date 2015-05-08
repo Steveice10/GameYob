@@ -1137,10 +1137,10 @@ inline void Gameboy::updateSound(int cycles) {
         soundCycles -= CYCLES_PER_BUFFER;
 
         if(!soundDisabled && !gameboyPaused) {
-            long leftCount = leftBuffer->read_samples(getLeftBuffer(), APU_BUFFER_SIZE);
-            long rightCount = rightBuffer->read_samples(getRightBuffer(), APU_BUFFER_SIZE);
-            long centerCount = centerBuffer->read_samples(getCenterBuffer(), APU_BUFFER_SIZE);
-            playAudio(leftCount, rightCount, centerCount);
+            long leftCount = leftBuffer->read_samples(audioGetLeftBuffer(), APU_BUFFER_SIZE);
+            long rightCount = rightBuffer->read_samples(audioGetRightBuffer(), APU_BUFFER_SIZE);
+            long centerCount = centerBuffer->read_samples(audioGetCenterBuffer(), APU_BUFFER_SIZE);
+            audioPlay(leftCount, rightCount, centerCount);
         } else {
             leftBuffer->clear();
             rightBuffer->clear();
