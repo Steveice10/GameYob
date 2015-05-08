@@ -161,16 +161,8 @@ void gfxLoadBorderBuffer(u8* imgData, u32 imgWidth, u32 imgHeight) {
     gpuFree(borderBuffer);
 }
 
-void gfxClearScreen(u8 color) {
-    memset(screenBuffer, color, 256 * 256 * 4);
-}
-
-void gfxClearLine(u32 line, u8 color) {
-    memset(screenBuffer + (line * 256 * 4), color, 256 * 4);
-}
-
-void gfxDrawPixel(int x, int y, u32 pixel) {
-    *(u32*) &screenBuffer[(y * 256 + x) * 4] = pixel;
+u32* gfxGetScreenBuffer() {
+    return (u32*) screenBuffer;
 }
 
 void gfxDrawScreen() {

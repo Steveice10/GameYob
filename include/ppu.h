@@ -65,16 +65,9 @@ private:
 
 // For drawScanline / drawSprite
 
-    u8 spritePixels[256];
-    u32 spritePixelsTrue[256]; // Holds the palettized colors
-
-    u8 spritePixelsLow[256];
-    u32 spritePixelsTrueLow[256];
-
-    u8 bgPixels[256];
-    u32 bgPixelsTrue[256];
-    u8 bgPixelsLow[256];
-    u32 bgPixelsTrueLow[256];
+    u32 depthBuffer[256];
+    u32 *lineBuffer;
+    u8 *subSgbMap;
 
     bool bgPalettesModified[8];
     bool sprPalettesModified[8];
