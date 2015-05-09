@@ -190,7 +190,7 @@ void accelPadFunc(int value) {
 
 void resetFunc(int value) {
     closeMenu();
-    gameboy->resetGameboy();
+    gameboy->init();
 }
 
 void returnFunc(int value) {

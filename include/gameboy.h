@@ -104,7 +104,6 @@ public:
     void gameboyCheckInput();
     void gameboyUpdateVBlank();
 
-    void resetGameboy(); // This may be called even from the context of "runOpcode".
     void pause();
     void unpause();
     bool isGameboyPaused();
@@ -183,7 +182,6 @@ public:
 
 private:
     volatile bool gameboyPaused;
-    bool resettingGameboy;
 
     GameboyPrinter* printer;
 

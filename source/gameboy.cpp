@@ -488,7 +488,6 @@ Gameboy::Gameboy() : hram(highram + 0xe00), ioRam(highram + 0xf00) {
     fpsOutput = true;
 
     // private
-    resettingGameboy = false;
     wroteToSramThisFrame = false;
     framesSinceAutosaveStarted = 0;
 
@@ -813,7 +812,7 @@ void Gameboy::gameboyCheckInput() {
     }
 
     if(inputKeyPressed(inputMapFuncKey(FUNC_KEY_RESET))) {
-        resetGameboy();
+        init();
     }
 }
 
@@ -822,11 +821,6 @@ void Gameboy::gameboyUpdateVBlank() {
     gameboyFrameCounter++;
 
     if(!gameboy->getRomFile()->isGBS()) {
-        if(resettingGameboy) {
-            init();
-            resettingGameboy = false;
-        }
-
         if(ppu->probingForBorder) {
             if(gameboyFrameCounter >= 450) {
                 // Give up on finding a sgb border.
@@ -846,11 +840,6 @@ void Gameboy::gameboyUpdateVBlank() {
 
         printer->updateGbPrinter();
     }
-}
-
-// This function can be called from weird contexts, so just set a flag to deal with it later.
-void Gameboy::resetGameboy() {
-    resettingGameboy = true;
 }
 
 void Gameboy::pause() {
