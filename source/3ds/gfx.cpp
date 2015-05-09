@@ -40,11 +40,11 @@ bool gfxInit() {
         return false;
     }
 
-    screenBuffer = (u32*) gpuAlloc(256 * 256 * 4);
-    memset(screenBuffer, 0, 256 * 256 * 4);
+    screenBuffer = (u32*) gpuAlloc(256 * 256 * sizeof(u32));
+    memset(screenBuffer, 0, 256 * 256 * sizeof(u32));
 
-    scale2xBuffer = (u32*) gpuAlloc(512 * 512 * 4);
-    memset(scale2xBuffer, 0, 512 * 512 * 4);
+    scale2xBuffer = (u32*) gpuAlloc(512 * 512 * sizeof(u32));
+    memset(scale2xBuffer, 0, 512 * 512 * sizeof(u32));
 
     gpuCullMode(CULL_BACK_CCW);
 

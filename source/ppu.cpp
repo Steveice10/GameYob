@@ -91,6 +91,7 @@ void GameboyPPU::refreshPPU() {
 }
 
 void GameboyPPU::clearPPU() {
+    memset(gfxGetScreenBuffer(), 0x00, 256 * 256 * sizeof(u32));
 }
 
 void GameboyPPU::drawScanline(int scanline) {
@@ -128,7 +129,7 @@ void GameboyPPU::drawScanline_P2(int scanline) {
 
     if(screenWasDisabled) {
         // Leave it white for one extra frame
-        memset(lineBuffer, 0xFF, 160 * sizeof(u32));
+        wmemset((wchar_t*) lineBuffer, (wchar_t) bgPalettes[0][0], 160 * sizeof(u32));
         return;
     }
 
@@ -455,7 +456,7 @@ void GameboyPPU::handleVideoRegister(u8 ioReg, u8 val) {
     switch(ioReg) {
         case 0x40:
             if((gameboy->ioRam[ioReg] & 0x80) && !(val & 0x80)) {
-                memset(gfxGetScreenBuffer(), 0xFF, 256 * 256 * sizeof(u32));
+                wmemset((wchar_t*) gfxGetScreenBuffer(), (wchar_t) bgPalettes[0][0], 256 * 256 * sizeof(u32));
             } else if (!(gameboy->ioRam[ioReg] & 0x80) && (val & 0x80)) {
                 screenWasDisabled = true;
             }

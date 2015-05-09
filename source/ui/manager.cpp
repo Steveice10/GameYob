@@ -99,7 +99,6 @@ void mgrUnloadRom() {
     gameboy->linkedGameboy = NULL;
 
     gfxLoadBorder(NULL);
-    memset(gfxGetScreenBuffer(), 0x00, 256 * 256 * sizeof(u32));
     gfxDrawScreen();
 }
 
