@@ -13,7 +13,8 @@
 
 #include "shader_vsh_shbin.h"
 
-static u8* screenBuffer = (u8*) gpuAlloc(256 * 256 * 4);
+static u32* screenBuffer;
+static u32* scale2xBuffer;
 
 static int prevScaleMode = -1;
 static int prevScaleFilter = -1;
@@ -38,6 +39,12 @@ bool gfxInit() {
     if(!gpuInit()) {
         return false;
     }
+
+    screenBuffer = (u32*) gpuAlloc(256 * 256 * 4);
+    memset(screenBuffer, 0, 256 * 256 * 4);
+
+    scale2xBuffer = (u32*) gpuAlloc(512 * 512 * 4);
+    memset(scale2xBuffer, 0, 512 * 512 * 4);
 
     gpuCullMode(CULL_BACK_CCW);
 
@@ -85,6 +92,18 @@ void gfxCleanup() {
     if(borderVbo != 0) {
         gpuFreeVbo(borderVbo);
         borderVbo = 0;
+    }
+
+    // Free screen buffer.
+    if(screenBuffer != NULL) {
+        gpuFree(screenBuffer);
+        screenBuffer = NULL;
+    }
+
+    // Free scale2x buffer.
+    if(scale2xBuffer != NULL) {
+        gpuFree(scale2xBuffer);
+        scale2xBuffer = NULL;
     }
 }
 
@@ -162,7 +181,117 @@ void gfxLoadBorderBuffer(u8* imgData, u32 imgWidth, u32 imgHeight) {
 }
 
 u32* gfxGetScreenBuffer() {
-    return (u32*) screenBuffer;
+    return screenBuffer;
+}
+
+#define PIXEL_AT( PX, XX, YY) ((PX)+((((YY)*256)+(XX))))
+#define PIXEL_AT_SCALED( PX, XX, YY) ((PX)+((((YY)*512)+(XX))))
+#define SCALE2XMACRO()       if (Bp!=Hp && Dp!=Fp) {          \
+                                if (Dp==Bp) *(E0) = Dp;       \
+                                else *(E0) = Ep;              \
+                                if (Bp==Fp) *(E0 + 1) = Fp;   \
+                                else *(E0 + 1) = Ep;          \
+                                if (Dp==Hp) *(E0 + 512) = Dp; \
+                                else *(E0 + 512) = Ep;        \
+                                if (Hp==Fp) *(E0 + 513) = Fp; \
+                                else *(E0 + 513) = Ep;        \
+                             } else {                         \
+                                *(E0) = Ep;                   \
+                                *(E0 + 1) = Ep;               \
+                                *(E0 + 512) = Ep;             \
+                                *(E0 + 513) = Ep;             \
+                             }
+u32* gfxScale2x() {
+    int x, y;
+    u32 *E, *E0;
+    u32 Ep, Bp, Dp, Fp, Hp;
+
+    // Top line and top corners
+    E = PIXEL_AT(screenBuffer, 0, 0);
+    E0 = PIXEL_AT_SCALED(scale2xBuffer, 0, 0);
+    Ep = E[0];
+    Bp = Ep;
+    Dp = Ep;
+    Fp = E[1];
+    Hp = E[256];
+    SCALE2XMACRO();
+    for(x = 1; x < 159; x++) {
+        E += 1;
+        E0 += 2;
+        Dp = Ep;
+        Ep = Fp;
+        Fp = E[1];
+        Bp = Ep;
+        Hp = E[256];
+        SCALE2XMACRO();
+    }
+
+    E += 1;
+    E0 += 2;
+    Dp = Ep;
+    Ep = Fp;
+    Bp = Ep;
+    Hp = E[256];
+    SCALE2XMACRO();
+
+    // Middle Rows and sides
+    for(y = 1; y < 143; y++) {
+        E = PIXEL_AT(screenBuffer, 0, y);
+        E0 = PIXEL_AT_SCALED(scale2xBuffer, 0, y * 2);
+        Ep = E[0];
+        Bp = E[-256];
+        Dp = Ep;
+        Fp = E[1];
+        Hp = E[256];
+        SCALE2XMACRO();
+        for(x = 1; x < 159; x++) {
+            E += 1;
+            E0 += 2;
+            Dp = Ep;
+            Ep = Fp;
+            Fp = E[1];
+            Bp = E[-256];
+            Hp = E[256];
+            SCALE2XMACRO();
+        }
+
+        E += 1;
+        E0 += 2;
+        Dp = Ep;
+        Ep = Fp;
+        Bp = E[-256];
+        Hp = E[256];
+        SCALE2XMACRO();
+    }
+
+    // Bottom Row and Bottom Corners
+    E = PIXEL_AT(screenBuffer, 0, 143);
+    E0 = PIXEL_AT_SCALED(scale2xBuffer, 0, 143 * 2);
+    Ep = E[0];
+    Bp = E[-256];
+    Dp = Ep;
+    Fp = E[1];
+    Hp = Ep;
+    SCALE2XMACRO();
+    for(x = 1; x < 159; x++) {
+        E += 1;
+        E0 += 2;
+        Dp = Ep;
+        Ep = Fp;
+        Fp = E[1];
+        Bp = E[-256];
+        Hp = Ep;
+        SCALE2XMACRO();
+    }
+
+    E += 1;
+    E0 += 2;
+    Dp = Ep;
+    Ep = Fp;
+    Bp = E[-256];
+    Hp = Ep;
+    SCALE2XMACRO();
+    return scale2xBuffer;
 }
 
 void gfxDrawScreen() {
@@ -256,8 +385,12 @@ void gfxDrawScreen() {
     }
 
     // Update the texture with the new frame.
-    TextureFilter filter = scaleFilter == 1 ? FILTER_LINEAR : FILTER_NEAREST;
-    gpuTextureData(texture, screenBuffer, 256, 256, PIXEL_RGBA8, 256, 256, PIXEL_RGBA8, TEXTURE_MIN_FILTER(filter) | TEXTURE_MAG_FILTER(filter));
+    TextureFilter filter = scaleFilter >= 1 ? FILTER_LINEAR : FILTER_NEAREST;
+    if(scaleMode == 0 || scaleFilter <= 1) {
+        gpuTextureData(texture, screenBuffer, 256, 256, PIXEL_RGBA8, 256, 256, PIXEL_RGBA8, TEXTURE_MIN_FILTER(filter) | TEXTURE_MAG_FILTER(filter));
+    } else {
+        gpuTextureData(texture, gfxScale2x(), 512, 512, PIXEL_RGBA8, 512, 512, PIXEL_RGBA8, TEXTURE_MIN_FILTER(filter) | TEXTURE_MAG_FILTER(filter));
+    }
 
     // Clear the screen.
     gpuClear();

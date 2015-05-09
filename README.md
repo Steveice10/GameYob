@@ -25,6 +25,5 @@ General Features
 TODO
 ----
 
-* Super Gameboy support isn't fully implemented graphically
 * Super Gameboy borders
 * WiFi connectivity

@@ -181,8 +181,6 @@ public:
     int cyclesToExecute;
     struct Registers gbRegs;
 
-    bool romHasBorder = false;
-
 private:
     volatile bool gameboyPaused;
     bool resettingGameboy;

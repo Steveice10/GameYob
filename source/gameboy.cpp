@@ -483,9 +483,7 @@ static const unsigned short* findPalette(const char* title) {
 
 Gameboy::Gameboy() : hram(highram + 0xe00), ioRam(highram + 0xf00) {
     saveFile = NULL;
-
     romFile = NULL;
-    romHasBorder = false;
 
     fpsOutput = true;
 
@@ -1255,7 +1253,6 @@ void Gameboy::setRomFile(const char* filename) {
     if(romFile != NULL) {
         delete romFile;
         romFile = NULL;
-        romHasBorder = false;
     }
 
     romFile = new RomFile(this, filename);
@@ -1302,7 +1299,6 @@ void Gameboy::unloadRom() {
     if(romFile != NULL) {
         delete romFile;
         romFile = NULL;
-        romHasBorder = false;
     }
 }
 

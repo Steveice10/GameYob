@@ -190,7 +190,7 @@ void accelPadFunc(int value) {
 
 void resetFunc(int value) {
     closeMenu();
-    gameboy->init();
+    gameboy->resetGameboy();
 }
 
 void returnFunc(int value) {
@@ -584,7 +584,7 @@ SubMenu menuList[] = {
                 {
                         {"Game Screen", setScreenFunc, 2, {"Top", "Bottom"}, 0, MENU_ALL},
                         {"Scaling", setScaleModeFunc, 3, {"Off", "Aspect", "Full"}, 0, MENU_ALL},
-                        {"Scale Filter", setScaleFilterFunc, 2, {"Off", "On"}, 1, MENU_ALL},
+                        {"Scale Filter", setScaleFilterFunc, 3, {"Nearest", "Linear", "Scale2x"}, 1, MENU_ALL},
                         {"Colorize GB", gbColorizeFunc, 14, {"Off", "Auto", "Inverted", "Pastel Mix", "Red", "Orange", "Yellow", "Green", "Blue", "Brown", "Dark Green", "Dark Blue", "Dark Brown", "Classic Green"}, 1, MENU_ALL},
                         {"Borders", borderFunc, 3, {"Off", "Custom", "SGB"}, 1, MENU_ALL},
                         {"Select Border", selectBorderFunc, 0, {}, 0, MENU_ALL}
