@@ -13,6 +13,10 @@
 
 #define RGBA32(r, g, b) ((u32) ((r) << 24 | (g) << 16 | (b) << 8 | 0xFF))
 
+#define FLIP_Y (0x40)
+#define FLIP_X (0x20)
+#define PRIORITY (0x80)
+
 static const u32 depthOffset[4] =
         {
                 0x01, 0x00, 0x00, 0x00
@@ -98,10 +102,6 @@ void GameboyPPU::drawScanline(int scanline) {
 }
 
 void GameboyPPU::drawScanline_P2(int scanline) {
-    int tileSigned;
-    int BGMapAddr;
-    int winMapAddr;
-
     subSgbMap = &gameboy->sgbMap[scanline / 8 * 20];
     lineBuffer = gfxGetScreenBuffer() + scanline * 256;
 
@@ -129,27 +129,19 @@ void GameboyPPU::drawScanline_P2(int scanline) {
 
     if(screenWasDisabled) {
         // Leave it white for one extra frame
-        wmemset((wchar_t*) lineBuffer, (wchar_t) bgPalettes[0][0], 160 * sizeof(u32));
+        if(gameboy->gbMode == GB) {
+            int red = (gameboy->bgPaletteData[0] & 0x1F) * 8;
+            int green = (((gameboy->bgPaletteData[0] & 0xE0) >> 5) | ((gameboy->bgPaletteData[1]) & 0x3) << 3) * 8;
+            int blue = ((gameboy->bgPaletteData[1] >> 2) & 0x1F) * 8;
+            wmemset((wchar_t*) lineBuffer, (wchar_t) RGBA32(red, green, blue), 160 * sizeof(u32));
+        } else {
+            memset(lineBuffer, 0xFF, 160 * sizeof(u32));
+        }
+
         return;
     }
 
-    if(gameboy->ioRam[0x40] & 0x10) { // Tile Data location
-        tileSigned = 0;
-    } else {
-        tileSigned = 1;
-    }
-
-    if(gameboy->ioRam[0x40] & 0x8) { // Tile Map location
-        BGMapAddr = 0x1C00;
-    } else {
-        BGMapAddr = 0x1800;
-    }
-
-    if(gameboy->ioRam[0x40] & 0x40) {
-        winMapAddr = 0x1C00;
-    } else {
-        winMapAddr = 0x1800;
-    }
+    int tileSigned = !(gameboy->ioRam[0x40] & 0x10); // Tile Data location
 
     memset(depthBuffer, 0, 160 * sizeof(u32));
 
@@ -166,11 +158,7 @@ void GameboyPPU::drawScanline_P2(int scanline) {
         int winY = gameboy->ioRam[0x4A];
         bool drawingWindow = scanline >= winY && gameboy->ioRam[0x40] & 0x20;
 
-        int BGOn = 1;
-        if(gameboy->gbMode != CGB && (gameboy->ioRam[0x40] & 1) == 0) {
-            BGOn = 0;
-        }
-
+        int BGOn = gameboy->gbMode == CGB || (gameboy->ioRam[0x40] & 1) != 0;
         if(BGOn) {
             u8 scrollX = gameboy->ioRam[0x43];
             int scrollY = gameboy->ioRam[0x42];
@@ -178,17 +166,29 @@ void GameboyPPU::drawScanline_P2(int scanline) {
             // The y position (measured in tiles)
             int tileY = ((scanline + scrollY) & 0xFF) / 8;
 
+            // Tile Map address plus row offset
+            int BGMapAddr;
+            if(gameboy->ioRam[0x40] & 0x8) {
+                BGMapAddr = 0x1C00 + (tileY * 32);
+            } else {
+                BGMapAddr = 0x1800 + (tileY * 32);
+            }
+
+            // Number of tiles to draw in a row
             int numTilesX = 20;
             if(drawingWindow) {
                 numTilesX = (winX + 7) / 8;
             }
 
+            // Tiles to draw
             int startTile = scrollX / 8;
             int endTile = (startTile + numTilesX + 1) & 31;
 
+            // Calculate lineBuffer Start, negatives treated as unsigned for speed up
+            u32 writeX = (u32) (-(scrollX & 0x07));
             for(int i = startTile; i != endTile; i = (i + 1) & 31) {
                 // The address (from beginning of gameboy->vram) of the tile's mapping
-                int mapAddr = BGMapAddr + i + (tileY * 32);
+                int mapAddr = BGMapAddr + i;
 
                 // This is the tile id.
                 int tileNum = gameboy->vram[0][mapAddr];
@@ -196,22 +196,19 @@ void GameboyPPU::drawScanline_P2(int scanline) {
                     tileNum = ((s8) tileNum) + 256;
                 }
 
-                int flipX = 0;
-                int flipY = 0;
-                int bank = 0;
-                int paletteid = 0;
-                int priority = 0;
+                // Setup Tile Info
+                u32 flag = 0;
+                u32 bank = 0;
+                u32 paletteid = 0;
                 if(gameboy->gbMode == CGB) {
-                    flipX = gameboy->vram[1][mapAddr] & 0x20;
-                    flipY = gameboy->vram[1][mapAddr] & 0x40;
-                    bank = (gameboy->vram[1][mapAddr] & 0x8) != 0;
-                    paletteid = gameboy->vram[1][mapAddr] & 0x7;
-                    priority = gameboy->vram[1][mapAddr] & 0x80;
+                    flag = gameboy->vram[1][mapAddr];
+                    bank = (u32) ((flag & 0x8) != 0);
+                    paletteid = flag & 0x7;
                 }
 
                 // This is the tile's Y position to be read (0-7)
                 int pixelY = (scanline + scrollY) & 0x07;
-                if(flipY) {
+                if(flag & FLIP_Y) {
                     pixelY = 7 - pixelY;
                 }
 
@@ -220,38 +217,43 @@ void GameboyPPU::drawScanline_P2(int scanline) {
                 u32 vRamB2 = gameboy->vram[bank][(tileNum << 4) + (pixelY << 1) + 1];
 
                 // Reverse their bits if flipX set
-                if(!flipX) {
+                if(!(flag & FLIP_X)) {
                     vRamB1 = BitReverseTable256[vRamB1];
                     vRamB2 = BitReverseTable256[vRamB2];
                 }
 
+                // Mux the bits to for more logical pixels
                 u32 pxData = BitStretchTable256[vRamB1] | (BitStretchTable256[vRamB2] << 1);
 
-                // Calculate where on the line to start to draw
-                u32 writeX = (u32) (((i * 8) - scrollX) & 0xFF);
+                // Setup depth based on priority
                 u32 depth = 1;
-                if(priority) {
+                if(flag & PRIORITY) {
                     depth = 3;
                 }
 
+                // Split Render mode based on sgbMode, slight speed up
                 if(gameboy->sgbMode) {
-                    for(int x = 0; x < 8; x++ , writeX = (writeX + 1) & 0xFF) {
+                    for(int x = 0; x < 16; x += 2 , writeX++) {
                         if(writeX >= 160) {
                             continue;
                         }
 
-                        u32 colorid = (pxData >> (x << 1)) & 0x03;
-                        depthBuffer[writeX] = depth - depthOffset[priority | colorid];
+                        u32 colorid = (pxData >> x) & 0x03;
+
+                        // Draw pixel
+                        depthBuffer[writeX] = depth - depthOffset[colorid];
                         lineBuffer[writeX] = bgPalettes[subSgbMap[writeX >> 3]][colorid];
                     }
                 } else {
-                    for(int x = 0; x < 8; x++ , writeX = (writeX + 1) & 0xFF) {
+                    for(int x = 0; x < 16; x += 2 , writeX++) {
                         if(writeX >= 160) {
                             continue;
                         }
 
-                        u32 colorid = (pxData >> (x << 1)) & 0x03;
-                        depthBuffer[writeX] = depth - depthOffset[priority | colorid];
+                        u32 colorid = (pxData >> x) & 0x03;
+
+                        // Draw pixel
+                        depthBuffer[writeX] = depth - depthOffset[colorid];
                         lineBuffer[writeX] = bgPalettes[paletteid][colorid];
                     }
                 }
@@ -260,10 +262,25 @@ void GameboyPPU::drawScanline_P2(int scanline) {
 
         // Draw window
         if(drawingWindow) {
+            // The y position (measured in tiles)
             int tileY = (scanline - winY) / 8;
+
+            // Tile Map address plus row offset
+            int winMapAddr;
+            if(gameboy->ioRam[0x40] & 0x40) {
+                winMapAddr = 0x1C00 + (tileY * 32);
+            } else {
+                winMapAddr = 0x1800 + (tileY * 32);
+            }
+
+            // Tiles to draw
             int endTile = 21 - winX / 8;
+
+            // Calculate lineBuffer Start, negatives treated as unsigned for speed up
+            u32 writeX = (u32) winX;
             for(int i = 0; i < endTile; i++) {
-                int mapAddr = winMapAddr + i + (tileY * 32);
+                // The address (from beginning of gameboy->vram) of the tile's mapping
+                int mapAddr = winMapAddr + i;
 
                 // This is the tile id.
                 int tileNum = gameboy->vram[0][mapAddr];
@@ -271,21 +288,19 @@ void GameboyPPU::drawScanline_P2(int scanline) {
                     tileNum = ((s8) tileNum) + 128 + 0x80;
                 }
 
-                int flipX = 0, flipY = 0;
-                int bank = 0;
-                int paletteid = 0;
-                int priority = 0;
-
+                // Setup Tile Info
+                u32 flag = 0;
+                u32 bank = 0;
+                u32 paletteid = 0;
                 if(gameboy->gbMode == CGB) {
-                    flipX = gameboy->vram[1][mapAddr] & 0x20;
-                    flipY = gameboy->vram[1][mapAddr] & 0x40;
-                    bank = (gameboy->vram[1][mapAddr] & 0x8) != 0;
-                    paletteid = gameboy->vram[1][mapAddr] & 0x7;
-                    priority = gameboy->vram[1][mapAddr] & 0x80;
+                    flag = gameboy->vram[1][mapAddr];
+                    bank = (u32) ((flag & 0x8) != 0);
+                    paletteid = flag & 0x7;
                 }
 
+                // This is the tile's Y position to be read (0-7)
                 int pixelY = (scanline - winY) & 0x07;
-                if(flipY) {
+                if(flag & FLIP_Y) {
                     pixelY = 7 - pixelY;
                 }
 
@@ -294,38 +309,43 @@ void GameboyPPU::drawScanline_P2(int scanline) {
                 u32 vRamB2 = gameboy->vram[bank][(tileNum << 4) + (pixelY << 1) + 1];
 
                 // Reverse their bits if flipX set
-                if (!flipX) {
+                if(!(flag & FLIP_X)) {
                     vRamB1 = BitReverseTable256[vRamB1];
                     vRamB2 = BitReverseTable256[vRamB2];
                 }
 
+                // Mux the bits to for more logical pixels
                 u32 pxData = BitStretchTable256[vRamB1] | (BitStretchTable256[vRamB2] << 1);
 
-                // Calculate where on the line to start to draw
-                int writeX = ((i * 8) + winX);
+                // Setup depth based on priority
                 u32 depth = 1;
-                if(priority) {
+                if(flag & PRIORITY) {
                     depth = 3;
                 }
 
+                // Split Render mode based on sgbMode, slight speed up
                 if(gameboy->sgbMode) {
-                    for(int x = 0; x < 8; x++ , writeX++) {
-                        if(writeX >= 160 || writeX < 0) {
+                    for(int x = 0; x < 16; x+=2 , writeX++) {
+                        if(writeX >= 160) {
                             continue;
                         }
 
-                        u32 colorid = (pxData >> (x << 1)) & 0x03;
-                        depthBuffer[writeX] = depth - depthOffset[priority | colorid];
+                        u32 colorid = (pxData >> x) & 0x03;
+
+                        // Draw pixel
+                        depthBuffer[writeX] = depth - depthOffset[colorid];
                         lineBuffer[writeX] = bgPalettes[subSgbMap[writeX >> 3]][colorid];
                     }
                 } else {
-                    for(int x = 0; x < 8; x++ , writeX++) {
-                        if(writeX >= 160 || writeX < 0) {
+                    for(int x = 0; x < 16; x+=2 , writeX++) {
+                        if(writeX >= 160) {
                             continue;
                         }
 
-                        u32 colorid = (pxData >> (x << 1)) & 0x03;
-                        depthBuffer[writeX] = depth - depthOffset[priority | colorid];
+                        u32 colorid = (pxData >> x) & 0x03;
+
+                        // Draw pixel
+                        depthBuffer[writeX] = depth - depthOffset[colorid];
                         lineBuffer[writeX] = bgPalettes[paletteid][colorid];
                     }
                 }
@@ -347,24 +367,24 @@ void GameboyPPU::drawSprite(int scanline, int spriteNum) {
     int y = (gameboy->hram[spriteNum] - 16);
     int height = (gameboy->ioRam[0x40] & 0x4) ? 16 : 8;
 
+    // Clip Sprite to or bottom
     if(scanline < y || scanline >= y + height) {
         return;
     }
 
-    int x = (gameboy->hram[spriteNum + 1] - 8);
+    // Setup Tile Info
     int tileNum = gameboy->hram[spriteNum + 2];
+    u32 flag = gameboy->hram[spriteNum + 3];
     int bank = 0;
-    int flipX = (gameboy->hram[spriteNum + 3] & 0x20);
-    int flipY = (gameboy->hram[spriteNum + 3] & 0x40);
-    int priority = !(gameboy->hram[spriteNum + 3] & 0x80);
     int paletteid;
     if(gameboy->gbMode == CGB) {
         bank = (gameboy->hram[spriteNum + 3] & 0x8) >> 3;
         paletteid = gameboy->hram[spriteNum + 3] & 0x7;
     } else {
-        paletteid = ((gameboy->hram[spriteNum + 3] & 0x10) >> 4) * 4;
+        paletteid = (gameboy->hram[spriteNum + 3] & 0x10) >> 2;
     }
 
+    // Select Tile base on Tiles Y offset
     if(height == 16) {
         tileNum &= ~1;
         if(scanline - y >= 8) {
@@ -372,17 +392,13 @@ void GameboyPPU::drawSprite(int scanline, int spriteNum) {
         }
     }
 
-    int pixelY = (scanline - y) % 8;
-    if(flipY) {
+    // This is the tile's Y position to be read (0-7)
+    int pixelY = (scanline - y) & 0x07;
+    if(flag & FLIP_Y) {
         pixelY = 7 - pixelY;
         if(height == 16) {
             tileNum = tileNum ^ 1;
         }
-    }
-
-    u32 depth = 0;
-    if(priority) {
-        depth = 2;
     }
 
     // Read bytes of tile line
@@ -390,32 +406,47 @@ void GameboyPPU::drawSprite(int scanline, int spriteNum) {
     u32 vRamB2 = gameboy->vram[bank][(tileNum << 4) + (pixelY << 1) + 1];
 
     // Reverse their bits if flipX set
-    if (!flipX) {
+    if(!(flag & FLIP_X)) {
         vRamB1 = BitReverseTable256[vRamB1];
         vRamB2 = BitReverseTable256[vRamB2];
     }
 
+    // Mux the bits to for more logical pixels
     u32 pxData = BitStretchTable256[vRamB1] | (BitStretchTable256[vRamB2] << 1);
-    int writeX = x & 0xFF;
+
+    // Setup depth based on priority
+    u32 depth = 2;
+    if(flag & PRIORITY) {
+        depth = 0;
+    }
+
+    // Calculate where to start to draw, negatives treated as unsigned for speed up
+    u32 writeX = (u32) ((s32) (gameboy->hram[spriteNum + 1] - 8));
+
+    // Split Render mode based on sgbMode, slight speed up
     if(gameboy->sgbMode) {
-        for(int j = 0; j < 8; j++ , writeX = (writeX + 1) & 0xFF) {
+        for(int j = 0; j < 16; j+=2 , writeX++) {
             if(writeX >= 160) {
                 continue;
             }
 
-            u32 colorid = (pxData >> (j << 1)) & 0x03;
+            u32 colorid = (pxData >> j) & 0x03;
+
+            // Draw pixel, If not transparent or above depth buffer
             if(colorid != 0 && depth >= depthBuffer[writeX]) {
                 depthBuffer[writeX] = depth;
                 lineBuffer[writeX] = sprPalettes[paletteid + subSgbMap[writeX >> 3]][colorid];
             }
         }
     } else {
-        for(int j = 0; j < 8; j++ , writeX = (writeX + 1) & 0xFF) {
+        for(int j = 0; j < 16; j+=2 , writeX++) {
             if(writeX >= 160) {
                 continue;
             }
 
-            u32 colorid = (pxData >> (j << 1)) & 0x03;
+            u32 colorid = (pxData >> j) & 0x03;
+
+            // Draw pixel, If not transparent or above depth buffer
             if(colorid != 0 && depth >= depthBuffer[writeX]) {
                 depthBuffer[writeX] = depth;
                 lineBuffer[writeX] = sprPalettes[paletteid][colorid];
@@ -456,7 +487,14 @@ void GameboyPPU::handleVideoRegister(u8 ioReg, u8 val) {
     switch(ioReg) {
         case 0x40:
             if((gameboy->ioRam[ioReg] & 0x80) && !(val & 0x80)) {
-                wmemset((wchar_t*) gfxGetScreenBuffer(), (wchar_t) bgPalettes[0][0], 256 * 256 * sizeof(u32));
+                if(gameboy->gbMode == GB) {
+                    int red = (gameboy->bgPaletteData[0] & 0x1F) * 8;
+                    int green = (((gameboy->bgPaletteData[0] & 0xE0) >> 5) | ((gameboy->bgPaletteData[1]) & 0x3) << 3) * 8;
+                    int blue = ((gameboy->bgPaletteData[1] >> 2) & 0x1F) * 8;
+                    wmemset((wchar_t*) gfxGetScreenBuffer(), (wchar_t) RGBA32(red, green, blue), 256 * 256 * sizeof(u32));
+                } else {
+                    memset(gfxGetScreenBuffer(), 0xFF, 256 * 256 * sizeof(u32));
+                }
             } else if (!(gameboy->ioRam[ioReg] & 0x80) && (val & 0x80)) {
                 screenWasDisabled = true;
             }

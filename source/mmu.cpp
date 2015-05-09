@@ -116,7 +116,7 @@ void Gameboy::initMMU() {
     HuC3Shift = 0;
 
     /* Rockman8 by Yang Yang uses a silghtly different MBC1 variant */
-    rockmanMapper = !romFile->getRomTitle().compare("ROCKMAN 99");
+    rockmanMapper = romFile->getRomTitle().compare("ROCKMAN 99") == 0;
 
     readFunc = mbcReads[romFile->getMBC()];
     writeFunc = mbcWrites[romFile->getMBC()];

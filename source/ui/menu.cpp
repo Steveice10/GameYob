@@ -211,6 +211,11 @@ void sgbModeFunc(int value) {
 
 void biosEnableFunc(int value) {
     biosEnabled = value;
+    if(biosEnabled) {
+        enableMenuOption("Select BIOS");
+    } else {
+        disableMenuOption("Select BIOS");
+    }
 }
 
 void selectBiosFunc(int value) {

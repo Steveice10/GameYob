@@ -171,7 +171,7 @@ RomFile::RomFile(Gameboy* gb, const std::string path) {
 
     this->cgbSupported = bank0[0x0143] == 0x80 || bank0[0x0143] == 0xC0;
     this->cgbRequired = bank0[0x0143] == 0xC0;
-    this->sgb = bank0[0x014b] == 0x33 && bank0[0x146] == 0x03;
+    this->sgb = bank0[0x146] == 0x03 && bank0[0x014B] == 0x33;
 
     this->rawMBC = !this->gbs ? bank0[0x0147] : (u8) 0x19;
     switch(this->rawMBC) {
