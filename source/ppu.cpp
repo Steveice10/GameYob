@@ -492,6 +492,7 @@ void GameboyPPU::handleVideoRegister(u8 ioReg, u8 val) {
                     int green = (((gameboy->bgPaletteData[0] & 0xE0) >> 5) | ((gameboy->bgPaletteData[1]) & 0x3) << 3) * 8;
                     int blue = ((gameboy->bgPaletteData[1] >> 2) & 0x1F) * 8;
                     wmemset((wchar_t*) gfxGetScreenBuffer(), (wchar_t) RGBA32(red, green, blue), 256 * 256 * sizeof(u32));
+                    gfxRefresh();
                 } else {
                     memset(gfxGetScreenBuffer(), 0xFF, 256 * 256 * sizeof(u32));
                 }
