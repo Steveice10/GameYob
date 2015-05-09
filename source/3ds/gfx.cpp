@@ -33,8 +33,6 @@ static u32 borderHeight = 0;
 static u32 gpuBorderWidth = 0;
 static u32 gpuBorderHeight = 0;
 
-static bool refreshVbo = false;
-
 bool gfxInit() {
     // Initialize the GPU and setup the state.
     if(!gpuInit()) {
@@ -97,10 +95,6 @@ void gfxCleanup() {
         gpuFree(screenBuffer);
         screenBuffer = NULL;
     }
-}
-
-void gfxRefresh() {
-    refreshVbo = true;
 }
 
 bool gfxGetFastForward() {
@@ -325,7 +319,7 @@ void gfxDrawScreen() {
     }
 
     // Update VBO data if the size has changed.
-    if(refreshVbo || prevScaleMode != scaleMode || prevScaleFilter != scaleFilter || prevGameScreen != gameScreen) {
+    if(prevScaleMode != scaleMode || prevScaleFilter != scaleFilter || prevGameScreen != gameScreen) {
         u32 fbWidth = gameScreen == 0 ? 400 : 320;
         u32 fbHeight = 240;
 
@@ -377,7 +371,6 @@ void gfxDrawScreen() {
         prevScaleMode = scaleMode;
         prevScaleFilter = scaleFilter;
         prevGameScreen = gameScreen;
-        refreshVbo = false;
     }
 
     // Update the texture with the new frame.

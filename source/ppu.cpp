@@ -133,7 +133,7 @@ void GameboyPPU::drawScanline_P2(int scanline) {
             int red = (gameboy->bgPaletteData[0] & 0x1F) * 8;
             int green = (((gameboy->bgPaletteData[0] & 0xE0) >> 5) | ((gameboy->bgPaletteData[1]) & 0x3) << 3) * 8;
             int blue = ((gameboy->bgPaletteData[1] >> 2) & 0x1F) * 8;
-            wmemset((wchar_t*) lineBuffer, (wchar_t) RGBA32(red, green, blue), 160 * sizeof(u32));
+            wmemset((wchar_t*) lineBuffer, (wchar_t) RGBA32(red, green, blue), 160);
         } else {
             memset(lineBuffer, 0xFF, 160 * sizeof(u32));
         }
@@ -149,7 +149,7 @@ void GameboyPPU::drawScanline_P2(int scanline) {
         memset(lineBuffer, 0x00, 160 * sizeof(u32));
         return;
     } else if(gfxMask == 3) {
-        wmemset((wchar_t*) lineBuffer, (wchar_t) bgPalettes[0][0], 160 * sizeof(u32));
+        wmemset((wchar_t*) lineBuffer, (wchar_t) bgPalettes[0][0], 160);
         return;
     }
 
@@ -491,8 +491,7 @@ void GameboyPPU::handleVideoRegister(u8 ioReg, u8 val) {
                     int red = (gameboy->bgPaletteData[0] & 0x1F) * 8;
                     int green = (((gameboy->bgPaletteData[0] & 0xE0) >> 5) | ((gameboy->bgPaletteData[1]) & 0x3) << 3) * 8;
                     int blue = ((gameboy->bgPaletteData[1] >> 2) & 0x1F) * 8;
-                    wmemset((wchar_t*) gfxGetScreenBuffer(), (wchar_t) RGBA32(red, green, blue), 256 * 256 * sizeof(u32));
-                    gfxRefresh();
+                    wmemset((wchar_t*) gfxGetScreenBuffer(), (wchar_t) RGBA32(red, green, blue), 256 * 256);
                 } else {
                     memset(gfxGetScreenBuffer(), 0xFF, 256 * 256 * sizeof(u32));
                 }
