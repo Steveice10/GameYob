@@ -994,29 +994,30 @@ int Gameboy::runOpcode(int cycles) {
                 break;
 
             case 0x76:        // HALT					4
-                if(!ime && (ioRam[0x0F] & ioRam[0xFF] & 0x1F)) {
-                    if(gbMode != CGB) {
+                if(!ime) {
+                    if(gbMode != CGB && (ioRam[0x0F] & ioRam[0xFF] & 0x1F)) {
                         haltBug = true;
-                        break;
                     }
                 } else {
                     halt = 1;
-                    break;
                 }
+
+                break;
 
             case 0x10:        // STOP					4
                 if(ioRam[0x4D] & 1 && gbMode == CGB) {
-                    if(ioRam[0x4D] & 0x80)
+                    if(ioRam[0x4D] & 0x80) {
                         setDoubleSpeed(0);
-                    else
+                    } else {
                         setDoubleSpeed(1);
+                    }
 
                     ioRam[0x4D] &= ~1;
+                    pcAddr++;
                 } else {
                     halt = 2;
-                    break;
                 }
-                pcAddr++;
+
                 break;
 
             case 0xF3:        // DI   4
