@@ -3,6 +3,8 @@
 #include "types.h"
 #include "romfile.h"
 
+#include <vector>
+
 #define MAX_CHEAT_NAME_LEN    24
 #define MAX_CHEATS            900
 #define CHEAT_FLAG_ENABLED    (1<<0)

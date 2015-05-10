@@ -1,3 +1,5 @@
 #pragma once
 
-bool startCheatMenu();
+#include "cheatengine.h"
+
+void startCheatMenu(CheatEngine* cheatEngine);

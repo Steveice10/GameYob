@@ -16,7 +16,7 @@ Gameboy* gameboy = NULL;
 int fps;
 time_t lastPrintTime;
 
-FileChooser romChooser("/");
+FileChooser romChooser("/", {"gbs", "sgb", "gbc", "cgb", "gb"}, false);
 bool chooserInitialized = false;
 
 void mgrInit() {
@@ -115,8 +115,7 @@ void mgrSelectRom() {
         }
     }
 
-    const char* extraExtensions[] = {"gbs"};
-    char* filename = romChooser.startFileChooser(extraExtensions, true);
+    char* filename = romChooser.startFileChooser();
 
     if(filename == NULL) {
         printf("Filechooser error");

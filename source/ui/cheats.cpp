@@ -2,18 +2,20 @@
 #include <algorithm>
 
 #include "platform/input.h"
+#include "platform/system.h"
 #include "ui/config.h"
 #include "ui/menu.h"
 #include "cheatengine.h"
 #include "gameboy.h"
 
-const int cheatsPerPage = 18;
+int cheatsPerPage = 0;
 int cheatMenuSelection = 0;
-bool cheatMenuGameboyWasPaused;
+bool cheatMenuGameboyWasPaused = false;
 
-CheatEngine* cheatEngine; // cheat engine to display the menu for
+CheatEngine* cheatEngine = NULL;
 
 void redrawCheatMenu() {
+    cheatsPerPage = systemGetConsoleHeight() - 2;
     int numCheats = cheatEngine->getNumCheats();
     int numPages = (numCheats - 1) / cheatsPerPage + 1;
     int page = cheatMenuSelection / cheatsPerPage;
@@ -46,8 +48,9 @@ void redrawCheatMenu() {
                 printf("  Off  ");
             }
         }
-    }
 
+        printf("\n");
+    }
 }
 
 void updateCheatMenu() {
@@ -99,16 +102,12 @@ void updateCheatMenu() {
     }
 }
 
-bool startCheatMenu() {
-    cheatEngine = gameboy->getCheatEngine();
-    if(cheatEngine == NULL || cheatEngine->getNumCheats() == 0) {
-        return false;
-    }
+void startCheatMenu(CheatEngine* engine) {
+    cheatEngine = engine;
 
     cheatMenuGameboyWasPaused = gameboy->isGameboyPaused();
     gameboy->pause();
+
     displaySubMenu(updateCheatMenu);
     redrawCheatMenu();
-
-    return true;
 }

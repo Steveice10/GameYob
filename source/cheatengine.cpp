@@ -146,7 +146,6 @@ void CheatEngine::loadCheats(const char* filename) {
     // Begin loading new cheat file
     FILE* file = fopen(filename, "r");
     if(file == NULL) {
-        disableMenuOption("Manage Cheats");
         return;
     }
 
@@ -177,8 +176,6 @@ void CheatEngine::loadCheats(const char* filename) {
     }
 
     fclose(file);
-
-    enableMenuOption("Manage Cheats");
 }
 
 void CheatEngine::saveCheats(const char* filename) {
@@ -188,7 +185,7 @@ void CheatEngine::saveCheats(const char* filename) {
 
     FILE* file = fopen(filename, "w");
     for(int i = 0; i < numCheats; i++) {
-        fprintf(file, "%s %d%s\n", cheats[i].cheatString, !!(cheats[i].flags & CHEAT_FLAG_ENABLED), cheats[i].name);
+        fprintf(file, "%s %d%s\n", cheats[i].cheatString, (cheats[i].flags & CHEAT_FLAG_ENABLED) != 0, cheats[i].name);
     }
 
     fclose(file);

@@ -59,7 +59,8 @@ bool timeOutput = false;
 
 int biosEnabled = false;
 
-FileChooser borderChooser("/");
+FileChooser borderChooser("/", {"png"}, true);
+FileChooser biosChooser("/", {"bin"}, true);
 
 
 // Private function used for simple submenus
@@ -133,7 +134,9 @@ void printerEnableFunc(int value) {
 }
 
 void cheatFunc(int value) {
-    if(!startCheatMenu()) {
+    if(gameboy->getCheatEngine() != NULL && gameboy->getCheatEngine()->getNumCheats() != 0) {
+        startCheatMenu(gameboy->getCheatEngine());
+    } else {
         printMenuMessage("No cheats found!");
     }
 }
@@ -219,8 +222,7 @@ void biosEnableFunc(int value) {
 }
 
 void selectBiosFunc(int value) {
-    const char* extensions[] = {"bin"};
-    char* filename = borderChooser.startFileChooser(extensions, false, true);
+    char* filename = biosChooser.startFileChooser();
     if(filename != NULL) {
         strcpy(biosPath, filename);
         free(filename);
@@ -267,8 +269,7 @@ void gbColorizeFunc(int value) {
 }
 
 void selectBorderFunc(int value) {
-    const char* extensions[] = {"png"};
-    char* filename = borderChooser.startFileChooser(extensions, false, true);
+    char* filename = borderChooser.startFileChooser();
     if(filename != NULL) {
         strcpy(borderPath, filename);
         free(filename);
