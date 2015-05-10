@@ -3,6 +3,8 @@
 
 Fork of [Drenn](https://github.com/Drenn1/)'s (S)GB(C) emulator [GameYob](https://github.com/Drenn1/GameYob/).
 
+Credit to [gamesquest1](http://gbatemp.net/members/gamesquest1.335456/) for the amazing 3D banner.
+
 Download: https://www.dropbox.com/s/ms1kes4jhrb3meg/gameyob.zip?dl=0
 
 Requires [devkitARM](http://sourceforge.net/projects/devkitpro/files/devkitARM/) and [ctrcommon](https://github.com/Steveice10/ctrcommon) to build.
