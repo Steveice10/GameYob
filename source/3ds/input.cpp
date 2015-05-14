@@ -8,9 +8,9 @@
 
 #include <3ds.h>
 
+#include <ctrcommon/gpu.hpp>
 #include <ctrcommon/input.hpp>
 #include <ctrcommon/platform.hpp>
-#include <ctrcommon/screen.hpp>
 
 const char* dsKeyNames[] = {
         "A",         // 0
@@ -98,7 +98,7 @@ void inputUpdate() {
         }
     }
 
-    if(accelPadMode && inputIsPressed(BUTTON_TOUCH) && inputGetTouch().x <= screenGetStrWidth("Exit") && inputGetTouch().y <= screenGetStrHeight("Exit")) {
+    if(accelPadMode && inputIsPressed(BUTTON_TOUCH) && inputGetTouch().x <= gputGetStringWidth("Exit") && inputGetTouch().y <= gputGetStringHeight("Exit")) {
         inputKeyRelease(BUTTON_TOUCH);
         accelPadMode = false;
         consoleClear();

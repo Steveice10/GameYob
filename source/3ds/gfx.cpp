@@ -11,8 +11,6 @@
 
 #include <ctrcommon/gpu.hpp>
 
-#include "shader_vsh_shbin.h"
-
 static u32* screenBuffer;
 
 static int prevScaleMode = -1;
@@ -21,7 +19,6 @@ static int prevGameScreen = -1;
 
 static bool fastForward = false;
 
-static u32 shader = 0;
 static u32 texture = 0;
 static u32 vbo = 0;
 
@@ -34,24 +31,16 @@ static u32 gpuBorderWidth = 0;
 static u32 gpuBorderHeight = 0;
 
 bool gfxInit() {
-    // Initialize the GPU and setup the state.
-    if(!gpuInit()) {
-        return false;
-    }
-
+    // Allocate and clear the screen buffer.
     screenBuffer = (u32*) gpuAlloc(256 * 256 * sizeof(u32));
     memset(screenBuffer, 0, 256 * 256 * sizeof(u32));
 
+    // Setup the GPU state.
     gpuCullMode(CULL_BACK_CCW);
-
-    // Load the shader.
-    gpuCreateShader(&shader);
-    gpuLoadShader(shader, shader_vsh_shbin, shader_vsh_shbin_size);
-    gpuUseShader(shader);
 
     // Create the VBO.
     gpuCreateVbo(&vbo);
-    gpuVboAttributes(vbo, ATTRIBUTE(0, 3, ATTR_FLOAT) | ATTRIBUTE(1, 2, ATTR_FLOAT), 2);
+    gpuVboAttributes(vbo, ATTRIBUTE(0, 3, ATTR_FLOAT) | ATTRIBUTE(1, 2, ATTR_FLOAT) | ATTRIBUTE(2, 4, ATTR_FLOAT), 3);
 
     // Create the texture.
     gpuCreateTexture(&texture);
@@ -60,12 +49,6 @@ bool gfxInit() {
 }
 
 void gfxCleanup() {
-    // Free shader.
-    if(shader != 0) {
-        gpuFreeShader(shader);
-        shader = 0;
-    }
-
     // Free texture.
     if(texture != 0) {
         gpuFreeTexture(texture);
@@ -289,8 +272,14 @@ void gfxDrawScreen() {
         // Create the VBO.
         if(borderVbo == 0) {
             gpuCreateVbo(&borderVbo);
-            gpuVboAttributes(borderVbo, ATTRIBUTE(0, 3, ATTR_FLOAT) | ATTRIBUTE(1, 2, ATTR_FLOAT), 2);
+            gpuVboAttributes(borderVbo, ATTRIBUTE(0, 3, ATTR_FLOAT) | ATTRIBUTE(1, 2, ATTR_FLOAT) | ATTRIBUTE(2, 4, ATTR_FLOAT), 3);
         }
+
+        // Calculate VBO points.
+        const float x1 = 0;
+        const float y1 = 0;
+        const float x2 = gpuGetViewportWidth();
+        const float y2 = gpuGetViewportHeight();
 
         // Adjust for power-of-two textures.
         float leftHorizMod = 0;
@@ -304,44 +293,43 @@ void gfxDrawScreen() {
             rightHorizMod += mod / 2.0f;
         }
 
-        // Prepare VBO data.
+        // Prepare new VBO data.
         const float vboData[] = {
-                -1, -1, -0.1f, 1.0f - rightHorizMod, 0.0f + vertMod,
-                1, -1, -0.1f, 1.0f - rightHorizMod, 1.0f,
-                1, 1, -0.1f, 0.0f + leftHorizMod, 1.0f,
-                1, 1, -0.1f, 0.0f + leftHorizMod, 1.0f,
-                -1, 1, -0.1f, 0.0f + leftHorizMod, 0.0f + vertMod,
-                -1, -1, -0.1f, 1.0f - rightHorizMod, 0.0f + vertMod,
+                x1, y1, -0.1f, 0.0f + leftHorizMod, 0.0f + vertMod, 1.0f, 1.0f, 1.0f, 1.0f,
+                x2, y1, -0.1f, 1.0f - rightHorizMod, 0.0f + vertMod, 1.0f, 1.0f, 1.0f, 1.0f,
+                x2, y2, -0.1f, 1.0f - rightHorizMod, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
+                x2, y2, -0.1f, 1.0f - rightHorizMod, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
+                x1, y2, -0.1f, 0.0f + leftHorizMod, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
+                x1, y1, -0.1f, 0.0f + leftHorizMod, 0.0f + vertMod, 1.0f, 1.0f, 1.0f, 1.0f
         };
 
-        // Update data.
-        gpuVboData(borderVbo, vboData, sizeof(vboData), sizeof(vboData) / (5 * 4), PRIM_TRIANGLES);
+        // Update the VBO with the new data.
+        gpuVboData(borderVbo, vboData, sizeof(vboData), sizeof(vboData) / (9 * 4), PRIM_TRIANGLES);
     }
 
     // Update VBO data if the size has changed.
     if(prevScaleMode != scaleMode || prevScaleFilter != scaleFilter || prevGameScreen != gameScreen) {
-        u32 fbWidth = gameScreen == 0 ? 400 : 320;
-        u32 fbHeight = 240;
-
         if(prevGameScreen != gameScreen) {
             // Update the viewport.
-            gpuViewport(gameScreen == 0 ? TOP_SCREEN : BOTTOM_SCREEN, 0, 0, fbHeight, fbWidth);
+            gpuViewport(gameScreen == 0 ? TOP_SCREEN : BOTTOM_SCREEN, 0, 0, gameScreen == 0 ? 400 : 320, 240);
         }
 
         // Calculate the VBO dimensions.
         u32 vboWidth = 160;
         u32 vboHeight = 144;
         if(scaleMode == 1) {
-            vboWidth *= fbHeight / (float) 144;
-            vboHeight = fbHeight;
+            vboWidth *= gpuGetViewportHeight() / (float) 144;
+            vboHeight = gpuGetViewportHeight();
         } else if(scaleMode == 2) {
-            vboWidth = fbWidth;
-            vboHeight = fbHeight;
+            vboWidth = gpuGetViewportWidth();
+            vboHeight = gpuGetViewportHeight();
         }
 
-        // Calculate VBO extents.
-        float horizExtent = vboWidth < fbWidth ? (float) vboWidth / (float) fbWidth : 1;
-        float vertExtent = vboHeight < fbHeight ? (float) vboHeight / (float) fbHeight : 1;
+        // Calculate VBO points.
+        const float x1 = (float) ((gpuGetViewportWidth() - vboWidth) / 2);
+        const float y1 = (float) ((gpuGetViewportHeight() - vboHeight) / 2);
+        const float x2 = x1 + vboWidth;
+        const float y2 = y1 + vboHeight;
 
         // Adjust for power-of-two textures.
         static const float baseHorizMod = (256.0f - 160.0f) / 256.0f;
@@ -357,16 +345,16 @@ void gfxDrawScreen() {
 
         // Prepare new VBO data.
         const float vboData[] = {
-                -vertExtent, -horizExtent, -0.1f, 1.0f - horizMod, 0.0f + vertMod,
-                vertExtent, -horizExtent, -0.1f, 1.0f - horizMod, 1.0f,
-                vertExtent, horizExtent, -0.1f, 0.0f, 1.0f,
-                vertExtent, horizExtent, -0.1f, 0.0f, 1.0f,
-                -vertExtent, horizExtent, -0.1f, 0.0f, 0.0f + vertMod,
-                -vertExtent, -horizExtent, -0.1f, 1.0f - horizMod, 0.0f + vertMod,
+                x1, y1, -0.1f, 0.0f, 0.0f + vertMod, 1.0f, 1.0f, 1.0f, 1.0f,
+                x2, y1, -0.1f, 1.0f - horizMod, 0.0f + vertMod, 1.0f, 1.0f, 1.0f, 1.0f,
+                x2, y2, -0.1f, 1.0f - horizMod, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
+                x2, y2, -0.1f, 1.0f - horizMod, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
+                x1, y2, -0.1f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
+                x1, y1, -0.1f, 0.0f, 0.0f + vertMod, 1.0f, 1.0f, 1.0f, 1.0f
         };
 
         // Update the VBO with the new data.
-        gpuVboData(vbo, vboData, sizeof(vboData), sizeof(vboData) / (5 * 4), PRIM_TRIANGLES);
+        gpuVboData(vbo, vboData, sizeof(vboData), sizeof(vboData) / (9 * 4), PRIM_TRIANGLES);
 
         prevScaleMode = scaleMode;
         prevScaleFilter = scaleFilter;
@@ -402,7 +390,7 @@ void gfxDrawScreen() {
     gpuFlushBuffer();
 
     if(inputKeyPressed(inputMapFuncKey(FUNC_KEY_SCREENSHOT))) {
-        screenTakeScreenshot();
+        gputTakeScreenshot();
     }
 
     // Swap buffers and wait for VBlank.
