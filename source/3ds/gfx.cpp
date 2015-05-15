@@ -304,7 +304,7 @@ void gfxDrawScreen() {
         };
 
         // Update the VBO with the new data.
-        gpuVboData(borderVbo, vboData, sizeof(vboData), sizeof(vboData) / (9 * 4), PRIM_TRIANGLES);
+        gpuVboData(borderVbo, vboData, 6 * 9, PRIM_TRIANGLES);
     }
 
     // Update VBO data if the size has changed.
@@ -319,10 +319,10 @@ void gfxDrawScreen() {
         u32 vboHeight = 144;
         if(scaleMode == 1) {
             vboWidth *= gpuGetViewportHeight() / (float) 144;
-            vboHeight = gpuGetViewportHeight();
+            vboHeight = (u32) gpuGetViewportHeight();
         } else if(scaleMode == 2) {
-            vboWidth = gpuGetViewportWidth();
-            vboHeight = gpuGetViewportHeight();
+            vboWidth = (u32) gpuGetViewportWidth();
+            vboHeight = (u32) gpuGetViewportHeight();
         }
 
         // Calculate VBO points.
@@ -354,7 +354,7 @@ void gfxDrawScreen() {
         };
 
         // Update the VBO with the new data.
-        gpuVboData(vbo, vboData, sizeof(vboData), sizeof(vboData) / (9 * 4), PRIM_TRIANGLES);
+        gpuVboData(vbo, vboData, 6 * 9, PRIM_TRIANGLES);
 
         prevScaleMode = scaleMode;
         prevScaleFilter = scaleFilter;
