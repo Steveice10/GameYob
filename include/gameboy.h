@@ -218,7 +218,6 @@ public:
 
 private:
     struct Registers g_gbRegs;
-    u8* firstPcAddr;
 
     // mmu.cpp
 

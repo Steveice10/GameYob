@@ -23,19 +23,19 @@
 
 #define carryBit()    (locF & 0x10 ? 1 : 0)
 
-#define setPC(val) { g_gbRegs.pc.w = (val); pcAddr = &memory[(g_gbRegs.pc.w)>>12][(g_gbRegs.pc.w)&0xfff]; firstPcAddr=pcAddr;}
-#define getPC() (g_gbRegs.pc.w+(pcAddr-firstPcAddr))
-#define readPC() *(pcAddr++)
-#define readPC_noinc() (*pcAddr)
-#define readPC16() ((*pcAddr) | ((*(pcAddr+1))<<8)); pcAddr += 2
-#define readPC16_noinc() ((*pcAddr) | ((*(pcAddr+1))<<8))
+#define setPC(val) { locPC = (val);}
+#define getPC() (locPC)
+#define readPC() (quickRead(locPC++))
+#define readPC_noinc() (quickRead(locPC))
+#define readPC16() (quickRead16(locPC)); locPC += 2
+#define readPC16_noinc() (quickRead16(locPC))
 
 #define OP_JR(cond)  \
                 if (cond) { \
                     setPC((getPC()+(s8)readPC_noinc()+1)&0xffff); \
                 } \
                 else { \
-                    pcAddr++; \
+                    locPC++; \
                     totalCycles -= 4; \
                 }
 
@@ -156,19 +156,18 @@ int Gameboy::runOpcode(int cycles) {
     soundCycles = baseSoundCycles + (addedCycles >> doubleSpeed);
 
     cyclesToExecute = cycles - addedCycles;
+
     // Having these commonly-used registers in local variables should improve speed
-    register u8* pcAddr;
-    pcAddr = memory[g_gbRegs.pc.w >> 12] + (g_gbRegs.pc.w & 0xfff);
-    firstPcAddr = pcAddr;
+    register int locPC = g_gbRegs.pc.w;
     int locSP = g_gbRegs.sp.w;
     int locF = g_gbRegs.af.b.l;
 
     register int totalCycles = 0;
 
     while(!halt && totalCycles < cyclesToExecute) {
-        u8 opcode = *pcAddr++;
+        u8 opcode = quickRead(locPC++);
         if(haltBug) {
-            pcAddr--;
+            locPC--;
             haltBug = false;
         }
 
@@ -288,7 +287,7 @@ int Gameboy::runOpcode(int cycles) {
                 break;
             case 0x36:        // LD (hl), n	12
                 writeMemory(g_gbRegs.hl.w, readPC_noinc());
-                pcAddr++;
+                locPC++;
                 break;
             case 0x0A:        // LD A, (BC)	8
                 g_gbRegs.af.b.h = readMemory(g_gbRegs.bc.w);
@@ -298,7 +297,7 @@ int Gameboy::runOpcode(int cycles) {
                 break;
             case 0xFA:        // LD A, (nn)	16
                 g_gbRegs.af.b.h = readMemory(readPC16_noinc());
-                pcAddr += 2;
+                locPC += 2;
                 break;
             case 0x02:        // LD (BC), A	8
                 writeMemory(g_gbRegs.bc.w, g_gbRegs.af.b.h);
@@ -308,7 +307,7 @@ int Gameboy::runOpcode(int cycles) {
                 break;
             case 0xEA:        // LD (nn), A	16
                 writeMemory(readPC16_noinc(), g_gbRegs.af.b.h);
-                pcAddr += 2;
+                locPC += 2;
                 break;
             case 0xF2:        // LDH A, (C)	8
                 g_gbRegs.af.b.h = readIO(g_gbRegs.bc.b.l);
@@ -330,11 +329,11 @@ int Gameboy::runOpcode(int cycles) {
                 break;
             case 0xE0:        // LDH (n), A   12
                 writeIO(readPC_noinc(), g_gbRegs.af.b.h);
-                pcAddr++;
+                locPC++;
                 break;
             case 0xF0:        // LDH A, (n)   12
                 g_gbRegs.af.b.h = readIO(readPC_noinc());
-                pcAddr++;
+                locPC++;
                 break;
 
                 // 16-bit loads
@@ -1013,7 +1012,7 @@ int Gameboy::runOpcode(int cycles) {
                     }
 
                     ioRam[0x4D] &= ~1;
-                    pcAddr++;
+                    locPC++;
                 } else {
                     halt = 2;
                 }
@@ -1088,7 +1087,7 @@ int Gameboy::runOpcode(int cycles) {
                     setPC(readPC16_noinc());
                     break;
                 } else {
-                    pcAddr += 2;
+                    locPC += 2;
                     totalCycles -= 4;
                     break;
                 }
@@ -1097,7 +1096,7 @@ int Gameboy::runOpcode(int cycles) {
                     setPC(readPC16_noinc());
                     break;
                 } else {
-                    pcAddr += 2;
+                    locPC += 2;
                     totalCycles -= 4;
                     break;
                 }
@@ -1106,7 +1105,7 @@ int Gameboy::runOpcode(int cycles) {
                     setPC(readPC16_noinc());
                     break;
                 } else {
-                    pcAddr += 2;
+                    locPC += 2;
                     totalCycles -= 4;
                     break;
                 }
@@ -1116,7 +1115,7 @@ int Gameboy::runOpcode(int cycles) {
                     break;
                 } else {
                     totalCycles -= 4;
-                    pcAddr += 2;
+                    locPC += 2;
                     break;
                 }
             case 0xE9:        // JP (hl)	4
@@ -1155,7 +1154,7 @@ int Gameboy::runOpcode(int cycles) {
                     break;
                 }
                 else {
-                    pcAddr += 2;
+                    locPC += 2;
                     totalCycles -= 12;
                     break;
                 }
@@ -1168,7 +1167,7 @@ int Gameboy::runOpcode(int cycles) {
                     break;
                 }
                 else {
-                    pcAddr += 2;
+                    locPC += 2;
                     totalCycles -= 12;
                     break;
                 }
@@ -1181,7 +1180,7 @@ int Gameboy::runOpcode(int cycles) {
                     break;
                 }
                 else {
-                    pcAddr += 2;
+                    locPC += 2;
                     totalCycles -= 12;
                     break;
                 }
@@ -1194,7 +1193,7 @@ int Gameboy::runOpcode(int cycles) {
                     break;
                 }
                 else {
-                    pcAddr += 2;
+                    locPC += 2;
                     totalCycles -= 12;
                     break;
                 }
@@ -2347,7 +2346,7 @@ int Gameboy::runOpcode(int cycles) {
 
     soundCycles = baseSoundCycles;
     g_gbRegs.af.b.l = locF;
-    g_gbRegs.pc.w += (pcAddr - firstPcAddr);
+    g_gbRegs.pc.w = locPC;
     g_gbRegs.sp.w = locSP;
     return totalCycles + addedCycles;
 }
