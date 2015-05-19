@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <ui/menu.h>
 
 #include "gameboy.h"
 
@@ -103,7 +104,13 @@ void Gameboy::initCPU() {
 
     if(biosOn) {
         gbRegs.pc.w = 0;
-        gbMode = gbBios ? GB : CGB;
+        if(biosEnabled == 1) {
+            gbMode = resultantGBMode != 1 && gbBiosLoaded ? GB : CGB;
+        } else if(biosEnabled == 2) {
+            gbMode = GB;
+        } else if(biosEnabled == 3) {
+            gbMode = CGB;
+        }
     } else {
         gbRegs.pc.w = 0x100;
     }

@@ -40,7 +40,8 @@ struct KeyConfig {
     int funcKeys[NUM_BINDABLE_BUTTONS];
 };
 
-extern char biosPath[256];
+extern char gbBiosPath[256];
+extern char gbcBiosPath[256];
 extern char romPath[256];
 extern char borderPath[256];
 

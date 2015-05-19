@@ -1213,6 +1213,28 @@ void Gameboy::setDoubleSpeed(int val) {
     }
 }
 
+void Gameboy::loadBios() {
+    FILE* gbFile = fopen(gbBiosPath, "rb");
+    gameboy->gbBiosLoaded = gbFile != NULL;
+    if(gameboy->gbBiosLoaded) {
+        struct stat st;
+        fstat(fileno(gbFile), &st);
+
+        fread(gameboy->gbBios, 1, 0x900, gbFile);
+        fclose(gbFile);
+    }
+
+    FILE* gbcFile = fopen(gbcBiosPath, "rb");
+    gameboy->gbcBiosLoaded = gbcFile != NULL;
+    if(gameboy->gbcBiosLoaded) {
+        struct stat st;
+        fstat(fileno(gbcFile), &st);
+
+        fread(gameboy->gbcBios, 1, 0x900, gbcFile);
+        fclose(gbcFile);
+    }
+}
+
 void Gameboy::loadBorder() {
     // TODO: SGB?
 
@@ -1423,7 +1445,7 @@ void Gameboy::updateAutosave() {
     }
 }
 
-const int STATE_VERSION = 9;
+const int STATE_VERSION = 10;
 
 void Gameboy::saveState(int stateNum) {
     if(!isRomLoaded()) {
@@ -1473,6 +1495,9 @@ void Gameboy::saveState(int stateNum) {
     fwrite(&ramEnabled, 1, sizeof(ramEnabled), outFile);
     fwrite(&romBank0Num, 1, sizeof(romBank0Num), outFile);
     fwrite(&haltBug, 1, sizeof(haltBug), outFile);
+
+    bool gbBios = gbMode == GB;
+    fwrite(&gbBios, 1, sizeof(gbBios), outFile);
 
     switch(romFile->getMBC()) {
         case HUC3:
@@ -1573,9 +1598,6 @@ int Gameboy::loadState(int stateNum) {
     fread(&ime, 1, sizeof(ime), inFile);
     fread(&doubleSpeed, 1, sizeof(doubleSpeed), inFile);
     fread(&biosOn, 1, sizeof(biosOn), inFile);
-    if(version == 5 || !biosLoaded) { // Some version 5 states will have the wrong BIOS flag set. Doubt many people have save states on the BIOS screen anyway.
-        biosOn = false;
-    }
 
     if(version < 6) {
         fseek(inFile, 2, SEEK_CUR);
@@ -1618,6 +1640,16 @@ int Gameboy::loadState(int stateNum) {
         fread(&haltBug, 1, sizeof(haltBug), inFile);
     } else {
         haltBug = false;
+    }
+
+    bool gbBios = false;
+    if(version >= 10) {
+        fread(&gbBios, 1, sizeof(gbBios), inFile);
+    }
+
+    // Some version 5 states will have the wrong BIOS flag set. Doubt many people have save states on the BIOS screen anyway.
+    if(version == 5 || (gbBios && !gbBiosLoaded) || !gbcBiosLoaded) {
+        biosOn = false;
     }
 
     /* MBC-specific values have been introduced in v3 */

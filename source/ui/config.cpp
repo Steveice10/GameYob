@@ -14,7 +14,8 @@
 
 #define INI_PATH "/gameyob.ini"
 
-char biosPath[256] = "/gbc_bios.bin";
+char gbBiosPath[256] = "/gb_bios.bin";
+char gbcBiosPath[256] = "/gbc_bios.bin";
 char borderPath[256] = "/default_border.png";
 char romPath[256] = "/gb/";
 
@@ -31,28 +32,22 @@ void generalParseConfig(char* line) {
 
         if(strcasecmp(parameter, "rompath") == 0) {
             strcpy(romPath, value);
-        } else if (strcasecmp(parameter, "biosfile") == 0) {
-            strcpy(biosPath, value);
+        } else if(strcasecmp(parameter, "gbbiosfile") == 0) {
+            strcpy(gbBiosPath, value);
+        } else if(strcasecmp(parameter, "gbcbiosfile") == 0 || strcasecmp(parameter, "biosfile") == 0) {
+            strcpy(gbcBiosPath, value);
         } else if(strcasecmp(parameter, "borderfile") == 0) {
             strcpy(borderPath, value);
         }
     }
 
-    FILE* file = fopen(biosPath, "rb");
-    gameboy->biosLoaded = file != NULL;
-    if(gameboy->biosLoaded) {
-        struct stat st;
-        fstat(fileno(file), &st);
-        gameboy->gbBios = st.st_size == 0x100;
-
-        fread(gameboy->bios, 1, 0x900, file);
-        fclose(file);
-    }
+    gameboy->loadBios();
 }
 
 void generalPrintConfig(FILE* file) {
     fprintf(file, "rompath=%s\n", romPath);
-    fprintf(file, "biosfile=%s\n", biosPath);
+    fprintf(file, "gbbiosfile=%s\n", gbcBiosPath);
+    fprintf(file, "gbcbiosfile=%s\n", gbcBiosPath);
     fprintf(file, "borderfile=%s\n", borderPath);
 }
 

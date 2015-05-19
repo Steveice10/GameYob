@@ -96,7 +96,7 @@ void Gameboy::writeSram(u16 addr, u8 val) {
 }
 
 void Gameboy::initMMU() {
-    biosOn = biosLoaded && !ppu->probingForBorder && !gameboy->getRomFile()->isGBS() && biosEnabled == 1;
+    biosOn = !ppu->probingForBorder && !gameboy->getRomFile()->isGBS() && ((biosEnabled == 1 && (gbBiosLoaded || gbcBiosLoaded)) || (biosEnabled == 2 && gbBiosLoaded) || (biosEnabled == 3 && gbcBiosLoaded));
 
     wramBank = 1;
     vramBank = 0;
@@ -177,6 +177,15 @@ void Gameboy::mapMemory() {
     refreshRomBank0(romBank0Num);
     if(biosOn) {
         // Little hack to preserve "quickread" from gbcpu.cpp.
+        u8* bios = gbcBios;
+        if(biosEnabled == 1) {
+            bios = resultantGBMode != 1 && gbBiosLoaded ? (u8*) gbBios : (u8*) gbcBios;
+        } else if(biosEnabled == 2) {
+            bios = gbBios;
+        } else if(biosEnabled == 3) {
+            bios = gbcBios;
+        }
+
         u8* bank0 = romFile->getRomBank(0);
         for(int i = 0x100; i < 0x150; i++) {
             bios[i] = bank0[i];

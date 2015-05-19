@@ -215,29 +215,25 @@ void sgbModeFunc(int value) {
 
 void biosEnableFunc(int value) {
     biosEnabled = value;
-    if(biosEnabled) {
-        enableMenuOption("Select BIOS");
-    } else {
-        disableMenuOption("Select BIOS");
+}
+
+void selectGbBiosFunc(int value) {
+    char* filename = biosChooser.startFileChooser();
+    if(filename != NULL) {
+        strcpy(gbBiosPath, filename);
+        free(filename);
+
+        gameboy->loadBios();
     }
 }
 
-void selectBiosFunc(int value) {
+void selectGbcBiosFunc(int value) {
     char* filename = biosChooser.startFileChooser();
     if(filename != NULL) {
-        strcpy(biosPath, filename);
+        strcpy(gbcBiosPath, filename);
         free(filename);
 
-        FILE* file = fopen(biosPath, "rb");
-        gameboy->biosLoaded = file != NULL;
-        if(gameboy->biosLoaded) {
-            struct stat st;
-            fstat(fileno(file), &st);
-            gameboy->gbBios = st.st_size == 0x100;
-
-            fread(gameboy->bios, 1, 0x900, file);
-            fclose(file);
-        }
+        gameboy->loadBios();
     }
 }
 
@@ -579,14 +575,15 @@ SubMenu menuList[] = {
         },
         {
                 "Gameboy",
-                6,
+                7,
                 {
                         {"GB Printer", printerEnableFunc, 2, {"Off", "On"}, 1, MENU_ALL},
                         {"GBA Mode", gbaModeFunc, 2, {"Off", "On"}, 0, MENU_ALL},
                         {"GBC Mode", gameboyModeFunc, 3, {"Off", "If Needed", "On"}, 2, MENU_ALL},
                         {"SGB Mode", sgbModeFunc, 3, {"Off", "Prefer GBC", "Prefer SGB"}, 1, MENU_ALL},
-                        {"GBC Bios", biosEnableFunc, 2, {"Off", "On"}, 1, MENU_ALL},
-                        {"Select BIOS", selectBiosFunc, 0, {}, 0, MENU_ALL}
+                        {"BIOS Mode", biosEnableFunc, 4, {"Off", "Auto", "GB", "GBC"}, 1, MENU_ALL},
+                        {"Select GB BIOS", selectGbBiosFunc, 0, {}, 0, MENU_ALL},
+                        {"Select GBC BIOS", selectGbcBiosFunc, 0, {}, 0, MENU_ALL}
                 }
         },
         {

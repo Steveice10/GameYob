@@ -117,6 +117,7 @@ public:
     void requestInterrupt(int id);
     void setDoubleSpeed(int val);
 
+    void loadBios();
     void loadBorder();
     void setRomFile(const char* filename);
     void unloadRom();
@@ -149,9 +150,10 @@ public:
 
     bool doubleSpeed;
 
-    u8 bios[0x900];
-    bool biosLoaded;
-    bool gbBios;
+    u8 gbBios[0x200];
+    bool gbBiosLoaded;
+    u8 gbcBios[0x900];
+    bool gbcBiosLoaded;
     bool biosOn;
 
     int gbMode;
