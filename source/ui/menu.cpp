@@ -6,6 +6,7 @@
 
 #include <arpa/inet.h>
 #include <sys/errno.h>
+#include <sys/stat.h>
 
 #include "platform/gfx.h"
 #include "platform/input.h"
@@ -230,6 +231,10 @@ void selectBiosFunc(int value) {
         FILE* file = fopen(biosPath, "rb");
         gameboy->biosLoaded = file != NULL;
         if(gameboy->biosLoaded) {
+            struct stat st;
+            fstat(fileno(file), &st);
+            gameboy->gbBios = st.st_size == 0x100;
+
             fread(gameboy->bios, 1, 0x900, file);
             fclose(file);
         }

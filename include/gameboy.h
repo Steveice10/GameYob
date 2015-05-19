@@ -151,6 +151,7 @@ public:
 
     u8 bios[0x900];
     bool biosLoaded;
+    bool gbBios;
     bool biosOn;
 
     int gbMode;

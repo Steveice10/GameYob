@@ -41,6 +41,10 @@ void generalParseConfig(char* line) {
     FILE* file = fopen(biosPath, "rb");
     gameboy->biosLoaded = file != NULL;
     if(gameboy->biosLoaded) {
+        struct stat st;
+        fstat(fileno(file), &st);
+        gameboy->gbBios = st.st_size == 0x100;
+
         fread(gameboy->bios, 1, 0x900, file);
         fclose(file);
     }
