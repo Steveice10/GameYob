@@ -98,7 +98,7 @@ void inputUpdate() {
         }
     }
 
-    if(accelPadMode && inputIsPressed(BUTTON_TOUCH) && inputGetTouch().x <= gputGetStringWidth("Exit") && inputGetTouch().y <= gputGetStringHeight("Exit")) {
+    if(accelPadMode && inputIsPressed(BUTTON_TOUCH) && inputGetTouch().x <= gputGetStringWidth("Exit", 8) && inputGetTouch().y <= gputGetStringHeight("Exit", 8)) {
         inputKeyRelease(BUTTON_TOUCH);
         accelPadMode = false;
         consoleClear();

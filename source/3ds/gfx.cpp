@@ -38,6 +38,9 @@ bool gfxInit() {
     // Setup the GPU state.
     gpuCullMode(CULL_BACK_CCW);
 
+    gpuViewport(TOP_SCREEN, 0, 0, TOP_WIDTH, TOP_HEIGHT);
+    gputOrtho(0, TOP_WIDTH, 0, TOP_HEIGHT, -1, 1);
+
     // Create the VBO.
     gpuCreateVbo(&vbo);
     gpuVboAttributes(vbo, ATTRIBUTE(0, 3, ATTR_FLOAT) | ATTRIBUTE(1, 2, ATTR_FLOAT) | ATTRIBUTE(2, 4, ATTR_FLOAT), 3);
