@@ -38,9 +38,6 @@ bool gfxInit() {
     // Setup the GPU state.
     gpuCullMode(CULL_BACK_CCW);
 
-    gpuViewport(TOP_SCREEN, 0, 0, TOP_WIDTH, TOP_HEIGHT);
-    gputOrtho(0, TOP_WIDTH, 0, TOP_HEIGHT, -1, 1);
-
     // Create the VBO.
     gpuCreateVbo(&vbo);
     gpuVboAttributes(vbo, ATTRIBUTE(0, 3, ATTR_FLOAT) | ATTRIBUTE(1, 2, ATTR_FLOAT) | ATTRIBUTE(2, 4, ATTR_FLOAT), 3);
@@ -314,7 +311,8 @@ void gfxDrawScreen() {
     if(prevScaleMode != scaleMode || prevScaleFilter != scaleFilter || prevGameScreen != gameScreen) {
         if(prevGameScreen != gameScreen) {
             // Update the viewport.
-            gpuViewport(gameScreen == 0 ? TOP_SCREEN : BOTTOM_SCREEN, 0, 0, gameScreen == 0 ? 400 : 320, 240);
+            gpuViewport(gameScreen == 0 ? TOP_SCREEN : BOTTOM_SCREEN, 0, 0, gameScreen == 0 ? TOP_WIDTH : BOTTOM_WIDTH, gameScreen == 0 ? TOP_HEIGHT : BOTTOM_HEIGHT);
+            gputOrtho(0, gameScreen == 0 ? TOP_WIDTH : BOTTOM_WIDTH, 0, gameScreen == 0 ? TOP_HEIGHT : BOTTOM_HEIGHT, -1, 1);
         }
 
         // Calculate the VBO dimensions.
