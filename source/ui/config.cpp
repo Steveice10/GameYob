@@ -46,7 +46,7 @@ void generalParseConfig(char* line) {
 
 void generalPrintConfig(FILE* file) {
     fprintf(file, "rompath=%s\n", romPath);
-    fprintf(file, "gbbiosfile=%s\n", gbcBiosPath);
+    fprintf(file, "gbbiosfile=%s\n", gbBiosPath);
     fprintf(file, "gbcbiosfile=%s\n", gbcBiosPath);
     fprintf(file, "borderfile=%s\n", borderPath);
 }

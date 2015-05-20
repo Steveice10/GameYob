@@ -1214,24 +1214,33 @@ void Gameboy::setDoubleSpeed(int val) {
 }
 
 void Gameboy::loadBios() {
+    gameboy->gbBiosLoaded = false;
+    gameboy->gbcBiosLoaded = false;
+
     FILE* gbFile = fopen(gbBiosPath, "rb");
-    gameboy->gbBiosLoaded = gbFile != NULL;
-    if(gameboy->gbBiosLoaded) {
+    if(gbFile != NULL) {
         struct stat st;
         fstat(fileno(gbFile), &st);
 
-        fread(gameboy->gbBios, 1, 0x900, gbFile);
+        if(st.st_size == 0x100) {
+            gameboy->gbBiosLoaded = true;
+            fread(gameboy->gbBios, 1, 0x100, gbFile);
+        }
+
         fclose(gbFile);
     }
 
     FILE* gbcFile = fopen(gbcBiosPath, "rb");
-    gameboy->gbcBiosLoaded = gbcFile != NULL;
-    if(gameboy->gbcBiosLoaded) {
+    if(gbcFile != NULL) {
         struct stat st;
         fstat(fileno(gbcFile), &st);
 
-        fread(gameboy->gbcBios, 1, 0x900, gbcFile);
-        fclose(gbcFile);
+        if(st.st_size == 0x900) {
+            gameboy->gbcBiosLoaded = true;
+            fread(gameboy->gbcBios, 1, 0x900, gbFile);
+        }
+
+        fclose(gbFile);
     }
 }
 

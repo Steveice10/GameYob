@@ -176,7 +176,6 @@ void Gameboy::initMMU() {
 void Gameboy::mapMemory() {
     refreshRomBank0(romBank0Num);
     if(biosOn) {
-        // Little hack to preserve "quickread" from gbcpu.cpp.
         u8* bios = gbcBios;
         if(biosEnabled == 1) {
             bios = resultantGBMode != 1 && gbBiosLoaded ? (u8*) gbBios : (u8*) gbcBios;
@@ -186,12 +185,10 @@ void Gameboy::mapMemory() {
             bios = gbcBios;
         }
 
-        u8* bank0 = romFile->getRomBank(0);
-        for(int i = 0x100; i < 0x150; i++) {
-            bios[i] = bank0[i];
-        }
-
         memory[0x0] = bios;
+
+        // Little hack to preserve "quickRead" from gbcpu.cpp.
+        memcpy(bios + 0x100, romFile->getRomBank(0) + 0x100, 0x50);
     }
 
     refreshRomBank1(romBank1Num);
