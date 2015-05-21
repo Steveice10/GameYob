@@ -45,8 +45,8 @@ blip_sample_t* audioGetCenterBuffer() {
 }
 
 void audioPlay(long leftSamples, long rightSamples, long centerSamples) {
-    soundSetChannel(0, audioLeftBuffer, (u32) leftSamples, SAMPLE_PCM16, (u32) SAMPLE_RATE, 1, 0, false);
-    soundSetChannel(1, audioRightBuffer, (u32) rightSamples, SAMPLE_PCM16, (u32) SAMPLE_RATE, 0, 1, false);
-    soundSetChannel(2, audioCenterBuffer, (u32) centerSamples, SAMPLE_PCM16, (u32) SAMPLE_RATE, 1, 1, false);
+    soundPlay(0, audioLeftBuffer, (u32) leftSamples, SAMPLE_PCM16, (u32) SAMPLE_RATE, 1, 0, false);
+    soundPlay(1, audioRightBuffer, (u32) rightSamples, SAMPLE_PCM16, (u32) SAMPLE_RATE, 0, 1, false);
+    soundPlay(2, audioCenterBuffer, (u32) centerSamples, SAMPLE_PCM16, (u32) SAMPLE_RATE, 1, 1, false);
     soundFlush();
 }
