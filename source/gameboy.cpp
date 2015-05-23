@@ -1237,7 +1237,7 @@ void Gameboy::loadBios() {
 
         if(st.st_size == 0x900) {
             gameboy->gbcBiosLoaded = true;
-            fread(gameboy->gbcBios, 1, 0x900, gbFile);
+            fread(gameboy->gbcBios, 1, 0x900, gbcFile);
         }
 
         fclose(gbFile);
