@@ -269,7 +269,6 @@ void Gameboy::writeClockStruct() {
     }
 }
 
-
 /* MBC5 */
 void Gameboy::m5w(u16 addr, u8 val) {
     switch(addr >> 12) {
@@ -727,6 +726,8 @@ void Gameboy::t5w(u16 addr, u8 val) {
                                 default:
                                     break;
                             }
+
+                            writeClockStruct();
                         } else if(tama5RamByteSelect == 0x18) {
                             latchClock();
 
@@ -781,11 +782,14 @@ void Gameboy::t5w(u16 addr, u8 val) {
                         } else if(tama5RamByteSelect == 0x28) {
                             if((data & 0xF) == 0xB) {
                                 gbClock.tama5.y = ((gbClock.tama5.y >> 2) << 2) + (data & 3);
+                                writeClockStruct();
                             }
                         } else if(tama5RamByteSelect == 0x44) {
                             gbClock.tama5.m = (data / 16) * 10 + data % 16;
+                            writeClockStruct();
                         } else if(tama5RamByteSelect == 0x54) {
                             gbClock.tama5.h = (data / 16) * 10 + data % 16;
+                            writeClockStruct();
                         } else {
                             tama5RAM[tama5RamByteSelect] = data;
                         }
@@ -846,7 +850,9 @@ static int daysInLeapMonth[12] = {
 };
 
 void Gameboy::latchClock() {
-    time_t now = time(NULL) - 120 * 60;
+    time_t now;
+    time(&now);
+
     time_t difference = now - gbClock.last;
     struct tm* lt = gmtime((const time_t*) &difference);
 

@@ -199,7 +199,6 @@ private:
     RomFile* romFile;
 
     FILE* saveFile;
-    char savename[256];
 
     // gbcpu.cpp
 

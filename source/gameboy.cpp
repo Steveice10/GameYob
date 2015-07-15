@@ -1327,15 +1327,6 @@ bool Gameboy::isRomLoaded() {
 }
 
 int Gameboy::loadSave(int saveId) {
-    strcpy(savename, romFile->getFileName().c_str());
-    if(saveId == 1) {
-        strcat(savename, ".sav");
-    } else {
-        char buf[10];
-        sprintf(buf, ".sa%d", saveId);
-        strcat(savename, buf);
-    }
-
     if(romFile->getRamBanks() == 0) {
         return 0;
     }
@@ -1346,11 +1337,21 @@ int Gameboy::loadSave(int saveId) {
         return 0;
     }
 
+    char savename[256];
+    strcpy(savename, romFile->getFileName().c_str());
+    if(saveId == 1) {
+        strcat(savename, ".sav");
+    } else {
+        char buf[10];
+        sprintf(buf, ".sa%d", saveId);
+        strcat(savename, buf);
+    }
+
     // Now load the data.
     saveFile = fopen(savename, "r+b");
 
     int neededFileSize = romFile->getRamBanks() * 0x2000;
-    if(romFile->getMBC() == MBC3 || romFile->getMBC() == HUC3) {
+    if(romFile->getMBC() == MBC3 || romFile->getMBC() == HUC3 || romFile->getMBC() == TAMA5) {
         neededFileSize += sizeof(ClockStruct);
     }
 
@@ -1379,6 +1380,7 @@ int Gameboy::loadSave(int saveId) {
     switch(romFile->getMBC()) {
         case MBC3:
         case HUC3:
+        case TAMA5:
             fread(&gbClock, 1, sizeof(gbClock), saveFile);
             break;
         default:
@@ -1395,11 +1397,12 @@ int Gameboy::saveGame() {
 
     fseek(saveFile, 0, SEEK_SET);
 
-    fwrite(externRam, 1, 0x2000 * romFile->getRamBanks(), saveFile);
+    fwrite(externRam, 1, (size_t) (0x2000 * romFile->getRamBanks()), saveFile);
 
     switch(romFile->getMBC()) {
         case MBC3:
         case HUC3:
+        case TAMA5:
             fwrite(&gbClock, 1, sizeof(gbClock), saveFile);
             break;
         default:
