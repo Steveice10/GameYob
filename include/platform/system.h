@@ -4,7 +4,7 @@
 
 #include "types.h"
 
-bool systemInit();
+bool systemInit(int argc, char* argv[]);
 void systemExit();
 void systemRun();
 

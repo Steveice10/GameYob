@@ -22,8 +22,8 @@ gfxScreen_t currConsole;
 PrintConsole* topConsole;
 PrintConsole* bottomConsole;
 
-bool systemInit() {
-    if(!platformInit() || !gfxInit()) {
+bool systemInit(int argc, char* argv[]) {
+    if(!platformInit(argc) || !gfxInit()) {
         return 0;
     }
 
