@@ -49,6 +49,8 @@ bool autoSavingEnabled = false;
 int scaleMode = 0;
 int scaleFilter = 0;
 
+int fastForwardFrameSkip = 0;
+
 bool printerEnabled = false;
 
 bool accelPadMode = false;
@@ -259,6 +261,10 @@ void setScaleModeFunc(int value) {
 
 void setScaleFilterFunc(int value) {
     scaleFilter = value;
+}
+
+void setFastForwardFrameSkipFunc(int value) {
+    fastForwardFrameSkip = value;
 }
 
 void gbColorizeFunc(int value) {
@@ -588,11 +594,12 @@ SubMenu menuList[] = {
         },
         {
                 "Display",
-                6,
+                7,
                 {
                         {"Game Screen", setScreenFunc, 2, {"Top", "Bottom"}, 0, MENU_ALL},
-                        {"Scaling", setScaleModeFunc, 3, {"Off", "Aspect", "Full"}, 0, MENU_ALL},
+                        {"Scaling", setScaleModeFunc, 5, {"Off", "125%", "150%", "Aspect", "Full"}, 0, MENU_ALL},
                         {"Scale Filter", setScaleFilterFunc, 3, {"Nearest", "Linear", "Scale2x"}, 1, MENU_ALL},
+                        {"FF Frame Skip", setFastForwardFrameSkipFunc, 4, {"0", "1", "2", "3"}, 0, MENU_ALL},
                         {"Colorize GB", gbColorizeFunc, 14, {"Off", "Auto", "Inverted", "Pastel Mix", "Red", "Orange", "Yellow", "Green", "Blue", "Brown", "Dark Green", "Dark Blue", "Dark Brown", "Classic Green"}, 1, MENU_ALL},
                         {"Borders", borderFunc, 3, {"Off", "Custom", "SGB"}, 1, MENU_ALL},
                         {"Select Border", selectBorderFunc, 0, {}, 0, MENU_ALL}

@@ -6,6 +6,7 @@ bool gfxInit();
 void gfxCleanup();
 bool gfxGetFastForward();
 void gfxSetFastForward(bool fastforward);
+void gfxToggleFastForward();
 void gfxLoadBorder(const char* filename);
 void gfxLoadBorderBuffer(u8* imgData, u32 imgWidth, u32 imgHeight);
 u32* gfxGetScreenBuffer();

@@ -795,7 +795,7 @@ void Gameboy::gameboyCheckInput() {
     }
 
     if(inputKeyPressed(inputMapFuncKey(FUNC_KEY_FAST_FORWARD_TOGGLE))) {
-        gfxSetFastForward(!gfxGetFastForward());
+        gfxToggleFastForward();
     }
 
     if(inputKeyPressed(inputMapFuncKey(FUNC_KEY_MENU) | inputMapFuncKey(FUNC_KEY_MENU_PAUSE)) && !accelPadMode) {
@@ -808,7 +808,7 @@ void Gameboy::gameboyCheckInput() {
     }
 
     if(inputKeyPressed(inputMapFuncKey(FUNC_KEY_SCALE))) {
-        setMenuOption("Scaling", (getMenuOption("Scaling") + 1) % 3);
+        setMenuOption("Scaling", (getMenuOption("Scaling") + 1) % 5);
     }
 
     if(inputKeyPressed(inputMapFuncKey(FUNC_KEY_RESET))) {

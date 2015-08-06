@@ -9,6 +9,7 @@
 #include "platform/gfx.h"
 #include "platform/input.h"
 #include "ui/config.h"
+#include "ui/menu.h"
 #include "gameboy.h"
 
 #define RGBA32(r, g, b) ((u32) ((r) << 24 | (g) << 16 | (b) << 8 | 0xFF))
@@ -62,6 +63,8 @@ static const u32 BitStretchTable256[] =
                 0x5500, 0x5501, 0x5504, 0x5505, 0x5510, 0x5511, 0x5514, 0x5515, 0x5540, 0x5541, 0x5544, 0x5545, 0x5550, 0x5551, 0x5554, 0x5555
         };
 
+static int fastForwardCounter = 0;
+
 GameboyPPU::GameboyPPU(Gameboy* gb) {
     this->gameboy = gb;
 }
@@ -102,6 +105,10 @@ void GameboyPPU::drawScanline(int scanline) {
 }
 
 void GameboyPPU::drawScanline_P2(int scanline) {
+    if(gfxGetFastForward() && fastForwardCounter < fastForwardFrameSkip) {
+        return;
+    }
+
     subSgbMap = &gameboy->sgbMap[scanline / 8 * 20];
     lineBuffer = gfxGetScreenBuffer() + scanline * 256;
 
@@ -456,10 +463,16 @@ void GameboyPPU::drawSprite(int scanline, int spriteNum) {
 }
 
 void GameboyPPU::drawScreen() {
+    if(gfxGetFastForward() && fastForwardCounter++ < fastForwardFrameSkip) {
+        return;
+    } else {
+        fastForwardCounter = 0;
+    }
+
     screenWasDisabled = false;
     if(!gameboy->getRomFile()->isGBS()) {
         gfxDrawScreen();
-    } else if(!gfxGetFastForward() && !inputKeyHeld(inputMapFuncKey(FUNC_KEY_FAST_FORWARD))) {
+    } else if(!gfxGetFastForward()) {
         gfxWaitForVBlank();
     }
 }

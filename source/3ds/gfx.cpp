@@ -18,6 +18,7 @@ static int prevScaleFilter = -1;
 static int prevGameScreen = -1;
 
 static bool fastForward = false;
+static u32 fastForwardCounter = 0;
 
 static u32 texture = 0;
 static u32 vbo = 0;
@@ -81,11 +82,15 @@ void gfxCleanup() {
 }
 
 bool gfxGetFastForward() {
-    return fastForward;
+    return fastForward || inputKeyHeld(inputMapFuncKey(FUNC_KEY_FAST_FORWARD));
 }
 
 void gfxSetFastForward(bool fastforward) {
     fastForward = fastforward;
+}
+
+void gfxToggleFastForward() {
+    fastForward = !fastForward;
 }
 
 void gfxLoadBorder(const char* filename) {
@@ -319,9 +324,15 @@ void gfxDrawScreen() {
         u32 vboWidth = 160;
         u32 vboHeight = 144;
         if(scaleMode == 1) {
+            vboWidth = 200;
+            vboHeight = 180;
+        } else if(scaleMode == 2) {
+            vboWidth = 240;
+            vboHeight = 216;
+        } else if(scaleMode == 3) {
             vboWidth *= gpuGetViewportHeight() / (float) 144;
             vboHeight = (u32) gpuGetViewportHeight();
-        } else if(scaleMode == 2) {
+        } else if(scaleMode == 4) {
             vboWidth = (u32) gpuGetViewportWidth();
             vboHeight = (u32) gpuGetViewportHeight();
         }
@@ -390,12 +401,12 @@ void gfxDrawScreen() {
     // Flush GPU framebuffer.
     gpuFlushBuffer();
 
-    if(inputKeyPressed(inputMapFuncKey(FUNC_KEY_SCREENSHOT))) {
+    if(inputKeyPressed(inputMapFuncKey(FUNC_KEY_SCREENSHOT)) && !isMenuOn()) {
         gputTakeScreenshot();
     }
 
     // Swap buffers and wait for VBlank.
-    gpuSwapBuffers(!fastForward && !inputKeyHeld(inputMapFuncKey(FUNC_KEY_FAST_FORWARD)));
+    gpuSwapBuffers(!gfxGetFastForward());
 }
 
 void gfxFlush() {

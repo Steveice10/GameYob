@@ -16,6 +16,7 @@ extern int gameScreen;
 extern bool accelPadMode;
 extern int scaleMode;
 extern int scaleFilter;
+extern int fastForwardFrameSkip;
 extern bool fpsOutput;
 extern bool timeOutput;
 extern int biosEnabled;
