@@ -12,8 +12,6 @@
 #include "ui/menu.h"
 #include "gameboy.h"
 
-#define RGBA32(r, g, b) ((u32) ((r) << 24 | (g) << 16 | (b) << 8 | 0xFF))
-
 #define FLIP_Y (0x40)
 #define FLIP_X (0x20)
 #define PRIORITY (0x80)
@@ -84,7 +82,6 @@ void GameboyPPU::initPPU() {
     sprPalettes[1][3] = RGBA32(0, 0, 0);
 
     gfxMask = 0;
-    screenWasDisabled = false;
 
     memset(bgPalettesModified, 0, sizeof(bgPalettesModified));
     memset(sprPalettesModified, 0, sizeof(sprPalettesModified));
@@ -98,7 +95,7 @@ void GameboyPPU::refreshPPU() {
 }
 
 void GameboyPPU::clearPPU() {
-    memset(gfxGetScreenBuffer(), 0x00, 256 * 256 * sizeof(u32));
+    gfxClearScreenBuffer(0x00, 0x00, 0x00);
 }
 
 void GameboyPPU::drawScanline(int scanline) {
@@ -108,9 +105,6 @@ void GameboyPPU::drawScanline_P2(int scanline) {
     if(gfxGetFastForward() && fastForwardCounter < fastForwardFrameSkip) {
         return;
     }
-
-    subSgbMap = &gameboy->sgbMap[scanline / 8 * 20];
-    lineBuffer = gfxGetScreenBuffer() + scanline * 256;
 
     for(int i = 0; i < 8; i++) {
         if(bgPalettesModified[i]) {
@@ -134,19 +128,8 @@ void GameboyPPU::drawScanline_P2(int scanline) {
         }
     }
 
-    if(screenWasDisabled) {
-        // Leave it white for one extra frame
-        if(gameboy->gbMode == GB) {
-            int red = (gameboy->bgPaletteData[0] & 0x1F) * 8;
-            int green = (((gameboy->bgPaletteData[0] & 0xE0) >> 5) | ((gameboy->bgPaletteData[1]) & 0x3) << 3) * 8;
-            int blue = ((gameboy->bgPaletteData[1] >> 2) & 0x1F) * 8;
-            wmemset((wchar_t*) lineBuffer, (wchar_t) RGBA32(red, green, blue), 160);
-        } else {
-            memset(lineBuffer, 0xFF, 160 * sizeof(u32));
-        }
-
-        return;
-    }
+    subSgbMap = &gameboy->sgbMap[scanline / 8 * 20];
+    lineBuffer = gfxGetLineBuffer(scanline);
 
     int tileSigned = !(gameboy->ioRam[0x40] & 0x10); // Tile Data location
 
@@ -469,7 +452,6 @@ void GameboyPPU::drawScreen() {
         fastForwardCounter = 0;
     }
 
-    screenWasDisabled = false;
     if(!gameboy->getRomFile()->isGBS()) {
         gfxDrawScreen();
     } else if(!gfxGetFastForward()) {
@@ -504,12 +486,10 @@ void GameboyPPU::handleVideoRegister(u8 ioReg, u8 val) {
                     int red = (gameboy->bgPaletteData[0] & 0x1F) * 8;
                     int green = (((gameboy->bgPaletteData[0] & 0xE0) >> 5) | ((gameboy->bgPaletteData[1]) & 0x3) << 3) * 8;
                     int blue = ((gameboy->bgPaletteData[1] >> 2) & 0x1F) * 8;
-                    wmemset((wchar_t*) gfxGetScreenBuffer(), (wchar_t) RGBA32(red, green, blue), 256 * 256);
+                    gfxClearScreenBuffer((u8) red, (u8) green, (u8) blue);
                 } else {
-                    memset(gfxGetScreenBuffer(), 0xFF, 256 * 256 * sizeof(u32));
+                    gfxClearScreenBuffer(0xFF, 0xFF, 0xFF);
                 }
-            } else if (!(gameboy->ioRam[ioReg] & 0x80) && (val & 0x80)) {
-                screenWasDisabled = true;
             }
 
             break;

@@ -18,7 +18,6 @@ static int prevScaleFilter = -1;
 static int prevGameScreen = -1;
 
 static bool fastForward = false;
-static u32 fastForwardCounter = 0;
 
 static u32 texture = 0;
 static u32 vbo = 0;
@@ -158,8 +157,16 @@ void gfxLoadBorderBuffer(u8* imgData, u32 imgWidth, u32 imgHeight) {
     gpuFree(borderBuffer);
 }
 
-u32* gfxGetScreenBuffer() {
-    return screenBuffer;
+u32* gfxGetLineBuffer(int line) {
+    return screenBuffer + line * 256;
+}
+
+void gfxClearScreenBuffer(u8 r, u8 g, u8 b) {
+    if(r == g && r == b) {
+        memset(screenBuffer, r, 256 * 256 * sizeof(u32));
+    } else {
+        wmemset((wchar_t*) screenBuffer, (wchar_t) RGBA32(r, g, b), 256 * 256);
+    }
 }
 
 #define PIXEL_AT( PX, XX, YY) ((PX)+((((YY)*256)+(XX))))

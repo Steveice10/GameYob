@@ -48,8 +48,6 @@ private:
 
     Gameboy* gameboy;
 
-    bool screenWasDisabled;
-
     u32 bgPalettes[8][4];
     u32 sprPalettes[8][4];
 

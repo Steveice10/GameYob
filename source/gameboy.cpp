@@ -2,7 +2,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/errno.h>
 
 #include "gb_apu/Gb_Apu.h"
 #include "platform/audio.h"
@@ -986,6 +985,8 @@ inline int Gameboy::updateLCD(int cycles) {
         scanlineCounter = 456 * (doubleSpeed ? 2 : 1);
         ioRam[0x44] = 0;
         ioRam[0x41] &= 0xF8;
+        ioRam[0x41] |= 1; // Set mode 1
+
         // Normally timing is synchronized with gameboy's vblank. If the screen 
         // is off, this code kicks in. The "phaseCounter" is a counter until the 
         // ds should check for input and whatnot.
