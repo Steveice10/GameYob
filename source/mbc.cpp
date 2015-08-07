@@ -1,6 +1,5 @@
-#include <sys/types.h>
-
 #include "platform/input.h"
+#include "platform/ui.h"
 #include "ui/manager.h"
 #include "ui/menu.h"
 
@@ -628,7 +627,8 @@ void Gameboy::h3w(u16 addr, u8 val) {
                             break;
                         default:
                             if(showConsoleDebug()) {
-                                printf("unhandled HuC3 cmd %02x\n", val);
+                                uiPrint("unhandled HuC3 cmd %02x\n", val);
+                                uiFlush();
                             }
                     }
 

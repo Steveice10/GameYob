@@ -2,7 +2,7 @@
 #include <string.h>
 
 #include "platform/system.h"
-#include "ui/config.h"
+#include "platform/ui.h"
 #include "ui/manager.h"
 #include "ui/menu.h"
 
@@ -52,7 +52,8 @@ void Gameboy::refreshRomBank0(int bank) {
         memory[0x2] = romBank + 0x2000;
         memory[0x3] = romBank + 0x3000;
     } else if(showConsoleDebug()) {
-        printf("Tried to access ROM bank %x\n", bank);
+        uiPrint("Tried to access ROM bank %x\n", bank);
+        uiFlush();
     }
 }
 
@@ -65,7 +66,8 @@ void Gameboy::refreshRomBank1(int bank) {
         memory[0x6] = romBank + 0x2000;
         memory[0x7] = romBank + 0x3000;
     } else if(showConsoleDebug()) {
-        printf("Tried to access ROM bank %x\n", bank);
+        uiPrint("Tried to access ROM bank %x\n", bank);
+        uiFlush();
     }
 }
 
@@ -76,7 +78,8 @@ void Gameboy::refreshRamBank(int bank) {
         memory[0xa] = ramBank;
         memory[0xb] = ramBank + 0x1000;
     } else if(showConsoleDebug()) {
-        printf("Tried to access RAM bank %x\n", bank);
+        uiPrint("Tried to access RAM bank %x\n", bank);
+        uiFlush();
     }
 }
 
@@ -91,7 +94,8 @@ void Gameboy::writeSram(u16 addr, u8 val) {
             }
         }
     } else if(showConsoleDebug()) {
-        printf("Tried to access RAM when none exists.");
+        uiPrint("Tried to access RAM when none exists.\n");
+        uiFlush();
     }
 }
 
@@ -484,7 +488,8 @@ void Gameboy::writeIO(u8 ioReg, u8 val) {
         case 0x44:
             //ioRam[0x44] = 0;
             if(showConsoleDebug()) {
-                printf("LY Write %d\n", val);
+                uiPrint("LY Write %d\n", val);
+                uiFlush();
             }
 
             return;

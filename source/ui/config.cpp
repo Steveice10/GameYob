@@ -5,19 +5,18 @@
 #include <vector>
 
 #include "platform/input.h"
+#include "platform/system.h"
+#include "platform/ui.h"
 #include "ui/config.h"
-#include "ui/filechooser.h"
 #include "ui/menu.h"
 #include "gameboy.h"
 
 #include <strings.h>
 
-#define INI_PATH "/gameyob.ini"
-
-char gbBiosPath[256] = "/gb_bios.bin";
-char gbcBiosPath[256] = "/gbc_bios.bin";
-char borderPath[256] = "/default_border.png";
-char romPath[256] = "/gb/";
+char gbBiosPath[512] = "";
+char gbcBiosPath[512] = "";
+char borderPath[512] = "";
+char romPath[512] = "";
 
 void controlsParseConfig(char* line);
 void controlsPrintConfig(FILE* f);
@@ -41,6 +40,13 @@ void generalParseConfig(char* line) {
         }
     }
 
+    size_t len = strlen(romPath);
+    if(len == 0 || *(romPath + len - 1) != '/') {
+        char copy[512];
+        strncpy(copy, romPath, 512);
+        snprintf(romPath, 512, "%s/", copy);
+    }
+
     gameboy->loadBios();
 }
 
@@ -52,7 +58,7 @@ void generalPrintConfig(FILE* file) {
 }
 
 bool readConfigFile() {
-    FILE* file = fopen(INI_PATH, "r");
+    FILE* file = fopen(iniPath, "r");
     char line[100];
     void (*configParser)(char*) = generalParseConfig;
 
@@ -95,7 +101,7 @@ bool readConfigFile() {
 }
 
 void writeConfigFile() {
-    FILE* file = fopen(INI_PATH, "w");
+    FILE* file = fopen(iniPath, "w");
     if(file == NULL) {
         printMenuMessage("Error opening gameyob.ini.");
         return;
@@ -110,8 +116,8 @@ void writeConfigFile() {
     fclose(file);
 
     if(gameboy->isRomLoaded()) {
-        char nameBuf[256];
-        sprintf(nameBuf, "%s.cht", gameboy->getRomFile()->getFileName().c_str());
+        char nameBuf[512];
+        snprintf(nameBuf, 512, "%s.cht", gameboy->getRomFile()->getFileName().c_str());
         gameboy->getCheatEngine()->saveCheats(nameBuf);
     }
 }
@@ -158,7 +164,7 @@ void controlsParseConfig(char* line2) {
             KeyConfig* config = &keyConfigs.back();
             strncpy(config->name, name, 32);
             config->name[31] = '\0';
-            for(int i = 0; i < NUM_BINDABLE_BUTTONS; i++) {
+            for(int i = 0; i < NUM_BUTTONS; i++) {
                 if(strlen(inputGetKeyName(i)) > 0) {
                     config->funcKeys[i] = FUNC_KEY_NONE;
                 }
@@ -176,10 +182,10 @@ void controlsParseConfig(char* line2) {
             selectedKeyConfig = atoi(equalsPos + 1);
         } else {
             if(strlen(line) > 0) {
-                int dsKey = -1;
-                for(int i = 0; i < NUM_BINDABLE_BUTTONS; i++) {
+                int realKey = -1;
+                for(int i = 0; i < NUM_BUTTONS; i++) {
                     if(strcasecmp(line, inputGetKeyName(i)) == 0) {
-                        dsKey = i;
+                        realKey = i;
                         break;
                     }
                 }
@@ -192,9 +198,9 @@ void controlsParseConfig(char* line2) {
                     }
                 }
 
-                if(gbKey != -1 && dsKey != -1) {
+                if(gbKey != -1 && realKey != -1) {
                     KeyConfig* config = &keyConfigs.back();
-                    config->funcKeys[dsKey] = gbKey;
+                    config->funcKeys[realKey] = (u8) gbKey;
                 }
             }
         }
@@ -217,8 +223,8 @@ void controlsPrintConfig(FILE* file) {
     fprintf(file, "config=%d\n", selectedKeyConfig);
     for(unsigned int i = 0; i < keyConfigs.size(); i++) {
         fprintf(file, "(%s)\n", keyConfigs[i].name);
-        for(int j = 0; j < NUM_BINDABLE_BUTTONS; j++) {
-            if(strlen(inputGetKeyName(j)) > 0) {
+        for(int j = 0; j < NUM_BUTTONS; j++) {
+            if(inputIsValidKey(j) && strlen(inputGetKeyName(j)) > 0) {
                 fprintf(file, "%s=%s\n", inputGetKeyName(j), gbKeyNames[keyConfigs[i].funcKeys[j]]);
             }
         }
@@ -226,123 +232,202 @@ void controlsPrintConfig(FILE* file) {
 }
 
 int keyConfigChooser_option;
+int keyConfigChooser_cursor;
+int keyConfigChooser_scrollY;
 
 void redrawKeyConfigChooser() {
     int &option = keyConfigChooser_option;
+    int &scrollY = keyConfigChooser_scrollY;
     KeyConfig* config = &keyConfigs[selectedKeyConfig];
 
-    iprintf("\x1b[2J");
+    uiClear();
 
-    printf("Config: ");
+    uiPrint("Config: ");
     if(option == -1) {
-        printf("\x1b[1m\x1b[33m* %s *\n\n\x1b[0m", config->name);
+        uiSetTextColor(TEXT_COLOR_YELLOW);
+        uiPrint("* %s *\n\n", config->name);
+        uiSetTextColor(TEXT_COLOR_NONE);
     } else {
-        printf("  %s  \n\n", config->name);
+        uiPrint("  %s  \n\n", config->name);
     }
 
-    printf("       Button   Function\n\n");
+    uiPrint("              Button   Function\n\n");
 
-    for(int i = 0; i < NUM_BINDABLE_BUTTONS; i++) {
+    for(int i = 0, elements = 0; i < NUM_BUTTONS && elements < scrollY + uiGetHeight() - 7; i++) {
         if(!inputIsValidKey(i)) {
             continue;
         }
 
-        int len = 11 - strlen(inputGetKeyName(i));
+        if(elements < scrollY) {
+            elements++;
+            continue;
+        }
+
+        int len = 18 - (int) strlen(inputGetKeyName(i));
         while(len > 0) {
-            printf(" ");
+            uiPrint(" ");
             len--;
         }
 
         if(option == i) {
-            printf("\x1b[1m\x1b[33m* %s | %s *\n\x1b[0m", inputGetKeyName(i), gbKeyNames[config->funcKeys[i]]);
+            uiSetLineHighlighted(true);
+            uiPrint("* %s | %s *\n", inputGetKeyName(i), gbKeyNames[config->funcKeys[i]]);
+            uiSetLineHighlighted(false);
         } else {
-            printf("  %s | %s  \n", inputGetKeyName(i), gbKeyNames[config->funcKeys[i]]);
+            uiPrint("  %s | %s  \n", inputGetKeyName(i), gbKeyNames[config->funcKeys[i]]);
         }
+
+        elements++;
     }
 
-    printf("\nPress X to make a new config.");
-    if(selectedKeyConfig != 0) /* can't erase the default */ {
-        printf("\n\nPress Y to delete this config.");
+    uiPrint("\nPress X to make a new config.");
+    if(selectedKeyConfig != 0) {
+        uiPrint("\nPress Y to delete this config.");
     }
+
+    uiFlush();
 }
 
 void updateKeyConfigChooser() {
     bool redraw = false;
 
     int &option = keyConfigChooser_option;
+    int &cursor = keyConfigChooser_cursor;
+    int &scrollY = keyConfigChooser_scrollY;
     KeyConfig* config = &keyConfigs[selectedKeyConfig];
 
-    if(inputKeyPressed(inputMapMenuKey(MENU_KEY_B))) {
-        inputLoadKeyConfig(config);
-        closeSubMenu();
-    } else if(inputKeyPressed(inputMapMenuKey(MENU_KEY_X))) {
-        keyConfigs.push_back(KeyConfig(*config));
-        selectedKeyConfig = keyConfigs.size() - 1;
-        char name[32];
-        sprintf(name, "Custom %d", keyConfigs.size() - 1);
-        strcpy(keyConfigs.back().name, name);
-        option = -1;
-        redraw = true;
-    } else if(inputKeyPressed(inputMapMenuKey(MENU_KEY_Y))) {
-        if(selectedKeyConfig != 0) /* can't erase the default */ {
-            keyConfigs.erase(keyConfigs.begin() + selectedKeyConfig);
-            if(selectedKeyConfig >= keyConfigs.size()) {
-                selectedKeyConfig = keyConfigs.size() - 1;
+    UIKey key;
+    while((key = uiReadKey()) != UI_KEY_NONE) {
+        if(key == UI_KEY_B) {
+            inputLoadKeyConfig(config);
+            closeSubMenu();
+        } else if(key == UI_KEY_X) {
+            keyConfigs.push_back(KeyConfig(*config));
+            selectedKeyConfig = (u32) keyConfigs.size() - 1;
+            char name[32];
+            sprintf(name, "Custom %d", (int) keyConfigs.size() - 1);
+            strcpy(keyConfigs.back().name, name);
+            option = -1;
+            cursor = -1;
+            scrollY = 0;
+            redraw = true;
+        } else if(key == UI_KEY_Y) {
+            if(selectedKeyConfig != 0) /* can't erase the default */ {
+                keyConfigs.erase(keyConfigs.begin() + selectedKeyConfig);
+                if(selectedKeyConfig >= keyConfigs.size()) {
+                    selectedKeyConfig = (u32) keyConfigs.size() - 1;
+                }
+
+                redraw = true;
+            }
+        } else if(key == UI_KEY_DOWN) {
+            if(option == (int) NUM_BUTTONS - 1) {
+                option = -1;
+                cursor = -1;
+            } else {
+                cursor++;
+                option++;
+                while(!inputIsValidKey(option)) {
+                    option++;
+                    if(option >= (int) NUM_BUTTONS) {
+                        option = -1;
+                        cursor = -1;
+                        break;
+                    }
+                }
+            }
+
+            if(cursor < 0) {
+                scrollY = 0;
+            } else {
+                while(cursor < scrollY) {
+                    scrollY--;
+                }
+
+                while(cursor >= scrollY + uiGetHeight() - 7) {
+                    scrollY++;
+                }
+            }
+
+            redraw = true;
+        } else if(key == UI_KEY_UP) {
+            if(option == -1) {
+                option = (int) NUM_BUTTONS - 1;
+                while(!inputIsValidKey(option)) {
+                    option--;
+                    if(option < 0) {
+                        option = -1;
+                        cursor = -1;
+                        break;
+                    }
+                }
+
+                if(option != -1) {
+                    cursor = 0;
+                    for(int i = 0; i < NUM_BUTTONS; i++) {
+                        if(inputIsValidKey(i)) {
+                            cursor++;
+                        }
+                    }
+                }
+            } else {
+                cursor--;
+                option--;
+                while(!inputIsValidKey(option)) {
+                    option--;
+                    if(option < 0) {
+                        option = -1;
+                        cursor = -1;
+                        break;
+                    }
+                }
+            }
+
+            if(cursor < 0) {
+                scrollY = 0;
+            } else {
+                while(cursor < scrollY) {
+                    scrollY--;
+                }
+
+                while(cursor >= scrollY + uiGetHeight() - 7) {
+                    scrollY++;
+                }
+            }
+
+            redraw = true;
+        } else if(key == UI_KEY_LEFT) {
+            if(option == -1) {
+                if(selectedKeyConfig == 0) {
+                    selectedKeyConfig = keyConfigs.size() - 1;
+                } else {
+                    selectedKeyConfig--;
+                }
+            } else {
+                if(config->funcKeys[option] <= 0) {
+                    config->funcKeys[option] = NUM_FUNC_KEYS - 1;
+                } else {
+                    config->funcKeys[option]--;
+                }
+            }
+
+            redraw = true;
+        } else if(key == UI_KEY_RIGHT) {
+            if(option == -1) {
+                selectedKeyConfig++;
+                if(selectedKeyConfig >= keyConfigs.size()) {
+                    selectedKeyConfig = 0;
+                }
+            } else {
+                if(config->funcKeys[option] >= NUM_FUNC_KEYS - 1) {
+                    config->funcKeys[option] = 0;
+                } else {
+                    config->funcKeys[option]++;
+                }
             }
 
             redraw = true;
         }
-    } else if(inputKeyRepeat(inputMapMenuKey(MENU_KEY_DOWN))) {
-        if(option == NUM_BINDABLE_BUTTONS - 1) {
-            option = -1;
-        } else {
-            option++;
-            while(!inputIsValidKey(option)) {
-                option++;
-            }
-        }
-
-        redraw = true;
-    } else if(inputKeyRepeat(inputMapMenuKey(MENU_KEY_UP))) {
-        if(option == -1) {
-            option = NUM_BINDABLE_BUTTONS - 1;
-        } else {
-            option--;
-            while(!inputIsValidKey(option)) {
-                option--;
-            }
-        }
-
-        redraw = true;
-    } else if(inputKeyRepeat(inputMapMenuKey(MENU_KEY_LEFT))) {
-        if(option == -1) {
-            if(selectedKeyConfig == 0) {
-                selectedKeyConfig = keyConfigs.size() - 1;
-            } else {
-                selectedKeyConfig--;
-            }
-        } else {
-            config->funcKeys[option]--;
-            if(config->funcKeys[option] < 0) {
-                config->funcKeys[option] = NUM_FUNC_KEYS - 1;
-            }
-        }
-
-        redraw = true;
-    } else if(inputKeyRepeat(inputMapMenuKey(MENU_KEY_RIGHT))) {
-        if(option == -1) {
-            selectedKeyConfig++;
-            if(selectedKeyConfig >= keyConfigs.size()) {
-                selectedKeyConfig = 0;
-            }
-        } else {
-            config->funcKeys[option]++;
-            if(config->funcKeys[option] >= NUM_FUNC_KEYS) {
-                config->funcKeys[option] = 0;
-            }
-        }
-
-        redraw = true;
     }
 
     if(redraw) {
@@ -352,6 +437,8 @@ void updateKeyConfigChooser() {
 
 void startKeyConfigChooser() {
     keyConfigChooser_option = -1;
+    keyConfigChooser_cursor = -1;
+    keyConfigChooser_scrollY = 0;
     displaySubMenu(updateKeyConfigChooser);
     redrawKeyConfigChooser();
 }

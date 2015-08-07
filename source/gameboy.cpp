@@ -1,3 +1,4 @@
+#include <sys/stat.h>
 #include <dirent.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -8,6 +9,7 @@
 #include "platform/gfx.h"
 #include "platform/input.h"
 #include "platform/system.h"
+#include "platform/ui.h"
 #include "ui/config.h"
 #include "ui/gbsplayer.h"
 #include "ui/manager.h"
@@ -505,17 +507,17 @@ Gameboy::Gameboy() : hram(highram + 0xe00), ioRam(highram + 0xf00) {
 
     cheatEngine = new CheatEngine(this);
 
+    leftBuffer->set_sample_rate((long) SAMPLE_RATE);
     leftBuffer->bass_freq(461);
     leftBuffer->clock_rate(clockSpeed);
-    leftBuffer->set_sample_rate((long) SAMPLE_RATE);
 
+    rightBuffer->set_sample_rate((long) SAMPLE_RATE);
     rightBuffer->bass_freq(461);
     rightBuffer->clock_rate(clockSpeed);
-    rightBuffer->set_sample_rate((long) SAMPLE_RATE);
 
+    centerBuffer->set_sample_rate((long) SAMPLE_RATE);
     centerBuffer->bass_freq(461);
     centerBuffer->clock_rate(clockSpeed);
-    centerBuffer->set_sample_rate((long) SAMPLE_RATE);
 
     apu->set_output(centerBuffer->center(), leftBuffer->center(), rightBuffer->center());
 
@@ -613,6 +615,8 @@ void Gameboy::init() {
     if(gameboy->getRomFile()->isGBS()) {
         gbsPlayerReset();
         gameboy->getRomFile()->getGBS()->init(this);
+
+        gbsPlayerDraw();
     }
 }
 
@@ -703,63 +707,63 @@ void Gameboy::gameboyCheckInput() {
         return;
     }
 
-    if(inputKeyHeld(inputMapFuncKey(FUNC_KEY_UP))) {
+    if(inputKeyHeld(FUNC_KEY_UP)) {
         buttonsPressed &= (0xFF ^ GB_UP);
         if(!(ioRam[0x00] & 0x10)) {
             requestInterrupt(INT_JOYPAD);
         }
     }
 
-    if(inputKeyHeld(inputMapFuncKey(FUNC_KEY_DOWN))) {
+    if(inputKeyHeld(FUNC_KEY_DOWN)) {
         buttonsPressed &= (0xFF ^ GB_DOWN);
         if(!(ioRam[0x00] & 0x10)) {
             requestInterrupt(INT_JOYPAD);
         }
     }
 
-    if(inputKeyHeld(inputMapFuncKey(FUNC_KEY_LEFT))) {
+    if(inputKeyHeld(FUNC_KEY_LEFT)) {
         buttonsPressed &= (0xFF ^ GB_LEFT);
         if(!(ioRam[0x00] & 0x10)) {
             requestInterrupt(INT_JOYPAD);
         }
     }
 
-    if(inputKeyHeld(inputMapFuncKey(FUNC_KEY_RIGHT))) {
+    if(inputKeyHeld(FUNC_KEY_RIGHT)) {
         buttonsPressed &= (0xFF ^ GB_RIGHT);
         if(!(ioRam[0x00] & 0x10)) {
             requestInterrupt(INT_JOYPAD);
         }
     }
 
-    if(inputKeyHeld(inputMapFuncKey(FUNC_KEY_A))) {
+    if(inputKeyHeld(FUNC_KEY_A)) {
         buttonsPressed &= (0xFF ^ GB_A);
         if(!(ioRam[0x00] & 0x20)) {
             requestInterrupt(INT_JOYPAD);
         }
     }
 
-    if(inputKeyHeld(inputMapFuncKey(FUNC_KEY_B))) {
+    if(inputKeyHeld(FUNC_KEY_B)) {
         buttonsPressed &= (0xFF ^ GB_B);
         if(!(ioRam[0x00] & 0x20)) {
             requestInterrupt(INT_JOYPAD);
         }
     }
 
-    if(inputKeyHeld(inputMapFuncKey(FUNC_KEY_START))) {
+    if(inputKeyHeld(FUNC_KEY_START)) {
         buttonsPressed &= (0xFF ^ GB_START);
         if(!(ioRam[0x00] & 0x20)) {
             requestInterrupt(INT_JOYPAD);
         }
     }
 
-    if(inputKeyHeld(inputMapFuncKey(FUNC_KEY_SELECT))) {
+    if(inputKeyHeld(FUNC_KEY_SELECT)) {
         buttonsPressed &= (0xFF ^ GB_SELECT);
         if(!(ioRam[0x00] & 0x20)) {
             requestInterrupt(INT_JOYPAD);
         }
     }
 
-    if(inputKeyHeld(inputMapFuncKey(FUNC_KEY_AUTO_A))) {
+    if(inputKeyHeld(FUNC_KEY_AUTO_A)) {
         if(autoFireCounterA <= 0) {
             buttonsPressed &= (0xFF ^ GB_A);
             if(!(ioRam[0x00] & 0x20)) {
@@ -772,7 +776,7 @@ void Gameboy::gameboyCheckInput() {
         autoFireCounterA--;
     }
 
-    if(inputKeyHeld(inputMapFuncKey(FUNC_KEY_AUTO_B))) {
+    if(inputKeyHeld(FUNC_KEY_AUTO_B)) {
         if(autoFireCounterB <= 0) {
             buttonsPressed &= (0xFF ^ GB_B);
             if(!(ioRam[0x00] & 0x20)) {
@@ -787,18 +791,18 @@ void Gameboy::gameboyCheckInput() {
 
     controllers[0] = buttonsPressed;
 
-    if(inputKeyPressed(inputMapFuncKey(FUNC_KEY_SAVE))) {
+    if(inputKeyPressed(FUNC_KEY_SAVE)) {
         if(!autoSavingEnabled) {
             saveGame();
         }
     }
 
-    if(inputKeyPressed(inputMapFuncKey(FUNC_KEY_FAST_FORWARD_TOGGLE))) {
+    if(inputKeyPressed(FUNC_KEY_FAST_FORWARD_TOGGLE)) {
         gfxToggleFastForward();
     }
 
-    if(inputKeyPressed(inputMapFuncKey(FUNC_KEY_MENU) | inputMapFuncKey(FUNC_KEY_MENU_PAUSE)) && !accelPadMode) {
-        if(pauseOnMenu || inputKeyPressed(inputMapFuncKey(FUNC_KEY_MENU_PAUSE))) {
+    if((inputKeyPressed(FUNC_KEY_MENU) || inputKeyPressed(FUNC_KEY_MENU_PAUSE)) && !accelPadMode) {
+        if(pauseOnMenu || inputKeyPressed(FUNC_KEY_MENU_PAUSE)) {
             pause();
         }
 
@@ -806,11 +810,11 @@ void Gameboy::gameboyCheckInput() {
         displayMenu();
     }
 
-    if(inputKeyPressed(inputMapFuncKey(FUNC_KEY_SCALE))) {
+    if(inputKeyPressed(FUNC_KEY_SCALE)) {
         setMenuOption("Scaling", (getMenuOption("Scaling") + 1) % 5);
     }
 
-    if(inputKeyPressed(inputMapFuncKey(FUNC_KEY_RESET))) {
+    if(inputKeyPressed(FUNC_KEY_RESET)) {
         init();
     }
 }
@@ -985,7 +989,6 @@ inline int Gameboy::updateLCD(int cycles) {
         scanlineCounter = 456 * (doubleSpeed ? 2 : 1);
         ioRam[0x44] = 0;
         ioRam[0x41] &= 0xF8;
-        ioRam[0x41] |= 1; // Set mode 1
 
         // Normally timing is synchronized with gameboy's vblank. If the screen 
         // is off, this code kicks in. The "phaseCounter" is a counter until the 
@@ -1017,6 +1020,7 @@ inline int Gameboy::updateLCD(int cycles) {
                 scanlineCounter += 80 << doubleSpeed;
             } else {
                 ioRam[0x44]++;
+                checkLYC();
 
                 if(ioRam[0x44] < 144 || ioRam[0x44] >= 153) { // Not in vblank
                     if(ioRam[0x41] & 0x20) {
@@ -1281,8 +1285,11 @@ void Gameboy::setRomFile(const char* filename) {
         delete romFile;
         romFile = NULL;
 
-        printf("Error opening %s.", filename);
-        printf("\n\nPlease restart GameYob.\n");
+        uiClear();
+        uiPrint("Error opening %s.", filename);
+        uiPrint("\n\nPlease restart GameYob.\n");
+        uiFlush();
+
         while(true) {
             systemCheckRunning();
             gfxWaitForVBlank();
@@ -1295,8 +1302,8 @@ void Gameboy::setRomFile(const char* filename) {
     if(gameboy->getRomFile()->isGBS()) {
         cheatEngine->loadCheats("");
     } else {
-        char nameBuf[256];
-        sprintf(nameBuf, "%s.cht", romFile->getFileName().c_str());
+        char nameBuf[512];
+        snprintf(nameBuf, 512, "%s.cht", romFile->getFileName().c_str());
         cheatEngine->loadCheats(nameBuf);
     }
 }
@@ -1338,8 +1345,8 @@ int Gameboy::loadSave(int saveId) {
         return 0;
     }
 
-    char savename[256];
-    strcpy(savename, romFile->getFileName().c_str());
+    char savename[512];
+    strncpy(savename, romFile->getFileName().c_str(), 512);
     if(saveId == 1) {
         strcat(savename, ".sav");
     } else {
@@ -1433,7 +1440,8 @@ void Gameboy::gameboySyncAutosave() {
     }
 
     if(showConsoleDebug()) {
-        printf("SAVE %d sectors\n", numSectors);
+        uiPrint("SAVE %d sectors\n", numSectors);
+        uiFlush();
     }
 
     framesSinceAutosaveStarted = 0;
@@ -1570,13 +1578,13 @@ int Gameboy::loadState(int stateNum) {
     }
 
     FILE* inFile;
-    char statename[256];
+    char statename[512];
     int version;
 
     if(stateNum == -1) {
-        sprintf(statename, "%s.yss", romFile->getFileName().c_str());
+        snprintf(statename, 512, "%s.yss", romFile->getFileName().c_str());
     } else {
-        sprintf(statename, "%s.ys%d", romFile->getFileName().c_str(), stateNum);
+        snprintf(statename, 512, "%s.ys%d", romFile->getFileName().c_str(), stateNum);
     }
 
     inFile = fopen(statename, "r");
@@ -1781,11 +1789,11 @@ void Gameboy::deleteState(int stateNum) {
         return;
     }
 
-    char statename[256];
+    char statename[512];
     if(stateNum == -1) {
-        sprintf(statename, "%s.yss", romFile->getFileName().c_str());
+        snprintf(statename, 512, "%s.yss", romFile->getFileName().c_str());
     } else {
-        sprintf(statename, "%s.ys%d", romFile->getFileName().c_str(), stateNum);
+        snprintf(statename, 512, "%s.ys%d", romFile->getFileName().c_str(), stateNum);
     }
 
     remove(statename);
@@ -1796,11 +1804,11 @@ bool Gameboy::checkStateExists(int stateNum) {
         return false;
     }
 
-    char statename[256];
+    char statename[512];
     if(stateNum == -1) {
-        sprintf(statename, "%s.yss", romFile->getFileName().c_str());
+        snprintf(statename, 512, "%s.yss", romFile->getFileName().c_str());
     } else {
-        sprintf(statename, "%s.ys%d", romFile->getFileName().c_str(), stateNum);
+        snprintf(statename, 512, "%s.ys%d", romFile->getFileName().c_str(), stateNum);
     }
 
     FILE* fd = fopen(statename, "r");

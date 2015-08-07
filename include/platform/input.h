@@ -2,8 +2,16 @@
 
 #include "types.h"
 
-#define NUM_BINDABLE_BUTTONS 32
+#ifdef BACKEND_3DS
+    #define NUM_BUTTONS 32
+#elif defined(BACKEND_SDL)
+    #define NUM_BUTTONS 512
+#else
+    #define NUM_BUTTONS 0
+#endif
 
+void inputInit();
+void inputCleanup();
 void inputUpdate();
 const char* inputGetKeyName(int keyIndex);
 bool inputIsValidKey(int keyIndex);
@@ -18,5 +26,3 @@ struct KeyConfig;
 
 KeyConfig inputGetDefaultKeyConfig();
 void inputLoadKeyConfig(KeyConfig* keyConfig);
-int inputMapFuncKey(int funcKey);
-int inputMapMenuKey(int menuKey);

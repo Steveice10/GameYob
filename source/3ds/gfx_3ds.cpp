@@ -1,3 +1,5 @@
+#ifdef BACKEND_3DS
+
 #include <malloc.h>
 #include <math.h>
 
@@ -81,7 +83,7 @@ void gfxCleanup() {
 }
 
 bool gfxGetFastForward() {
-    return fastForward || inputKeyHeld(inputMapFuncKey(FUNC_KEY_FAST_FORWARD));
+    return fastForward || (!isMenuOn() && inputKeyHeld(FUNC_KEY_FAST_FORWARD));
 }
 
 void gfxSetFastForward(bool fastforward) {
@@ -408,7 +410,7 @@ void gfxDrawScreen() {
     // Flush GPU framebuffer.
     gpuFlushBuffer();
 
-    if(inputKeyPressed(inputMapFuncKey(FUNC_KEY_SCREENSHOT)) && !isMenuOn()) {
+    if(inputKeyPressed(FUNC_KEY_SCREENSHOT) && !isMenuOn()) {
         gputTakeScreenshot();
     }
 
@@ -416,10 +418,8 @@ void gfxDrawScreen() {
     gpuSwapBuffers(!gfxGetFastForward());
 }
 
-void gfxFlush() {
-    gfxFlushBuffers();
-}
-
 void gfxWaitForVBlank() {
     gspWaitForVBlank();
 }
+
+#endif

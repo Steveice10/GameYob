@@ -1,54 +1,30 @@
-#include <sys/dirent.h>
-#include <stdio.h>
+#include <dirent.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include <string>
 #include <vector>
+#include <platform/ui.h>
 
 #include "platform/gfx.h"
 #include "platform/input.h"
 #include "platform/system.h"
-#include "ui/config.h"
 #include "ui/filechooser.h"
 
 #define FLAG_DIRECTORY  1
 #define FLAG_SUSPENDED  2
 #define FLAG_ROM        4
 
+static bool fileChooserActive = false;
+
+bool isFileChooserActive() {
+    return fileChooserActive;
+}
+
 FileChooser::FileChooser(std::string directory, std::vector<std::string> extensions, bool canQuit) {
     this->directory = directory;
     this->extensions = extensions;
     this->canQuit = canQuit;
-}
-
-void FileChooser::updateScrollDown() {
-    if(selection >= numFiles) {
-        selection = numFiles - 1;
-    }
-
-    if(numFiles > filesPerPage) {
-        if(selection == numFiles - 1) {
-            scrollY = selection - filesPerPage + 1;
-        } else if(selection - scrollY >= filesPerPage - 1) {
-            scrollY = selection - filesPerPage + 2;
-        }
-    }
-}
-
-void FileChooser::updateScrollUp() {
-    if(selection < 0) {
-        selection = 0;
-    }
-
-    if(selection == 0) {
-        scrollY = 0;
-    } else if(selection == scrollY) {
-        scrollY--;
-    } else if(selection < scrollY) {
-        scrollY = selection - 1;
-    }
-
 }
 
 int nameSortFunction(std::string &a, std::string &b) {
@@ -203,13 +179,53 @@ void FileChooser::setDirectory(std::string directory) {
     this->directory = directory;
 }
 
+void FileChooser::updateScrollDown() {
+    if(selection >= numFiles) {
+        selection = numFiles - 1;
+    }
+
+    if(numFiles > filesPerPage) {
+        if(selection == numFiles - 1) {
+            scrollY = selection - filesPerPage + 1;
+        } else if(selection - scrollY >= filesPerPage - 1) {
+            scrollY = selection - filesPerPage + 2;
+        }
+    }
+}
+
+void FileChooser::updateScrollUp() {
+    if(selection < 0) {
+        selection = 0;
+    }
+
+    if(selection == 0) {
+        scrollY = 0;
+    } else if(selection == scrollY) {
+        scrollY--;
+    } else if(selection < scrollY) {
+        scrollY = selection - 1;
+    }
+}
+
+void FileChooser::navigateBack() {
+    std::string currDir = directory;
+    std::string::size_type slash = currDir.find_last_of('/');
+    if(currDir.length() != 1 && slash == currDir.length() - 1) {
+        currDir = currDir.substr(0, slash);
+        slash = currDir.find_last_of('/');
+    }
+
+    matchFile = currDir.substr(0, slash);
+
+    directory = matchFile + "/";
+    selection = 1;
+}
+
 void FileChooser::refreshContents() {
     filenames.clear();
     flags.clear();
 
     std::vector<std::string> unmatchedStates;
-    char buffer[256];
-
     numFiles = 0;
     if(directory.compare("/") != 0) {
         filenames.push_back(std::string(".."));
@@ -219,9 +235,15 @@ void FileChooser::refreshContents() {
 
     DIR* dir = opendir(directory.c_str());
     if(dir != NULL) {
+        char buffer[512];
+
         // Read file list
         dirent* entry;
         while((entry = readdir(dir)) != NULL) {
+            if(strcmp(entry->d_name, "..") == 0) {
+                continue;
+            }
+
             char* ext = strrchr(entry->d_name, '.') + 1;
             if(strrchr(entry->d_name, '.') == 0) {
                 ext = 0;
@@ -255,7 +277,7 @@ void FileChooser::refreshContents() {
                     // Check for suspend state
                     if(isRomFile) {
                         if(!unmatchedStates.empty()) {
-                            strcpy(buffer, entry->d_name);
+                            strncpy(buffer, entry->d_name, 512);
                             *(strrchr(buffer, '.')) = '\0';
                             for(uint i = 0; i < unmatchedStates.size(); i++) {
                                 if(strcmp(buffer, unmatchedStates[i].c_str()) == 0) {
@@ -273,8 +295,8 @@ void FileChooser::refreshContents() {
                 }
             } else if(ext && strcasecmp(ext, "yss") == 0 && !(entry->d_type & DT_DIR)) {
                 bool matched = false;
-                char buffer2[256];
-                strcpy(buffer2, entry->d_name);
+                char buffer2[512];
+                strncpy(buffer2, entry->d_name, 512);
                 *(strrchr(buffer2, '.')) = '\0';
                 for(int i = 0; i < numFiles; i++) {
                     if(flags[i] & FLAG_ROM) {
@@ -318,28 +340,30 @@ void FileChooser::refreshContents() {
 }
 
 void FileChooser::redrawChooser() {
-    int screenLen = systemGetConsoleWidth();
+    int screenLen = uiGetWidth();
 
-    iprintf("\x1b[2J");
+    uiWaitForVBlank();
+    uiClear();
 
     char buffer[256];
-    strncpy(buffer, directory.c_str(), screenLen);
+    strncpy(buffer, directory.c_str(), (size_t) screenLen);
     buffer[screenLen] = '\0';
-    printf("%s", buffer);
+    uiPrint("%s", buffer);
 
     for(uint j = 0; j < screenLen - strlen(buffer); j++) {
-        printf(" ");
+        uiPrint(" ");
     }
 
     for(int i = scrollY; i < scrollY + filesPerPage && i < numFiles; i++) {
         if(i == selection) {
-            printf("\x1b[47m\x1b[30m* ");
+            uiSetLineHighlighted(true);
+            uiPrint("* ");
         } else if(i == scrollY && i != 0) {
-            printf("^ ");
+            uiPrint("^ ");
         } else if(i == scrollY + filesPerPage - 1 && scrollY + filesPerPage - 1 != numFiles - 1) {
-            printf("v ");
+            uiPrint("v ");
         } else {
-            printf("  ");
+            uiPrint("  ");
         }
 
         int stringLen = screenLen - 2;
@@ -347,117 +371,85 @@ void FileChooser::redrawChooser() {
             stringLen--;
         }
 
-        strncpy(buffer, filenames[i].c_str(), stringLen);
+        strncpy(buffer, filenames[i].c_str(), (size_t) stringLen);
         buffer[stringLen] = '\0';
+
         if(flags[i] & FLAG_DIRECTORY) {
-            if(i == selection) {
-                printf("\x1b[2m");
-            } else {
-                printf("\x1b[1m");
-            }
-
-            printf("\x1b[33m%s/", buffer);
+            uiSetTextColor(TEXT_COLOR_YELLOW);
         } else if(flags[i] & FLAG_SUSPENDED) {
-            if(i == selection) {
-                printf("\x1b[2m");
-            } else {
-                printf("\x1b[1m");
-            }
+            uiSetTextColor(TEXT_COLOR_PURPLE);
+        }
 
-            printf("\x1b[35m%s", buffer);
-        } else {
-            printf("%s", buffer);
+        uiPrint("%s", buffer);
+        if(flags[i] & FLAG_DIRECTORY) {
+            uiPrint("/");
         }
 
         for(uint j = 0; j < stringLen - strlen(buffer); j++) {
-            printf(" ");
+            uiPrint(" ");
         }
 
-        printf("\x1b[0m");
+        uiSetTextColor(TEXT_COLOR_NONE);
+        uiSetLineHighlighted(false);
     }
 
-    if(canQuit) {
-        if(numFiles < filesPerPage) {
-            for(int i = numFiles; i < filesPerPage; i++) {
-                printf("\n");
-            }
-        }
-
-        const char* text = "Press Y to exit";
-        int spaces = systemGetConsoleWidth() - strlen(text);
-        for(int i = 0; i < spaces; i++) {
-            printf(" ");
-        }
-
-        printf(text);
-    }
-
-    gfxFlush();
-    gfxWaitForVBlank();
+    uiFlush();
 }
 
 bool FileChooser::updateChooser(char** result) {
     bool readDirectory = false;
     bool redraw = false;
 
-    if(inputKeyPressed(inputMapMenuKey(MENU_KEY_A))) {
-        if(flags[selection] & FLAG_DIRECTORY) {
-            if(strcmp(filenames[selection].c_str(), "..") == 0) {
-                goto lowerDirectory;
+    UIKey key;
+    while((key = uiReadKey()) != UI_KEY_NONE) {
+        if(key == UI_KEY_A) {
+            if(flags[selection] & FLAG_DIRECTORY) {
+                if(strcmp(filenames[selection].c_str(), "..") == 0) {
+                    navigateBack();
+                } else {
+                    directory += filenames[selection] + "/";
+                    selection = 1;
+                }
+
+                readDirectory = true;
+                redraw = true;
+            } else {
+                // Copy the result to a new allocation, as the
+                // filename would become unavailable when freed.
+                *result = (char*) malloc(sizeof(char) * (directory.length() + strlen(filenames[selection].c_str()) + 1));
+                strcpy(*result, directory.c_str());
+                strcpy(*result + (directory.length() * sizeof(char)), filenames[selection].c_str());
+                return true;
+            }
+        } else if(key == UI_KEY_B) {
+            if(canQuit && directory.compare("/") == 0) {
+                *result = NULL;
+                return true;
             }
 
-            directory += filenames[selection] + "/";
+            navigateBack();
             readDirectory = true;
-            selection = 1;
             redraw = true;
-        } else {
-            // Copy the result to a new allocation, as the
-            // filename would become unavailable when freed.
-            *result = (char*) malloc(sizeof(char) * (directory.length() + strlen(filenames[selection].c_str()) + 1));
-            strcpy(*result, directory.c_str());
-            strcpy(*result + (directory.length() * sizeof(char)), filenames[selection].c_str());
-            return true;
-        }
-    } else if(inputKeyPressed(inputMapMenuKey(MENU_KEY_B))) {
-        lowerDirectory:
-        // Select this directory when going up
-        std::string currDir = directory;
-        std::string::size_type slash = currDir.find_last_of('/');
-        if(currDir.length() != 1 && slash == currDir.length() - 1) {
-            currDir = currDir.substr(0, slash);
-            slash = currDir.find_last_of('/');
-        }
-
-        matchFile = currDir.substr(0, slash);
-
-        directory = matchFile + "/";
-        readDirectory = true;
-        selection = 1;
-        redraw = true;
-    } else if(inputKeyRepeat(inputMapMenuKey(MENU_KEY_UP))) {
-        if(selection > 0) {
-            selection--;
-            updateScrollUp();
-            redraw = true;
-        }
-    } else if(inputKeyRepeat(inputMapMenuKey(MENU_KEY_DOWN))) {
-        if(selection < numFiles - 1) {
-            selection++;
+        } else if(key == UI_KEY_UP) {
+            if(selection > 0) {
+                selection--;
+                updateScrollUp();
+                redraw = true;
+            }
+        } else if(key == UI_KEY_DOWN) {
+            if(selection < numFiles - 1) {
+                selection++;
+                updateScrollDown();
+                redraw = true;
+            }
+        } else if(key == UI_KEY_RIGHT) {
+            selection += filesPerPage / 2;
             updateScrollDown();
             redraw = true;
-        }
-    } else if(inputKeyRepeat(inputMapMenuKey(MENU_KEY_RIGHT))) {
-        selection += filesPerPage / 2;
-        updateScrollDown();
-        redraw = true;
-    } else if(inputKeyRepeat(inputMapMenuKey(MENU_KEY_LEFT))) {
-        selection -= filesPerPage / 2;
-        updateScrollUp();
-        redraw = true;
-    } else if(inputKeyPressed(inputMapMenuKey(MENU_KEY_Y))) {
-        if(canQuit) {
-            *result = NULL;
-            return true;
+        } else if(key == UI_KEY_LEFT) {
+            selection -= filesPerPage / 2;
+            updateScrollUp();
+            redraw = true;
         }
     }
 
@@ -478,15 +470,12 @@ bool FileChooser::updateChooser(char** result) {
  * for free()ing it.
  */
 char* FileChooser::startFileChooser() {
-    filesPerPage = systemGetConsoleHeight();
-    filesPerPage--;
-    if(canQuit) {
-        filesPerPage--;
-    }
+    filesPerPage = uiGetHeight() - 1;
 
     refreshContents();
     redrawChooser();
 
+    fileChooserActive = true;
     while(true) {
         systemCheckRunning();
         gfxWaitForVBlank();
@@ -494,10 +483,14 @@ char* FileChooser::startFileChooser() {
 
         char* result;
         if(updateChooser(&result)) {
-            iprintf("\x1b[2J");
+            uiClear();
+            uiFlush();
+
+            fileChooserActive = false;
             return result;
         }
     }
 
+    fileChooserActive = false;
     return NULL;
 }

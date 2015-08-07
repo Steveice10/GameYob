@@ -3,6 +3,8 @@
 #include <string>
 #include <vector>
 
+bool isFileChooserActive();
+
 class FileChooser {
 public:
     FileChooser(std::string directory, std::vector<std::string> extensions, bool canQuit);
@@ -14,6 +16,7 @@ public:
 private:
     void updateScrollDown();
     void updateScrollUp();
+    void navigateBack();
 
     void refreshContents();
     void redrawChooser();

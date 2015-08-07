@@ -1,6 +1,7 @@
 #include <stdio.h>
 
 #include "platform/input.h"
+#include "platform/ui.h"
 #include "ui/config.h"
 #include "ui/manager.h"
 
@@ -12,42 +13,63 @@ void gbsPlayerReset() {
     playingSong = 0;
 }
 
-void gbsPlayerRefresh() {
-    if(inputKeyRepeat(inputMapMenuKey(MENU_KEY_LEFT))) {
-        if(selectedSong == 0) {
-            selectedSong = gameboy->getRomFile()->getGBS()->getSongCount() - (u8) 1;
-        } else {
-            selectedSong--;
-        }
-    }
+void gbsPlayerDraw() {
+    uiClear();
 
-    if(inputKeyRepeat(inputMapMenuKey(MENU_KEY_RIGHT))) {
-        selectedSong++;
-        if(selectedSong == gameboy->getRomFile()->getGBS()->getSongCount()) {
-            selectedSong = 0;
-        }
-    }
-
-    if(inputKeyPressed(inputMapMenuKey(MENU_KEY_A))) {
-        gameboy->getRomFile()->getGBS()->playSong(gameboy, selectedSong);
-        playingSong = selectedSong;
-    }
-
-    if(inputKeyPressed(inputMapMenuKey(MENU_KEY_B))) {
-        gameboy->getRomFile()->getGBS()->stopSong(gameboy);
-        playingSong = -1;
-    }
-
-    printf("\33[0;0H");
-
-    printf("Song %d of %d\33[0K\n", selectedSong + 1, gameboy->getRomFile()->getGBS()->getSongCount());
+    uiPrint("Song %d of %d\n", selectedSong + 1, gameboy->getRomFile()->getGBS()->getSongCount());
     if(playingSong == -1) {
-        printf("(Not playing)\33[0K\n\n");
+        uiPrint("(Not playing)\n\n");
     } else {
-        printf("(Playing %d)\33[0K\n\n", playingSong + 1);
+        uiPrint("(Playing %d)\n\n", playingSong + 1);
     }
 
-    printf("%s\n", gameboy->getRomFile()->getGBS()->getTitle().c_str());
-    printf("%s\n", gameboy->getRomFile()->getGBS()->getAuthor().c_str());
-    printf("%s\n", gameboy->getRomFile()->getGBS()->getCopyright().c_str());
+    uiPrint("%s\n", gameboy->getRomFile()->getGBS()->getTitle().c_str());
+    uiPrint("%s\n", gameboy->getRomFile()->getGBS()->getAuthor().c_str());
+    uiPrint("%s\n", gameboy->getRomFile()->getGBS()->getCopyright().c_str());
+
+    uiFlush();
+}
+
+void gbsPlayerRefresh() {
+    bool redraw = false;
+
+    UIKey key;
+    while((key = uiReadKey()) != UI_KEY_NONE) {
+        if(key == UI_KEY_LEFT) {
+            if(selectedSong == 0) {
+                selectedSong = gameboy->getRomFile()->getGBS()->getSongCount() - (u8) 1;
+            } else {
+                selectedSong--;
+            }
+
+            redraw = true;
+        }
+
+        if(key == UI_KEY_RIGHT) {
+            selectedSong++;
+            if(selectedSong == gameboy->getRomFile()->getGBS()->getSongCount()) {
+                selectedSong = 0;
+            }
+
+            redraw = true;
+        }
+
+        if(key == UI_KEY_A) {
+            gameboy->getRomFile()->getGBS()->playSong(gameboy, selectedSong);
+            playingSong = selectedSong;
+
+            redraw = true;
+        }
+
+        if(key == UI_KEY_B) {
+            gameboy->getRomFile()->getGBS()->stopSong(gameboy);
+            playingSong = -1;
+
+            redraw = true;
+        }
+    }
+
+    if(redraw) {
+        gbsPlayerDraw();
+    }
 }

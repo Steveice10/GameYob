@@ -1087,7 +1087,7 @@ int Gameboy::runOpcode(int cycles) {
             }
 
             case 0xC3:        // JP				16
-            setPC(readPC16_noinc());
+                setPC(readPC16_noinc());
                 break;
             case 0xC2:        // JP NZ, nn	16/12
                 if(!zeroSet()) {

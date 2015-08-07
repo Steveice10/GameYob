@@ -4,6 +4,7 @@
 #include <unistd.h>
 
 #include "platform/gfx.h"
+#include "platform/ui.h"
 #include "ui/menu.h"
 #include "printer.h"
 #include "gameboy.h"
@@ -123,7 +124,8 @@ u8 GameboyPrinter::sendGbPrinterByte(u8 dat) {
             if(printerChecksum != printerExpectedChecksum) {
                 printerStatus |= PRINTER_STATUS_CHECKSUM;
                 if(showConsoleDebug()) {
-                    printf("Checksum %.4x, expected %.4x\n", printerChecksum, printerExpectedChecksum);
+                    uiPrint("Checksum %.4x, expected %.4x\n", printerChecksum, printerExpectedChecksum);
+                    uiFlush();
                 }
             } else {
                 printerStatus &= ~PRINTER_STATUS_CHECKSUM;
@@ -235,7 +237,8 @@ void GameboyPrinter::printerSaveFile() {
                 // This is a failsafe, this shouldn't happen
                 appending = false;
                 if(showConsoleDebug()) {
-                    printf("The image to be appended to doesn't exist!");
+                    uiPrint("The image to be appended to doesn't exist!");
+                    uiFlush();
                 }
 
                 continue;

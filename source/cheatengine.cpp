@@ -3,6 +3,7 @@
 
 #include <algorithm>
 
+#include "platform/ui.h"
 #include "ui/menu.h"
 #include "cheatengine.h"
 #include "gameboy.h"
@@ -48,7 +49,8 @@ bool CheatEngine::addCheat(const char* str) {
         cheats[i].compare ^= 0xba;
 
         if(showConsoleDebug()) {
-            printf("GG %04x / %02x -> %02x\n", cheats[i].address, cheats[i].data, cheats[i].compare);
+            uiPrint("GG %04x / %02x -> %02x\n", cheats[i].address, cheats[i].data, cheats[i].compare);
+            uiFlush();
         }
     } else if(len == 7) { // GameGenie (6digit version) AAA-BBB
         cheats[i].flags |= CHEAT_FLAG_GAMEGENIE1;
@@ -57,7 +59,8 @@ bool CheatEngine::addCheat(const char* str) {
         cheats[i].address = TO_INT(str[6]) << 12 | TO_INT(str[2]) << 8 | TO_INT(str[4]) << 4 | TO_INT(str[5]);
 
         if(showConsoleDebug()) {
-            printf("GG1 %04x / %02x\n", cheats[i].address, cheats[i].data);
+            uiPrint("GG1 %04x / %02x\n", cheats[i].address, cheats[i].data);
+            uiFlush();
         }
     } else if(len == 8) { // Gameshark AAAAAAAA
         cheats[i].flags |= CHEAT_FLAG_GAMESHARK;
@@ -67,7 +70,8 @@ bool CheatEngine::addCheat(const char* str) {
         cheats[i].address = TO_INT(str[6]) << 12 | TO_INT(str[7]) << 8 | TO_INT(str[4]) << 4 | TO_INT(str[5]);
 
         if(showConsoleDebug()) {
-            printf("GS (%02x)%04x/ %02x\n", cheats[i].bank, cheats[i].address, cheats[i].data);
+            uiPrint("GS (%02x)%04x/ %02x\n", cheats[i].bank, cheats[i].address, cheats[i].data);
+            uiFlush();
         }
     } else { // dafuq did i just read ?
         return false;

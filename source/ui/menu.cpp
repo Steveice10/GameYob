@@ -5,15 +5,18 @@
 #include <string>
 
 #include <arpa/inet.h>
-#include <sys/errno.h>
 #include <sys/stat.h>
+#include <errno.h>
+#include <unistd.h>
 
 #include "platform/gfx.h"
 #include "platform/input.h"
 #include "platform/system.h"
+#include "platform/ui.h"
 #include "ui/cheats.h"
 #include "ui/config.h"
 #include "ui/filechooser.h"
+#include "ui/gbsplayer.h"
 #include "ui/manager.h"
 #include "ui/menu.h"
 
@@ -65,11 +68,14 @@ int biosEnabled = false;
 FileChooser borderChooser("/", {"png"}, true);
 FileChooser biosChooser("/", {"bin"}, true);
 
-
 // Private function used for simple submenus
 void subMenuGenericUpdateFunc() {
-    if(inputKeyPressed(inputMapMenuKey(MENU_KEY_A)) || inputKeyPressed(inputMapMenuKey(MENU_KEY_B))) {
-        closeSubMenu();
+    UIKey key;
+    while((key = uiReadKey()) != UI_KEY_NONE) {
+        if(key == UI_KEY_A || key == UI_KEY_B) {
+            closeSubMenu();
+            return;
+        }
     }
 }
 
@@ -191,7 +197,8 @@ void accelPadFunc(int value) {
     accelPadMode = true;
     closeMenu();
 
-    printf("Exit");
+    uiPrint("Exit");
+    uiFlush();
 }
 
 void resetFunc(int value) {
@@ -241,7 +248,7 @@ void selectGbcBiosFunc(int value) {
 
 void setScreenFunc(int value) {
     gameScreen = value;
-    systemUpdateConsole();
+    uiUpdateScreen();
 }
 
 void setPauseOnMenuFunc(int value) {
@@ -350,46 +357,54 @@ FILE* linkSocket = NULL;
 std::string linkIp = "";
 
 void listenUpdateFunc() {
-    if(inputKeyPressed(inputMapMenuKey(MENU_KEY_A)) || inputKeyPressed(inputMapMenuKey(MENU_KEY_B))) {
-        if(listenSocket != -1) {
-            closesocket(listenSocket);
-            listenSocket = -1;
-        }
+    UIKey key;
+    while((key = uiReadKey()) != UI_KEY_NONE) {
+        if(key == UI_KEY_A || key == UI_KEY_B) {
+            if(listenSocket != -1) {
+                close(listenSocket);
+                listenSocket = -1;
+            }
 
-        closeSubMenu();
+            closeSubMenu();
+            return;
+        }
     }
 
     if(listenSocket != -1 && linkSocket == NULL) {
         linkSocket = systemSocketAccept(listenSocket, &linkIp);
         if(linkSocket != NULL) {
-            closesocket(listenSocket);
+            close(listenSocket);
             listenSocket = -1;
 
-            iprintf("\x1b[2J");
-            printf("Connected to %s.\n", linkIp.c_str());
-            printf("Press A or B to continue.\n");
+            uiClear();
+            uiPrint("Connected to %s.\n", linkIp.c_str());
+            uiPrint("Press A or B to continue.\n");
+            uiFlush();
         }
     }
 }
 
 void listenFunc(int value) {
     displaySubMenu(listenUpdateFunc);
-    iprintf("\x1b[2J");
+
+    uiClear();
 
     if(linkSocket != NULL) {
-        printf("Already connected.\n");
-        printf("Press A or B to continue.\n");
+        uiPrint("Already connected.\n");
+        uiPrint("Press A or B to continue.\n");
     } else {
         listenSocket = systemSocketListen(5000);
         if(listenSocket >= 0) {
-            printf("Listening for connection...\n");
-            printf("Local IP: %s\n", systemGetIP().c_str());
-            printf("Press A or B to cancel.\n");
+            uiPrint("Listening for connection...\n");
+            uiPrint("Local IP: %s\n", systemGetIP().c_str());
+            uiPrint("Press A or B to cancel.\n");
         } else {
-            printf("Failed to open socket: %s\n", strerror(errno));
-            printf("Press A or B to continue.\n");
+            uiPrint("Failed to open socket: %s\n", strerror(errno));
+            uiPrint("Press A or B to continue.\n");
         }
     }
+
+    uiFlush();
 }
 
 bool connectPerformed = false;
@@ -397,95 +412,101 @@ std::string connectIp = "000.000.000.000";
 u32 connectSelection = 0;
 
 void drawConnectSelector() {
-    iprintf("\x1b[2J");
-    printf("Input IP to connect to:\n");
-    printf("%s\n", connectIp.c_str());
+    uiClear();
+    uiPrint("Input IP to connect to:\n");
+    uiPrint("%s\n", connectIp.c_str());
     for(u32 i = 0; i < connectSelection; i++) {
-        printf(" ");
+        uiPrint(" ");
     }
 
-    printf("^\n");
-    printf("Press A to confirm, B to cancel.\n");
+    uiPrint("^\n");
+    uiPrint("Press A to confirm, B to cancel.\n");
+    uiFlush();
 }
 
 void connectUpdateFunc() {
-    if((connectPerformed && inputKeyPressed(inputMapMenuKey(MENU_KEY_A))) || inputKeyPressed(inputMapMenuKey(MENU_KEY_B))) {
-        connectPerformed = false;
-        connectIp = "000.000.000.000";
-        connectSelection = 0;
+    UIKey key;
+    while((key = uiReadKey()) != UI_KEY_NONE) {
+        if((connectPerformed && key == UI_KEY_A) || key == UI_KEY_B) {
+            connectPerformed = false;
+            connectIp = "000.000.000.000";
+            connectSelection = 0;
 
-        closeSubMenu();
-        return;
-    }
+            closeSubMenu();
+            return;
+        }
 
-    if(!connectPerformed) {
-        if(inputKeyPressed(inputMapMenuKey(MENU_KEY_A))) {
-            std::string trimmedIp = connectIp;
+        if(!connectPerformed) {
+            if(key == UI_KEY_A) {
+                std::string trimmedIp = connectIp;
 
-            bool removeZeros = true;
-            for(std::string::size_type i = 0; i < trimmedIp.length(); i++) {
-                if(removeZeros && trimmedIp[i] == '0' && i != trimmedIp.length() - 1 && trimmedIp[i + 1] != '.') {
-                    trimmedIp.erase(i, 1);
-                    i--;
-                } else {
-                    removeZeros = trimmedIp[i] == '.';
+                bool removeZeros = true;
+                for(std::string::size_type i = 0; i < trimmedIp.length(); i++) {
+                    if(removeZeros && trimmedIp[i] == '0' && i != trimmedIp.length() - 1 && trimmedIp[i + 1] != '.') {
+                        trimmedIp.erase(i, 1);
+                        i--;
+                    } else {
+                        removeZeros = trimmedIp[i] == '.';
+                    }
                 }
+
+                connectPerformed = true;
+
+                uiClear();
+                uiPrint("Connecting to %s...\n", trimmedIp.c_str());
+
+                linkSocket = systemSocketConnect(trimmedIp, 5000);
+                if(linkSocket != NULL) {
+                    linkIp = trimmedIp;;
+                    uiPrint("Connected to %s.\n", linkIp.c_str());
+                } else {
+                    uiPrint("Failed to connect to socket: %s\n", strerror(errno));
+                }
+
+                uiPrint("Press A or B to continue.\n");
+                uiFlush();
             }
 
-            connectPerformed = true;
-            iprintf("\x1b[2J");
-            printf("Connecting to %s...\n", trimmedIp.c_str());
-
-            linkSocket = systemSocketConnect(trimmedIp, 5000);
-            if(linkSocket != NULL) {
-                linkIp = trimmedIp;;
-                printf("Connected to %s.\n", linkIp.c_str());
-            } else {
-                printf("Failed to connect to socket: %s\n", strerror(errno));
-            }
-
-            printf("Press A or B to continue.\n");
-        }
-
-        bool redraw = false;
-        if(inputKeyRepeat(inputMapMenuKey(MENU_KEY_LEFT)) && connectSelection > 0) {
-            connectSelection--;
-            if(connectIp[connectSelection] == '.') {
+            bool redraw = false;
+            if(key == UI_KEY_LEFT && connectSelection > 0) {
                 connectSelection--;
+                if(connectIp[connectSelection] == '.') {
+                    connectSelection--;
+                }
+
+                redraw = true;
             }
 
-            redraw = true;
-        }
-
-        if(inputKeyRepeat(inputMapMenuKey(MENU_KEY_RIGHT)) && connectSelection < connectIp.length() - 1) {
-            connectSelection++;
-            if(connectIp[connectSelection] == '.') {
+            if(key == UI_KEY_RIGHT && connectSelection < connectIp.length() - 1) {
                 connectSelection++;
+                if(connectIp[connectSelection] == '.') {
+                    connectSelection++;
+                }
+
+                redraw = true;
             }
 
-            redraw = true;
-        }
+            if(key == UI_KEY_UP) {
+                connectIp[connectSelection]++;
+                if(connectIp[connectSelection] > '9') {
+                    connectIp[connectSelection] = '0';
+                }
 
-        if(inputKeyRepeat(inputMapMenuKey(MENU_KEY_UP))) {
-            connectIp[connectSelection]++;
-            if(connectIp[connectSelection] > '9') {
-                connectIp[connectSelection] = '0';
+                redraw = true;
             }
 
-            redraw = true;
-        }
+            if(key == UI_KEY_DOWN) {
+                connectIp[connectSelection]--;
+                if(connectIp[connectSelection] < '0') {
+                    connectIp[connectSelection] = '9';
+                }
 
-        if(inputKeyRepeat(inputMapMenuKey(MENU_KEY_DOWN))) {
-            connectIp[connectSelection]--;
-            if(connectIp[connectSelection] < '0') {
-                connectIp[connectSelection] = '9';
+                redraw = true;
             }
 
-            redraw = true;
-        }
-
-        if(redraw) {
-            drawConnectSelector();
+            if(redraw) {
+                drawConnectSelector();
+            }
         }
     }
 }
@@ -494,10 +515,11 @@ void connectFunc(int value) {
     displaySubMenu(connectUpdateFunc);
     if(linkSocket != NULL) {
         connectPerformed = true;
-        iprintf("\x1b[2J");
 
-        printf("Already connected.\n");
-        printf("Press A or B to continue.\n");
+        uiClear();
+        uiPrint("Already connected.\n");
+        uiPrint("Press A or B to continue.\n");
+        uiFlush();
     } else {
         drawConnectSelector();
     }
@@ -505,28 +527,45 @@ void connectFunc(int value) {
 
 void disconnectFunc(int value) {
     displaySubMenu(subMenuGenericUpdateFunc);
-    iprintf("\x1b[2J");
+
+    uiClear();
 
     if(linkSocket != NULL) {
         fclose(linkSocket);
         linkSocket = NULL;
         linkIp = "";
 
-        printf("Disconnected.\n");
+        uiPrint("Disconnected.\n");
     } else {
-        printf("Not connected.\n");
+        uiPrint("Not connected.\n");
     }
 
-    printf("Press A or B to continue.\n");
+    uiPrint("Press A or B to continue.\n");
+
+    uiFlush();
 }
 
 void connectionInfoFunc(int value) {
     displaySubMenu(subMenuGenericUpdateFunc);
-    iprintf("\x1b[2J");
-    printf("Status: %s\n", linkSocket != NULL ? "\x1b[1m\x1b[32mConnected\x1b[0m" : "\x1b[1m\x1b[31mDisconnected\x1b[0m");
-    printf("IP: %s\n", linkIp.c_str());
-    printf("\n");
-    printf("Press A or B to continue.\n");
+
+    uiClear();
+
+    uiPrint("Status: ");
+    if(linkSocket != NULL) {
+        uiSetTextColor(TEXT_COLOR_GREEN);
+        uiPrint("Connected");
+        uiSetTextColor(TEXT_COLOR_NONE);
+    } else {
+        uiSetTextColor(TEXT_COLOR_RED);
+        uiPrint("Disconnected");
+        uiSetTextColor(TEXT_COLOR_NONE);
+    }
+
+    uiPrint("\n");
+    uiPrint("IP: %s\n", linkIp.c_str());
+    uiPrint("\n");
+    uiPrint("Press A or B to continue.\n");
+    uiFlush();
 }
 
 struct MenuOption {
@@ -653,8 +692,15 @@ void displayMenu() {
 void closeMenu() {
     inputKeyRelease(0xFFFFFFFF);
     menuOn = false;
-    iprintf("\x1b[2J");
+
+    uiClear();
+    uiFlush();
+
     gameboy->unpause();
+
+    if(gameboy->isRomLoaded() && gameboy->getRomFile()->isGBS()) {
+        gbsPlayerDraw();
+    }
 }
 
 bool isMenuOn() {
@@ -740,50 +786,66 @@ int menuGetNumRows() {
 }
 
 void redrawMenu() {
-    iprintf("\x1b[2J");
+    uiClear();
 
-    int width = systemGetConsoleWidth();
-    int height = systemGetConsoleHeight();
+    int width = uiGetWidth();
+    int height = uiGetHeight();
 
     // Top line: submenu
     int pos = 0;
     int nameStart = (width - strlen(menuList[menu].name) - 2) / 2;
     if(option == -1) {
         nameStart -= 2;
-        printf("\x1b[1m\x1b[32m<\x1b[0m");
+
+        uiSetTextColor(TEXT_COLOR_GREEN);
+        uiPrint("<");
+        uiSetTextColor(TEXT_COLOR_NONE);
     } else {
-        printf("<");
+        uiPrint("<");
     }
 
     pos++;
     for(; pos < nameStart; pos++) {
-        printf(" ");
+        uiPrint(" ");
     }
 
     if(option == -1) {
-        printf("\x1b[1m\x1b[33m* \x1b[0m");
+        uiSetTextColor(TEXT_COLOR_YELLOW);
+        uiPrint("* ");
+        uiSetTextColor(TEXT_COLOR_NONE);
+
         pos += 2;
     }
 
-    std::string color = (option == -1 ? "\x1b[1m\x1b[33m" : "");
-    printf((color + "[%s]\x1b[0m").c_str(), menuList[menu].name);
+    if(option == -1) {
+        uiSetTextColor(TEXT_COLOR_YELLOW);
+    }
+
+    uiPrint("[%s]", menuList[menu].name);
+    uiSetTextColor(TEXT_COLOR_NONE);
+
     pos += 2 + strlen(menuList[menu].name);
     if(option == -1) {
-        printf("\x1b[1m\x1b[33m *\x1b[0m");
+        uiSetTextColor(TEXT_COLOR_YELLOW);
+        uiPrint(" *");
+        uiSetTextColor(TEXT_COLOR_NONE);
+
         pos += 2;
     }
 
     for(; pos < width - 1; pos++) {
-        printf(" ");
+        uiPrint(" ");
     }
 
     if(option == -1) {
-        printf("\x1b[1m\x1b[32m>\x1b[0m");
+        uiSetTextColor(TEXT_COLOR_GREEN);
+        uiPrint(">");
+        uiSetTextColor(TEXT_COLOR_NONE);
     } else {
-        printf(">");
+        uiPrint(">");
     }
 
-    printf("\n");
+    uiPrint("\n");
 
     // Rest of the lines: options
     for(int i = 0; i < menuList[menu].numOptions; i++) {
@@ -791,43 +853,56 @@ void redrawMenu() {
             continue;
         }
 
-        std::string option_color;
         if(!menuList[menu].options[i].enabled) {
-            option_color = "\x1b[2m";
+            uiSetTextColor(TEXT_COLOR_GRAY);
         } else if(option == i) {
-            option_color = "\x1b[1m\x1b[33m";
-        } else {
-            option_color = "";
+            uiSetTextColor(TEXT_COLOR_YELLOW);
         }
 
         if(menuList[menu].options[i].numValues == 0) {
             for(unsigned int j = 0; j < (width - strlen(menuList[menu].options[i].name)) / 2 - 2; j++) {
-                printf(" ");
+                uiPrint(" ");
             }
 
             if(i == option) {
-                printf((option_color + "* %s *\n\n\x1b[0m").c_str(), menuList[menu].options[i].name);
+                uiPrint("* %s *\n", menuList[menu].options[i].name);
             } else {
-                printf((option_color + "  %s  \n\n\x1b[0m").c_str(), menuList[menu].options[i].name);
+                uiPrint("  %s  \n", menuList[menu].options[i].name);
             }
+
+            uiPrint("\n");
         } else {
             for(unsigned int j = 0; j < width / 2 - strlen(menuList[menu].options[i].name); j++) {
-                printf(" ");
+                uiPrint(" ");
             }
 
             if(i == option) {
-                printf((option_color + "* \x1b[0m").c_str());
-                printf((option_color + "%s  \x1b[0m").c_str(), menuList[menu].options[i].name);
-                printf(((menuList[menu].options[i].enabled ? "\x1b[1m\x1b[32m" : option_color) + "%s\x1b[0m").c_str(), menuList[menu].options[i].values[menuList[menu].options[i].selection]);
-                printf((option_color + " *\x1b[0m").c_str());
+                uiPrint("* ");
+                uiPrint("%s  ", menuList[menu].options[i].name);
+
+                if(menuList[menu].options[i].enabled) {
+                    uiSetTextColor(TEXT_COLOR_GREEN);
+                }
+
+                uiPrint("%s", menuList[menu].options[i].values[menuList[menu].options[i].selection]);
+
+                if(!menuList[menu].options[i].enabled) {
+                    uiSetTextColor(TEXT_COLOR_GRAY);
+                } else if(option == i) {
+                    uiSetTextColor(TEXT_COLOR_YELLOW);
+                }
+
+                uiPrint(" *");
             } else {
-                printf("  ");
-                printf((option_color + "%s  \x1b[0m").c_str(), menuList[menu].options[i].name);
-                printf((option_color + "%s\x1b[0m").c_str(), menuList[menu].options[i].values[menuList[menu].options[i].selection]);
+                uiPrint("  ");
+                uiPrint("%s  ", menuList[menu].options[i].name);
+                uiPrint("%s", menuList[menu].options[i].values[menuList[menu].options[i].selection]);
             }
 
-            printf("\n\n");
+            uiPrint("\n\n");
         }
+
+        uiSetTextColor(TEXT_COLOR_NONE);
     }
 
     // Message at the bottom
@@ -835,18 +910,20 @@ void redrawMenu() {
         int rows = menuGetNumRows();
         int newlines = height - 1 - (rows * 2 + 2) - 1;
         for(int i = 0; i < newlines; i++) {
-            printf("\n");
+            uiPrint("\n");
         }
 
         int spaces = width - 1 - strlen(printMessage);
         for(int i = 0; i < spaces; i++) {
-            printf(" ");
+            uiPrint(" ");
         }
 
-        printf("%s\n", printMessage);
+        uiPrint("%s\n", printMessage);
 
         printMessage[0] = '\0';
     }
+
+    uiFlush();
 }
 
 // Called each vblank while the menu is on
@@ -861,71 +938,74 @@ void updateMenu() {
 
     bool redraw = false;
     // Get input
-    if(inputKeyRepeat(inputMapMenuKey(MENU_KEY_UP))) {
-        menuCursorUp();
-        redraw = true;
-    } else if(inputKeyRepeat(inputMapMenuKey(MENU_KEY_DOWN))) {
-        menuCursorDown();
-        redraw = true;
-    } else if(inputKeyRepeat(inputMapMenuKey(MENU_KEY_LEFT))) {
-        if(option == -1) {
+    UIKey key;
+    while((key = uiReadKey()) != UI_KEY_NONE) {
+        if(key == UI_KEY_UP) {
+            menuCursorUp();
+            redraw = true;
+        } else if(key == UI_KEY_DOWN) {
+            menuCursorDown();
+            redraw = true;
+        } else if(key == UI_KEY_LEFT) {
+            if(option == -1) {
+                menu--;
+                if(menu < 0) {
+                    menu = numMenus - 1;
+                }
+            } else if(menuList[menu].options[option].numValues != 0 && menuList[menu].options[option].enabled) {
+                int selection = menuList[menu].options[option].selection - 1;
+                if(selection < 0) {
+                    selection = menuList[menu].options[option].numValues - 1;
+                }
+
+                menuList[menu].options[option].selection = selection;
+                menuList[menu].options[option].function(selection);
+            }
+
+            redraw = true;
+        } else if(key == UI_KEY_RIGHT) {
+            if(option == -1) {
+                menu++;
+                if(menu >= numMenus) {
+                    menu = 0;
+                }
+            } else if(menuList[menu].options[option].numValues != 0 && menuList[menu].options[option].enabled) {
+                int selection = menuList[menu].options[option].selection + 1;
+                if(selection >= menuList[menu].options[option].numValues) {
+                    selection = 0;
+                }
+
+                menuList[menu].options[option].selection = selection;
+                menuList[menu].options[option].function(selection);
+            }
+            redraw = true;
+        } else if(key == UI_KEY_A) {
+            if(option >= 0 && menuList[menu].options[option].numValues == 0 && menuList[menu].options[option].enabled) {
+                menuList[menu].options[option].function(menuList[menu].options[option].selection);
+            }
+
+            redraw = true;
+        } else if(key == UI_KEY_B) {
+            closeMenu();
+        } else if(key == UI_KEY_L) {
+            int row = menuGetOptionRow();
             menu--;
             if(menu < 0) {
                 menu = numMenus - 1;
             }
-        } else if(menuList[menu].options[option].numValues != 0 && menuList[menu].options[option].enabled) {
-            int selection = menuList[menu].options[option].selection - 1;
-            if(selection < 0) {
-                selection = menuList[menu].options[option].numValues - 1;
-            }
 
-            menuList[menu].options[option].selection = selection;
-            menuList[menu].options[option].function(selection);
-        }
-
-        redraw = true;
-    } else if(inputKeyRepeat(inputMapMenuKey(MENU_KEY_RIGHT))) {
-        if(option == -1) {
+            menuSetOptionRow(row);
+            redraw = true;
+        } else if(key == UI_KEY_R) {
+            int row = menuGetOptionRow();
             menu++;
             if(menu >= numMenus) {
                 menu = 0;
             }
-        } else if(menuList[menu].options[option].numValues != 0 && menuList[menu].options[option].enabled) {
-            int selection = menuList[menu].options[option].selection + 1;
-            if(selection >= menuList[menu].options[option].numValues) {
-                selection = 0;
-            }
 
-            menuList[menu].options[option].selection = selection;
-            menuList[menu].options[option].function(selection);
+            menuSetOptionRow(row);
+            redraw = true;
         }
-        redraw = true;
-    } else if(inputKeyPressed(inputMapMenuKey(MENU_KEY_A))) {
-        if(option >= 0 && menuList[menu].options[option].numValues == 0 && menuList[menu].options[option].enabled) {
-            menuList[menu].options[option].function(menuList[menu].options[option].selection);
-        }
-
-        redraw = true;
-    } else if(inputKeyPressed(inputMapMenuKey(MENU_KEY_B))) {
-        closeMenu();
-    } else if(inputKeyPressed(inputMapMenuKey(MENU_KEY_L))) {
-        int row = menuGetOptionRow();
-        menu--;
-        if(menu < 0) {
-            menu = numMenus - 1;
-        }
-
-        menuSetOptionRow(row);
-        redraw = true;
-    } else if(inputKeyPressed(inputMapMenuKey(MENU_KEY_R))) {
-        int row = menuGetOptionRow();
-        menu++;
-        if(menu >= numMenus) {
-            menu = 0;
-        }
-
-        menuSetOptionRow(row);
-        redraw = true;
     }
 
     if(redraw && subMenuUpdateFunc == 0 && isMenuOn()) {// The menu may have been closed by an option
@@ -936,30 +1016,29 @@ void updateMenu() {
 // Message will be printed immediately, but also stored in case it's overwritten
 // right away.
 void printMenuMessage(const char* s) {
-    int width = systemGetConsoleWidth();
-    int height = systemGetConsoleHeight();
+    int width = uiGetWidth();
+    int height = uiGetHeight();
     int rows = menuGetNumRows();
 
     bool hadPreviousMessage = printMessage[0] != '\0';
     strncpy(printMessage, s, 33);
 
     if(hadPreviousMessage) {
-        printf("\r");
+        uiPrint("\r");
     } else {
         int newlines = height - 1 - (rows * 2 + 2) - 1;
         for(int i = 0; i < newlines; i++) {
-            printf("\n");
+            uiPrint("\n");
         }
     }
 
     int spaces = width - 1 - strlen(printMessage);
     for(int i = 0; i < spaces; i++) {
-        printf(" ");
+        uiPrint(" ");
     }
 
-    printf("%s", printMessage);
-
-    fflush(stdout);
+    uiPrint("%s", printMessage);
+    uiFlush();
 }
 
 void displaySubMenu(void (* updateFunc)()) {

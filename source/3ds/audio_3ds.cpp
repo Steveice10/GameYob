@@ -1,3 +1,5 @@
+#ifdef BACKEND_3DS
+
 #include <string.h>
 
 #include "platform/audio.h"
@@ -50,3 +52,5 @@ void audioPlay(long leftSamples, long rightSamples, long centerSamples) {
     soundPlay(2, audioCenterBuffer, (u32) centerSamples, SAMPLE_PCM16, (u32) SAMPLE_RATE, 1, 1, false);
     soundFlush();
 }
+
+#endif

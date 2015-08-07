@@ -1,10 +1,11 @@
+#include <dirent.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/dirent.h>
 
 #include "platform/gfx.h"
 #include "platform/input.h"
 #include "platform/system.h"
+#include "platform/ui.h"
 #include "ui/config.h"
 #include "ui/filechooser.h"
 #include "ui/gbsplayer.h"
@@ -109,11 +110,14 @@ void mgrSelectRom() {
         }
     }
 
-    char* filename = romChooser.startFileChooser();
+    char* filename = romChooser.startFileChooser();//"boot.gbc";
 
     if(filename == NULL) {
-        printf("Filechooser error");
-        printf("\n\nPlease restart GameYob.\n");
+        uiClear();
+        uiPrint("Filechooser error");
+        uiPrint("\n\nPlease restart GameYob.\n");
+        uiFlush();
+
         while(true) {
             systemCheckRunning();
             gfxWaitForVBlank();
@@ -160,13 +164,13 @@ void mgrRun() {
     fps++;
     if(rawTime > lastPrintTime) {
         if(!isMenuOn() && !showConsoleDebug() && (!gameboy->isRomLoaded() || !gameboy->getRomFile()->isGBS()) && (fpsOutput || timeOutput)) {
-            iprintf("\x1b[2J");
+            uiClear();
             int fpsLength = 0;
             if(fpsOutput) {
                 char buffer[16];
                 snprintf(buffer, 16, "FPS: %d", fps);
-                printf(buffer);
-                fpsLength = strlen(buffer);
+                uiPrint("%s", buffer);
+                fpsLength = (int) strlen(buffer);
             }
 
             if(timeOutput) {
@@ -181,15 +185,17 @@ void mgrRun() {
                 char timeDisplay[6] = {0};
                 strncpy(timeDisplay, timeString, 5);
 
-                int spaces = systemGetConsoleWidth() - strlen(timeDisplay) - fpsLength;
+                int spaces = uiGetWidth() - (int) strlen(timeDisplay) - fpsLength;
                 for(int i = 0; i < spaces; i++) {
-                    printf(" ");
+                    uiPrint(" ");
                 }
 
-                printf("%s", timeDisplay);
+                uiPrint("%s", timeDisplay);
             }
 
-            printf("\n");
+            uiPrint("\n");
+
+            uiFlush();
         }
 
         fps = 0;

@@ -4,6 +4,12 @@
 
 #include "types.h"
 
+extern const char* iniPath;
+extern const char* defaultGbBiosPath;
+extern const char* defaultGbcBiosPath;
+extern const char* defaultBorderPath;
+extern const char* defaultRomPath;
+
 bool systemInit(int argc, char* argv[]);
 void systemExit();
 void systemRun();

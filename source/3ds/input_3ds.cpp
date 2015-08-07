@@ -1,18 +1,21 @@
+#ifdef BACKEND_3DS
+
 #include <stdlib.h>
 #include <string.h>
 
 #include "platform/gfx.h"
 #include "platform/input.h"
+#include "platform/ui.h"
 #include "ui/config.h"
+#include "ui/filechooser.h"
 #include "ui/menu.h"
-
-#include <3ds.h>
 
 #include <ctrcommon/gpu.hpp>
 #include <ctrcommon/input.hpp>
 #include <ctrcommon/platform.hpp>
+#include <gameboy.h>
 
-const char* dsKeyNames[] = {
+const char* dsKeyNames[NUM_BUTTONS] = {
         "A",         // 0
         "B",         // 1
         "Select",    // 2
@@ -85,23 +88,90 @@ static KeyConfig defaultKeyConfig = {
         }
 };
 
-int keyMapping[NUM_FUNC_KEYS];
+UIKey uiKeyMapping[NUM_BUTTONS] = {
+        UI_KEY_A,     // 0 = BUTTON_A
+        UI_KEY_B,     // 1 = BUTTON_B
+        UI_KEY_NONE,  // 2 = BUTTON_SELECT
+        UI_KEY_NONE,  // 3 = BUTTON_START
+        UI_KEY_RIGHT, // 4 = BUTTON_DRIGHT
+        UI_KEY_LEFT,  // 5 = BUTTON_DLEFT
+        UI_KEY_UP,    // 6 = BUTTON_DUP
+        UI_KEY_DOWN,  // 7 = BUTTON_DDOWN
+        UI_KEY_R,     // 8 = BUTTON_R
+        UI_KEY_L,     // 9 = BUTTON_L
+        UI_KEY_X,     // 10 = BUTTON_X
+        UI_KEY_Y,     // 11 = BUTTON_Y
+        UI_KEY_NONE,  // 12 = BUTTON_NONE
+        UI_KEY_NONE,  // 13 = BUTTON_NONE
+        UI_KEY_NONE,  // 14 = BUTTON_ZL
+        UI_KEY_NONE,  // 15 = BUTTON_ZR
+        UI_KEY_NONE,  // 16 = BUTTON_NONE
+        UI_KEY_NONE,  // 17 = BUTTON_NONE
+        UI_KEY_NONE,  // 18 = BUTTON_NONE
+        UI_KEY_NONE,  // 19 = BUTTON_NONE
+        UI_KEY_NONE,  // 20 = BUTTON_TOUCH
+        UI_KEY_NONE,  // 21 = BUTTON_NONE
+        UI_KEY_NONE,  // 22 = BUTTON_NONE
+        UI_KEY_NONE,  // 23 = BUTTON_NONE
+        UI_KEY_RIGHT, // 24 = BUTTON_CSTICK_RIGHT
+        UI_KEY_LEFT,  // 25 = BUTTON_CSTICK_LEFT
+        UI_KEY_UP,    // 26 = BUTTON_CSTICK_UP
+        UI_KEY_DOWN,  // 27 = BUTTON_CSTICK_DOWN
+        UI_KEY_RIGHT, // 28 = BUTTON_CPAD_RIGHT
+        UI_KEY_LEFT,  // 29 = BUTTON_CPAD_LEFT
+        UI_KEY_UP,    // 30 = BUTTON_CPAD_UP
+        UI_KEY_DOWN   // 31 = BUTTON_CPAD_DOWN
+};
 
-u32 keysForceReleased = 0;
+int funcKeyMapping[NUM_FUNC_KEYS];
+
+bool forceReleased[NUM_FUNC_KEYS] = {false};
+
 u64 nextRepeat = 0;
+u64 nextUiRepeat = 0;
+
+extern void uiClearInput();
+extern void uiPushInput(UIKey key);
+
+void inputInit() {
+}
+
+void inputCleanup() {
+}
 
 void inputUpdate() {
     inputPoll();
-    for(int i = 0; i < 32; i++) {
-        if(!inputIsHeld((Button) (1 << i))) {
-            keysForceReleased &= ~(1 << i);
+    for(int i = 0; i < NUM_FUNC_KEYS; i++) {
+        if(!inputKeyHeld(i)) {
+            forceReleased[i] = false;
         }
     }
 
     if(accelPadMode && inputIsPressed(BUTTON_TOUCH) && inputGetTouch().x <= gputGetStringWidth("Exit", 8) && inputGetTouch().y <= gputGetStringHeight("Exit", 8)) {
         inputKeyRelease(BUTTON_TOUCH);
         accelPadMode = false;
-        consoleClear();
+        uiClear();
+    }
+
+    if(isMenuOn() || isFileChooserActive() || (gameboy->isRomLoaded() && gameboy->getRomFile()->isGBS())) {
+        for(int i = 0; i < NUM_BUTTONS; i++) {
+            Button button = (Button) (1 << i);
+            bool pressed = false;
+            if(inputIsPressed(button)) {
+                nextUiRepeat = platformGetTime() + 250;
+                pressed = true;
+            } else if(inputIsHeld(button) && platformGetTime() >= nextUiRepeat) {
+                nextUiRepeat = platformGetTime() + 50;
+                pressed = true;
+            }
+
+            if(pressed) {
+                UIKey key = uiKeyMapping[i];
+                if(key != UI_KEY_NONE) {
+                    uiPushInput(key);
+                }
+            }
+        }
     }
 }
 
@@ -110,18 +180,38 @@ const char* inputGetKeyName(int keyIndex) {
 }
 
 bool inputIsValidKey(int keyIndex) {
-    return keyIndex <= 11 || keyIndex == 14 || keyIndex == 15 || keyIndex >= 24;
+    return keyIndex >= 0 && keyIndex < NUM_BUTTONS && (keyIndex <= 11 || keyIndex == 14 || keyIndex == 15 || keyIndex >= 24);
 }
 
 bool inputKeyHeld(int key) {
-    return inputIsHeld((Button) key) && !(keysForceReleased & key);
+    if(key < 0 || key >= NUM_FUNC_KEYS) {
+        return false;
+    }
+
+    if(forceReleased[key]) {
+        return false;
+    }
+
+    return inputIsHeld((Button) funcKeyMapping[key]);
 }
 
 bool inputKeyPressed(int key) {
-    return inputIsPressed((Button) key) && !(keysForceReleased & key);
+    if(key < 0 || key >= NUM_FUNC_KEYS) {
+        return false;
+    }
+
+    if(forceReleased[key]) {
+        return false;
+    }
+
+    return inputIsPressed((Button) funcKeyMapping[key]);
 }
 
 bool inputKeyRepeat(int key) {
+    if(key < 0 || key >= NUM_FUNC_KEYS) {
+        return false;
+    }
+
     if(inputKeyPressed(key)) {
         nextRepeat = platformGetTime() + 250;
         return true;
@@ -136,7 +226,11 @@ bool inputKeyRepeat(int key) {
 }
 
 void inputKeyRelease(int key) {
-    keysForceReleased |= key;
+    if(key < 0 || key >= NUM_FUNC_KEYS) {
+        return;
+    }
+
+    forceReleased[key] = true;
 }
 
 int inputGetMotionSensorX() {
@@ -154,41 +248,12 @@ KeyConfig inputGetDefaultKeyConfig() {
 }
 
 void inputLoadKeyConfig(KeyConfig* keyConfig) {
-    memset(keyMapping, 0, NUM_FUNC_KEYS * sizeof(int));
-    for(int i = 0; i < NUM_BINDABLE_BUTTONS; i++) {
-        keyMapping[keyConfig->funcKeys[i]] |= (1 << i);
+    memset(funcKeyMapping, 0, NUM_FUNC_KEYS * sizeof(int));
+    for(int i = 0; i < NUM_BUTTONS; i++) {
+        funcKeyMapping[keyConfig->funcKeys[i]] |= (1 << i);
     }
 
-    keyMapping[FUNC_KEY_MENU] |= BUTTON_TOUCH;
+    funcKeyMapping[FUNC_KEY_MENU] |= BUTTON_TOUCH;
 }
 
-int inputMapFuncKey(int funcKey) {
-    return keyMapping[funcKey];
-}
-
-int inputMapMenuKey(int menuKey) {
-    switch(menuKey) {
-        case MENU_KEY_A:
-            return BUTTON_A;
-        case MENU_KEY_B:
-            return BUTTON_B;
-        case MENU_KEY_LEFT:
-            return BUTTON_LEFT;
-        case MENU_KEY_RIGHT:
-            return BUTTON_RIGHT;
-        case MENU_KEY_UP:
-            return BUTTON_UP;
-        case MENU_KEY_DOWN:
-            return BUTTON_DOWN;
-        case MENU_KEY_R:
-            return BUTTON_R;
-        case MENU_KEY_L:
-            return BUTTON_L;
-        case MENU_KEY_X:
-            return BUTTON_X;
-        case MENU_KEY_Y:
-            return BUTTON_Y;
-    }
-
-    return 0;
-}
+#endif

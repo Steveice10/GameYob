@@ -1,0 +1,181 @@
+#ifdef BACKEND_3DS
+
+#include <stdarg.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+#include <queue>
+
+#include "platform/ui.h"
+#include "ui/menu.h"
+
+#include <ctrcommon/gpu.hpp>
+
+#include <3ds.h>
+
+gfxScreen_t currConsole;
+
+PrintConsole* topConsole;
+PrintConsole* bottomConsole;
+
+TextColor textColor;
+bool highlighted;
+
+std::queue<UIKey> keyQueue;
+
+void uiInit() {
+    topConsole = (PrintConsole*) calloc(1, sizeof(PrintConsole));
+    consoleInit(GFX_TOP, topConsole);
+
+    bottomConsole = (PrintConsole*) calloc(1, sizeof(PrintConsole));
+    consoleInit(GFX_BOTTOM, bottomConsole);
+
+    gfxSetScreenFormat(GFX_TOP, GSP_BGR8_OES);
+    gfxSetDoubleBuffering(GFX_TOP, true);
+
+    consoleSelect(bottomConsole);
+    currConsole = GFX_BOTTOM;
+}
+
+void uiCleanup() {
+    free(topConsole);
+    free(bottomConsole);
+}
+
+void uiUpdateScreen() {
+    gfxScreen_t screen = !gameScreen == 0 ? GFX_TOP : GFX_BOTTOM;
+    if(currConsole != screen) {
+        gfxScreen_t oldScreen = gameScreen == 0 ? GFX_TOP : GFX_BOTTOM;
+        gfxSetScreenFormat(oldScreen, GSP_BGR8_OES);
+        gfxSetDoubleBuffering(oldScreen, true);
+
+        gpuClearScreens();
+
+        currConsole = screen;
+        gfxSetScreenFormat(screen, GSP_RGB565_OES);
+        gfxSetDoubleBuffering(screen, false);
+
+        gfxSwapBuffers();
+        gspWaitForVBlank();
+
+        u16* framebuffer = (u16*) gfxGetFramebuffer(screen, GFX_LEFT, NULL, NULL);
+        PrintConsole* console = screen == GFX_TOP ? topConsole : bottomConsole;
+        console->frameBuffer = framebuffer;
+        consoleSelect(console);
+    }
+}
+
+int uiGetWidth() {
+    PrintConsole* console = !gameScreen == 0 ? topConsole : bottomConsole;
+    return console->consoleWidth;
+}
+
+int uiGetHeight() {
+    PrintConsole* console = !gameScreen == 0 ? topConsole : bottomConsole;
+    return console->consoleHeight;
+}
+
+void uiClear() {
+    consoleClear();
+}
+
+void uiUpdateAttr() {
+    if(highlighted) {
+        printf("\x1b[0m\x1b[47m");
+        switch(textColor) {
+            case TEXT_COLOR_NONE:
+                printf("\x1b[30m");
+                break;
+            case TEXT_COLOR_YELLOW:
+                printf("\x1b[33m");
+                break;
+            case TEXT_COLOR_RED:
+                printf("\x1b[31m");
+                break;
+            case TEXT_COLOR_GREEN:
+                printf("\x1b[32m");
+                break;
+            case TEXT_COLOR_PURPLE:
+                printf("\x1b[35m");
+                break;
+            case TEXT_COLOR_GRAY:
+                printf("\x1b[2m\x1b[37m");
+                break;
+            case TEXT_COLOR_WHITE:
+                printf("\x1b[30m");
+                break;
+        }
+    } else {
+        printf("\x1b[0m\x1b[40m");
+        switch(textColor) {
+            case TEXT_COLOR_NONE:
+                printf("\x1b[37m");
+                break;
+            case TEXT_COLOR_YELLOW:
+                printf("\x1b[1m\x1b[33m");
+                break;
+            case TEXT_COLOR_RED:
+                printf("\x1b[1m\x1b[31m");
+                break;
+            case TEXT_COLOR_GREEN:
+                printf("\x1b[1m\x1b[32m");
+                break;
+            case TEXT_COLOR_PURPLE:
+                printf("\x1b[1m\x1b[35m");
+                break;
+            case TEXT_COLOR_GRAY:
+                printf("\x1b[2m\x1b[37m");
+                break;
+            case TEXT_COLOR_WHITE:
+                printf("\x1b[37m");
+                break;
+        }
+    }
+}
+
+void uiSetLineHighlighted(bool highlight) {
+    highlighted = highlight;
+    uiUpdateAttr();
+}
+
+void uiSetTextColor(TextColor color) {
+    textColor = color;
+    uiUpdateAttr();
+}
+
+void uiPrint(const char* str, ...) {
+    va_list list;
+    va_start(list, str);
+    vprintf(str, list);
+    va_end(list);
+}
+
+void uiFlush() {
+    gfxFlushBuffers();
+}
+
+void uiWaitForVBlank() {
+    gspWaitForVBlank();
+}
+
+void uiPushInput(UIKey key) {
+    keyQueue.push(key);
+}
+
+void uiClearInput() {
+    while(!keyQueue.empty()) {
+        keyQueue.pop();
+    }
+}
+
+UIKey uiReadKey() {
+    if(!keyQueue.empty()) {
+        UIKey key = keyQueue.front();
+        keyQueue.pop();
+        return key;
+    }
+
+    return UI_KEY_NONE;
+}
+
+#endif
