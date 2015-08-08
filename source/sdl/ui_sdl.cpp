@@ -22,6 +22,7 @@ void uiInit() {
     cbreak();
     nodelay(window, TRUE);
     keypad(window, TRUE);
+    scrollok(window, TRUE);
 
     init_pair(1, COLOR_YELLOW, COLOR_BLACK);
     init_pair(2, COLOR_RED, COLOR_BLACK);

@@ -6,6 +6,7 @@
 
 #include "gb_apu/Multi_Buffer.h"
 #include "gb_apu/Gb_Apu.h"
+#include "platform/ui.h"
 #include "types.h"
 #include "cheatengine.h"
 #include "ppu.h"
@@ -209,14 +210,36 @@ public:
     int handleInterrupts(unsigned int interruptTriggered);
     int runOpcode(int cycles);
 
-    inline u8 quickRead(u16 addr) { return memory[addr >> 12][addr & 0xFFF]; }
+    inline u8 quickRead(u16 addr) {
+        u8* section = memory[addr >> 12];
+        if(section == NULL) {
+            uiPrint("Tried to read from unmapped address 0x%04X.\n", addr);
+            uiFlush();
+            return 0;
+        }
 
-    inline u8 quickReadIO(u8 addr) { return ioRam[addr]; }
+        return section[addr & 0xFFF];
+    }
 
-    inline u16 quickRead16(u16 addr) { return quickRead(addr) | (quickRead(addr + 1) << 8); }
+    inline u8 quickReadIO(u8 addr) {
+        return ioRam[addr & 0xFF];
+    }
+
+    inline u16 quickRead16(u16 addr) {
+        return quickRead(addr) | (quickRead(addr + 1) << 8);
+    }
 
     // Currently unused because this can actually overwrite the rom, in rare cases
-    inline void quickWrite(u16 addr, u8 val) { memory[addr >> 12][addr & 0xFFF] = val; }
+    inline void quickWrite(u16 addr, u8 val) {
+        u8* section = memory[addr >> 12];
+        if(section == NULL) {
+            uiPrint("Tried to write to unmapped address 0x%04X.\n", addr);
+            uiFlush();
+            return;
+        }
+
+        section[addr & 0xFFF] = val;
+    }
 
 private:
     struct Registers g_gbRegs;
