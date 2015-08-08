@@ -2,11 +2,10 @@
 
 #include <malloc.h>
 #include <math.h>
+#include <string.h>
 
-#include "lodepng/lodepng.h"
 #include "platform/gfx.h"
 #include "platform/input.h"
-#include "ui/config.h"
 #include "ui/menu.h"
 
 #include <3ds.h>
@@ -94,25 +93,7 @@ void gfxToggleFastForward() {
     fastForward = !fastForward;
 }
 
-void gfxLoadBorder(const char* filename) {
-    if(filename == NULL) {
-        gfxLoadBorderBuffer(NULL, 0, 0);
-        return;
-    }
-
-    // Load the image.
-    unsigned char* imgData;
-    unsigned int imgWidth;
-    unsigned int imgHeight;
-    if(lodepng_decode32_file(&imgData, &imgWidth, &imgHeight, filename)) {
-        return;
-    }
-
-    gfxLoadBorderBuffer(imgData, imgWidth, imgHeight);
-    free(imgData);
-}
-
-void gfxLoadBorderBuffer(u8* imgData, u32 imgWidth, u32 imgHeight) {
+void gfxLoadBorder(u8* imgData, u32 imgWidth, u32 imgHeight) {
     if(imgData == NULL) {
         if(borderTexture != 0) {
             gpuFreeTexture(borderTexture);

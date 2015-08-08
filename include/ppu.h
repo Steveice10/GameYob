@@ -42,11 +42,14 @@ public:
     volatile int loadedBorderType;
     bool customBorderExists;
     bool sgbBorderLoaded;
+    int fastForwardFrameSkip = 0;
 
 private:
     void drawSprite(int scanline, int spriteNum);
 
     Gameboy* gameboy;
+
+    int fastForwardCounter = 0;
 
     u32 bgPalettes[8][4];
     u32 sprPalettes[8][4];

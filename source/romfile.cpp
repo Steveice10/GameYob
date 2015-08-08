@@ -4,8 +4,6 @@
 #include <string>
 #include <algorithm>
 
-#include "platform/ui.h"
-#include "ui/menu.h"
 #include "gameboy.h"
 #include "romfile.h"
 
@@ -232,11 +230,7 @@ RomFile::RomFile(Gameboy* gb, const std::string path) {
             this->mbc = HUC1;
             break;
         default:
-            if(showConsoleDebug()) {
-                uiPrint("Unsupported mapper value %02x\n", bank0[0x0147]);
-                uiFlush();
-            }
-
+            systemPrintDebug("Unsupported mapper value %02x\n", bank0[0x0147]);
             this->mbc = MBC5;
             break;
     }
@@ -258,11 +252,7 @@ RomFile::RomFile(Gameboy* gb, const std::string path) {
             this->totalRamBanks = 16;
             break;
         default:
-            if(showConsoleDebug()) {
-                uiPrint("Invalid RAM bank number: %x\nDefaulting to 4 banks.\n", this->rawRamSize);
-                uiFlush();
-            }
-
+            systemPrintDebug("Invalid RAM bank number: %x\nDefaulting to 4 banks.\n", this->rawRamSize);
             this->totalRamBanks = 4;
             break;
     }
@@ -322,16 +312,4 @@ u8* RomFile::getRomBank(int bank) {
     }
 
     return this->banks[bank];
-}
-
-void RomFile::printInfo() {
-    static const char* mbcNames[] = {"ROM", "MBC1", "MBC2", "MBC3", "MBC5", "MBC7", "MMM01", "HUC1", "HUC3", "CAMERA", "TAMA5"};
-
-    uiClear();
-    uiPrint("ROM Title: \"%s\"\n", this->romTitle.c_str());
-    uiPrint("CGB: Supported: %d, Required: %d\n", this->cgbSupported, this->cgbRequired);
-    uiPrint("Cartridge type: %.2x (%s)\n", this->rawMBC, mbcNames[this->mbc]);
-    uiPrint("ROM Size: %.2x (%d banks)\n", this->rawRomSize, this->totalRomBanks);
-    uiPrint("RAM Size: %.2x (%d banks)\n", this->rawRamSize, this->totalRamBanks);
-    uiFlush();
 }

@@ -67,6 +67,15 @@ void systemCheckRunning() {
     }
 }
 
+void systemPrintDebug(const char* str, ...) {
+    if(showConsoleDebug()) {
+        va_list list;
+        va_start(list, str);
+        uiPrintv(str, list);
+        va_end(list);
+    }
+}
+
 bool systemGetIRState() {
     return irGetState() == 1;
 }

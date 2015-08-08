@@ -8,6 +8,7 @@
 #include "platform/system.h"
 #include "platform/ui.h"
 #include "ui/config.h"
+#include "ui/manager.h"
 #include "ui/menu.h"
 #include "gameboy.h"
 
@@ -47,7 +48,7 @@ void generalParseConfig(char* line) {
         snprintf(romPath, 512, "%s/", copy);
     }
 
-    gameboy->loadBios();
+    mgrRefreshBios();
 }
 
 void generalPrintConfig(FILE* file) {
@@ -200,7 +201,7 @@ void controlsParseConfig(char* line2) {
 
                 if(gbKey != -1 && realKey != -1) {
                     KeyConfig* config = &keyConfigs.back();
-                    config->funcKeys[realKey] = (u8) gbKey;
+                    config->funcKeys[realKey] = (FuncKey) gbKey;
                 }
             }
         }
@@ -405,9 +406,9 @@ void updateKeyConfigChooser() {
                 }
             } else {
                 if(config->funcKeys[option] <= 0) {
-                    config->funcKeys[option] = NUM_FUNC_KEYS - 1;
+                    config->funcKeys[option] = (FuncKey) (NUM_FUNC_KEYS - 1);
                 } else {
-                    config->funcKeys[option]--;
+                    config->funcKeys[option] = (FuncKey) ((u32) config->funcKeys[option] - 1);
                 }
             }
 
@@ -420,9 +421,9 @@ void updateKeyConfigChooser() {
                 }
             } else {
                 if(config->funcKeys[option] >= NUM_FUNC_KEYS - 1) {
-                    config->funcKeys[option] = 0;
+                    config->funcKeys[option] = FUNC_KEY_NONE;
                 } else {
-                    config->funcKeys[option]++;
+                    config->funcKeys[option] = (FuncKey) ((u32) config->funcKeys[option] + 1);
                 }
             }
 

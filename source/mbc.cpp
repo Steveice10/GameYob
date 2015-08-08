@@ -1,7 +1,7 @@
+#include <time.h>
+
 #include "platform/input.h"
-#include "platform/ui.h"
-#include "ui/manager.h"
-#include "ui/menu.h"
+#include "gameboy.h"
 
 /* MBC read handlers */
 
@@ -261,7 +261,7 @@ void Gameboy::m3w(u16 addr, u8 val) {
 }
 
 void Gameboy::writeClockStruct() {
-    if(autoSavingEnabled) {
+    if(autosaveEnabled) {
         fseek(saveFile, romFile->getRamBanks() * 0x2000, SEEK_SET);
         fwrite(&gbClock, 1, sizeof(gbClock), saveFile);
         saveModified = true;
@@ -626,10 +626,7 @@ void Gameboy::h3w(u16 addr, u8 val) {
                             HuC3Value = 1;
                             break;
                         default:
-                            if(showConsoleDebug()) {
-                                uiPrint("unhandled HuC3 cmd %02x\n", val);
-                                uiFlush();
-                            }
+                            systemPrintDebug("Unhandled HuC3 command 0x%02X.\n", val);
                     }
 
                     break;

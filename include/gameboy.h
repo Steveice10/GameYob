@@ -6,12 +6,12 @@
 
 #include "gb_apu/Multi_Buffer.h"
 #include "gb_apu/Gb_Apu.h"
-#include "platform/ui.h"
-#include "types.h"
+#include "platform/system.h"
 #include "cheatengine.h"
 #include "ppu.h"
 #include "printer.h"
 #include "romfile.h"
+#include "types.h"
 
 #define MAX_SRAM_SIZE   0x20000
 
@@ -40,6 +40,11 @@
 // Return codes for runEmul
 #define RET_VBLANK  1
 #define RET_LINK    2
+
+typedef enum {
+    GB_BIOS,
+    GBC_BIOS
+} Bios;
 
 // Be careful changing this; it affects save state compatibility.
 struct ClockStruct {
@@ -103,7 +108,7 @@ public:
 
 
     void gameboyCheckInput();
-    void gameboyUpdateVBlank();
+    void updateVBlank();
 
     void pause();
     void unpause();
@@ -118,21 +123,17 @@ public:
     void requestInterrupt(int id);
     void setDoubleSpeed(int val);
 
-    void loadBios();
-    void loadBorder();
-    void setRomFile(const char* filename);
+    bool loadRomFile(const char* filename);
     void unloadRom();
     bool isRomLoaded();
 
-    int loadSave(int saveId);
+    int loadSave();
     int saveGame();
     void gameboySyncAutosave();
     void updateAutosave();
 
-    void saveState(int num);
-    int loadState(int num);
-    void deleteState(int num);
-    bool checkStateExists(int num);
+    bool saveState(FILE* file);
+    bool loadState(FILE* file);
 
     inline GameboyPrinter* getPrinter() { return printer; }
 
@@ -156,6 +157,7 @@ public:
     u8 gbcBios[0x900];
     bool gbcBiosLoaded;
     bool biosOn;
+    int biosMode;
 
     int gbMode;
     bool sgbMode;
@@ -213,8 +215,7 @@ public:
     inline u8 quickRead(u16 addr) {
         u8* section = memory[addr >> 12];
         if(section == NULL) {
-            uiPrint("Tried to read from unmapped address 0x%04X.\n", addr);
-            uiFlush();
+            systemPrintDebug("Tried to read from unmapped address 0x%04X.\n", addr);
             return 0;
         }
 
@@ -229,12 +230,10 @@ public:
         return quickRead(addr) | (quickRead(addr + 1) << 8);
     }
 
-    // Currently unused because this can actually overwrite the rom, in rare cases
     inline void quickWrite(u16 addr, u8 val) {
         u8* section = memory[addr >> 12];
         if(section == NULL) {
-            uiPrint("Tried to write to unmapped address 0x%04X.\n", addr);
-            uiFlush();
+            systemPrintDebug("Tried to write to unmapped address 0x%04X.\n", addr);
             return;
         }
 
@@ -321,8 +320,19 @@ public:
     u16 dmaLength;
     int dmaMode;
 
+    int gbColorizeMode;
+
+    bool printerEnabled;
+
+    bool soundEnabled;
+
+    int sgbModeOption;
+    int gbcModeOption;
+    bool gbaModeOption;
+
     bool saveModified;
     bool dirtySectors[MAX_SRAM_SIZE / 512];
+    bool autosaveEnabled;
     bool autosaveStarted;
 
     int rumbleValue;

@@ -3,8 +3,7 @@
 
 #include <algorithm>
 
-#include "platform/ui.h"
-#include "ui/menu.h"
+#include "platform/system.h"
 #include "cheatengine.h"
 #include "gameboy.h"
 
@@ -48,20 +47,14 @@ bool CheatEngine::addCheat(const char* str) {
         cheats[i].compare = (cheats[i].compare >> 2) | (cheats[i].compare & 0x3) << 6;
         cheats[i].compare ^= 0xba;
 
-        if(showConsoleDebug()) {
-            uiPrint("GG %04x / %02x -> %02x\n", cheats[i].address, cheats[i].data, cheats[i].compare);
-            uiFlush();
-        }
+        systemPrintDebug("GG %04x / %02x -> %02x\n", cheats[i].address, cheats[i].data, cheats[i].compare);
     } else if(len == 7) { // GameGenie (6digit version) AAA-BBB
         cheats[i].flags |= CHEAT_FLAG_GAMEGENIE1;
 
         cheats[i].data = TO_INT(str[0]) << 4 | TO_INT(str[1]);
         cheats[i].address = TO_INT(str[6]) << 12 | TO_INT(str[2]) << 8 | TO_INT(str[4]) << 4 | TO_INT(str[5]);
 
-        if(showConsoleDebug()) {
-            uiPrint("GG1 %04x / %02x\n", cheats[i].address, cheats[i].data);
-            uiFlush();
-        }
+        systemPrintDebug("GG1 %04x / %02x\n", cheats[i].address, cheats[i].data);
     } else if(len == 8) { // Gameshark AAAAAAAA
         cheats[i].flags |= CHEAT_FLAG_GAMESHARK;
 
@@ -69,10 +62,7 @@ bool CheatEngine::addCheat(const char* str) {
         cheats[i].bank = TO_INT(str[0]) << 4 | TO_INT(str[1]);
         cheats[i].address = TO_INT(str[6]) << 12 | TO_INT(str[7]) << 8 | TO_INT(str[4]) << 4 | TO_INT(str[5]);
 
-        if(showConsoleDebug()) {
-            uiPrint("GS (%02x)%04x/ %02x\n", cheats[i].bank, cheats[i].address, cheats[i].data);
-            uiFlush();
-        }
+        systemPrintDebug("GS (%02x)%04x/ %02x\n", cheats[i].bank, cheats[i].address, cheats[i].data);
     } else { // dafuq did i just read ?
         return false;
     }

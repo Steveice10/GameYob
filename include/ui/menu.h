@@ -2,24 +2,15 @@
 
 #include <stdio.h>
 
-extern int gbcModeOption;
-extern bool gbaModeOption;
-extern int sgbModeOption;
-extern bool soundDisabled;
-extern int gbColorize;
 extern int borderSetting;
-extern bool autoSavingEnabled;
-extern bool printerEnabled;
 extern int pauseOnMenu;
 extern int stateNum;
 extern int gameScreen;
 extern bool accelPadMode;
 extern int scaleMode;
 extern int scaleFilter;
-extern int fastForwardFrameSkip;
 extern bool fpsOutput;
 extern bool timeOutput;
-extern int biosEnabled;
 extern FILE* linkSocket;
 
 void setMenuDefaults();

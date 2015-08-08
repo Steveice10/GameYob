@@ -106,8 +106,12 @@ void uiSetTextColor(TextColor color) {
 void uiPrint(const char* str, ...) {
     va_list list;
     va_start(list, str);
-    vw_printw(window, str, list);
+    uiPrintv(str, list);
     va_end(list);
+}
+
+void uiPrintv(const char* str, va_list list) {
+    vw_printw(window, str, list);
 }
 
 void uiFlush() {

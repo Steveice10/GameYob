@@ -2,9 +2,7 @@
 #include <string.h>
 
 #include "platform/system.h"
-#include "platform/ui.h"
-#include "ui/manager.h"
-#include "ui/menu.h"
+#include "gameboy.h"
 
 #define refreshVramBank() { \
     memory[0x8] = vram[vramBank]; \
@@ -51,9 +49,8 @@ void Gameboy::refreshRomBank0(int bank) {
         memory[0x1] = romBank + 0x1000;
         memory[0x2] = romBank + 0x2000;
         memory[0x3] = romBank + 0x3000;
-    } else if(showConsoleDebug()) {
-        uiPrint("Tried to access ROM bank %x\n", bank);
-        uiFlush();
+    } else {
+        systemPrintDebug("Tried to access ROM bank %x\n", bank);
     }
 }
 
@@ -65,9 +62,8 @@ void Gameboy::refreshRomBank1(int bank) {
         memory[0x5] = romBank + 0x1000;
         memory[0x6] = romBank + 0x2000;
         memory[0x7] = romBank + 0x3000;
-    } else if(showConsoleDebug()) {
-        uiPrint("Tried to access ROM bank %x\n", bank);
-        uiFlush();
+    } else {
+        systemPrintDebug("Tried to access ROM bank %x\n", bank);
     }
 }
 
@@ -77,9 +73,8 @@ void Gameboy::refreshRamBank(int bank) {
         u8* ramBank = externRam + ramBankNum * 0x2000;
         memory[0xa] = ramBank;
         memory[0xb] = ramBank + 0x1000;
-    } else if(showConsoleDebug()) {
-        uiPrint("Tried to access RAM bank %x\n", bank);
-        uiFlush();
+    } else {
+        systemPrintDebug("Tried to access RAM bank %x\n", bank);
     }
 }
 
@@ -88,19 +83,18 @@ void Gameboy::writeSram(u16 addr, u8 val) {
         int pos = addr + ramBankNum * 0x2000;
         if(externRam[pos] != val) {
             externRam[pos] = val;
-            if(autoSavingEnabled) {
+            if(autosaveEnabled) {
                 saveModified = true;
                 dirtySectors[pos / 512] = true;
             }
         }
-    } else if(showConsoleDebug()) {
-        uiPrint("Tried to access RAM when none exists.\n");
-        uiFlush();
+    } else {
+        systemPrintDebug("Tried to access RAM when none exists.\n");
     }
 }
 
 void Gameboy::initMMU() {
-    biosOn = !ppu->probingForBorder && !gameboy->getRomFile()->isGBS() && ((biosEnabled == 1 && (gbBiosLoaded || gbcBiosLoaded)) || (biosEnabled == 2 && gbBiosLoaded) || (biosEnabled == 3 && gbcBiosLoaded));
+    biosOn = !ppu->probingForBorder && !gameboy->getRomFile()->isGBS() && ((biosMode == 1 && (gbBiosLoaded || gbcBiosLoaded)) || (biosMode == 2 && gbBiosLoaded) || (biosMode == 3 && gbcBiosLoaded));
 
     wramBank = 1;
     vramBank = 0;
@@ -181,11 +175,11 @@ void Gameboy::mapMemory() {
     refreshRomBank0(romBank0Num);
     if(biosOn) {
         u8* bios = gbcBios;
-        if(biosEnabled == 1) {
+        if(biosMode == 1) {
             bios = resultantGBMode != 1 && gbBiosLoaded ? (u8*) gbBios : (u8*) gbcBios;
-        } else if(biosEnabled == 2) {
+        } else if(biosMode == 2) {
             bios = gbBios;
-        } else if(biosEnabled == 3) {
+        } else if(biosMode == 3) {
             bios = gbcBios;
         }
 
@@ -487,11 +481,7 @@ void Gameboy::writeIO(u8 ioReg, u8 val) {
             return;
         case 0x44:
             //ioRam[0x44] = 0;
-            if(showConsoleDebug()) {
-                uiPrint("LY Write %d\n", val);
-                uiFlush();
-            }
-
+            systemPrintDebug("LY Write %d.\n", val);
             return;
         case 0x45:
             ioRam[ioReg] = val;

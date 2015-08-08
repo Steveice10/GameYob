@@ -1,15 +1,11 @@
-/* Known graphical issues:
+/* Known graphical issues(?):
  * DMG sprite order
  * Horizontal window split behavior
- * Needs white screen on LCD disable
  */
 
 #include <string.h>
 
 #include "platform/gfx.h"
-#include "platform/input.h"
-#include "ui/config.h"
-#include "ui/menu.h"
 #include "gameboy.h"
 
 #define FLIP_Y (0x40)
@@ -60,8 +56,6 @@ static const u32 BitStretchTable256[] =
                 0x5400, 0x5401, 0x5404, 0x5405, 0x5410, 0x5411, 0x5414, 0x5415, 0x5440, 0x5441, 0x5444, 0x5445, 0x5450, 0x5451, 0x5454, 0x5455,
                 0x5500, 0x5501, 0x5504, 0x5505, 0x5510, 0x5511, 0x5514, 0x5515, 0x5540, 0x5541, 0x5544, 0x5545, 0x5550, 0x5551, 0x5554, 0x5555
         };
-
-static int fastForwardCounter = 0;
 
 GameboyPPU::GameboyPPU(Gameboy* gb) {
     this->gameboy = gb;

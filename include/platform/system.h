@@ -16,9 +16,7 @@ void systemRun();
 
 void systemCheckRunning();
 
-int systemGetConsoleWidth();
-int systemGetConsoleHeight();
-void systemUpdateConsole();
+void systemPrintDebug(const char* fmt, ...);
 
 bool systemGetIRState();
 void systemSetIRState(bool state);

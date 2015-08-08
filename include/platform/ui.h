@@ -1,5 +1,7 @@
 #pragma once
 
+#include <stdarg.h>
+
 typedef enum {
     TEXT_COLOR_NONE = 0,
     TEXT_COLOR_YELLOW = 1,
@@ -33,6 +35,7 @@ void uiClear();
 void uiSetLineHighlighted(bool highlight);
 void uiSetTextColor(TextColor color);
 void uiPrint(const char* str, ...);
+void uiPrintv(const char* str, va_list list);
 void uiFlush();
 void uiWaitForVBlank();
 UIKey uiReadKey();

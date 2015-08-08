@@ -38,23 +38,10 @@ int gameScreen = 0;
 int pauseOnMenu = 0;
 int stateNum = 0;
 
-int gbcModeOption = 0;
-bool gbaModeOption = 0;
-int sgbModeOption = 0;
-
-bool soundDisabled = false;
-
-int gbColorize = 0;
-
 int borderSetting = 0;
-bool autoSavingEnabled = false;
 
 int scaleMode = 0;
 int scaleFilter = 0;
-
-int fastForwardFrameSkip = 0;
-
-bool printerEnabled = false;
 
 bool accelPadMode = false;
 
@@ -62,8 +49,6 @@ void (* subMenuUpdateFunc)();
 
 bool fpsOutput = false;
 bool timeOutput = false;
-
-int biosEnabled = false;
 
 FileChooser borderChooser("/", {"png"}, true);
 FileChooser biosChooser("/", {"bin"}, true);
@@ -82,20 +67,20 @@ void subMenuGenericUpdateFunc() {
 // Functions corresponding to menu options
 
 void suspendFunc(int value) {
-    if(!autoSavingEnabled && gameboy->isRomLoaded() && gameboy->getRomFile()->getRamBanks() > 0) {
+    if(!gameboy->autosaveEnabled && gameboy->isRomLoaded() && gameboy->getRomFile()->getRamBanks() > 0) {
         printMenuMessage("Saving SRAM...");
         mgrSave();
     }
 
     printMenuMessage("Saving state...");
-    gameboy->saveState(-1);
+    mgrSaveState(-1);
     printMessage[0] = '\0';
     closeMenu();
     mgrSelectRom();
 }
 
 void exitFunc(int value) {
-    if(!autoSavingEnabled && gameboy->isRomLoaded() && gameboy->getRomFile()->getRamBanks() > 0) {
+    if(!gameboy->autosaveEnabled && gameboy->isRomLoaded() && gameboy->getRomFile()->getRamBanks() > 0) {
         printMenuMessage("Saving SRAM...");
         mgrSave();
     }
@@ -139,7 +124,7 @@ void printerEnableFunc(int value) {
         gameboy->getPrinter()->initGbPrinter();
     }
 
-    printerEnabled = value;
+    gameboy->printerEnabled = (bool) value;
 }
 
 void cheatFunc(int value) {
@@ -162,7 +147,7 @@ void saveSettingsFunc(int value) {
 
 void stateSelectFunc(int value) {
     stateNum = value;
-    if(gameboy->checkStateExists(stateNum)) {
+    if(mgrStateExists(stateNum)) {
         enableMenuOption("Load State");
         enableMenuOption("Delete State");
     } else {
@@ -173,22 +158,33 @@ void stateSelectFunc(int value) {
 
 void stateSaveFunc(int value) {
     printMenuMessage("Saving state...");
-    gameboy->saveState(stateNum);
-    printMenuMessage("State saved.");
+    if(mgrSaveState(stateNum)) {
+        printMenuMessage("State saved.");
+    } else {
+        printMenuMessage("Could not save state.");
+    }
+
     // Will activate the other state options
     stateSelectFunc(stateNum);
 }
 
 void stateLoadFunc(int value) {
+    if(!mgrStateExists(value)) {
+        printMenuMessage("State does not exist.");
+    }
+
     printMenuMessage("Loading state...");
-    if(gameboy->loadState(stateNum) == 0) {
+    if(mgrLoadState(value)) {
         closeMenu();
         printMessage[0] = '\0';
+    } else {
+        printMenuMessage("Could not load state.");
     }
 }
 
 void stateDeleteFunc(int value) {
-    gameboy->deleteState(stateNum);
+    mgrDeleteState(stateNum);
+
     // Will grey out the other state options
     stateSelectFunc(stateNum);
 }
@@ -211,19 +207,19 @@ void returnFunc(int value) {
 }
 
 void gameboyModeFunc(int value) {
-    gbcModeOption = value;
+    gameboy->gbcModeOption = value;
 }
 
 void gbaModeFunc(int value) {
-    gbaModeOption = value;
+    gameboy->gbaModeOption = (bool) value;
 }
 
 void sgbModeFunc(int value) {
-    sgbModeOption = value;
+    gameboy->sgbModeOption = value;
 }
 
 void biosEnableFunc(int value) {
-    biosEnabled = value;
+    gameboy->biosMode = value;
 }
 
 void selectGbBiosFunc(int value) {
@@ -232,7 +228,7 @@ void selectGbBiosFunc(int value) {
         strcpy(gbBiosPath, filename);
         free(filename);
 
-        gameboy->loadBios();
+        mgrRefreshBios();
     }
 }
 
@@ -242,7 +238,7 @@ void selectGbcBiosFunc(int value) {
         strcpy(gbcBiosPath, filename);
         free(filename);
 
-        gameboy->loadBios();
+        mgrRefreshBios();
     }
 }
 
@@ -271,11 +267,11 @@ void setScaleFilterFunc(int value) {
 }
 
 void setFastForwardFrameSkipFunc(int value) {
-    fastForwardFrameSkip = value;
+    gameboy->getPPU()->fastForwardFrameSkip = value;
 }
 
 void gbColorizeFunc(int value) {
-    gbColorize = value;
+    gameboy->gbColorizeMode = value;
     if(gameboy->isRomLoaded() && gameboy->gbMode == GB) {
         gameboy->initGFXPalette();
         gameboy->getPPU()->refreshPPU();
@@ -287,7 +283,7 @@ void selectBorderFunc(int value) {
     if(filename != NULL) {
         strcpy(borderPath, filename);
         free(filename);
-        gameboy->loadBorder();
+        mgrLoadBorder();
     }
 }
 
@@ -299,17 +295,26 @@ void borderFunc(int value) {
         disableMenuOption("Select Border");
     }
 
-    gameboy->loadBorder();
+    mgrLoadBorder();
 }
 
 void soundEnableFunc(int value) {
-    soundDisabled = !value;
+    gameboy->soundEnabled = (bool) value;
 }
 
 void romInfoFunc(int value) {
     if(gameboy->isRomLoaded()) {
         displaySubMenu(subMenuGenericUpdateFunc);
-        gameboy->getRomFile()->printInfo();
+
+        static const char* mbcNames[] = {"ROM", "MBC1", "MBC2", "MBC3", "MBC5", "MBC7", "MMM01", "HUC1", "HUC3", "CAMERA", "TAMA5"};
+
+        uiClear();
+        uiPrint("ROM Title: \"%s\"\n", gameboy->getRomFile()->getRomTitle().c_str());
+        uiPrint("CGB: Supported: %d, Required: %d\n", gameboy->getRomFile()->isCgbSupported(), gameboy->getRomFile()->isCgbRequired());
+        uiPrint("Cartridge type: %.2x (%s)\n", gameboy->getRomFile()->getRawMBC(), mbcNames[gameboy->getRomFile()->getMBC()]);
+        uiPrint("ROM Size: %.2x (%d banks)\n", gameboy->getRomFile()->getRawRomSize(), gameboy->getRomFile()->getRomBanks());
+        uiPrint("RAM Size: %.2x (%d banks)\n", gameboy->getRomFile()->getRawRamSize(), gameboy->getRomFile()->getRamBanks());
+        uiFlush();
     }
 }
 
@@ -334,8 +339,8 @@ void chan4Func(int value) {
 }
 
 void setAutoSaveFunc(int value) {
-    bool prev = autoSavingEnabled;
-    autoSavingEnabled = (bool) value;
+    bool prev = gameboy->autosaveEnabled;
+    gameboy->autosaveEnabled = (bool) value;
 
     if(gameboy->isRomLoaded()) {
         if(prev) {
@@ -344,7 +349,7 @@ void setAutoSaveFunc(int value) {
             gameboy->saveGame(); // Synchronizes save file with filesystem
         }
 
-        if(!autoSavingEnabled && gameboy->getRomFile()->getRamBanks() > 0 && !gameboy->getRomFile()->isGBS()) {
+        if(!gameboy->autosaveEnabled && gameboy->getRomFile()->getRamBanks() > 0 && !gameboy->getRomFile()->isGBS()) {
             enableMenuOption("Exit without saving");
         } else {
             disableMenuOption("Exit without saving");

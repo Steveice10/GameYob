@@ -30,7 +30,6 @@ public:
     ~RomFile();
 
     u8* getRomBank(int bank);
-    void printInfo();
 
     inline bool isLoaded() {
         return this->loaded;
@@ -60,8 +59,16 @@ public:
         return this->cgbRequired;
     }
 
+    inline u8 getRawRomSize() {
+        return this->rawRomSize;
+    }
+
     inline int getRomBanks() {
         return this->totalRomBanks;
+    }
+
+    inline u8 getRawRamSize() {
+        return this->rawRamSize;
     }
 
     inline int getRamBanks() {
@@ -70,6 +77,10 @@ public:
 
     inline bool isSgbEnhanced() {
         return this->sgb;
+    }
+
+    inline u8 getRawMBC() {
+        return this->rawMBC;
     }
 
     inline MBC getMBC() {
