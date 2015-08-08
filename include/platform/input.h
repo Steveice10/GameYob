@@ -2,15 +2,7 @@
 
 #include "types.h"
 
-#ifdef BACKEND_3DS
-    #define NUM_BUTTONS 32
-#elif defined(BACKEND_SDL)
-    #define NUM_BUTTONS 512
-#else
-    #define NUM_BUTTONS 0
-#endif
-
-typedef enum {
+enum {
     FUNC_KEY_NONE = 0,
     FUNC_KEY_A = 1,
     FUNC_KEY_B = 2,
@@ -30,7 +22,9 @@ typedef enum {
     FUNC_KEY_SCALE = 16,
     FUNC_KEY_RESET = 17,
     FUNC_KEY_SCREENSHOT = 18,
-} FuncKey;
+
+    NUM_FUNC_KEYS = 19
+};
 
 void inputInit();
 void inputCleanup();

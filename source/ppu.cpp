@@ -7,6 +7,8 @@
 
 #include "platform/gfx.h"
 #include "gameboy.h"
+#include "ppu.h"
+#include "romfile.h"
 
 #define FLIP_Y (0x40)
 #define FLIP_X (0x20)

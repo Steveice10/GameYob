@@ -3,8 +3,10 @@
 #include <string.h>
 #include <unistd.h>
 
+#include "platform/system.h"
 #include "gameboy.h"
 #include "printer.h"
+#include "romfile.h"
 
 #define PRINTER_STATUS_READY        0x08
 #define PRINTER_STATUS_REQUESTED    0x04

@@ -6,6 +6,7 @@
 
 #include "platform/audio.h"
 #include "platform/gfx.h"
+#include "platform/input.h"
 #include "platform/system.h"
 #include "platform/ui.h"
 #include "ui/config.h"

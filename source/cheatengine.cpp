@@ -6,6 +6,7 @@
 #include "platform/system.h"
 #include "cheatengine.h"
 #include "gameboy.h"
+#include "romfile.h"
 
 #define TO_INT(a) ( (a) >= 'a' ? (a) - 'a' + 10 : (a) >= 'A' ? (a) - 'A' + 10 : (a) - '0')
 

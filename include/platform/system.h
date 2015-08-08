@@ -1,7 +1,5 @@
 #pragma once
 
-#include <string>
-
 #include "types.h"
 
 extern const char* iniPath;

@@ -1,9 +1,6 @@
 #pragma once
 
-#include <time.h>
-
-#include "gameboy.h"
-
+class Gameboy;
 extern Gameboy* gameboy;
 
 void mgrInit();

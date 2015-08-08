@@ -2,6 +2,8 @@
 
 #include <stdio.h>
 
+#include "types.h"
+
 extern int borderSetting;
 extern int pauseOnMenu;
 extern int stateNum;
@@ -32,7 +34,7 @@ void enableMenuOption(const char* name);
 void disableMenuOption(const char* name);
 
 void menuParseConfig(char* line);
-void menuPrintConfig(FILE* file);
+const std::string menuPrintConfig();
 
 bool showConsoleDebug();
 

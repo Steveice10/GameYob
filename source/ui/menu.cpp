@@ -2,13 +2,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include <string>
+#include <sstream>
 
 #include <arpa/inet.h>
 #include <sys/stat.h>
 #include <errno.h>
 #include <unistd.h>
 
+#include "gb_apu/Gb_Apu.h"
 #include "platform/gfx.h"
 #include "platform/input.h"
 #include "platform/system.h"
@@ -19,6 +20,10 @@
 #include "ui/gbsplayer.h"
 #include "ui/manager.h"
 #include "ui/menu.h"
+#include "gameboy.h"
+#include "ppu.h"
+#include "printer.h"
+#include "romfile.h"
 
 const int MENU_NONE = 1;
 const int MENU_3DS = 2;
@@ -1118,14 +1123,17 @@ void menuParseConfig(char* line) {
     setMenuOption(option, val);
 }
 
-void menuPrintConfig(FILE* file) {
+const std::string menuPrintConfig() {
+    std::stringstream stream;
     for(int i = 0; i < numMenus; i++) {
         for(int j = 0; j < menuList[i].numOptions; j++) {
             if(menuList[i].options[j].platforms & MENU_BITMASK && menuList[i].options[j].numValues != 0) {
-                fprintf(file, "%s=%d\n", menuList[i].options[j].name, menuList[i].options[j].selection);
+                stream << menuList[i].options[j].name << "=" << menuList[i].options[j].selection;
             }
         }
     }
+
+    return stream.str();
 }
 
 bool showConsoleDebug() {

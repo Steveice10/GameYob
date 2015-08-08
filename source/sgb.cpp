@@ -2,6 +2,7 @@
 #include <string.h>
 
 #include "gameboy.h"
+#include "ppu.h"
 
 #define sgbPalettes (vram[1])
 #define sgbAttrFiles (vram[1]+0x1000)

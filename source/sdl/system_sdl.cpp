@@ -5,6 +5,7 @@
 #include <stdlib.h>
 
 #include "platform/audio.h"
+#include "platform/input.h"
 #include "platform/gfx.h"
 #include "platform/system.h"
 #include "ui/config.h"

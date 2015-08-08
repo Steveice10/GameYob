@@ -1,7 +1,9 @@
 #include <time.h>
 
 #include "platform/input.h"
+#include "platform/system.h"
 #include "gameboy.h"
+#include "romfile.h"
 
 /* MBC read handlers */
 

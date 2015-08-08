@@ -1,8 +1,12 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "gb_apu/Gb_Apu.h"
+
 #include "platform/system.h"
 #include "gameboy.h"
+#include "ppu.h"
+#include "romfile.h"
 
 #define refreshVramBank() { \
     memory[0x8] = vram[vramBank]; \
@@ -94,7 +98,11 @@ void Gameboy::writeSram(u16 addr, u8 val) {
 }
 
 void Gameboy::initMMU() {
-    biosOn = !ppu->probingForBorder && !gameboy->getRomFile()->isGBS() && ((biosMode == 1 && (gbBiosLoaded || gbcBiosLoaded)) || (biosMode == 2 && gbBiosLoaded) || (biosMode == 3 && gbcBiosLoaded));
+    if(romFile == NULL) {
+        return;
+    }
+
+    biosOn = !ppu->probingForBorder && !romFile->isGBS() && ((biosMode == 1 && (gbBiosLoaded || gbcBiosLoaded)) || (biosMode == 2 && gbBiosLoaded) || (biosMode == 3 && gbcBiosLoaded));
 
     wramBank = 1;
     vramBank = 0;

@@ -15,6 +15,9 @@
 #include "ui/gbsplayer.h"
 #include "ui/manager.h"
 #include "ui/menu.h"
+#include "gameboy.h"
+#include "ppu.h"
+#include "romfile.h"
 
 Gameboy* gameboy = NULL;
 

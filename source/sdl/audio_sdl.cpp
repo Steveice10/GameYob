@@ -1,5 +1,6 @@
 #ifdef BACKEND_SDL
 
+#include <assert.h>
 #include <string.h>
 
 #include "platform/audio.h"
@@ -28,7 +29,7 @@ public:
         this->write_pos = 0;
         this->read_buf = 0;
 
-        this->bufs = new blip_sample_t[(long) buf_size * buf_count];
+        this->bufs = new u16[(long) buf_size * buf_count];
         if(!this->bufs) {
             return "Out of memory";
         }
@@ -73,14 +74,14 @@ public:
         this->bufs = NULL;
     }
 
-    void write(const blip_sample_t* in, int count) {
+    void write(const u16* in, int count) {
         while(count) {
             int n = buf_size - write_pos;
             if(n > count) {
                 n = count;
             }
 
-            memcpy(this->buf(this->write_buf) + this->write_pos, in, n * sizeof(blip_sample_t));
+            memcpy(this->buf(this->write_buf) + this->write_pos, in, n * sizeof(u16));
             in += n;
             this->write_pos += n;
             count -= n;
@@ -97,7 +98,7 @@ private:
     enum { buf_size = APU_BUFFER_SIZE };
     enum { buf_count = 3 };
 
-    blip_sample_t* volatile bufs;
+    u16* volatile bufs;
     SDL_sem* volatile free_sem;
     int volatile read_buf;
     int write_buf;
@@ -113,7 +114,7 @@ private:
         return out;
     }
 
-    inline blip_sample_t* buf(int index) {
+    inline u16* buf(int index) {
         assert((unsigned) index < buf_count);
 
         return this->bufs + (long) index * buf_size;
@@ -136,17 +137,17 @@ private:
 
 static Sound_Queue* soundQueue;
 
-static blip_sample_t* audioLeftBuffer;
-static blip_sample_t* audioRightBuffer;
-static blip_sample_t* audioCenterBuffer;
+static u16* audioLeftBuffer;
+static u16* audioRightBuffer;
+static u16* audioCenterBuffer;
 
 void audioInit() {
     soundQueue = new Sound_Queue();
     soundQueue->start((long) SAMPLE_RATE, 1);
 
-    audioLeftBuffer = (blip_sample_t*) malloc(APU_BUFFER_SIZE * sizeof(blip_sample_t));
-    audioRightBuffer = (blip_sample_t*) malloc(APU_BUFFER_SIZE * sizeof(blip_sample_t));
-    audioCenterBuffer = (blip_sample_t*) malloc(APU_BUFFER_SIZE * sizeof(blip_sample_t));
+    audioLeftBuffer = (u16*) malloc(APU_BUFFER_SIZE * sizeof(u16));
+    audioRightBuffer = (u16*) malloc(APU_BUFFER_SIZE * sizeof(u16));
+    audioCenterBuffer = (u16*) malloc(APU_BUFFER_SIZE * sizeof(u16));
 }
 
 void audioCleanup() {
@@ -169,15 +170,15 @@ void audioCleanup() {
     }
 }
 
-blip_sample_t* audioGetLeftBuffer() {
+u16* audioGetLeftBuffer() {
     return audioLeftBuffer;
 }
 
-blip_sample_t* audioGetRightBuffer() {
+u16* audioGetRightBuffer() {
     return audioRightBuffer;
 }
 
-blip_sample_t* audioGetCenterBuffer() {
+u16* audioGetCenterBuffer() {
     return audioCenterBuffer;
 }
 

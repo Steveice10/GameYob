@@ -4,6 +4,7 @@
 #include <string>
 #include <algorithm>
 
+#include "platform/system.h"
 #include "gameboy.h"
 #include "romfile.h"
 

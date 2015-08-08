@@ -7,14 +7,14 @@
 
 #include <ctrcommon/sound.hpp>
 
-static blip_sample_t* audioLeftBuffer;
-static blip_sample_t* audioRightBuffer;
-static blip_sample_t* audioCenterBuffer;
+static u16* audioLeftBuffer;
+static u16* audioRightBuffer;
+static u16* audioCenterBuffer;
 
 void audioInit() {
-    audioLeftBuffer = (blip_sample_t*) soundAlloc(APU_BUFFER_SIZE * sizeof(blip_sample_t));
-    audioRightBuffer = (blip_sample_t*) soundAlloc(APU_BUFFER_SIZE * sizeof(blip_sample_t));
-    audioCenterBuffer = (blip_sample_t*) soundAlloc(APU_BUFFER_SIZE * sizeof(blip_sample_t));
+    audioLeftBuffer = (u16*) soundAlloc(APU_BUFFER_SIZE * sizeof(u16));
+    audioRightBuffer = (u16*) soundAlloc(APU_BUFFER_SIZE * sizeof(u16));
+    audioCenterBuffer = (u16*) soundAlloc(APU_BUFFER_SIZE * sizeof(u16));
 }
 
 void audioCleanup() {
@@ -34,15 +34,15 @@ void audioCleanup() {
     }
 }
 
-blip_sample_t* audioGetLeftBuffer() {
+u16* audioGetLeftBuffer() {
     return audioLeftBuffer;
 }
 
-blip_sample_t* audioGetRightBuffer() {
+u16* audioGetRightBuffer() {
     return audioRightBuffer;
 }
 
-blip_sample_t* audioGetCenterBuffer() {
+u16* audioGetCenterBuffer() {
     return audioCenterBuffer;
 }
 

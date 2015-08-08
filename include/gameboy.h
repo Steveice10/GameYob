@@ -1,17 +1,16 @@
 #pragma once
 
 #include <stdio.h>
-#include <vector>
-#include <stdarg.h>
 
-#include "gb_apu/Multi_Buffer.h"
-#include "gb_apu/Gb_Apu.h"
-#include "platform/system.h"
-#include "cheatengine.h"
-#include "ppu.h"
-#include "printer.h"
-#include "romfile.h"
 #include "types.h"
+
+class Mono_Buffer;
+class Gb_Apu;
+
+class CheatEngine;
+class GameboyPPU;
+class GameboyPrinter;
+class RomFile;
 
 #define MAX_SRAM_SIZE   0x20000
 
@@ -215,6 +214,7 @@ public:
     inline u8 quickRead(u16 addr) {
         u8* section = memory[addr >> 12];
         if(section == NULL) {
+            void systemPrintDebug(const char*, ...);
             systemPrintDebug("Tried to read from unmapped address 0x%04X.\n", addr);
             return 0;
         }
@@ -233,6 +233,7 @@ public:
     inline void quickWrite(u16 addr, u8 val) {
         u8* section = memory[addr >> 12];
         if(section == NULL) {
+            void systemPrintDebug(const char*, ...);
             systemPrintDebug("Tried to write to unmapped address 0x%04X.\n", addr);
             return;
         }

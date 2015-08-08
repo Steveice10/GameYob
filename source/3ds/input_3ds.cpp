@@ -9,11 +9,12 @@
 #include "ui/config.h"
 #include "ui/filechooser.h"
 #include "ui/menu.h"
+#include "gameboy.h"
+#include "romfile.h"
 
 #include <ctrcommon/gpu.hpp>
 #include <ctrcommon/input.hpp>
 #include <ctrcommon/platform.hpp>
-#include <gameboy.h>
 
 const char* dsKeyNames[NUM_BUTTONS] = {
         "A",         // 0

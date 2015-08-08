@@ -2,6 +2,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#include <sstream>
 #include <vector>
 
 #include "platform/input.h"
@@ -10,7 +12,9 @@
 #include "ui/config.h"
 #include "ui/manager.h"
 #include "ui/menu.h"
+#include "cheatengine.h"
 #include "gameboy.h"
+#include "romfile.h"
 
 #include <strings.h>
 
@@ -18,10 +22,6 @@ char gbBiosPath[512] = "";
 char gbcBiosPath[512] = "";
 char borderPath[512] = "";
 char romPath[512] = "";
-
-void controlsParseConfig(char* line);
-void controlsPrintConfig(FILE* f);
-void controlsCheckConfig();
 
 void generalParseConfig(char* line) {
     char* equalsPos;
@@ -51,76 +51,15 @@ void generalParseConfig(char* line) {
     mgrRefreshBios();
 }
 
-void generalPrintConfig(FILE* file) {
-    fprintf(file, "rompath=%s\n", romPath);
-    fprintf(file, "gbbiosfile=%s\n", gbBiosPath);
-    fprintf(file, "gbcbiosfile=%s\n", gbcBiosPath);
-    fprintf(file, "borderfile=%s\n", borderPath);
-}
+const std::string generalPrintConfig() {
+    std::stringstream stream;
 
-bool readConfigFile() {
-    FILE* file = fopen(iniPath, "r");
-    char line[100];
-    void (*configParser)(char*) = generalParseConfig;
+    stream << "rompath=" << romPath << "\n";
+    stream << "gbbiosfile=" << gbBiosPath << "\n";
+    stream << "gbcbiosfile=" << gbcBiosPath << "\n";
+    stream << "borderfile=" << borderPath << "\n";
 
-    if(file == NULL) {
-        goto end;
-    }
-
-    struct stat s;
-    fstat(fileno(file), &s);
-    while(ftell(file) < s.st_size) {
-        fgets(line, 100, file);
-        char c = 0;
-        while(*line != '\0' && ((c = line[strlen(line) - 1]) == ' ' || c == '\n' || c == '\r')) {
-            line[strlen(line) - 1] = '\0';
-        }
-
-        if(line[0] == '[') {
-            char* endBrace;
-            if((endBrace = strrchr(line, ']')) != 0) {
-                *endBrace = '\0';
-                const char* section = line + 1;
-                if(strcasecmp(section, "general") == 0) {
-                    configParser = generalParseConfig;
-                } else if(strcasecmp(section, "console") == 0) {
-                    configParser = menuParseConfig;
-                } else if(strcasecmp(section, "controls") == 0) {
-                    configParser = controlsParseConfig;
-                }
-            }
-        } else {
-            configParser(line);
-        }
-    }
-
-    fclose(file);
-
-    end:
-    controlsCheckConfig();
-    return file != NULL;
-}
-
-void writeConfigFile() {
-    FILE* file = fopen(iniPath, "w");
-    if(file == NULL) {
-        printMenuMessage("Error opening gameyob.ini.");
-        return;
-    }
-
-    fprintf(file, "[general]\n");
-    generalPrintConfig(file);
-    fprintf(file, "[console]\n");
-    menuPrintConfig(file);
-    fprintf(file, "[controls]\n");
-    controlsPrintConfig(file);
-    fclose(file);
-
-    if(gameboy->isRomLoaded()) {
-        char nameBuf[512];
-        snprintf(nameBuf, 512, "%s.cht", gameboy->getRomFile()->getFileName().c_str());
-        gameboy->getCheatEngine()->saveCheats(nameBuf);
-    }
+    return stream.str();
 }
 
 const char* gbKeyNames[] = {
@@ -201,7 +140,7 @@ void controlsParseConfig(char* line2) {
 
                 if(gbKey != -1 && realKey != -1) {
                     KeyConfig* config = &keyConfigs.back();
-                    config->funcKeys[realKey] = (FuncKey) gbKey;
+                    config->funcKeys[realKey] = (u8) gbKey;
                 }
             }
         }
@@ -220,15 +159,85 @@ void controlsCheckConfig() {
     inputLoadKeyConfig(&keyConfigs[selectedKeyConfig]);
 }
 
-void controlsPrintConfig(FILE* file) {
-    fprintf(file, "config=%d\n", selectedKeyConfig);
+const std::string controlsPrintConfig() {
+    std::stringstream stream;
+
+    stream << "config=" << selectedKeyConfig << "\n";
     for(unsigned int i = 0; i < keyConfigs.size(); i++) {
-        fprintf(file, "(%s)\n", keyConfigs[i].name);
+        stream << "(" << keyConfigs[i].name << ")\n";
         for(int j = 0; j < NUM_BUTTONS; j++) {
             if(inputIsValidKey(j) && strlen(inputGetKeyName(j)) > 0) {
-                fprintf(file, "%s=%s\n", inputGetKeyName(j), gbKeyNames[keyConfigs[i].funcKeys[j]]);
+                stream << inputGetKeyName(j) << "=" << gbKeyNames[keyConfigs[i].funcKeys[j]] << "\n";
             }
         }
+    }
+
+    return stream.str();
+}
+
+bool readConfigFile() {
+    FILE* file = fopen(iniPath, "r");
+    char line[100];
+    void (*configParser)(char*) = generalParseConfig;
+
+    if(file == NULL) {
+        goto end;
+    }
+
+    struct stat s;
+    fstat(fileno(file), &s);
+    while(ftell(file) < s.st_size) {
+        fgets(line, 100, file);
+        char c = 0;
+        while(*line != '\0' && ((c = line[strlen(line) - 1]) == ' ' || c == '\n' || c == '\r')) {
+            line[strlen(line) - 1] = '\0';
+        }
+
+        if(line[0] == '[') {
+            char* endBrace;
+            if((endBrace = strrchr(line, ']')) != 0) {
+                *endBrace = '\0';
+                const char* section = line + 1;
+                if(strcasecmp(section, "general") == 0) {
+                    configParser = generalParseConfig;
+                } else if(strcasecmp(section, "console") == 0) {
+                    configParser = menuParseConfig;
+                } else if(strcasecmp(section, "controls") == 0) {
+                    configParser = controlsParseConfig;
+                }
+            }
+        } else {
+            configParser(line);
+        }
+    }
+
+    fclose(file);
+
+    end:
+    controlsCheckConfig();
+    return file != NULL;
+}
+
+void writeConfigFile() {
+    std::stringstream stream;
+    stream << "[general]\n";
+    stream << generalPrintConfig();
+    stream << "[console]\n";
+    stream << menuPrintConfig();
+    stream << "[controls]\n";
+    stream << controlsPrintConfig();
+
+    FILE* file = fopen(iniPath, "w");
+    if(file == NULL) {
+        printMenuMessage("Error opening gameyob.ini.");
+        return;
+    }
+
+    fprintf(file, "%s", stream.str().c_str());
+    fclose(file);
+
+    if(gameboy->isRomLoaded()) {
+        gameboy->getCheatEngine()->saveCheats((gameboy->getRomFile()->getFileName() + ".cht").c_str());
     }
 }
 
@@ -406,9 +415,9 @@ void updateKeyConfigChooser() {
                 }
             } else {
                 if(config->funcKeys[option] <= 0) {
-                    config->funcKeys[option] = (FuncKey) (NUM_FUNC_KEYS - 1);
+                    config->funcKeys[option] = NUM_FUNC_KEYS - 1;
                 } else {
-                    config->funcKeys[option] = (FuncKey) ((u32) config->funcKeys[option] - 1);
+                    config->funcKeys[option]--;
                 }
             }
 
@@ -423,7 +432,7 @@ void updateKeyConfigChooser() {
                 if(config->funcKeys[option] >= NUM_FUNC_KEYS - 1) {
                     config->funcKeys[option] = FUNC_KEY_NONE;
                 } else {
-                    config->funcKeys[option] = (FuncKey) ((u32) config->funcKeys[option] + 1);
+                    config->funcKeys[option]++;
                 }
             }
 

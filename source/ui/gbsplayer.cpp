@@ -2,8 +2,9 @@
 
 #include "platform/input.h"
 #include "platform/ui.h"
-#include "ui/config.h"
 #include "ui/manager.h"
+#include "gameboy.h"
+#include "romfile.h"
 
 u8 selectedSong;
 int playingSong;

@@ -5,10 +5,16 @@
 #include <string.h>
 
 #include "gb_apu/Gb_Apu.h"
+#include "gb_apu/Multi_Buffer.h"
+
 #include "platform/audio.h"
 #include "platform/input.h"
 #include "platform/system.h"
+#include "cheatengine.h"
 #include "gameboy.h"
+#include "ppu.h"
+#include "printer.h"
+#include "romfile.h"
 
 #define GB_A 0x01
 #define GB_B 0x02
@@ -530,7 +536,11 @@ Gameboy::~Gameboy() {
 }
 
 void Gameboy::init() {
-    if(gameboy->getRomFile()->isGBS()) {
+    if(romFile == NULL) {
+        return;
+    }
+
+    if(romFile->isGBS()) {
         resultantGBMode = 1; // GBC
         ppu->probingForBorder = false;
     } else {
@@ -601,8 +611,8 @@ void Gameboy::init() {
     ppu->initPPU();
     initSND();
 
-    if(gameboy->getRomFile()->isGBS()) {
-        gameboy->getRomFile()->getGBS()->init(this);
+    if(romFile->isGBS()) {
+        romFile->getGBS()->init(this);
     }
 }
 
@@ -782,7 +792,7 @@ void Gameboy::gameboyCheckInput() {
 void Gameboy::updateVBlank() {
     gameboyFrameCounter++;
 
-    if(!gameboy->getRomFile()->isGBS()) {
+    if(!romFile->isGBS()) {
         if(ppu->probingForBorder) {
             if(gameboyFrameCounter >= 450) {
                 // Give up on finding a sgb border.
@@ -1088,9 +1098,9 @@ inline void Gameboy::updateSound(int cycles) {
         soundCycles -= CYCLES_PER_BUFFER;
 
         if(soundEnabled && !gameboyPaused) {
-            long leftCount = leftBuffer->read_samples(audioGetLeftBuffer(), APU_BUFFER_SIZE);
-            long rightCount = rightBuffer->read_samples(audioGetRightBuffer(), APU_BUFFER_SIZE);
-            long centerCount = centerBuffer->read_samples(audioGetCenterBuffer(), APU_BUFFER_SIZE);
+            long leftCount = leftBuffer->read_samples((blip_sample_t*) audioGetLeftBuffer(), APU_BUFFER_SIZE);
+            long rightCount = rightBuffer->read_samples((blip_sample_t*) audioGetRightBuffer(), APU_BUFFER_SIZE);
+            long centerCount = centerBuffer->read_samples((blip_sample_t*) audioGetCenterBuffer(), APU_BUFFER_SIZE);
             audioPlay(leftCount, rightCount, centerCount);
         } else {
             leftBuffer->clear();
@@ -1195,12 +1205,10 @@ bool Gameboy::loadRomFile(const char* filename) {
     }
 
     // Load cheats
-    if(gameboy->getRomFile()->isGBS()) {
+    if(romFile->isGBS()) {
         cheatEngine->loadCheats("");
     } else {
-        char nameBuf[512];
-        snprintf(nameBuf, 512, "%s.cht", romFile->getFileName().c_str());
-        cheatEngine->loadCheats(nameBuf);
+        cheatEngine->loadCheats((romFile->getFileName() + ".cht").c_str());
     }
 
     return true;
@@ -1239,7 +1247,7 @@ int Gameboy::loadSave() {
 
     externRam = (u8*) malloc(romFile->getRamBanks() * 0x2000);
 
-    if(gameboy->getRomFile()->isGBS()) {
+    if(romFile->isGBS()) {
         return 0;
     }
 

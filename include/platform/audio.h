@@ -1,12 +1,10 @@
 #pragma once
 
-#include "gb_apu/Blip_Buffer.h"
-
 #include "types.h"
 
 void audioInit();
 void audioCleanup();
-blip_sample_t* audioGetLeftBuffer();
-blip_sample_t* audioGetRightBuffer();
-blip_sample_t* audioGetCenterBuffer();
+u16* audioGetLeftBuffer();
+u16* audioGetRightBuffer();
+u16* audioGetCenterBuffer();
 void audioPlay(long leftSamples, long rightSamples, long centerSamples);
