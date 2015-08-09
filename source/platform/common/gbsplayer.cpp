@@ -1,8 +1,6 @@
-#include <stdio.h>
-
+#include "platform/common/manager.h"
 #include "platform/input.h"
 #include "platform/ui.h"
-#include "ui/manager.h"
 #include "gameboy.h"
 #include "romfile.h"
 

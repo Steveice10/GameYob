@@ -2,10 +2,9 @@
 
 #include <string.h>
 
+#include "platform/common/config.h"
 #include "platform/gfx.h"
 #include "platform/input.h"
-#include "platform/system.h"
-#include "ui/config.h"
 
 #include <SDL2/SDL_events.h>
 

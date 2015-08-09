@@ -6,7 +6,6 @@
 
 #include "platform/gfx.h"
 #include "platform/input.h"
-#include "ui/config.h"
 
 #include <SDL2/SDL.h>
 

@@ -6,17 +6,15 @@
 #include <sstream>
 #include <vector>
 
+#include "platform/common/config.h"
+#include "platform/common/manager.h"
+#include "platform/common/menu.h"
 #include "platform/input.h"
 #include "platform/system.h"
 #include "platform/ui.h"
-#include "ui/config.h"
-#include "ui/manager.h"
-#include "ui/menu.h"
 #include "cheatengine.h"
 #include "gameboy.h"
 #include "romfile.h"
-
-#include <strings.h>
 
 std::string gbBiosPath = systemDefaultGbBiosPath();
 std::string gbcBiosPath = systemDefaultGbcBiosPath();

@@ -1,9 +1,8 @@
 #include <string.h>
 
-#include "platform/input.h"
+#include "platform/common/cheats.h"
+#include "platform/common/menu.h"
 #include "platform/ui.h"
-#include "ui/cheats.h"
-#include "ui/menu.h"
 #include "cheatengine.h"
 #include "gameboy.h"
 

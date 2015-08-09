@@ -6,10 +6,10 @@
 #include <vector>
 #include <platform/ui.h>
 
+#include "platform/common/filechooser.h"
 #include "platform/gfx.h"
 #include "platform/input.h"
 #include "platform/system.h"
-#include "ui/filechooser.h"
 
 #define FLAG_DIRECTORY  1
 #define FLAG_SUSPENDED  2

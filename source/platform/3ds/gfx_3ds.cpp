@@ -4,9 +4,9 @@
 #include <math.h>
 #include <string.h>
 
+#include "platform/common/menu.h"
 #include "platform/gfx.h"
 #include "platform/input.h"
-#include "ui/menu.h"
 
 #include <3ds.h>
 

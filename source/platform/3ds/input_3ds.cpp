@@ -3,12 +3,11 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "platform/gfx.h"
+#include "platform/common/config.h"
+#include "platform/common/filechooser.h"
+#include "platform/common/menu.h"
 #include "platform/input.h"
 #include "platform/ui.h"
-#include "ui/config.h"
-#include "ui/filechooser.h"
-#include "ui/menu.h"
 #include "gameboy.h"
 #include "romfile.h"
 

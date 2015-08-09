@@ -1,26 +1,25 @@
-#ifdef BACKEND_3DS
+#ifdef BACKEND_SDL
 
 #include <arpa/inet.h>
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "platform/common/config.h"
+#include "platform/common/manager.h"
+#include "platform/common/menu.h"
 #include "platform/audio.h"
-#include "platform/gfx.h"
 #include "platform/input.h"
+#include "platform/gfx.h"
 #include "platform/system.h"
-#include "platform/ui.h"
-#include "ui/config.h"
-#include "ui/manager.h"
-#include "ui/menu.h"
 
-#include <ctrcommon/fs.hpp>
-#include <ctrcommon/ir.hpp>
-#include <ctrcommon/platform.hpp>
-#include <ctrcommon/socket.hpp>
+#include <SDL2/SDL.h>
+#include <platform/ui.h>
+
+extern void gfxSetWindowSize(int width, int height);
 
 bool systemInit(int argc, char* argv[]) {
-    if(!platformInit(argc) || !gfxInit()) {
-        return 0;
+    if(SDL_Init(SDL_INIT_AUDIO | SDL_INIT_VIDEO) != 0 || !gfxInit()) {
+        return false;
     }
 
     uiInit();
@@ -42,9 +41,9 @@ void systemExit() {
     audioCleanup();
     inputCleanup();
     uiCleanup();
-
     gfxCleanup();
-    platformCleanup();
+
+    SDL_Quit();
 
     exit(0);
 }
@@ -57,29 +56,35 @@ void systemRun() {
 }
 
 void systemCheckRunning() {
-    if(!platformIsRunning()) {
-        systemExit();
+    SDL_Event event;
+    while(SDL_PollEvent(&event)) {
+        if(event.type == SDL_QUIT) {
+            systemExit();
+            return;
+        } else if(event.type == SDL_WINDOWEVENT && event.window.event == SDL_WINDOWEVENT_RESIZED) {
+            gfxSetWindowSize(event.window.data1, event.window.data2);
+        }
     }
 }
 
 const std::string systemIniPath() {
-    return "/gameyob.ini";
+    return "./gameyob.ini";
 }
 
 const std::string systemDefaultGbBiosPath() {
-    return "/gb_bios.bin";
+    return "./gb_bios.bin";
 }
 
 const std::string systemDefaultGbcBiosPath() {
-    return "/gbc_bios.bin";
+    return "./gbc_bios.bin";
 }
 
 const std::string systemDefaultBorderPath() {
-    return "/default_border.png";
+    return "./default_border.png";
 }
 
 const std::string systemDefaultRomPath() {
-    return "/gb/";
+    return "./gb/";
 }
 
 void systemPrintDebug(const char* str, ...) {
@@ -92,27 +97,26 @@ void systemPrintDebug(const char* str, ...) {
 }
 
 bool systemGetIRState() {
-    return irGetState() == 1;
+    return false;
 }
 
 void systemSetIRState(bool state) {
-    irSetState(state ? 1 : 0);
 }
 
 const std::string systemGetIP() {
-    return inet_ntoa({socketGetHostIP()});
+    return "";
 }
 
 int systemSocketListen(u16 port) {
-    return socketListen(port);
+    return -1;
 }
 
 FILE* systemSocketAccept(int listeningSocket, std::string* acceptedIp) {
-    return socketAccept(listeningSocket, acceptedIp);
+    return NULL;
 }
 
 FILE* systemSocketConnect(const std::string ipAddress, u16 port) {
-    return socketConnect(ipAddress, port);
+    return NULL;
 }
 
 #endif

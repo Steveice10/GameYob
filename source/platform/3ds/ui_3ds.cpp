@@ -6,8 +6,8 @@
 
 #include <queue>
 
+#include "platform/common/menu.h"
 #include "platform/ui.h"
-#include "ui/menu.h"
 
 #include <ctrcommon/gpu.hpp>
 

@@ -5,21 +5,19 @@
 #include <sstream>
 
 #include <arpa/inet.h>
-#include <sys/stat.h>
 #include <errno.h>
 #include <unistd.h>
 
 #include "gb_apu/Gb_Apu.h"
-#include "platform/gfx.h"
+#include "platform/common/cheats.h"
+#include "platform/common/config.h"
+#include "platform/common/filechooser.h"
+#include "platform/common/gbsplayer.h"
+#include "platform/common/manager.h"
+#include "platform/common/menu.h"
 #include "platform/input.h"
 #include "platform/system.h"
 #include "platform/ui.h"
-#include "ui/cheats.h"
-#include "ui/config.h"
-#include "ui/filechooser.h"
-#include "ui/gbsplayer.h"
-#include "ui/manager.h"
-#include "ui/menu.h"
 #include "cheatengine.h"
 #include "gameboy.h"
 #include "ppu.h"
