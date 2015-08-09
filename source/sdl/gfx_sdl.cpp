@@ -4,7 +4,6 @@
 
 #include <sstream>
 
-#include "lodepng/lodepng.h"
 #include "platform/gfx.h"
 #include "platform/input.h"
 #include "ui/config.h"
