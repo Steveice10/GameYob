@@ -10,7 +10,7 @@ void mgrLoadRom(const char* filename);
 void mgrSelectRom();
 void mgrSave();
 
-void mgrLoadBorder();
+void mgrRefreshBorder();
 
 void mgrRefreshBios();
 

@@ -15,12 +15,6 @@
 #include <SDL2/SDL.h>
 #include <platform/ui.h>
 
-const char* iniPath = "./gameyob.ini";
-const char* defaultGbBiosPath = "./gb_bios.bin";
-const char* defaultGbcBiosPath = "./gbc_bios.bin";
-const char* defaultBorderPath = "./default_border.png";
-const char* defaultRomPath = "./gb";
-
 extern void gfxSetWindowSize(int width, int height);
 
 bool systemInit(int argc, char* argv[]) {
@@ -71,6 +65,26 @@ void systemCheckRunning() {
             gfxSetWindowSize(event.window.data1, event.window.data2);
         }
     }
+}
+
+const std::string systemIniPath() {
+    return "./gameyob.ini";
+}
+
+const std::string systemDefaultGbBiosPath() {
+    return "./gb_bios.bin";
+}
+
+const std::string systemDefaultGbcBiosPath() {
+    return "./gbc_bios.bin";
+}
+
+const std::string systemDefaultBorderPath() {
+    return "./default_border.png";
+}
+
+const std::string systemDefaultRomPath() {
+    return "./gb/";
 }
 
 void systemPrintDebug(const char* str, ...) {

@@ -20,6 +20,7 @@
 #include "ui/gbsplayer.h"
 #include "ui/manager.h"
 #include "ui/menu.h"
+#include "cheatengine.h"
 #include "gameboy.h"
 #include "ppu.h"
 #include "printer.h"
@@ -134,7 +135,7 @@ void printerEnableFunc(int value) {
 
 void cheatFunc(int value) {
     if(gameboy->getCheatEngine() != NULL && gameboy->getCheatEngine()->getNumCheats() != 0) {
-        startCheatMenu(gameboy->getCheatEngine());
+        startCheatMenu();
     } else {
         printMenuMessage("No cheats found!");
     }
@@ -230,7 +231,7 @@ void biosEnableFunc(int value) {
 void selectGbBiosFunc(int value) {
     char* filename = biosChooser.startFileChooser();
     if(filename != NULL) {
-        strcpy(gbBiosPath, filename);
+        gbBiosPath = filename;
         free(filename);
 
         mgrRefreshBios();
@@ -240,7 +241,7 @@ void selectGbBiosFunc(int value) {
 void selectGbcBiosFunc(int value) {
     char* filename = biosChooser.startFileChooser();
     if(filename != NULL) {
-        strcpy(gbcBiosPath, filename);
+        gbcBiosPath = filename;
         free(filename);
 
         mgrRefreshBios();
@@ -286,9 +287,10 @@ void gbColorizeFunc(int value) {
 void selectBorderFunc(int value) {
     char* filename = borderChooser.startFileChooser();
     if(filename != NULL) {
-        strcpy(borderPath, filename);
+        borderPath = filename;
         free(filename);
-        mgrLoadBorder();
+
+        mgrRefreshBorder();
     }
 }
 
@@ -300,7 +302,7 @@ void borderFunc(int value) {
         disableMenuOption("Select Border");
     }
 
-    mgrLoadBorder();
+    mgrRefreshBorder();
 }
 
 void soundEnableFunc(int value) {

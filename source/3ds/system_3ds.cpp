@@ -18,12 +18,6 @@
 #include <ctrcommon/platform.hpp>
 #include <ctrcommon/socket.hpp>
 
-const char* iniPath = "/gameyob.ini";
-const char* defaultGbBiosPath = "/gb_bios.bin";
-const char* defaultGbcBiosPath = "/gbc_bios.bin";
-const char* defaultBorderPath = "/default_border.png";
-const char* defaultRomPath = "/gb";
-
 bool systemInit(int argc, char* argv[]) {
     if(!platformInit(argc) || !gfxInit()) {
         return 0;
@@ -66,6 +60,26 @@ void systemCheckRunning() {
     if(!platformIsRunning()) {
         systemExit();
     }
+}
+
+const std::string systemIniPath() {
+    return "/gameyob.ini";
+}
+
+const std::string systemDefaultGbBiosPath() {
+    return "/gb_bios.bin";
+}
+
+const std::string systemDefaultGbcBiosPath() {
+    return "/gbc_bios.bin";
+}
+
+const std::string systemDefaultBorderPath() {
+    return "/default_border.png";
+}
+
+const std::string systemDefaultRomPath() {
+    return "/gb/";
 }
 
 void systemPrintDebug(const char* str, ...) {

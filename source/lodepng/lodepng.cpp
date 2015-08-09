@@ -32,6 +32,7 @@ Rename this file to lodepng.cpp to use it for C++, or to lodepng.c to use it for
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #ifdef LODEPNG_COMPILE_CPP
 #include <fstream>

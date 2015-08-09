@@ -18,10 +18,10 @@
 
 #include <strings.h>
 
-char gbBiosPath[512] = "";
-char gbcBiosPath[512] = "";
-char borderPath[512] = "";
-char romPath[512] = "";
+std::string gbBiosPath = systemDefaultGbBiosPath();
+std::string gbcBiosPath = systemDefaultGbcBiosPath();
+std::string borderPath = systemDefaultBorderPath();
+std::string romPath = systemDefaultRomPath();
 
 void generalParseConfig(char* line) {
     char* equalsPos;
@@ -31,21 +31,19 @@ void generalParseConfig(char* line) {
         const char* value = equalsPos + 1;
 
         if(strcasecmp(parameter, "rompath") == 0) {
-            strcpy(romPath, value);
+            romPath = value;
         } else if(strcasecmp(parameter, "gbbiosfile") == 0) {
-            strcpy(gbBiosPath, value);
+            gbBiosPath = value;
         } else if(strcasecmp(parameter, "gbcbiosfile") == 0 || strcasecmp(parameter, "biosfile") == 0) {
-            strcpy(gbcBiosPath, value);
+            gbcBiosPath = value;
         } else if(strcasecmp(parameter, "borderfile") == 0) {
-            strcpy(borderPath, value);
+            borderPath = value;
         }
     }
 
-    size_t len = strlen(romPath);
-    if(len == 0 || *(romPath + len - 1) != '/') {
-        char copy[512];
-        strncpy(copy, romPath, 512);
-        snprintf(romPath, 512, "%s/", copy);
+    size_t len = romPath.length();
+    if(len == 0 || romPath[len - 1] != '/') {
+        romPath += "/";
     }
 
     mgrRefreshBios();
@@ -176,7 +174,7 @@ const std::string controlsPrintConfig() {
 }
 
 bool readConfigFile() {
-    FILE* file = fopen(iniPath, "r");
+    FILE* file = fopen(systemIniPath().c_str(), "r");
     char line[100];
     void (*configParser)(char*) = generalParseConfig;
 
@@ -227,7 +225,7 @@ void writeConfigFile() {
     stream << "[controls]\n";
     stream << controlsPrintConfig();
 
-    FILE* file = fopen(iniPath, "w");
+    FILE* file = fopen(systemIniPath().c_str(), "w");
     if(file == NULL) {
         printMenuMessage("Error opening gameyob.ini.");
         return;

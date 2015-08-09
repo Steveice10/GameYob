@@ -2,17 +2,16 @@
 
 #include "types.h"
 
-extern const char* iniPath;
-extern const char* defaultGbBiosPath;
-extern const char* defaultGbcBiosPath;
-extern const char* defaultBorderPath;
-extern const char* defaultRomPath;
-
 bool systemInit(int argc, char* argv[]);
 void systemExit();
 void systemRun();
-
 void systemCheckRunning();
+
+const std::string systemIniPath();
+const std::string systemDefaultGbBiosPath();
+const std::string systemDefaultGbcBiosPath();
+const std::string systemDefaultBorderPath();
+const std::string systemDefaultRomPath();
 
 void systemPrintDebug(const char* fmt, ...);
 

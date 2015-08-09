@@ -1,5 +1,7 @@
 #pragma once
 
+#include "types.h"
+
 #ifdef BACKEND_3DS
     #define NUM_BUTTONS 32
 #elif defined(BACKEND_SDL)
@@ -13,10 +15,10 @@ struct KeyConfig {
     u8 funcKeys[NUM_BUTTONS];
 };
 
-extern char gbBiosPath[512];
-extern char gbcBiosPath[512];
-extern char romPath[512];
-extern char borderPath[512];
+extern std::string gbBiosPath;
+extern std::string gbcBiosPath;
+extern std::string romPath;
+extern std::string borderPath;
 
 bool readConfigFile();
 void writeConfigFile();

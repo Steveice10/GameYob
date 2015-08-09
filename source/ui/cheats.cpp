@@ -1,10 +1,8 @@
 #include <string.h>
-#include <algorithm>
 
 #include "platform/input.h"
-#include "platform/system.h"
 #include "platform/ui.h"
-#include "ui/config.h"
+#include "ui/cheats.h"
 #include "ui/menu.h"
 #include "cheatengine.h"
 #include "gameboy.h"
@@ -13,11 +11,9 @@ int cheatsPerPage = 0;
 int cheatMenuSelection = 0;
 bool cheatMenuGameboyWasPaused = false;
 
-CheatEngine* cheatEngine = NULL;
-
 void redrawCheatMenu() {
     cheatsPerPage = uiGetHeight() - 2;
-    int numCheats = cheatEngine->getNumCheats();
+    int numCheats = gameboy->getCheatEngine()->getNumCheats();
     int numPages = (numCheats - 1) / cheatsPerPage + 1;
     int page = cheatMenuSelection / cheatsPerPage;
 
@@ -30,13 +26,13 @@ void redrawCheatMenu() {
             uiSetLineHighlighted(true);
         }
 
-        uiPrint("%s", cheatEngine->cheats[i].name);
+        uiPrint("%s", gameboy->getCheatEngine()->cheats[i].name);
 
-        for(unsigned int j = 0; j < 25 - strlen(cheatEngine->cheats[i].name); j++) {
+        for(unsigned int j = 0; j < 25 - strlen(gameboy->getCheatEngine()->cheats[i].name); j++) {
             uiPrint(" ");
         }
 
-        if(cheatEngine->isCheatEnabled(i)) {
+        if(gameboy->getCheatEngine()->isCheatEnabled(i)) {
             if(cheatMenuSelection == i) {
                 uiSetTextColor(TEXT_COLOR_YELLOW);
                 uiPrint("* ");
@@ -76,7 +72,7 @@ void redrawCheatMenu() {
 
 void updateCheatMenu() {
     bool redraw = false;
-    int numCheats = cheatEngine->getNumCheats();
+    int numCheats = gameboy->getCheatEngine()->getNumCheats();
 
     if(cheatMenuSelection >= numCheats) {
         cheatMenuSelection = 0;
@@ -95,7 +91,7 @@ void updateCheatMenu() {
                 redraw = true;
             }
         } else if(key == UI_KEY_RIGHT || key == UI_KEY_LEFT) {
-            cheatEngine->toggleCheat(cheatMenuSelection, !cheatEngine->isCheatEnabled(cheatMenuSelection));
+            gameboy->getCheatEngine()->toggleCheat(cheatMenuSelection, !gameboy->getCheatEngine()->isCheatEnabled(cheatMenuSelection));
             redraw = true;
         } else if(key == UI_KEY_R) {
             cheatMenuSelection += cheatsPerPage;
@@ -126,9 +122,7 @@ void updateCheatMenu() {
     }
 }
 
-void startCheatMenu(CheatEngine* engine) {
-    cheatEngine = engine;
-
+void startCheatMenu() {
     cheatMenuGameboyWasPaused = gameboy->isGameboyPaused();
     gameboy->pause();
 

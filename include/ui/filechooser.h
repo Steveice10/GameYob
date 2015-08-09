@@ -1,6 +1,7 @@
 #pragma once
 
-#include <string>
+#include "types.h"
+
 #include <vector>
 
 bool isFileChooserActive();

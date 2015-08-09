@@ -67,7 +67,7 @@ void mgrLoadRom(const char* filename) {
 #endif
 
     gameboy->getPPU()->sgbBorderLoaded = false; // Effectively unloads any sgb border
-    mgrLoadBorder();
+    mgrRefreshBorder();
 
     gameboy->init();
     if(gameboy->getRomFile()->isGBS()) {
@@ -128,7 +128,7 @@ void mgrSelectRom() {
     if(!chooserInitialized) {
         chooserInitialized = true;
 
-        DIR* dir = opendir(romPath);
+        DIR* dir = opendir(romPath.c_str());
         if(dir) {
             closedir(dir);
             romChooser.setDirectory(romPath);
@@ -165,7 +165,7 @@ void mgrLoadBorderFile(const char* filename) {
     free(imgData);
 }
 
-void mgrLoadBorder() {
+void mgrRefreshBorder() {
     // TODO: SGB?
 
     if(borderSetting == 1) {
@@ -179,10 +179,10 @@ void mgrLoadBorder() {
             }
         }
 
-        FILE* defaultFile = fopen(borderPath, "r");
+        FILE* defaultFile = fopen(borderPath.c_str(), "r");
         if(defaultFile != NULL) {
             fclose(defaultFile);
-            mgrLoadBorderFile(borderPath);
+            mgrLoadBorderFile(borderPath.c_str());
             return;
         }
     }
@@ -194,7 +194,7 @@ void mgrRefreshBios() {
     gameboy->gbBiosLoaded = false;
     gameboy->gbcBiosLoaded = false;
 
-    FILE* gbFile = fopen(gbBiosPath, "rb");
+    FILE* gbFile = fopen(gbBiosPath.c_str(), "rb");
     if(gbFile != NULL) {
         struct stat st;
         fstat(fileno(gbFile), &st);
@@ -207,7 +207,7 @@ void mgrRefreshBios() {
         fclose(gbFile);
     }
 
-    FILE* gbcFile = fopen(gbcBiosPath, "rb");
+    FILE* gbcFile = fopen(gbcBiosPath.c_str(), "rb");
     if(gbcFile != NULL) {
         struct stat st;
         fstat(fileno(gbcFile), &st);

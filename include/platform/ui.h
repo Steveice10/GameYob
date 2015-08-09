@@ -1,6 +1,6 @@
 #pragma once
 
-#include <stdarg.h>
+#include "types.h"
 
 typedef enum {
     TEXT_COLOR_NONE = 0,
