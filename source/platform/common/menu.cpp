@@ -1128,7 +1128,7 @@ const std::string menuPrintConfig() {
     for(int i = 0; i < numMenus; i++) {
         for(int j = 0; j < menuList[i].numOptions; j++) {
             if(menuList[i].options[j].platforms & MENU_BITMASK && menuList[i].options[j].numValues != 0) {
-                stream << menuList[i].options[j].name << "=" << menuList[i].options[j].selection;
+                stream << menuList[i].options[j].name << "=" << menuList[i].options[j].selection << "\n";
             }
         }
     }
