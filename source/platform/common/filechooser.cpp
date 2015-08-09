@@ -235,8 +235,6 @@ void FileChooser::refreshContents() {
 
     DIR* dir = opendir(directory.c_str());
     if(dir != NULL) {
-        char buffer[512];
-
         // Read file list
         dirent* entry;
         while((entry = readdir(dir)) != NULL) {
@@ -277,10 +275,14 @@ void FileChooser::refreshContents() {
                     // Check for suspend state
                     if(isRomFile) {
                         if(!unmatchedStates.empty()) {
-                            strncpy(buffer, entry->d_name, 512);
-                            *(strrchr(buffer, '.')) = '\0';
+                            std::string name = entry->d_name;
+                            std::string::size_type dot = name.find('.');
+                            if(dot != std::string::npos) {
+                                name = name.substr(0, dot);
+                            }
+
                             for(uint i = 0; i < unmatchedStates.size(); i++) {
-                                if(strcmp(buffer, unmatchedStates[i].c_str()) == 0) {
+                                if(name.compare(unmatchedStates[i]) == 0) {
                                     flag |= FLAG_SUSPENDED;
                                     unmatchedStates.erase(unmatchedStates.begin() + i);
                                     break;
@@ -295,14 +297,22 @@ void FileChooser::refreshContents() {
                 }
             } else if(ext && strcasecmp(ext, "yss") == 0 && !(entry->d_type & DT_DIR)) {
                 bool matched = false;
-                char buffer2[512];
-                strncpy(buffer2, entry->d_name, 512);
-                *(strrchr(buffer2, '.')) = '\0';
+
+                std::string dirName = entry->d_name;
+                std::string::size_type dirDot = dirName.find('.');
+                if(dirDot != std::string::npos) {
+                    dirName = dirName.substr(0, dirDot);
+                }
+
                 for(int i = 0; i < numFiles; i++) {
                     if(flags[i] & FLAG_ROM) {
-                        strcpy(buffer, filenames[i].c_str());
-                        *(strrchr(buffer, '.')) = '\0';
-                        if(strcmp(buffer, buffer2) == 0) {
+                        std::string fileName = filenames[i];
+                        std::string::size_type fileDot = fileName.find('.');
+                        if(fileDot != std::string::npos) {
+                            fileName = fileName.substr(0, fileDot);
+                        }
+
+                        if(fileName.compare(dirName) == 0) {
                             flags[i] |= FLAG_SUSPENDED;
                             matched = true;
                             break;
@@ -311,7 +321,7 @@ void FileChooser::refreshContents() {
                 }
 
                 if(!matched) {
-                    unmatchedStates.push_back(std::string(buffer2));
+                    unmatchedStates.push_back(dirName);
                 }
             }
         }
@@ -345,12 +355,14 @@ void FileChooser::redrawChooser() {
     uiWaitForVBlank();
     uiClear();
 
-    char buffer[256];
-    strncpy(buffer, directory.c_str(), (size_t) screenLen);
-    buffer[screenLen] = '\0';
-    uiPrint("%s", buffer);
+    std::string currDirName = directory;
+    if(currDirName.length() > screenLen) {
+        currDirName = currDirName.substr(0, (std::string::size_type) screenLen);
+    }
 
-    for(uint j = 0; j < screenLen - strlen(buffer); j++) {
+    uiPrint("%s", currDirName.c_str());
+
+    for(uint j = 0; j < screenLen - currDirName.length(); j++) {
         uiPrint(" ");
     }
 
@@ -366,13 +378,15 @@ void FileChooser::redrawChooser() {
             uiPrint("  ");
         }
 
-        int stringLen = screenLen - 2;
+        int displayLen = screenLen - 2;
         if(flags[i] & FLAG_DIRECTORY) {
-            stringLen--;
+            displayLen--;
         }
 
-        strncpy(buffer, filenames[i].c_str(), (size_t) stringLen);
-        buffer[stringLen] = '\0';
+        std::string fileName = filenames[i];
+        if(fileName.length() > displayLen) {
+            fileName = fileName.substr(0, (std::string::size_type) displayLen);
+        }
 
         if(flags[i] & FLAG_DIRECTORY) {
             uiSetTextColor(TEXT_COLOR_YELLOW);
@@ -380,12 +394,12 @@ void FileChooser::redrawChooser() {
             uiSetTextColor(TEXT_COLOR_PURPLE);
         }
 
-        uiPrint("%s", buffer);
+        uiPrint("%s", fileName.c_str());
         if(flags[i] & FLAG_DIRECTORY) {
             uiPrint("/");
         }
 
-        for(uint j = 0; j < stringLen - strlen(buffer); j++) {
+        for(uint j = 0; j < displayLen - fileName.length(); j++) {
             uiPrint(" ");
         }
 
