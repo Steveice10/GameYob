@@ -16,7 +16,10 @@ bool highlighted = false;
 void uiInit() {
     initscr();
     start_color();
-    window = newwin(24, 80, 0, 0);
+
+    struct winsize w;
+    ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
+    window = newwin(w.ws_row, w.ws_col, 0, 0);
 
     noecho();
     cbreak();

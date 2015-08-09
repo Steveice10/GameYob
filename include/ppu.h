@@ -45,7 +45,9 @@ public:
     int fastForwardFrameSkip = 0;
 
 private:
-    void drawSprite(int scanline, int spriteNum);
+    void drawBackground(int scanline);
+    void drawWindow(int scanline);
+    void drawSprites(int scanline);
 
     Gameboy* gameboy;
 

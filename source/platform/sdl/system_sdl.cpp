@@ -93,6 +93,8 @@ void systemPrintDebug(const char* str, ...) {
         va_start(list, str);
         uiPrintv(str, list);
         va_end(list);
+
+        uiFlush();
     }
 }
 
