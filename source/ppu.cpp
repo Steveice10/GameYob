@@ -145,7 +145,7 @@ void GameboyPPU::drawBackground(int scanline) {
     if(gameboy->gbMode == CGB || (gameboy->ioRam[0x40] & 1) != 0) { // Background enabled
         int winX = gameboy->ioRam[0x4B] - 7;
         int winY = gameboy->ioRam[0x4A];
-        bool drawingWindow = scanline >= winY && gameboy->ioRam[0x40] & 0x20;
+        bool drawingWindow = winY <= scanline && winY < 144 && winX >= 0 && winX < 160 && gameboy->ioRam[0x40] & 0x20;
         bool tileSigned = !(gameboy->ioRam[0x40] & 0x10); // Tile Data location
 
         u8 scrollX = gameboy->ioRam[0x43];
@@ -250,9 +250,10 @@ void GameboyPPU::drawBackground(int scanline) {
 }
 
 void GameboyPPU::drawWindow(int scanline) {
+    int winX = gameboy->ioRam[0x4B] - 7;
     int winY = gameboy->ioRam[0x4A];
-    if(scanline >= winY && gameboy->ioRam[0x40] & 0x20) { // Window enabled
-        int winX = gameboy->ioRam[0x4B] - 7;
+    bool drawingWindow = winY <= scanline && winY < 144 && winX >= 0 && winX < 160 && gameboy->ioRam[0x40] & 0x20;
+    if(drawingWindow) { // Window enabled
         bool tileSigned = !(gameboy->ioRam[0x40] & 0x10); // Tile Data location
 
         // The y position (measured in tiles)
