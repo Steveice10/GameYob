@@ -1039,7 +1039,6 @@ inline int Gameboy::updateLCD(int cycles) {
         case 2:
             ioRam[0x41]++; // Set mode 3
             scanlineCounter += 172 << doubleSpeed;
-            ppu->drawScanline(ioRam[0x44]);
             break;
         case 3:
             ioRam[0x41] &= ~3; // Set mode 0
@@ -1050,7 +1049,7 @@ inline int Gameboy::updateLCD(int cycles) {
 
             scanlineCounter += 204 << doubleSpeed;
 
-            ppu->drawScanline_P2(ioRam[0x44]);
+            ppu->drawScanline(ioRam[0x44]);
             if(updateHBlankDMA()) {
                 extraCycles += 8 << doubleSpeed;
             }

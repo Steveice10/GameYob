@@ -95,9 +95,6 @@ void GameboyPPU::clearPPU() {
 }
 
 void GameboyPPU::drawScanline(int scanline) {
-}
-
-void GameboyPPU::drawScanline_P2(int scanline) {
     if(gfxGetFastForward() && fastForwardCounter < fastForwardFrameSkip) {
         return;
     }
@@ -124,13 +121,19 @@ void GameboyPPU::drawScanline_P2(int scanline) {
         }
     }
 
-    subSgbMap = &gameboy->sgbMap[scanline / 8 * 20];
     lineBuffer = gfxGetLineBuffer(scanline);
-    memset(depthBuffer, 0, 160 * sizeof(u32));
 
     if(gfxMask == 0) {
-        drawBackground(scanline);
-        drawWindow(scanline);
+        memset(depthBuffer, 0, 160 * sizeof(u32));
+        subSgbMap = &gameboy->sgbMap[scanline / 8 * 20];
+
+        int winX = gameboy->ioRam[0x4B] - 7;
+        int winY = gameboy->ioRam[0x4A];
+        bool drawingWindow = winY <= scanline && winY < 144 && winX >= 0 && winX < 160 && gameboy->ioRam[0x40] & 0x20;
+        bool tileSigned = !(gameboy->ioRam[0x40] & 0x10); // Tile Data location
+
+        drawBackground(scanline, winX, winY, drawingWindow, tileSigned);
+        drawWindow(scanline, winX, winY, drawingWindow, tileSigned);
         drawSprites(scanline);
     } else if(gfxMask == 2) {
         memset(lineBuffer, 0x00, 160 * sizeof(u32));
@@ -141,13 +144,8 @@ void GameboyPPU::drawScanline_P2(int scanline) {
     }
 }
 
-void GameboyPPU::drawBackground(int scanline) {
+void GameboyPPU::drawBackground(int scanline, int winX, int winY, bool drawingWindow, bool tileSigned) {
     if(gameboy->gbMode == CGB || (gameboy->ioRam[0x40] & 1) != 0) { // Background enabled
-        int winX = gameboy->ioRam[0x4B] - 7;
-        int winY = gameboy->ioRam[0x4A];
-        bool drawingWindow = winY <= scanline && winY < 144 && winX >= 0 && winX < 160 && gameboy->ioRam[0x40] & 0x20;
-        bool tileSigned = !(gameboy->ioRam[0x40] & 0x10); // Tile Data location
-
         u8 scrollX = gameboy->ioRam[0x43];
         int scrollY = gameboy->ioRam[0x42];
 
@@ -249,13 +247,8 @@ void GameboyPPU::drawBackground(int scanline) {
     }
 }
 
-void GameboyPPU::drawWindow(int scanline) {
-    int winX = gameboy->ioRam[0x4B] - 7;
-    int winY = gameboy->ioRam[0x4A];
-    bool drawingWindow = winY <= scanline && winY < 144 && winX >= 0 && winX < 160 && gameboy->ioRam[0x40] & 0x20;
+void GameboyPPU::drawWindow(int scanline, int winX, int winY, bool drawingWindow, bool tileSigned) {
     if(drawingWindow) { // Window enabled
-        bool tileSigned = !(gameboy->ioRam[0x40] & 0x10); // Tile Data location
-
         // The y position (measured in tiles)
         int tileY = (scanline - winY) / 8;
 

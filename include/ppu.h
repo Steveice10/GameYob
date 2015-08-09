@@ -19,7 +19,6 @@ public:
     void clearPPU();
 
     void drawScanline(int scanline);
-    void drawScanline_P2(int scanline);
     void drawScreen();
 
     void setSgbMask(int mask);
@@ -45,8 +44,8 @@ public:
     int fastForwardFrameSkip = 0;
 
 private:
-    void drawBackground(int scanline);
-    void drawWindow(int scanline);
+    void drawBackground(int scanline, int winX, int winY, bool drawingWindow, bool tileSigned);
+    void drawWindow(int scanline, int winX, int winY, bool drawingWindow, bool tileSigned);
     void drawSprites(int scanline);
 
     Gameboy* gameboy;
