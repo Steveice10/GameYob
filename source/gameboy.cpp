@@ -840,6 +840,10 @@ bool Gameboy::isGameboyPaused() {
 }
 
 int Gameboy::runEmul() {
+    if(gameboyPaused) {
+        return RET_VBLANK;
+    }
+
     emuRet = 0;
     memcpy(&g_gbRegs, &gbRegs, sizeof(Registers));
 

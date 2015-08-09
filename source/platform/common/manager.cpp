@@ -298,7 +298,7 @@ void mgrRun() {
         return;
     }
 
-    while(!gameboy->isGameboyPaused() && !(gameboy->runEmul() & RET_VBLANK));
+    while(!(gameboy->runEmul() & RET_VBLANK));
 
     gameboy->getPPU()->drawScreen();
 
