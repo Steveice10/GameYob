@@ -1145,10 +1145,10 @@ inline void Gameboy::updateSerial(int cycles) {
                 // Execution will stop here, and this gameboy's SB will be
                 // updated when the other gameboy runs to the appropriate
                 // cycle.
-            } else if(printerEnabled) {
+            } else if(printerEnabled && romFile->getRomTitle().compare("ALLEY WAY") != 0) { // Alleyway breaks when the printer is enabled, so force disable it.
                 ioRam[0x01] = printer->sendGbPrinterByte(ioRam[0x01]);
             } else {
-                ioRam[0x01] = 0xff;
+                ioRam[0x01] = 0xFF;
             }
 
             requestInterrupt(INT_SERIAL);
