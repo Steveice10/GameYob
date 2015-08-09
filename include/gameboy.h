@@ -113,7 +113,7 @@ public:
     void unpause();
     bool isGameboyPaused();
     int runEmul();
-    void initGameboyMode();
+    void initGameboyMode(bool fromBios);
     void checkLYC();
     int updateLCD(int cycles);
     void updateTimers(int cycles);

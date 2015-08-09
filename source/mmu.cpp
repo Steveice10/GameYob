@@ -175,7 +175,7 @@ void Gameboy::initMMU() {
     memset(tama5RAM, 0, sizeof(tama5RAM));
 
     if(!biosOn) {
-        initGameboyMode();
+        initGameboyMode(false);
     }
 }
 
@@ -516,14 +516,14 @@ void Gameboy::writeIO(u8 ioReg, u8 val) {
             ioRam[ioReg] = val & 1;
             return;
         case 0x50: // BIOS Lockdown
-            initGameboyMode();
+            biosOn = false;
+            initGameboyMode(true);
 
             if(gbMode == GB) {
                 // Reinitialize sound so that it'll be in GB mode.
                 initSND();
             }
 
-            biosOn = false;
             refreshRomBank0(romBank0Num);
             return;
         case 0x55: // CGB DMA

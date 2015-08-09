@@ -478,7 +478,7 @@ char* FileChooser::startFileChooser() {
     fileChooserActive = true;
     while(true) {
         systemCheckRunning();
-        gfxWaitForVBlank();
+        uiWaitForVBlank();
         inputUpdate();
 
         char* result;

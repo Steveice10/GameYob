@@ -660,7 +660,7 @@ void Gameboy::initSND() {
 }
 
 // Called either from startup or when FF50 is written to.
-void Gameboy::initGameboyMode() {
+void Gameboy::initGameboyMode(bool fromBios) {
     gbRegs.af.b.l = 0xB0;
     gbRegs.bc.w = 0x0013;
     gbRegs.de.w = 0x00D8;
@@ -669,7 +669,7 @@ void Gameboy::initGameboyMode() {
         case 0: // GB
             gbRegs.af.b.h = 0x01;
             gbMode = GB;
-            if(romFile->isCgbSupported() || biosOn) {
+            if(romFile->isCgbSupported() || fromBios) {
                 // Init the palette in case it was overwritten.
                 initGFXPalette();
             }
@@ -883,14 +883,18 @@ int Gameboy::runEmul() {
 void Gameboy::initGFXPalette() {
     memset(bgPaletteData, 0xff, 0x40);
     if(gbMode == GB) {
-        const unsigned short* palette;
+        const unsigned short* palette = NULL;
         switch(gbColorizeMode) {
             case 0:
                 palette = findPalette("GBC - Grayscale");
                 break;
             case 1:
-                palette = findPalette(romFile->getRomTitle().c_str());
-                if(!palette) {
+                // Don't set the game's palette until we're past the BIOS screen.
+                if(!biosOn) {
+                    palette = findPalette(romFile->getRomTitle().c_str());
+                }
+
+                if(palette == NULL) {
                     palette = findPalette("GBC - Grayscale");
                 }
 

@@ -53,7 +53,7 @@ void mgrLoadRom(const char* filename) {
 
         while(true) {
             systemCheckRunning();
-            gfxWaitForVBlank();
+            uiWaitForVBlank();
         }
     }
 
@@ -144,7 +144,7 @@ void mgrSelectRom() {
 
         while(true) {
             systemCheckRunning();
-            gfxWaitForVBlank();
+            uiWaitForVBlank();
         }
     }
 
