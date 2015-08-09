@@ -95,7 +95,7 @@ void GameboyPPU::clearPPU() {
 }
 
 void GameboyPPU::drawScanline(int scanline) {
-    if(gfxGetFastForward() && fastForwardCounter < fastForwardFrameSkip) {
+    if((gfxGetFastForward() && fastForwardCounter < fastForwardFrameSkip) || gameboy->getRomFile()->isGBS()) {
         return;
     }
 
