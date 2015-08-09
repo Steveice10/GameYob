@@ -1534,7 +1534,7 @@ bool Gameboy::loadState(FILE* file) {
     }
 
     // Some version 5 states will have the wrong BIOS flag set. Doubt many people have save states on the BIOS screen anyway.
-    if(version == 5 || (gbBios && !gbBiosLoaded) || !gbcBiosLoaded) {
+    if(version == 5 || (gbBios && !gbBiosLoaded) || (!gbBios && !gbcBiosLoaded)) {
         biosOn = false;
     }
 

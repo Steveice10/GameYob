@@ -102,7 +102,7 @@ void Gameboy::initMMU() {
         return;
     }
 
-    biosOn = !ppu->probingForBorder && !romFile->isGBS() && ((biosMode == 1 && (gbBiosLoaded || gbcBiosLoaded)) || (biosMode == 2 && gbBiosLoaded) || (biosMode == 3 && gbcBiosLoaded));
+    biosOn = !ppu->probingForBorder && !romFile->isGBS() && ((biosMode == 1 && ((resultantGBMode != 1 && gbBiosLoaded) || gbcBiosLoaded)) || (biosMode == 2 && gbBiosLoaded) || (biosMode == 3 && gbcBiosLoaded));
 
     wramBank = 1;
     vramBank = 0;

@@ -38,13 +38,6 @@ void generalParseConfig(char* line) {
             borderPath = value;
         }
     }
-
-    size_t len = romPath.length();
-    if(len == 0 || romPath[len - 1] != '/') {
-        romPath += "/";
-    }
-
-    mgrRefreshBios();
 }
 
 const std::string generalPrintConfig() {
@@ -210,6 +203,12 @@ bool readConfigFile() {
     fclose(file);
 
     end:
+    size_t len = romPath.length();
+    if(len == 0 || romPath[len - 1] != '/') {
+        romPath += "/";
+    }
+    
+    mgrRefreshBios();
     controlsCheckConfig();
     return file != NULL;
 }
