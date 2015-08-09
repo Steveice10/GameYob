@@ -17,7 +17,7 @@ void (Gameboy::*sgbCommands[])(int) = {
         &Gameboy::sgbObjTrn, NULL, NULL, NULL, NULL, NULL, NULL, NULL
 };
 
-void Gameboy::sgbInit() {
+void Gameboy::initSGB() {
     sgbPacketLength = 0;
     sgbNumControllers = 1;
     sgbSelectedController = 0;

@@ -277,8 +277,7 @@ void setFastForwardFrameSkipFunc(int value) {
 void gbColorizeFunc(int value) {
     gameboy->gbColorizeMode = value;
     if(gameboy->isRomLoaded() && gameboy->gbMode == GB) {
-        gameboy->initGFXPalette();
-        gameboy->getPPU()->refreshPPU();
+        gameboy->refreshGFXPalette();
     }
 }
 

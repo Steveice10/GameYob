@@ -102,8 +102,6 @@ void Gameboy::initMMU() {
         return;
     }
 
-    biosOn = !ppu->probingForBorder && !romFile->isGBS() && ((biosMode == 1 && ((resultantGBMode != 1 && gbBiosLoaded) || gbcBiosLoaded)) || (biosMode == 2 && gbBiosLoaded) || (biosMode == 3 && gbcBiosLoaded));
-
     wramBank = 1;
     vramBank = 0;
     romBank0Num = 0;
@@ -173,10 +171,6 @@ void Gameboy::initMMU() {
     tama5RamByteSelect = 0;
     memset(tama5Commands, 0, sizeof(tama5Commands));
     memset(tama5RAM, 0, sizeof(tama5RAM));
-
-    if(!biosOn) {
-        initGameboyMode(false);
-    }
 }
 
 void Gameboy::mapMemory() {
@@ -517,7 +511,7 @@ void Gameboy::writeIO(u8 ioReg, u8 val) {
             return;
         case 0x50: // BIOS Lockdown
             biosOn = false;
-            initGameboyMode(true);
+            initGameboyMode();
 
             if(gbMode == GB) {
                 // Reinitialize sound so that it'll be in GB mode.

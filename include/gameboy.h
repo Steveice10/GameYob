@@ -97,7 +97,7 @@ public:
     void initGBMode();
     void initGBCMode();
     void initSND();
-    void initGFXPalette();
+    void refreshGFXPalette();
 
     inline void setEventCycles(int cycles) {
         if(cycles < cyclesToEvent) {
@@ -113,7 +113,7 @@ public:
     void unpause();
     bool isGameboyPaused();
     int runEmul();
-    void initGameboyMode(bool fromBios);
+    void initGameboyMode();
     void checkLYC();
     int updateLCD(int cycles);
     void updateTimers(int cycles);
@@ -418,7 +418,7 @@ public:
 
     // sgb.cpp
 public:
-    void sgbInit();
+    void initSGB();
     void sgbHandleP1(u8 val);
     u8 sgbReadP1();
 

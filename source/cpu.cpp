@@ -103,13 +103,6 @@ void Gameboy::initCPU() {
 
     if(biosOn) {
         gbRegs.pc.w = 0;
-        if(biosMode == 1) {
-            gbMode = resultantGBMode != 1 && gbBiosLoaded ? GB : CGB;
-        } else if(biosMode == 2) {
-            gbMode = GB;
-        } else if(biosMode == 3) {
-            gbMode = CGB;
-        }
     } else {
         gbRegs.pc.w = 0x100;
     }

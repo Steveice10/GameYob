@@ -540,6 +540,35 @@ void Gameboy::init() {
         return;
     }
 
+    sgbMode = false;
+
+    gameboyFrameCounter = 0;
+
+    gameboyPaused = false;
+
+    scanlineCounter = 456 * (doubleSpeed ? 2 : 1);
+    phaseCounter = 456 * 153;
+    timerCounter = 0;
+    dividerCounter = 256;
+    serialCounter = 0;
+
+    cyclesToEvent = 0;
+    extraCycles = 0;
+    cyclesSinceVBlank = 0;
+    cycleToSerialTransfer = -1;
+
+    // Timer stuff
+    periods[0] = clockSpeed / 4096;
+    periods[1] = clockSpeed / 262144;
+    periods[2] = clockSpeed / 65536;
+    periods[3] = clockSpeed / 16384;
+    timerPeriod = periods[0];
+
+    memset(vram[0], 0, 0x2000);
+    memset(vram[1], 0, 0x2000);
+
+    setDoubleSpeed(0);
+
     if(romFile->isGBS()) {
         resultantGBMode = 1; // GBC
         ppu->probingForBorder = false;
@@ -573,43 +602,27 @@ void Gameboy::init() {
         }
     }
 
-    sgbMode = false;
+    biosOn = !ppu->probingForBorder && !romFile->isGBS() && ((biosMode == 1 && ((resultantGBMode != 1 && gbBiosLoaded) || gbcBiosLoaded)) || (biosMode == 2 && gbBiosLoaded) || (biosMode == 3 && gbcBiosLoaded));
+    if(biosOn) {
+        if(biosMode == 1) {
+            gbMode = resultantGBMode != 1 && gbBiosLoaded ? GB : CGB;
+        } else if(biosMode == 2) {
+            gbMode = GB;
+        } else if(biosMode == 3) {
+            gbMode = CGB;
+        }
+    } else {
+        initGameboyMode();
+    }
 
     initMMU();
     initCPU();
-    sgbInit();
-
-    gameboyFrameCounter = 0;
-
-    gameboyPaused = false;
-    setDoubleSpeed(0);
-
-    scanlineCounter = 456 * (doubleSpeed ? 2 : 1);
-    phaseCounter = 456 * 153;
-    timerCounter = 0;
-    dividerCounter = 256;
-    serialCounter = 0;
-
-    cyclesToEvent = 0;
-    extraCycles = 0;
-    cyclesSinceVBlank = 0;
-    cycleToSerialTransfer = -1;
-
+    initSGB();
+    initSND();
+    ppu->initPPU();
     printer->initGbPrinter();
 
-    // Timer stuff
-    periods[0] = clockSpeed / 4096;
-    periods[1] = clockSpeed / 262144;
-    periods[2] = clockSpeed / 65536;
-    periods[3] = clockSpeed / 16384;
-    timerPeriod = periods[0];
-
-    memset(vram[0], 0, 0x2000);
-    memset(vram[1], 0, 0x2000);
-
-    initGFXPalette();
-    ppu->initPPU();
-    initSND();
+    refreshGFXPalette();
 
     if(romFile->isGBS()) {
         romFile->getGBS()->init(this);
@@ -660,7 +673,7 @@ void Gameboy::initSND() {
 }
 
 // Called either from startup or when FF50 is written to.
-void Gameboy::initGameboyMode(bool fromBios) {
+void Gameboy::initGameboyMode() {
     gbRegs.af.b.l = 0xB0;
     gbRegs.bc.w = 0x0013;
     gbRegs.de.w = 0x00D8;
@@ -669,11 +682,7 @@ void Gameboy::initGameboyMode(bool fromBios) {
         case 0: // GB
             gbRegs.af.b.h = 0x01;
             gbMode = GB;
-            if(romFile->isCgbSupported() || fromBios) {
-                // Init the palette in case it was overwritten.
-                initGFXPalette();
-            }
-
+            refreshGFXPalette();
             break;
         case 1: // GBC
             gbRegs.af.b.h = 0x11;
@@ -880,7 +889,7 @@ int Gameboy::runEmul() {
     }
 }
 
-void Gameboy::initGFXPalette() {
+void Gameboy::refreshGFXPalette() {
     memset(bgPaletteData, 0xff, 0x40);
     if(gbMode == GB) {
         const unsigned short* palette = NULL;
@@ -943,6 +952,8 @@ void Gameboy::initGFXPalette() {
         memcpy(bgPaletteData, palette, 4 * sizeof(u16));
         memcpy(sprPaletteData, palette + 4, 4 * sizeof(u16));
         memcpy(sprPaletteData + 4 * 8, palette + 8, 4 * sizeof(u16));
+
+        ppu->refreshPPU();
     }
 }
 
