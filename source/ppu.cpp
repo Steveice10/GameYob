@@ -220,7 +220,7 @@ void GameboyPPU::drawBackground(int scanline, int winX, int winY, bool drawingWi
             // Split Render mode based on sgbMode, slight speed up
             if(gameboy->sgbMode) {
                 for(int x = 0; x < 16; x += 2, writeX++) {
-                    if(writeX < 0 || writeX >= 160) {
+                    if(writeX >= 160) {
                         continue;
                     }
 
@@ -232,7 +232,7 @@ void GameboyPPU::drawBackground(int scanline, int winX, int winY, bool drawingWi
                 }
             } else {
                 for(int x = 0; x < 16; x += 2, writeX++) {
-                    if(writeX < 0 || writeX >= 160) {
+                    if(writeX >= 160) {
                         continue;
                     }
 
@@ -313,7 +313,7 @@ void GameboyPPU::drawWindow(int scanline, int winX, int winY, bool drawingWindow
             // Split Render mode based on sgbMode, slight speed up
             if(gameboy->sgbMode) {
                 for(int x = 0; x < 16; x += 2, writeX++) {
-                    if(writeX < 0 || writeX >= 160) {
+                    if(writeX >= 160) {
                         continue;
                     }
 
@@ -325,7 +325,7 @@ void GameboyPPU::drawWindow(int scanline, int winX, int winY, bool drawingWindow
                 }
             } else {
                 for(int x = 0; x < 16; x += 2, writeX++) {
-                    if(writeX < 0 || writeX >= 160) {
+                    if(writeX >= 160) {
                         continue;
                     }
 
@@ -408,7 +408,7 @@ void GameboyPPU::drawSprites(int scanline) {
             // Split Render mode based on sgbMode, slight speed up
             if(gameboy->sgbMode) {
                 for(int j = 0; j < 16; j += 2, writeX++) {
-                    if(writeX < 0 || writeX >= 160) {
+                    if(writeX >= 160) {
                         continue;
                     }
 
@@ -422,7 +422,7 @@ void GameboyPPU::drawSprites(int scanline) {
                 }
             } else {
                 for(int j = 0; j < 16; j += 2, writeX++) {
-                    if(writeX < 0 || writeX >= 160) {
+                    if(writeX >= 160) {
                         continue;
                     }
 
