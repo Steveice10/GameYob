@@ -16,10 +16,10 @@
 #include "gameboy.h"
 #include "romfile.h"
 
-std::string gbBiosPath = systemDefaultGbBiosPath();
-std::string gbcBiosPath = systemDefaultGbcBiosPath();
-std::string borderPath = systemDefaultBorderPath();
-std::string romPath = systemDefaultRomPath();
+std::string gbBiosPath = "";
+std::string gbcBiosPath = "";
+std::string borderPath = "";
+std::string romPath = "";
 
 void generalParseConfig(char* line) {
     char* equalsPos;
@@ -165,6 +165,11 @@ const std::string controlsPrintConfig() {
 }
 
 bool readConfigFile() {
+    gbBiosPath = systemDefaultGbBiosPath();
+    gbcBiosPath = systemDefaultGbcBiosPath();
+    borderPath = systemDefaultBorderPath();
+    romPath = systemDefaultRomPath();
+
     FILE* file = fopen(systemIniPath().c_str(), "r");
     char line[100];
     void (*configParser)(char*) = generalParseConfig;
@@ -207,7 +212,7 @@ bool readConfigFile() {
     if(len == 0 || romPath[len - 1] != '/') {
         romPath += "/";
     }
-    
+
     mgrRefreshBios();
     controlsCheckConfig();
     return file != NULL;
