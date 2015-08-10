@@ -459,11 +459,16 @@ void Gameboy::writeIO(u8 ioReg, u8 val) {
             ioRam[ioReg] = val;
 
             int src = val << 8;
-            u8* mem = memory[src >> 12];
-            src &= 0xfff;
-            for(int i = 0; i < 0xA0; i++) {
-                u8 val = mem[src++];
-                hram[i] = val;
+            if((src >> 12) == ((src + 0x9F) >> 12)) {
+                memcpy(hram, &memory[src >> 12][src & 0xFFF], 0xA0);
+            } else {
+                int part1src = src;
+                int part1size = 0x1000 - (src & 0xFFF);
+                int part2src = src + part1size;
+                int part2size = 0xA0 - part1size;
+
+                memcpy(hram, &memory[part1src >> 12][part1src & 0xFFF], (size_t) part1size);
+                memcpy(&hram[part1size], &memory[part2src >> 12][part2src & 0xFFF], (size_t) part2size);
             }
 
             return;
