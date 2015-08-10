@@ -356,7 +356,7 @@ void FileChooser::redrawChooser() {
     uiClear();
 
     std::string currDirName = directory;
-    if(currDirName.length() > screenLen) {
+    if(currDirName.length() > (u32) screenLen) {
         currDirName = currDirName.substr(0, (std::string::size_type) screenLen);
     }
 
@@ -384,7 +384,7 @@ void FileChooser::redrawChooser() {
         }
 
         std::string fileName = filenames[i];
-        if(fileName.length() > displayLen) {
+        if(fileName.length() > (u32) displayLen) {
             fileName = fileName.substr(0, (std::string::size_type) displayLen);
         }
 

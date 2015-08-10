@@ -602,7 +602,7 @@ void Gameboy::init() {
         }
     }
 
-    biosOn = !ppu->probingForBorder && !romFile->isGBS() && ((biosMode == 1 && ((resultantGBMode != 1 && gbBiosLoaded) || gbcBiosLoaded)) || (biosMode == 2 && gbBiosLoaded) || (biosMode == 3 && gbcBiosLoaded));
+    biosOn = !ppu->probingForBorder && !romFile->isGBS() && ((biosMode == 1 && ((resultantGBMode != 1 && gbBiosLoaded) || gbcBiosLoaded)) || (biosMode == 2 && resultantGBMode != 1 && gbBiosLoaded) || (biosMode == 3 && gbcBiosLoaded));
     if(biosOn) {
         if(biosMode == 1) {
             gbMode = resultantGBMode != 1 && gbBiosLoaded ? GB : CGB;
