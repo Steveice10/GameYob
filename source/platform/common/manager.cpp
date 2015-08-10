@@ -75,6 +75,7 @@ void mgrLoadRom(const char* filename) {
         gbsPlayerDraw();
     } else if(mgrStateExists(-1)) {
         mgrLoadState(-1);
+        mgrDeleteState(-1);
     }
 
     if(gameboy->getRomFile()->isGBS()) {
