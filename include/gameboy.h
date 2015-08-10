@@ -49,22 +49,22 @@ typedef enum {
 struct ClockStruct {
     union {
         struct {
-            int s, m, h, d, ctrl;
-            int u[1]; /* Unused */
+            s32 s, m, h, d, ctrl;
+            s32 u[1]; /* Unused */
         } mbc3;
         struct {
-            int m, d, y;
-            int u[3]; /* Unused */
+            s32 m, d, y;
+            s32 u[3]; /* Unused */
         } huc3;
         struct {
-            int s, m, h, d, mon, y;
+            s32 s, m, h, d, mon, y;
         } tama5;
     };
 
     /* Unused */
-    int u[4];
-    /* For VBA/Lameboy compatibility */
-    time_t last;
+    s32 u[4];
+
+    u32 last;
 };
 
 // Cpu stuff
@@ -158,14 +158,14 @@ public:
     bool biosOn;
     int biosMode;
 
-    int gbMode;
+    s32 gbMode;
     bool sgbMode;
 
-    int scanlineCounter;
-    int phaseCounter;
-    int dividerCounter;
-    int timerCounter;
-    int serialCounter;
+    s32 scanlineCounter;
+    s32 phaseCounter;
+    s32 dividerCounter;
+    s32 timerCounter;
+    s32 serialCounter;
     int timerPeriod;
     long periods[4];
 
@@ -177,9 +177,9 @@ public:
     int emuRet;
     int cycleToSerialTransfer;
 
-    int halt;
+    s32 halt;
     bool haltBug;
-    int ime;
+    s32 ime;
     int extraCycles;
     int soundCycles;
     int cyclesToExecute;
@@ -311,8 +311,8 @@ public:
     u8 bgPaletteData[0x40];
     u8 sprPaletteData[0x40];
 
-    int wramBank;
-    int vramBank;
+    s32 wramBank;
+    s32 vramBank;
 
     u16 dmaSource;
     u16 dmaDest;
@@ -376,11 +376,11 @@ public:
 
     bool ramEnabled;
 
-    int memoryModel;
+    s32 memoryModel;
     bool hasClock;
-    int romBank0Num;
-    int romBank1Num;
-    int ramBankNum;
+    s32 romBank0Num;
+    s32 romBank1Num;
+    s32 ramBankNum;
 
     bool rockmanMapper;
 
@@ -409,8 +409,8 @@ public:
     bool cameraIO;
 
     // TAMA5
-    int tama5CommandNumber;
-    int tama5RamByteSelect;
+    s32 tama5CommandNumber;
+    s32 tama5RamByteSelect;
     u8 tama5Commands[0x10];
     u8 tama5RAM[0x100];
 
@@ -453,9 +453,9 @@ public:
 
 private:
 
-    int sgbPacketLength; // Number of packets to be transferred this command
-    int sgbPacketsTransferred; // Number of packets which have been transferred so far
-    int sgbPacketBit; // Next bit # to be sent in the packet. -1 if no packet is being transferred.
+    s32 sgbPacketLength; // Number of packets to be transferred this command
+    s32 sgbPacketsTransferred; // Number of packets which have been transferred so far
+    s32 sgbPacketBit; // Next bit # to be sent in the packet. -1 if no packet is being transferred.
     u8 sgbPacket[16];
     u8 sgbCommand;
 

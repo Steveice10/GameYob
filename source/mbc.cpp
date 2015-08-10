@@ -899,5 +899,5 @@ void Gameboy::latchClock() {
             break;
     }
 
-    gbClock.last = now;
+    gbClock.last = (u32) now;
 }

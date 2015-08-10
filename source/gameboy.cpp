@@ -1560,9 +1560,11 @@ bool Gameboy::loadState(FILE* file) {
                 if(version == 3) {
                     u8 rtcReg;
                     fread(&rtcReg, 1, sizeof(rtcReg), file);
-                    if(rtcReg != 0)
+                    if(rtcReg != 0) {
                         ramBankNum = rtcReg;
+                    }
                 }
+
                 break;
             case MBC7:
                 if(version >= 6) {
