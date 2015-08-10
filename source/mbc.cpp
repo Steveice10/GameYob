@@ -25,7 +25,7 @@ u8 Gameboy::m3r(u16 addr) {
         case 0xC:
             return gbClock.mbc3.ctrl;
         default: // Not an RTC register
-            return memory[addr >> 12][addr & 0xfff];
+            return ramEnabled ? memory[addr >> 12][addr & 0xfff] : 0xff;
     }
 }
 
@@ -73,7 +73,7 @@ u8 Gameboy::camr(u16 addr) {
         // 0xA000: hardware ready, Others: write only
         return addr == 0xA000 ? 0x00 : 0xFF;
     } else {
-        return memory[addr >> 12][addr & 0xfff];
+        return ramEnabled ? memory[addr >> 12][addr & 0xfff] : 0xff;
     }
 }
 

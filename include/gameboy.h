@@ -250,8 +250,6 @@ public:
     void initMMU();
     void mapMemory();
 
-    u8 readMemoryFast(u16 addr);
-    u16 readMemory16(u16 addr);
     u8 readIO(u8 ioReg);
 
     void writeIO(u8 ioReg, u8 val);
@@ -263,9 +261,9 @@ public:
         int area = addr >> 12;
         if(!(area & 0x8) || area == 0xc || area == 0xd) {
             return memory[area][addr & 0xfff];
-        }
-        else
+        } else {
             return readMemoryOther(addr);
+        }
     }
 
     inline void writeMemory(u16 addr, u8 val) {
@@ -274,11 +272,11 @@ public:
             // Checking for this first is a tiny bit more efficient.
             wram[0][addr & 0xfff] = val;
             return;
-        }
-        else if(area == 0xd) {
+        } else if(area == 0xd) {
             wram[wramBank][addr & 0xfff] = val;
             return;
         }
+
         writeMemoryOther(addr, val);
     }
 

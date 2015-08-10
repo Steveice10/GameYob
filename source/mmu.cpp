@@ -208,14 +208,6 @@ void Gameboy::mapMemory() {
     dmaDest &= 0x1FF0;
 }
 
-u8 Gameboy::readMemoryFast(u16 addr) {
-    return memory[addr >> 12][addr & 0xfff];
-}
-
-u16 Gameboy::readMemory16(u16 addr) {
-    return readMemory(addr) | readMemory(addr + 1) << 8;
-}
-
 u8 Gameboy::readIO(u8 ioReg) {
     switch(ioReg) {
         case 0x00:
