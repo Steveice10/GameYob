@@ -1378,7 +1378,7 @@ void Gameboy::updateAutosave() {
     }
 }
 
-const int STATE_VERSION = 10;
+static const int STATE_VERSION = 10;
 
 bool Gameboy::saveState(FILE* file) {
     if(!isRomLoaded() || file == NULL) {
@@ -1481,17 +1481,17 @@ bool Gameboy::loadState(FILE* file) {
         return false;
     }
 
-    fread((char*) bgPaletteData, 1, sizeof(bgPaletteData), file);
-    fread((char*) sprPaletteData, 1, sizeof(sprPaletteData), file);
-    fread((char*) vram, 1, sizeof(vram), file);
-    fread((char*) wram, 1, sizeof(wram), file);
-    fread((char*) hram, 1, 0x200, file);
+    fread(bgPaletteData, 1, sizeof(bgPaletteData), file);
+    fread(sprPaletteData, 1, sizeof(sprPaletteData), file);
+    fread(vram, 1, sizeof(vram), file);
+    fread(wram, 1, sizeof(wram), file);
+    fread(hram, 1, 0x200, file);
 
     if(version <= 4 && romFile->getRamBanks() == 16) {
         // Value "0x04" for ram size wasn't interpreted correctly before
-        fread((char*) externRam, 1, 0x2000 * 4, file);
+        fread(externRam, 1, 0x2000 * 4, file);
     } else {
-        fread((char*) externRam, 1, (size_t) (0x2000 * romFile->getRamBanks()), file);
+        fread(externRam, 1, (size_t) (0x2000 * romFile->getRamBanks()), file);
     }
 
     fread(&gbRegs, 1, sizeof(gbRegs), file);
