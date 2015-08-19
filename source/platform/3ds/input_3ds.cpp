@@ -11,9 +11,11 @@
 #include "gameboy.h"
 #include "romfile.h"
 
-#include <ctrcommon/gpu.hpp>
-#include <ctrcommon/input.hpp>
-#include <ctrcommon/platform.hpp>
+#include <citrus/core.hpp>
+#include <citrus/gput.hpp>
+#include <citrus/hid.hpp>
+
+using namespace ctr;
 
 const char* dsKeyNames[NUM_BUTTONS] = {
         "A",         // 0
@@ -140,28 +142,31 @@ void inputCleanup() {
 }
 
 void inputUpdate() {
-    inputPoll();
+    hid::poll();
     for(int i = 0; i < NUM_FUNC_KEYS; i++) {
         if(!inputKeyHeld(i)) {
             forceReleased[i] = false;
         }
     }
 
-    if(accelPadMode && inputIsPressed(BUTTON_TOUCH) && inputGetTouch().x <= gputGetStringWidth("Exit", 8) && inputGetTouch().y <= gputGetStringHeight("Exit", 8)) {
-        inputKeyRelease(BUTTON_TOUCH);
-        accelPadMode = false;
-        uiClear();
+    if(accelPadMode && hid::pressed(hid::BUTTON_TOUCH)) {
+        hid::Touch touch = hid::touch();
+        if(touch.x <= gput::getStringHeight("Exit", 8) && touch.y <= gput::getStringWidth("Exit", 8)) {
+            inputKeyRelease(hid::BUTTON_TOUCH);
+            accelPadMode = false;
+            uiClear();
+        }
     }
 
     if(isMenuOn() || isFileChooserActive() || (gameboy->isRomLoaded() && gameboy->getRomFile()->isGBS())) {
         for(int i = 0; i < NUM_BUTTONS; i++) {
-            Button button = (Button) (1 << i);
+            hid::Button button = (hid::Button) (1 << i);
             bool pressed = false;
-            if(inputIsPressed(button)) {
-                nextUiRepeat = platformGetTime() + 250;
+            if(hid::pressed(button)) {
+                nextUiRepeat = core::time() + 250;
                 pressed = true;
-            } else if(inputIsHeld(button) && platformGetTime() >= nextUiRepeat) {
-                nextUiRepeat = platformGetTime() + 50;
+            } else if(hid::held(button) && core::time() >= nextUiRepeat) {
+                nextUiRepeat = core::time() + 50;
                 pressed = true;
             }
 
@@ -192,7 +197,7 @@ bool inputKeyHeld(int key) {
         return false;
     }
 
-    return inputIsHeld((Button) funcKeyMapping[key]);
+    return hid::held((hid::Button) funcKeyMapping[key]);
 }
 
 bool inputKeyPressed(int key) {
@@ -204,7 +209,7 @@ bool inputKeyPressed(int key) {
         return false;
     }
 
-    return inputIsPressed((Button) funcKeyMapping[key]);
+    return hid::pressed((hid::Button) funcKeyMapping[key]);
 }
 
 bool inputKeyRepeat(int key) {
@@ -213,12 +218,12 @@ bool inputKeyRepeat(int key) {
     }
 
     if(inputKeyPressed(key)) {
-        nextRepeat = platformGetTime() + 250;
+        nextRepeat = core::time() + 250;
         return true;
     }
 
-    if(inputKeyHeld(key) && platformGetTime() >= nextRepeat) {
-        nextRepeat = platformGetTime() + 50;
+    if(inputKeyHeld(key) && core::time() >= nextRepeat) {
+        nextRepeat = core::time() + 50;
         return true;
     }
 
@@ -234,12 +239,12 @@ void inputKeyRelease(int key) {
 }
 
 int inputGetMotionSensorX() {
-    int accelX = accelPadMode ? (inputIsHeld(BUTTON_TOUCH) ? 160 - inputGetTouch().x : 0) : 0;
+    int accelX = accelPadMode ? (hid::held(hid::BUTTON_TOUCH) ? 160 - hid::touch().x : 0) : 0;
     return 2047 + accelX;
 }
 
 int inputGetMotionSensorY() {
-    int accelY = accelPadMode ? (inputIsHeld(BUTTON_TOUCH) ? 120 - inputGetTouch().y : 0) : 0;
+    int accelY = accelPadMode ? (hid::held(hid::BUTTON_TOUCH) ? 120 - hid::touch().y : 0) : 0;
     return 2047 + accelY;
 }
 
@@ -253,7 +258,7 @@ void inputLoadKeyConfig(KeyConfig* keyConfig) {
         funcKeyMapping[keyConfig->funcKeys[i]] |= (1 << i);
     }
 
-    funcKeyMapping[FUNC_KEY_MENU] |= BUTTON_TOUCH;
+    funcKeyMapping[FUNC_KEY_MENU] |= hid::BUTTON_TOUCH;
 }
 
 #endif
