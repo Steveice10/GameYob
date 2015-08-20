@@ -1,5 +1,4 @@
-<b><center>GameYob</center></b>
-==========
+# GameYob
 
 Fork of [Drenn](https://github.com/Drenn1/)'s (S)GB(C) emulator [GameYob](https://github.com/Drenn1/GameYob/).
 
@@ -7,12 +6,9 @@ Credit to [gamesquest1](http://gbatemp.net/members/gamesquest1.335456/) for the 
 
 Download: https://www.dropbox.com/s/ms1kes4jhrb3meg/gameyob.zip?dl=0
 
-Requires [devkitARM](http://sourceforge.net/projects/devkitpro/files/devkitARM/) and [ctrcommon](https://github.com/Steveice10/ctrcommon) to build.
+Requires [devkitARM](http://sourceforge.net/projects/devkitpro/files/devkitARM/) and [citrus](https://github.com/Steveice10/citrus) to build.
 
-
-General Features
-----------------
-
+## General Features
 * Gameboy, Gameboy Color, Super Gameboy emulation
 * Supports Gameboy Color enhanced palettes
 * Scale to fill the screen
@@ -23,9 +19,6 @@ General Features
 * Gameboy Printer emulation
 * GBS music playback
 
-
-TODO
-----
-
+## TODO
 * Super Gameboy borders
 * WiFi connectivity
