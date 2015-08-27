@@ -322,6 +322,14 @@ void romInfoFunc(int value) {
     }
 }
 
+void versionInfoFunc(int value) {
+    displaySubMenu(subMenuGenericUpdateFunc);
+
+    uiClear();
+    uiPrint("Version: %s\n", VERSION_STRING);
+    uiFlush();
+}
+
 void setChanEnabled(int chan, int value) {
     gameboy->getAPU()->set_osc_enabled(chan, value == 1);
 }
@@ -592,7 +600,7 @@ struct MenuOption {
 struct SubMenu {
     const char* name;
     int numOptions;
-    MenuOption options[12];
+    MenuOption options[13];
 
     int selection;
 };
@@ -600,12 +608,13 @@ struct SubMenu {
 SubMenu menuList[] = {
         {
                 "Game",
-                12,
+                13,
                 {
                         {"Exit", exitFunc, 0, {}, 0, MENU_ALL},
                         {"Reset", resetFunc, 0, {}, 0, MENU_ALL},
                         {"Suspend", suspendFunc, 0, {}, 0, MENU_ALL},
                         {"ROM Info", romInfoFunc, 0, {}, 0, MENU_ALL},
+                        {"Version Info", versionInfoFunc, 0, {}, 0, MENU_ALL},
                         {"State Slot", stateSelectFunc, 10, {"0", "1", "2", "3", "4", "5", "6", "7", "8", "9"}, 0, MENU_ALL},
                         {"Save State", stateSaveFunc, 0, {}, 0, MENU_ALL},
                         {"Load State", stateLoadFunc, 0, {}, 0, MENU_ALL},

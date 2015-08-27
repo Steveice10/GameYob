@@ -7,6 +7,6 @@ endif
 # ENABLE_EXCEPTIONS: Enable C++ exceptions.
 # NO_CITRUS: Do not include citrus.
 #---------------------------------------------------------------------------------
-BUILD_FLAGS := -DBACKEND_3DS -DVERSION_STRING=\"`git describe --always --abbrev=4`\"
+BUILD_FLAGS := -DBACKEND_3DS -DVERSION_STRING="\"1.0 (`git describe --always --abbrev=4`)\""
 
 include $(DEVKITPRO)/citrus/tools/make_base
