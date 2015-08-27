@@ -32,6 +32,8 @@ void uiInit() {
     bottomConsole = (PrintConsole*) calloc(1, sizeof(PrintConsole));
     consoleInit(GFX_BOTTOM, bottomConsole);
 
+    consoleDebugInit(debugDevice_3DMOO);
+
     gfxSetScreenFormat(GFX_TOP, GSP_BGR8_OES);
     gfxSetDoubleBuffering(GFX_TOP, true);
 
