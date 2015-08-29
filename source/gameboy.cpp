@@ -567,6 +567,8 @@ void Gameboy::init() {
     memset(vram[0], 0, 0x2000);
     memset(vram[1], 0, 0x2000);
 
+    memset(bgPaletteData, 0xff, 0x40);
+
     setDoubleSpeed(0);
 
     if(romFile->isGBS()) {
@@ -894,8 +896,7 @@ int Gameboy::runEmul() {
 }
 
 void Gameboy::refreshGFXPalette() {
-    memset(bgPaletteData, 0xff, 0x40);
-    if(gbMode == GB) {
+    if(gbMode == GB && !sgbMode) {
         const unsigned short* palette = NULL;
         switch(gbColorizeMode) {
             case 0:
