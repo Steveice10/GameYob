@@ -20,6 +20,7 @@ static u32* screenBuffer;
 static int prevScaleMode = -1;
 static int prevScaleFilter = -1;
 static int prevGameScreen = -1;
+static bool borderChanged = false;
 
 static bool fastForward = false;
 
@@ -145,6 +146,8 @@ void gfxLoadBorder(u8* imgData, u32 imgWidth, u32 imgHeight) {
             borderBuffer[dst + 3] = imgData[src + 0];
         }
     }
+
+    borderChanged = true;
 }
 
 u32* gfxGetLineBuffer(int line) {
@@ -271,8 +274,18 @@ void gfxScale2x(u32* pixelBuffer) {
 }
 
 void gfxDrawScreen() {
+    // Update the viewport.
+    if(prevGameScreen != gameScreen) {
+        gpu::Screen screen = gameScreen == 0 ? gpu::SCREEN_TOP : gpu::SCREEN_BOTTOM;
+        u32 width = gameScreen == 0 ? TOP_WIDTH : BOTTOM_WIDTH;
+        u32 height = gameScreen == 0 ? TOP_HEIGHT : BOTTOM_HEIGHT;
+
+        gpu::setViewport(screen, 0, 0, width, height);
+        gput::setOrtho(0, width, 0, height, -1, 1);
+    }
+
     // Update the border VBO.
-    if(borderTexture != 0 && (borderVbo == 0 || prevGameScreen != gameScreen)) {
+    if(borderTexture != 0 && (borderVbo == 0 || borderChanged || prevGameScreen != gameScreen)) {
         // Create the VBO.
         if(borderVbo == 0) {
             gpu::createVbo(&borderVbo);
@@ -285,22 +298,15 @@ void gfxDrawScreen() {
         gpu::getViewportHeight(&sheight);
 
         // Calculate VBO points.
-        const float x1 = 0;
-        const float y1 = 0;
-        const float x2 = swidth;
-        const float y2 = sheight;
+        const float x1 = ((int) swidth - (int) borderWidth) / 2.0f;
+        const float y1 = ((int) sheight - (int) borderHeight) / 2.0f;
+        const float x2 = x1 + borderWidth;
+        const float y2 = y1 + borderHeight;
 
         // Adjust for power-of-two textures.
         float leftHorizMod = 0;
         float rightHorizMod = (float) (gpuBorderWidth - borderWidth) / (float) gpuBorderWidth;
         float vertMod = (float) (gpuBorderHeight - borderHeight) / (float) gpuBorderHeight;
-
-        if(gameScreen == 1) {
-            // Adjust for the bottom screen. (with some error, apparently?)
-            static const float mod = ((400.0f - 320.0f) / 400.0f) - (18.0f / 400.0f);
-            leftHorizMod = mod / 2.0f;
-            rightHorizMod += mod / 2.0f;
-        }
 
         // Prepare new VBO data.
         const float vboData[] = {
@@ -318,16 +324,6 @@ void gfxDrawScreen() {
 
     // Update VBO data if the size has changed.
     if(prevScaleMode != scaleMode || prevScaleFilter != scaleFilter || prevGameScreen != gameScreen) {
-        if(prevGameScreen != gameScreen) {
-            // Update the viewport.
-            gpu::Screen screen = gameScreen == 0 ? gpu::SCREEN_TOP : gpu::SCREEN_BOTTOM;
-            u32 width = gameScreen == 0 ? TOP_WIDTH : BOTTOM_WIDTH;
-            u32 height = gameScreen == 0 ? TOP_HEIGHT : BOTTOM_HEIGHT;
-
-            gpu::setViewport(screen, 0, 0, width, height);
-            gput::setOrtho(0, width, 0, height, -1, 1);
-        }
-
         u32 viewportWidth;
         u32 viewportHeight;
         gpu::getViewportWidth(&viewportWidth);

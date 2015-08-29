@@ -1,5 +1,5 @@
 APP_TITLE = GameYob
 APP_DESCRIPTION = (Super) GameBoy (Color) emulator.
-APP_AUTHOR = Drenn
+APP_AUTHOR = Drenn, Steveice10
 APP_PRODUCT_CODE = CTR-P-GYOB
 APP_UNIQUE_ID = 0x1927
