@@ -54,7 +54,7 @@ void (* subMenuUpdateFunc)();
 bool fpsOutput = false;
 bool timeOutput = false;
 
-FileChooser borderChooser("/", {"png"}, true);
+FileChooser borderChooser("/", {"png", "bmp"}, true);
 FileChooser biosChooser("/", {"bin"}, true);
 
 // Private function used for simple submenus

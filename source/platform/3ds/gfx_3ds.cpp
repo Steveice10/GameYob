@@ -132,19 +132,15 @@ void gfxLoadBorder(u8* imgData, u32 imgWidth, u32 imgHeight) {
     gpu::setTextureInfo(borderTexture, gpuBorderWidth, gpuBorderHeight, gpu::PIXEL_RGBA8, TEXTURE_MIN_FILTER(gpu::FILTER_LINEAR) | TEXTURE_MAG_FILTER(gpu::FILTER_LINEAR));
 
     // Get texture contents.
-    u8* borderBuffer;
+    u32* borderBuffer;
     gpu::getTextureData(borderTexture, (void**) &borderBuffer);
 
     // Update texture contents.
-    for(u32 x = 0; x < borderWidth; x++) {
-        for(u32 y = 0; y < borderHeight; y++) {
-            u32 src = (y * borderWidth + x) * 4;
-            u32 dst = TEXTURE_INDEX(x, y, gpuBorderWidth, gpuBorderHeight) * 4;
-            borderBuffer[dst + 0] = imgData[src + 3];
-            borderBuffer[dst + 1] = imgData[src + 2];
-            borderBuffer[dst + 2] = imgData[src + 1];
-            borderBuffer[dst + 3] = imgData[src + 0];
-        }
+    u32* imgBuffer = (u32*) imgData;
+    for(u32 i = 0; i < borderWidth * borderHeight; i++) {
+        u32 x = i % borderWidth;
+        u32 y = i / borderWidth;
+        borderBuffer[TEXTURE_INDEX(x, y, gpuBorderWidth, gpuBorderHeight)] = imgBuffer[y * borderWidth + x];
     }
 
     borderChanged = true;

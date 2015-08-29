@@ -145,17 +145,132 @@ void mgrSelectRom() {
     free(filename);
 }
 
+int mgrReadBmp(u8** data, u32* width, u32* height, const char* filename) {
+    FILE* fd = fopen(filename, "rb");
+    if(!fd) {
+        return 1;
+    }
+
+    char identifier[2];
+    fread(identifier, 2, 1, fd);
+    if(identifier[0] != 'B' || identifier[1] != 'M') {
+        return 1;
+    }
+
+    u16 dataOffset;
+    fseek(fd, 10, SEEK_SET);
+    fread(&dataOffset, 2, 1, fd);
+
+    u16 w;
+    fseek(fd, 18, SEEK_SET);
+    fread(&w, 2, 1, fd);
+
+    u16 h;
+    fseek(fd, 22, SEEK_SET);
+    fread(&h, 2, 1, fd);
+
+    u16 bits;
+    fseek(fd, 28, SEEK_SET);
+    fread(&bits, 2, 1, fd);
+    u32 bytes = (u32) (bits / 8);
+
+    u16 compression;
+    fseek(fd, 30, SEEK_SET);
+    fread(&compression, 2, 1, fd);
+
+    size_t srcSize = (size_t) (w * h * bytes);
+    u8* srcPixels = (u8*) malloc(srcSize);
+    fseek(fd, dataOffset, SEEK_SET);
+    fread(srcPixels, 1, srcSize, fd);
+
+    u8* dstPixels = (u8*) malloc(w * h * sizeof(u32));
+
+    if(bits == 16) {
+        u16* srcPixels16 = (u16*) srcPixels;
+        for(u32 x = 0; x < w; x++) {
+            for(u32 y = 0; y < h; y++) {
+                u32 srcPos = (h - y - 1) * w + x;
+                u32 dstPos = (y * w + x) * sizeof(u32);
+
+                u16 src = srcPixels16[srcPos];
+                dstPixels[dstPos + 0] = 0xFF;
+                dstPixels[dstPos + 1] = (u8) ((src & 0x1F) << 3);
+                dstPixels[dstPos + 2] = (u8) (((src >> 5) & 0x1F) << 3);
+                dstPixels[dstPos + 3] = (u8) (((src >> 10) & 0x1F) << 3);
+            }
+        }
+    } else if(bits == 24 || bits == 32) {
+        for(u32 x = 0; x < w; x++) {
+            for(u32 y = 0; y < h; y++) {
+                u32 srcPos = ((h - y - 1) * w + x) * bytes;
+                u32 dstPos = (y * w + x) * sizeof(u32);
+
+                dstPixels[dstPos + 0] = 0xFF;
+                dstPixels[dstPos + 1] = srcPixels[srcPos + bytes - 3];
+                dstPixels[dstPos + 2] = srcPixels[srcPos + bytes - 2];
+                dstPixels[dstPos + 3] = srcPixels[srcPos + bytes - 1];
+            }
+        }
+    } else {
+        return 1;
+    }
+
+    free(srcPixels);
+
+    *data = dstPixels;
+    *width = w;
+    *height = h;
+
+    return 0;
+}
+
+int mgrReadPng(u8** data, u32* width, u32* height, const char* filename) {
+    unsigned char* srcPixels;
+    unsigned int w;
+    unsigned int h;
+    int lodeRet = lodepng_decode32_file(&srcPixels, &w, &h, filename);
+    if(lodeRet != 0) {
+        return lodeRet;
+    }
+
+    u8* dstPixels = (u8*) malloc(w * h * sizeof(u32));
+    for(u32 x = 0; x < w; x++) {
+        for(u32 y = 0; y < h; y++) {
+            u32 src = (y * w + x) * 4;
+            dstPixels[src + 0] = srcPixels[src + 3];
+            dstPixels[src + 1] = srcPixels[src + 2];
+            dstPixels[src + 2] = srcPixels[src + 1];
+            dstPixels[src + 3] = srcPixels[src + 0];
+        }
+    }
+
+    free(srcPixels);
+
+    *data = dstPixels;
+    *width = w;
+    *height = h;
+
+    return 0;
+}
+
 void mgrLoadBorderFile(const char* filename) {
-    // Load the image.
-    unsigned char* imgData;
-    unsigned int imgWidth;
-    unsigned int imgHeight;
-    if(lodepng_decode32_file(&imgData, &imgWidth, &imgHeight, filename)) {
+    // Determine the file extension.
+    const std::string path = filename;
+    std::string::size_type dotPos = path.rfind('.');
+    if(dotPos == std::string::npos) {
         return;
     }
 
-    gfxLoadBorder(imgData, imgWidth, imgHeight);
-    free(imgData);
+    const std::string extension = path.substr(dotPos + 1);
+
+    // Load the image.
+    u8* imgData;
+    u32 imgWidth;
+    u32 imgHeight;
+    if((strcasecmp(extension.c_str(), "png") == 0 && mgrReadPng(&imgData, &imgWidth, &imgHeight, filename) == 0) || (strcasecmp(extension.c_str(), "bmp") == 0 && mgrReadBmp(&imgData, &imgWidth, &imgHeight, filename) == 0)) {
+        gfxLoadBorder(imgData, imgWidth, imgHeight);
+        free(imgData);
+    }
 }
 
 void mgrRefreshBorder() {
@@ -163,11 +278,19 @@ void mgrRefreshBorder() {
 
     if(borderSetting == 1) {
         if(gameboy->isRomLoaded()) {
-            std::string border = gameboy->getRomFile()->getFileName() + ".png";
-            FILE* file = fopen(border.c_str(), "r");
-            if(file != NULL) {
-                fclose(file);
-                mgrLoadBorderFile(border.c_str());
+            std::string pngBorder = gameboy->getRomFile()->getFileName() + ".png";
+            FILE* pngFile = fopen(pngBorder.c_str(), "r");
+            if(pngFile != NULL) {
+                fclose(pngFile);
+                mgrLoadBorderFile(pngBorder.c_str());
+                return;
+            }
+
+            std::string bmpBorder = gameboy->getRomFile()->getFileName() + ".bmp";
+            FILE* bmpFile = fopen(bmpBorder.c_str(), "r");
+            if(bmpFile != NULL) {
+                fclose(bmpFile);
+                mgrLoadBorderFile(bmpBorder.c_str());
                 return;
             }
         }
