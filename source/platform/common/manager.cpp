@@ -24,7 +24,7 @@ Gameboy* gameboy = NULL;
 int fps;
 time_t lastPrintTime;
 
-FileChooser romChooser("/", {"gbs", "sgb", "gbc", "cgb", "gb"}, false);
+FileChooser romChooser("/", {"gbs", "sgb", "gbc", "cgb", "gb"}, true);
 bool chooserInitialized = false;
 
 void mgrInit() {
@@ -138,15 +138,7 @@ void mgrSelectRom() {
 
     char* filename = romChooser.startFileChooser();
     if(filename == NULL) {
-        uiClear();
-        uiPrint("Filechooser error");
-        uiPrint("\n\nPlease restart GameYob.\n");
-        uiFlush();
-
-        while(true) {
-            systemCheckRunning();
-            uiWaitForVBlank();
-        }
+        systemExit();
     }
 
     mgrLoadRom(filename);
