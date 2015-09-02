@@ -178,7 +178,7 @@ void stateLoadFunc(int value) {
     }
 
     printMenuMessage("Loading state...");
-    if(mgrLoadState(value)) {
+    if(mgrLoadState(stateNum)) {
         closeMenu();
         printMessage[0] = '\0';
     } else {
