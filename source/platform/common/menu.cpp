@@ -173,7 +173,7 @@ void stateSaveFunc(int value) {
 }
 
 void stateLoadFunc(int value) {
-    if(!mgrStateExists(value)) {
+    if(!mgrStateExists(stateNum)) {
         printMenuMessage("State does not exist.");
     }
 
