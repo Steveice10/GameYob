@@ -660,7 +660,7 @@ SubMenu menuList[] = {
         },
         {
                 "Display",
-                7,
+                8,
                 {
                         {"Game Screen", setScreenFunc, 2, {"Top", "Bottom"}, 0, MENU_ALL},
                         {"Scaling", setScaleModeFunc, 5, {"Off", "125%", "150%", "Aspect", "Full"}, 0, MENU_ALL},
