@@ -19,6 +19,7 @@ static u32* screenBuffer;
 
 static int prevScaleMode = -1;
 static int prevScaleFilter = -1;
+static int prevBorderScaleMode = -1;
 static int prevGameScreen = -1;
 static bool borderChanged = false;
 
@@ -281,28 +282,46 @@ void gfxDrawScreen() {
     }
 
     // Update the border VBO.
-    if(borderTexture != 0 && (borderVbo == 0 || borderChanged || prevGameScreen != gameScreen)) {
+    if(borderTexture != 0 && (borderVbo == 0 || borderChanged || prevGameScreen != gameScreen || prevBorderScaleMode != borderScaleMode || (borderScaleMode == 1 && prevScaleMode != scaleMode))) {
         // Create the VBO.
         if(borderVbo == 0) {
             gpu::createVbo(&borderVbo);
             gpu::setVboAttributes(borderVbo, ATTRIBUTE(0, 3, gpu::ATTR_FLOAT) | ATTRIBUTE(1, 2, gpu::ATTR_FLOAT) | ATTRIBUTE(2, 4, gpu::ATTR_FLOAT), 3);
         }
 
-        u32 swidth;
-        u32 sheight;
-        gpu::getViewportWidth(&swidth);
-        gpu::getViewportHeight(&sheight);
+        u32 viewportWidth;
+        u32 viewportHeight;
+        gpu::getViewportWidth(&viewportWidth);
+        gpu::getViewportHeight(&viewportHeight);
 
         // Calculate VBO points.
-        const float x1 = ((int) swidth - (int) borderWidth) / 2.0f;
-        const float y1 = ((int) sheight - (int) borderHeight) / 2.0f;
-        const float x2 = x1 + borderWidth;
-        const float y2 = y1 + borderHeight;
+        u32 scaledBorderWidth = borderWidth;
+        u32 scaledBorderHeight = borderHeight;
+        if(borderScaleMode == 1) {
+            if(scaleMode == 1) {
+                scaledBorderWidth *= 1.25f;
+                scaledBorderHeight *= 1.25f;
+            } else if(scaleMode == 2) {
+                scaledBorderWidth *= 1.50f;
+                scaledBorderHeight *= 1.50f;
+            } else if(scaleMode == 3) {
+                scaledBorderWidth *= viewportHeight / (float) 144;
+                scaledBorderHeight *= viewportHeight / (float) 144;
+            } else if(scaleMode == 4) {
+                scaledBorderWidth *= viewportWidth / (float) 160;
+                scaledBorderHeight *= viewportHeight / (float) 144;
+            }
+        }
+
+        const float x1 = ((int) viewportWidth - (int) scaledBorderWidth) / 2.0f;
+        const float y1 = ((int) viewportHeight - (int) scaledBorderHeight) / 2.0f;
+        const float x2 = x1 + scaledBorderWidth;
+        const float y2 = y1 + scaledBorderHeight;
 
         // Adjust for power-of-two textures.
-        float leftHorizMod = 0;
-        float rightHorizMod = (float) (gpuBorderWidth - borderWidth) / (float) gpuBorderWidth;
-        float vertMod = (float) (gpuBorderHeight - borderHeight) / (float) gpuBorderHeight;
+        const float leftHorizMod = 0;
+        const float rightHorizMod = (float) (gpuBorderWidth - borderWidth) / (float) gpuBorderWidth;
+        const float vertMod = (float) (gpuBorderHeight - borderHeight) / (float) gpuBorderHeight;
 
         // Prepare new VBO data.
         const float vboData[] = {
@@ -316,6 +335,8 @@ void gfxDrawScreen() {
 
         // Update the VBO with the new data.
         gpu::setVboData(borderVbo, vboData, 6 * 9, gpu::PRIM_TRIANGLES);
+
+        prevBorderScaleMode = borderScaleMode;
     }
 
     // Update VBO data if the size has changed.
@@ -343,8 +364,8 @@ void gfxDrawScreen() {
         }
 
         // Calculate VBO points.
-        const float x1 = (float) ((viewportWidth - vboWidth) / 2);
-        const float y1 = (float) ((viewportHeight - vboHeight) / 2);
+        const float x1 = ((int) viewportWidth - (int) vboWidth) / 2.0f;
+        const float y1 = ((int) viewportHeight - (int) vboHeight) / 2.0f;
         const float x2 = x1 + vboWidth;
         const float y2 = y1 + vboHeight;
 
@@ -391,7 +412,7 @@ void gfxDrawScreen() {
     gpu::clear();
 
     // Draw the border.
-    if(borderTexture != 0 && borderVbo != 0 && scaleMode != 2) {
+    if(borderTexture != 0 && borderVbo != 0 && scaleMode != 4) {
         gpu::bindTexture(gpu::TEXUNIT0, borderTexture);
         gpu::drawVbo(borderVbo);
     }

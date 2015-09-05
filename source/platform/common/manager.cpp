@@ -276,29 +276,68 @@ void mgrLoadBorderFile(const char* filename) {
 void mgrRefreshBorder() {
     // TODO: SGB?
 
+    static const char* scaleNames[] = {"off", "125", "150", "aspect", "full"};
+
     if(borderSetting == 1) {
         if(gameboy->isRomLoaded()) {
-            std::string pngBorder = gameboy->getRomFile()->getFileName() + ".png";
-            FILE* pngFile = fopen(pngBorder.c_str(), "r");
-            if(pngFile != NULL) {
-                fclose(pngFile);
-                mgrLoadBorderFile(pngBorder.c_str());
+            if(borderScaleMode == 0) {
+                std::string scaledPngBorder = gameboy->getRomFile()->getFileName() + "_" + scaleNames[scaleMode] + ".png";
+                FILE* scaledPngFile = fopen(scaledPngBorder.c_str(), "r");
+                if(scaledPngFile != NULL) {
+                    fclose(scaledPngFile);
+                    mgrLoadBorderFile(scaledPngBorder.c_str());
+                    return;
+                }
+
+                std::string scaledBmpBorder = gameboy->getRomFile()->getFileName() + "_" + scaleNames[scaleMode] + ".bmp";
+                FILE* scaledBmpFile = fopen(scaledBmpBorder.c_str(), "r");
+                if(scaledBmpFile != NULL) {
+                    fclose(scaledBmpFile);
+                    mgrLoadBorderFile(scaledBmpBorder.c_str());
+                    return;
+                }
+            }
+
+            std::string unscaledPngBorder = gameboy->getRomFile()->getFileName() + ".png";
+            FILE* unscaledPngFile = fopen(unscaledPngBorder.c_str(), "r");
+            if(unscaledPngFile != NULL) {
+                fclose(unscaledPngFile);
+                mgrLoadBorderFile(unscaledPngBorder.c_str());
                 return;
             }
 
-            std::string bmpBorder = gameboy->getRomFile()->getFileName() + ".bmp";
-            FILE* bmpFile = fopen(bmpBorder.c_str(), "r");
-            if(bmpFile != NULL) {
-                fclose(bmpFile);
-                mgrLoadBorderFile(bmpBorder.c_str());
+            std::string unscaledBmpBorder = gameboy->getRomFile()->getFileName() + ".bmp";
+            FILE* unscaledBmpFile = fopen(unscaledBmpBorder.c_str(), "r");
+            if(unscaledBmpFile != NULL) {
+                fclose(unscaledBmpFile);
+                mgrLoadBorderFile(unscaledBmpBorder.c_str());
                 return;
             }
         }
 
-        FILE* defaultFile = fopen(borderPath.c_str(), "r");
-        if(defaultFile != NULL) {
-            fclose(defaultFile);
-            mgrLoadBorderFile(borderPath.c_str());
+        std::string path = borderPath;
+        std::string extension = "";
+        std::string::size_type dotPos = path.rfind('.');
+        if(dotPos != std::string::npos) {
+            extension = path.substr(dotPos);
+            path = path.substr(0, dotPos);
+        }
+
+        if(borderScaleMode == 0) {
+            std::string scaledDefaultBorder = path + "_" + scaleNames[scaleMode] + extension;
+            FILE* scaledDefaultFile = fopen(scaledDefaultBorder.c_str(), "r");
+            if(scaledDefaultFile != NULL) {
+                fclose(scaledDefaultFile);
+                mgrLoadBorderFile(scaledDefaultBorder.c_str());
+                return;
+            }
+        }
+
+        std::string unscaledDefaultBorder = path + extension;
+        FILE* unscaledDefaultFile = fopen(unscaledDefaultBorder.c_str(), "r");
+        if(unscaledDefaultFile != NULL) {
+            fclose(unscaledDefaultFile);
+            mgrLoadBorderFile(unscaledDefaultBorder.c_str());
             return;
         }
     }

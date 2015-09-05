@@ -11,6 +11,7 @@ extern int gameScreen;
 extern bool accelPadMode;
 extern int scaleMode;
 extern int scaleFilter;
+extern int borderScaleMode;
 extern bool fpsOutput;
 extern bool timeOutput;
 extern FILE* linkSocket;
