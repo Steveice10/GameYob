@@ -9,7 +9,7 @@ int playingSong;
 
 void gbsPlayerReset() {
     selectedSong = 0;
-    playingSong = gameboy->getRomFile()->getGBS()->getFirstSong() - 1;
+    playingSong = gameboy->getRomFile()->getGBS()->getFirstSong();
 }
 
 void gbsPlayerDraw() {
