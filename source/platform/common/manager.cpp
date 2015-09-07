@@ -100,6 +100,7 @@ void mgrLoadRom(const char* filename) {
             disableMenuOption("Load State");
             disableMenuOption("Delete State");
         }
+
         enableMenuOption("Manage Cheats");
 
         if(gameboy->isRomLoaded() && gameboy->getRomFile()->getMBC() == MBC7) {
@@ -278,43 +279,41 @@ void mgrLoadBorderFile(const char* filename) {
     }
 }
 
-int mgrTryBorderFile(std::string border) {
+bool mgrTryRawBorderFile(std::string border) {
     FILE* file = fopen(border.c_str(), "r");
     if(file != NULL) {
         fclose(file);
         mgrLoadBorderFile(border.c_str());
-        return 1;
+        return true;
     }
-    return 0;
+
+    return false;
 }
 
-int mgrTryBorder(std::string border) {
-    if(mgrTryBorderFile(border + ".png")) return 1;
-    if(mgrTryBorderFile(border + ".bmp")) return 1;
-    return 0;
+static const char* scaleNames[] = {"off", "125", "150", "aspect", "full"};
+
+bool mgrTryBorderFile(std::string border) {
+    std::string extension = "";
+    std::string::size_type dotPos = border.rfind('.');
+    if(dotPos != std::string::npos) {
+        extension = border.substr(dotPos);
+        border = border.substr(0, dotPos);
+    }
+
+    return (borderScaleMode == 0 && mgrTryRawBorderFile(border + "_" + scaleNames[scaleMode] + extension)) || mgrTryRawBorderFile(border + extension);
+}
+
+bool mgrTryBorderName(std::string border) {
+    return mgrTryBorderFile(border + ".png") || mgrTryBorderFile(border + ".bmp");
 }
 
 void mgrRefreshBorder() {
     // TODO: SGB?
 
-    static const char* scaleNames[] = {"off", "125", "150", "aspect", "full"};
-
     if(borderSetting == 1) {
-        if(gameboy->isRomLoaded()) {
-            if(borderScaleMode == 0 && mgrTryBorder(gameboy->getRomFile()->getFileName() + "_" + scaleNames[scaleMode])) return;
-            if(mgrTryBorder(gameboy->getRomFile()->getFileName())) return;
+        if((gameboy->isRomLoaded() && mgrTryBorderName(gameboy->getRomFile()->getFileName())) || mgrTryBorderFile(borderPath)) {
+            return;
         }
-
-        std::string path = borderPath;
-        std::string extension = "";
-        std::string::size_type dotPos = path.rfind('.');
-        if(dotPos != std::string::npos) {
-            extension = path.substr(dotPos);
-            path = path.substr(0, dotPos);
-        }
-
-        if(borderScaleMode == 0 && mgrTryBorderFile(path + "_" + scaleNames[scaleMode] + extension)) return;
-        if(mgrTryBorderFile(path + extension)) return;
     }
 
     gfxLoadBorder(NULL, 0, 0);
