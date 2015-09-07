@@ -273,6 +273,23 @@ void mgrLoadBorderFile(const char* filename) {
     }
 }
 
+int mgrTryBorderFile(std::string fileName) {
+    std::string border = fileName + ".png";
+    FILE* file = fopen(border.c_str(), "r");
+    if(file != NULL) {
+        fclose(file);
+        mgrLoadBorderFile(border.c_str());
+        return 1;
+    }
+    return 0;
+}
+
+int mgrTryBorder(std::string fileName) {
+    if(mgrTryBorderFile(fileName + ".png")) return 1;
+    if(mgrTryBorderFile(fileName + ".bmp")) return 1;
+    return 0;
+}
+
 void mgrRefreshBorder() {
     // TODO: SGB?
 
@@ -280,39 +297,8 @@ void mgrRefreshBorder() {
 
     if(borderSetting == 1) {
         if(gameboy->isRomLoaded()) {
-            if(borderScaleMode == 0) {
-                std::string scaledPngBorder = gameboy->getRomFile()->getFileName() + "_" + scaleNames[scaleMode] + ".png";
-                FILE* scaledPngFile = fopen(scaledPngBorder.c_str(), "r");
-                if(scaledPngFile != NULL) {
-                    fclose(scaledPngFile);
-                    mgrLoadBorderFile(scaledPngBorder.c_str());
-                    return;
-                }
-
-                std::string scaledBmpBorder = gameboy->getRomFile()->getFileName() + "_" + scaleNames[scaleMode] + ".bmp";
-                FILE* scaledBmpFile = fopen(scaledBmpBorder.c_str(), "r");
-                if(scaledBmpFile != NULL) {
-                    fclose(scaledBmpFile);
-                    mgrLoadBorderFile(scaledBmpBorder.c_str());
-                    return;
-                }
-            }
-
-            std::string unscaledPngBorder = gameboy->getRomFile()->getFileName() + ".png";
-            FILE* unscaledPngFile = fopen(unscaledPngBorder.c_str(), "r");
-            if(unscaledPngFile != NULL) {
-                fclose(unscaledPngFile);
-                mgrLoadBorderFile(unscaledPngBorder.c_str());
-                return;
-            }
-
-            std::string unscaledBmpBorder = gameboy->getRomFile()->getFileName() + ".bmp";
-            FILE* unscaledBmpFile = fopen(unscaledBmpBorder.c_str(), "r");
-            if(unscaledBmpFile != NULL) {
-                fclose(unscaledBmpFile);
-                mgrLoadBorderFile(unscaledBmpBorder.c_str());
-                return;
-            }
+            if(borderScaleMode == 0 && mgrTryBorder(gameboy->getRomFile()->getFileName() + "_" + scaleNames[scaleMode])) return;
+            if(mgrTryBorder(gameboy->getRomFile()->getFileName())) return;
         }
 
         std::string path = borderPath;
@@ -323,23 +309,8 @@ void mgrRefreshBorder() {
             path = path.substr(0, dotPos);
         }
 
-        if(borderScaleMode == 0) {
-            std::string scaledDefaultBorder = path + "_" + scaleNames[scaleMode] + extension;
-            FILE* scaledDefaultFile = fopen(scaledDefaultBorder.c_str(), "r");
-            if(scaledDefaultFile != NULL) {
-                fclose(scaledDefaultFile);
-                mgrLoadBorderFile(scaledDefaultBorder.c_str());
-                return;
-            }
-        }
-
-        std::string unscaledDefaultBorder = path + extension;
-        FILE* unscaledDefaultFile = fopen(unscaledDefaultBorder.c_str(), "r");
-        if(unscaledDefaultFile != NULL) {
-            fclose(unscaledDefaultFile);
-            mgrLoadBorderFile(unscaledDefaultBorder.c_str());
-            return;
-        }
+        if(borderScaleMode == 0 && mgrTryBorderFile(path + "_" + scaleNames[scaleMode] + extension)) return;
+        if(mgrTryBorderFile(path + extension)) return;
     }
 
     gfxLoadBorder(NULL, 0, 0);

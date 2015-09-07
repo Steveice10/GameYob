@@ -668,7 +668,7 @@ SubMenu menuList[] = {
                         {"FF Frame Skip", setFastForwardFrameSkipFunc, 4, {"0", "1", "2", "3"}, 3, MENU_ALL},
                         {"Colorize GB", gbColorizeFunc, 14, {"Off", "Auto", "Inverted", "Pastel Mix", "Red", "Orange", "Yellow", "Green", "Blue", "Brown", "Dark Green", "Dark Blue", "Dark Brown", "Classic Green"}, 1, MENU_ALL},
                         {"Borders", borderFunc, 3, {"Off", "Custom", "SGB"}, 1, MENU_ALL},
-                        {"Border Scaling", setBorderScaleModeFunc, 2, {"Load Pre-Scaled", "Scale Base Image"}, 0, MENU_ALL},
+                        {"Border Scaling", setBorderScaleModeFunc, 2, {"Pre-Scaled", "Scale Base"}, 0, MENU_ALL},
                         {"Select Border", selectBorderFunc, 0, {}, 0, MENU_ALL}
                 }
         },
