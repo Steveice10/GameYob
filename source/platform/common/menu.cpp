@@ -205,6 +205,11 @@ void accelPadFunc(int value) {
 void resetFunc(int value) {
     closeMenu();
     gameboy->init();
+
+    if(gameboy->isRomLoaded() && gameboy->getRomFile()->isGBS()) {
+        gbsPlayerReset();
+        gbsPlayerDraw();
+    }
 }
 
 void returnFunc(int value) {

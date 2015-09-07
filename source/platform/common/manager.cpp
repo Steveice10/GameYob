@@ -79,7 +79,6 @@ void mgrLoadRom(const char* filename) {
     }
 
     if(gameboy->getRomFile()->isGBS()) {
-        disableMenuOption("Reset");
         disableMenuOption("Suspend");
         disableMenuOption("ROM Info");
         disableMenuOption("State Slot");
@@ -90,7 +89,6 @@ void mgrLoadRom(const char* filename) {
         disableMenuOption("Accelerometer Pad");
         disableMenuOption("Exit without saving");
     } else {
-        enableMenuOption("Reset");
         enableMenuOption("Suspend");
         enableMenuOption("ROM Info");
         enableMenuOption("State Slot");
