@@ -79,16 +79,22 @@ void mgrLoadRom(const char* filename) {
     }
 
     if(gameboy->getRomFile()->isGBS()) {
+        disableMenuOption("Reset");
+        disableMenuOption("Suspend");
+        disableMenuOption("ROM Info");
         disableMenuOption("State Slot");
         disableMenuOption("Save State");
         disableMenuOption("Load State");
         disableMenuOption("Delete State");
-        disableMenuOption("Suspend");
+        disableMenuOption("Manage Cheats");
+        disableMenuOption("Accelerometer Pad");
         disableMenuOption("Exit without saving");
     } else {
+        enableMenuOption("Reset");
+        enableMenuOption("Suspend");
+        enableMenuOption("ROM Info");
         enableMenuOption("State Slot");
         enableMenuOption("Save State");
-        enableMenuOption("Suspend");
         if(mgrStateExists(stateNum)) {
             enableMenuOption("Load State");
             enableMenuOption("Delete State");
@@ -96,17 +102,18 @@ void mgrLoadRom(const char* filename) {
             disableMenuOption("Load State");
             disableMenuOption("Delete State");
         }
-
-        if(gameboy->isRomLoaded() && gameboy->getRomFile()->getRamBanks() > 0 && !gameboy->autosaveEnabled) {
-            enableMenuOption("Exit without saving");
-        } else {
-            disableMenuOption("Exit without saving");
-        }
+        enableMenuOption("Manage Cheats");
 
         if(gameboy->isRomLoaded() && gameboy->getRomFile()->getMBC() == MBC7) {
             enableMenuOption("Accelerometer Pad");
         } else {
             disableMenuOption("Accelerometer Pad");
+        }
+
+        if(gameboy->isRomLoaded() && gameboy->getRomFile()->getRamBanks() > 0 && !gameboy->autosaveEnabled) {
+            enableMenuOption("Exit without saving");
+        } else {
+            disableMenuOption("Exit without saving");
         }
     }
 }
