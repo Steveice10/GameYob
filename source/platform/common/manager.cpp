@@ -273,8 +273,7 @@ void mgrLoadBorderFile(const char* filename) {
     }
 }
 
-int mgrTryBorderFile(std::string fileName) {
-    std::string border = fileName + ".png";
+int mgrTryBorderFile(std::string border) {
     FILE* file = fopen(border.c_str(), "r");
     if(file != NULL) {
         fclose(file);
@@ -284,9 +283,9 @@ int mgrTryBorderFile(std::string fileName) {
     return 0;
 }
 
-int mgrTryBorder(std::string fileName) {
-    if(mgrTryBorderFile(fileName + ".png")) return 1;
-    if(mgrTryBorderFile(fileName + ".bmp")) return 1;
+int mgrTryBorder(std::string border) {
+    if(mgrTryBorderFile(border + ".png")) return 1;
+    if(mgrTryBorderFile(border + ".bmp")) return 1;
     return 0;
 }
 
