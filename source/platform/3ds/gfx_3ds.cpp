@@ -428,7 +428,7 @@ void gfxDrawScreen() {
     gpu::flushBuffer();
 
     if(inputKeyPressed(FUNC_KEY_SCREENSHOT) && !isMenuOn()) {
-        gput::takeScreenshot();
+        gput::takeScreenshot(gameScreen == 0, gameScreen != 0);
     }
 
     // Swap buffers and wait for VBlank.
