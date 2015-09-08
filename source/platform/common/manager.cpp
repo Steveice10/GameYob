@@ -466,6 +466,11 @@ void mgrRun() {
 
         if(inputKeyPressed(FUNC_KEY_RESET)) {
             gameboy->init();
+
+            if(gameboy->isRomLoaded() && gameboy->getRomFile()->isGBS()) {
+                gbsPlayerReset();
+                gbsPlayerDraw();
+            }
         }
     }
 

@@ -57,11 +57,11 @@ void uiUpdateScreen() {
             gpu::setViewport(gpu::SCREEN_TOP, 0, 0, TOP_WIDTH, TOP_HEIGHT);
             gpu::clear();
             gpu::flushBuffer();
-            gpu::swapBuffers(false);
 
             gpu::setViewport(gpu::SCREEN_BOTTOM, 0, 0, BOTTOM_WIDTH, BOTTOM_HEIGHT);
             gpu::clear();
             gpu::flushBuffer();
+
             gpu::swapBuffers(false);
         }
 
@@ -74,9 +74,8 @@ void uiUpdateScreen() {
         gfxSwapBuffers();
         gspWaitForVBlank();
 
-        u16* framebuffer = (u16*) gfxGetFramebuffer(screen, GFX_LEFT, NULL, NULL);
         PrintConsole* console = screen == GFX_TOP ? topConsole : bottomConsole;
-        console->frameBuffer = framebuffer;
+        console->frameBuffer = (u16*) gfxGetFramebuffer(screen, GFX_LEFT, NULL, NULL);
         consoleSelect(console);
     }
 }
