@@ -46,7 +46,7 @@ bool gfxInit() {
 
     // Create the VBO.
     gpu::createVbo(&vbo);
-    gpu::setVboAttributes(vbo, ATTRIBUTE(0, 3, gpu::ATTR_FLOAT) | ATTRIBUTE(1, 2, gpu::ATTR_FLOAT) | ATTRIBUTE(2, 4, gpu::ATTR_FLOAT), 3);
+    gpu::setVboAttributes(vbo, gpu::vboAttribute(0, 3, gpu::ATTR_FLOAT) | gpu::vboAttribute(1, 2, gpu::ATTR_FLOAT) | gpu::vboAttribute(2, 4, gpu::ATTR_FLOAT), 3);
 
     // Create the texture.
     gpu::createTexture(&texture);
@@ -130,7 +130,7 @@ void gfxLoadBorder(u8* imgData, u32 imgWidth, u32 imgHeight) {
     }
 
     // Update texture info.
-    gpu::setTextureInfo(borderTexture, gpuBorderWidth, gpuBorderHeight, gpu::PIXEL_RGBA8, TEXTURE_MIN_FILTER(gpu::FILTER_LINEAR) | TEXTURE_MAG_FILTER(gpu::FILTER_LINEAR));
+    gpu::setTextureInfo(borderTexture, gpuBorderWidth, gpuBorderHeight, gpu::PIXEL_RGBA8, gpu::textureMinFilter(gpu::FILTER_LINEAR) | gpu::textureMagFilter(gpu::FILTER_LINEAR));
 
     // Get texture contents.
     u32* borderBuffer;
@@ -141,7 +141,7 @@ void gfxLoadBorder(u8* imgData, u32 imgWidth, u32 imgHeight) {
     for(u32 i = 0; i < borderWidth * borderHeight; i++) {
         u32 x = i % borderWidth;
         u32 y = i / borderWidth;
-        borderBuffer[TEXTURE_INDEX(x, y, gpuBorderWidth, gpuBorderHeight)] = imgBuffer[y * borderWidth + x];
+        borderBuffer[gpu::textureIndex(x, y, gpuBorderWidth, gpuBorderHeight)] = imgBuffer[y * borderWidth + x];
     }
 
     borderChanged = true;
@@ -186,7 +186,7 @@ void gfxScale2x(u32* pixelBuffer) {
 
     // Top line and top corners
     E = PIXEL_AT(pixelBuffer, 0, 0);
-    E0 = buffer + TEXTURE_INDEX(0, 0, 512, 512);
+    E0 = buffer + gpu::textureIndex(0, 0, 512, 512);
     Ep = E[0];
     Bp = Ep;
     Dp = Ep;
@@ -200,7 +200,7 @@ void gfxScale2x(u32* pixelBuffer) {
         Fp = E[1];
         Bp = Ep;
         Hp = E[256];
-        E0 = buffer + TEXTURE_INDEX((u32) (x * 2), 0, 512, 512);
+        E0 = buffer + gpu::textureIndex((u32) (x * 2), 0, 512, 512);
         SCALE2XMACRO();
     }
 
@@ -209,13 +209,13 @@ void gfxScale2x(u32* pixelBuffer) {
     Ep = Fp;
     Bp = Ep;
     Hp = E[256];
-    E0 = buffer + TEXTURE_INDEX(159 * 2, 0, 512, 512);
+    E0 = buffer + gpu::textureIndex(159 * 2, 0, 512, 512);
     SCALE2XMACRO();
 
     // Middle Rows and sides
     for(y = 1; y < 143; y++) {
         E = PIXEL_AT(pixelBuffer, 0, y);
-        E0 = buffer + TEXTURE_INDEX(0, (u32) (y * 2), 512, 512);
+        E0 = buffer + gpu::textureIndex(0, (u32) (y * 2), 512, 512);
         Ep = E[0];
         Bp = E[-256];
         Dp = Ep;
@@ -229,7 +229,7 @@ void gfxScale2x(u32* pixelBuffer) {
             Fp = E[1];
             Bp = E[-256];
             Hp = E[256];
-            E0 = buffer + TEXTURE_INDEX((u32) (x * 2), (u32) (y * 2), 512, 512);
+            E0 = buffer + gpu::textureIndex((u32) (x * 2), (u32) (y * 2), 512, 512);
             SCALE2XMACRO();
         }
         E += 1;
@@ -237,13 +237,13 @@ void gfxScale2x(u32* pixelBuffer) {
         Ep = Fp;
         Bp = E[-256];
         Hp = E[256];
-        E0 = buffer + TEXTURE_INDEX(159 * 2, (u32) (y * 2), 512, 512);
+        E0 = buffer + gpu::textureIndex(159 * 2, (u32) (y * 2), 512, 512);
         SCALE2XMACRO();
     }
 
     // Bottom Row and Bottom Corners
     E = PIXEL_AT(pixelBuffer, 0, 143);
-    E0 = buffer + TEXTURE_INDEX(0, 143 * 2, 512, 512);
+    E0 = buffer + gpu::textureIndex(0, 143 * 2, 512, 512);
     Ep = E[0];
     Bp = E[-256];
     Dp = Ep;
@@ -257,7 +257,7 @@ void gfxScale2x(u32* pixelBuffer) {
         Fp = E[1];
         Bp = E[-256];
         Hp = Ep;
-        E0 = buffer + TEXTURE_INDEX((u32) (x * 2), 143 * 2, 512, 512);
+        E0 = buffer + gpu::textureIndex((u32) (x * 2), 143 * 2, 512, 512);
         SCALE2XMACRO();
     }
 
@@ -266,7 +266,7 @@ void gfxScale2x(u32* pixelBuffer) {
     Ep = Fp;
     Bp = E[-256];
     Hp = Ep;
-    E0 = buffer + TEXTURE_INDEX(159 * 2, 143 * 2, 512, 512);
+    E0 = buffer + gpu::textureIndex(159 * 2, 143 * 2, 512, 512);
     SCALE2XMACRO();
 }
 
@@ -286,7 +286,7 @@ void gfxDrawScreen() {
         // Create the VBO.
         if(borderVbo == 0) {
             gpu::createVbo(&borderVbo);
-            gpu::setVboAttributes(borderVbo, ATTRIBUTE(0, 3, gpu::ATTR_FLOAT) | ATTRIBUTE(1, 2, gpu::ATTR_FLOAT) | ATTRIBUTE(2, 4, gpu::ATTR_FLOAT), 3);
+            gpu::setVboAttributes(borderVbo, gpu::vboAttribute(0, 3, gpu::ATTR_FLOAT) | gpu::vboAttribute(1, 2, gpu::ATTR_FLOAT) | gpu::vboAttribute(2, 4, gpu::ATTR_FLOAT), 3);
         }
 
         u32 viewportWidth;
@@ -402,9 +402,9 @@ void gfxDrawScreen() {
     // Update the texture with the new frame.
     gpu::TextureFilter filter = scaleFilter >= 1 ? gpu::FILTER_LINEAR : gpu::FILTER_NEAREST;
     if(scaleMode == 0 || scaleFilter <= 1) {
-        gpu::setTextureData(texture, screenBuffer, 256, 256, gpu::PIXEL_RGBA8, TEXTURE_MIN_FILTER(filter) | TEXTURE_MAG_FILTER(filter));
+        gpu::setTextureData(texture, screenBuffer, 256, 256, gpu::PIXEL_RGBA8, gpu::textureMinFilter(filter) | gpu::textureMagFilter(filter));
     } else {
-        gpu::setTextureInfo(texture, 512, 512, gpu::PIXEL_RGBA8, TEXTURE_MIN_FILTER(filter) | TEXTURE_MAG_FILTER(filter));
+        gpu::setTextureInfo(texture, 512, 512, gpu::PIXEL_RGBA8, gpu::textureMinFilter(filter) | gpu::textureMagFilter(filter));
         gfxScale2x(screenBuffer);
     }
 
