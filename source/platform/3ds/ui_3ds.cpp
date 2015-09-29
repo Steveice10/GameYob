@@ -54,18 +54,18 @@ void uiUpdateScreen() {
         gfxSetDoubleBuffering(oldScreen, true);
 
         for(u32 i = 0; i < 2; i++) {
-            gpu::setViewport(gpu::SCREEN_TOP, 0, 0, TOP_WIDTH, TOP_HEIGHT);
+            gpu::setViewport(gpu::SCREEN_TOP, 0, 0, gpu::TOP_WIDTH, gpu::TOP_HEIGHT);
             gpu::clear();
             gpu::flushBuffer();
 
-            gpu::setViewport(gpu::SCREEN_BOTTOM, 0, 0, BOTTOM_WIDTH, BOTTOM_HEIGHT);
+            gpu::setViewport(gpu::SCREEN_BOTTOM, 0, 0, gpu::BOTTOM_WIDTH, gpu::BOTTOM_HEIGHT);
             gpu::clear();
             gpu::flushBuffer();
 
             gpu::swapBuffers(false);
         }
 
-        gpu::setViewport(gpu::SCREEN_TOP, 0, 0, TOP_WIDTH, TOP_HEIGHT);
+        gpu::setViewport(gpu::SCREEN_TOP, 0, 0, gpu::TOP_WIDTH, gpu::TOP_HEIGHT);
 
         currConsole = screen;
         gfxSetScreenFormat(screen, GSP_RGB565_OES);

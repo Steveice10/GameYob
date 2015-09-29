@@ -274,8 +274,8 @@ void gfxDrawScreen() {
     // Update the viewport.
     if(prevGameScreen != gameScreen) {
         gpu::Screen screen = gameScreen == 0 ? gpu::SCREEN_TOP : gpu::SCREEN_BOTTOM;
-        u32 width = gameScreen == 0 ? TOP_WIDTH : BOTTOM_WIDTH;
-        u32 height = gameScreen == 0 ? TOP_HEIGHT : BOTTOM_HEIGHT;
+        u32 width = gameScreen == 0 ? gpu::TOP_WIDTH : gpu::BOTTOM_WIDTH;
+        u32 height = gameScreen == 0 ? gpu::TOP_HEIGHT : gpu::BOTTOM_HEIGHT;
 
         gpu::setViewport(screen, 0, 0, width, height);
         gput::setOrtho(0, width, 0, height, -1, 1);
