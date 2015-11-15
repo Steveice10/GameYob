@@ -1,6 +1,6 @@
 #include <sys/stat.h>
-#include <math.h>
 #include <string.h>
+
 #include <string>
 #include <algorithm>
 
@@ -132,7 +132,16 @@ RomFile::RomFile(Gameboy* gb, const std::string path) {
         delete gbsHeader;
     }
 
-    this->totalRomBanks = (int) pow(2, ceil(log((size + 0x3FFF) / 0x4000) / log(2)));
+    // Round number of banks to next power of two.
+    this->totalRomBanks = (int) ((size + 0x3FFF) / 0x4000);
+    this->totalRomBanks--;
+    this->totalRomBanks |= this->totalRomBanks >> 1;
+    this->totalRomBanks |= this->totalRomBanks >> 2;
+    this->totalRomBanks |= this->totalRomBanks >> 4;
+    this->totalRomBanks |= this->totalRomBanks >> 8;
+    this->totalRomBanks |= this->totalRomBanks >> 16;
+    this->totalRomBanks++;
+
     this->banks = new u8*[this->totalRomBanks]();
 
     // Most MMM01 dumps have the initial banks at the end of the ROM rather than the beginning, so check if this is the case and compensate.
