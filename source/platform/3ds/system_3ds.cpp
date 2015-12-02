@@ -101,11 +101,13 @@ void systemPrintDebug(const char* str, ...) {
 }
 
 bool systemGetIRState() {
-    return ir::get() == 1;
+    bool state = false;
+    ir::read(&state, 1);
+    return state;
 }
 
 void systemSetIRState(bool state) {
-    ir::set(state ? 1 : 0);
+    ir::write(&state, 1, true);
 }
 
 const std::string systemGetIP() {
