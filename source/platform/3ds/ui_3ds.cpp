@@ -181,12 +181,6 @@ void uiPushInput(UIKey key) {
     keyQueue.push(key);
 }
 
-void uiClearInput() {
-    while(!keyQueue.empty()) {
-        keyQueue.pop();
-    }
-}
-
 UIKey uiReadKey() {
     if(!keyQueue.empty()) {
         UIKey key = keyQueue.front();

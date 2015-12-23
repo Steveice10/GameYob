@@ -128,11 +128,11 @@ UIKey uiKeyMapping[NUM_BUTTONS] = {
 int funcKeyMapping[NUM_FUNC_KEYS];
 
 bool forceReleased[NUM_FUNC_KEYS] = {false};
+bool uiForceReleased[NUM_BUTTONS] = {false};
 
 u64 nextRepeat = 0;
 u64 nextUiRepeat = 0;
 
-extern void uiClearInput();
 extern void uiPushInput(UIKey key);
 
 void inputInit() {
@@ -144,15 +144,20 @@ void inputCleanup() {
 void inputUpdate() {
     hid::poll();
     for(int i = 0; i < NUM_FUNC_KEYS; i++) {
-        if(!inputKeyHeld(i)) {
+        if(!hid::pressed((hid::Button) funcKeyMapping[i]) && !hid::held((hid::Button) funcKeyMapping[i])) {
             forceReleased[i] = false;
+        }
+    }
+
+    for(int i = 0; i < NUM_BUTTONS; i++) {
+        if(!hid::pressed((hid::Button) (1 << i)) && !hid::held((hid::Button) (1 << i))) {
+            uiForceReleased[i] = false;
         }
     }
 
     if(accelPadMode && hid::pressed(hid::BUTTON_TOUCH)) {
         hid::Touch touch = hid::touch();
         if(touch.x <= gput::getStringHeight("Exit", 8) && touch.y <= gput::getStringWidth("Exit", 8)) {
-            inputKeyRelease(hid::BUTTON_TOUCH);
             accelPadMode = false;
             uiClear();
         }
@@ -160,6 +165,10 @@ void inputUpdate() {
 
     if(isMenuOn() || isFileChooserActive() || (gameboy->isRomLoaded() && gameboy->getRomFile()->isGBS())) {
         for(int i = 0; i < NUM_BUTTONS; i++) {
+            if(uiForceReleased[i]) {
+                continue;
+            }
+
             hid::Button button = (hid::Button) (1 << i);
             bool pressed = false;
             if(hid::pressed(button)) {
@@ -236,6 +245,16 @@ void inputKeyRelease(int key) {
     }
 
     forceReleased[key] = true;
+}
+
+void inputReleaseAll() {
+    for(int i = 0; i < NUM_FUNC_KEYS; i++) {
+        inputKeyRelease(i);
+    }
+
+    for(int i = 0; i < NUM_BUTTONS; i++) {
+        uiForceReleased[i] = true;
+    }
 }
 
 int inputGetMotionSensorX() {

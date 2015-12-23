@@ -59,7 +59,15 @@ void inputUpdate() {
     }
 
     for(int key = 0; key < NUM_FUNC_KEYS; key++) {
-        if(forceReleased[key] && !inputKeyHeld(key)) {
+        bool pressed = false;
+        for(int i = 0; i < NUM_BUTTONS; i++) {
+            if((pressed[i] || held[i]) && key == currKeyConfig->funcKeys[i]) {
+                pressed = true;
+                break;
+            }
+        }
+
+        if(forceReleased[key] && !pressed) {
             forceReleased[key] = false;
         }
     }
@@ -133,6 +141,12 @@ void inputKeyRelease(int key) {
     }
 
     forceReleased[key] = true;
+}
+
+void inputReleaseAll() {
+    for(int i = 0; i < NUM_FUNC_KEYS; i++) {
+        inputKeyRelease(i);
+    }
 }
 
 int inputGetMotionSensorX() {

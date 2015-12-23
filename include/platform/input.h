@@ -35,6 +35,7 @@ bool inputKeyHeld(int key);
 bool inputKeyRepeat(int key);
 bool inputKeyPressed(int key);
 void inputKeyRelease(int key);
+void inputReleaseAll();
 int inputGetMotionSensorX();
 int inputGetMotionSensorY();
 

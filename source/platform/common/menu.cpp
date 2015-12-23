@@ -717,13 +717,13 @@ void setMenuDefaults() {
 }
 
 void displayMenu() {
-    inputKeyRelease(0xFFFFFFFF);
+    inputReleaseAll();
     menuOn = true;
     redrawMenu();
 }
 
 void closeMenu() {
-    inputKeyRelease(0xFFFFFFFF);
+    inputReleaseAll();
     menuOn = false;
 
     uiClear();
