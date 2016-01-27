@@ -59,15 +59,15 @@ void inputUpdate() {
     }
 
     for(int key = 0; key < NUM_FUNC_KEYS; key++) {
-        bool pressed = false;
+        bool currPressed = false;
         for(int i = 0; i < NUM_BUTTONS; i++) {
             if((pressed[i] || held[i]) && key == currKeyConfig->funcKeys[i]) {
-                pressed = true;
+                currPressed = true;
                 break;
             }
         }
 
-        if(forceReleased[key] && !pressed) {
+        if(forceReleased[key] && !currPressed) {
             forceReleased[key] = false;
         }
     }
