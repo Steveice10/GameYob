@@ -53,7 +53,7 @@ SYSTEM_MODE_EXT := Legacy
 
 ROMFS_DIR :=
 BANNER_AUDIO := meta/audio.wav
-BANNER_IMAGE := meta/banner.png
+BANNER_IMAGE := meta/banner.cgfx
 ICON := meta/icon.png
 
 # INTERNAL #
