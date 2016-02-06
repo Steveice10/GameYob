@@ -43,6 +43,7 @@ RUN_FLAGS :=
 
 # 3DS CONFIGURATION #
 
+TITLE := $(NAME)
 DESCRIPTION := (Super) GameBoy (Color) emulator.
 AUTHOR := Drenn, Steveice10
 PRODUCT_CODE := CTR-P-GYOB
@@ -50,6 +51,8 @@ UNIQUE_ID := 0x1927
 
 SYSTEM_MODE := 64MB
 SYSTEM_MODE_EXT := Legacy
+
+ICON_FLAGS :=
 
 ROMFS_DIR :=
 BANNER_AUDIO := meta/audio.wav
