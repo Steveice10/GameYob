@@ -104,11 +104,12 @@ void Gameboy::initMMU() {
 
     wramBank = 1;
     vramBank = 0;
+
+    memoryModel = 0;
     romBank0Num = 0;
     romBank1Num = 1;
     ramBankNum = 0;
 
-    memoryModel = 0;
     dmaSource = 0;
     dmaDest = 0;
     dmaLength = 0;
@@ -116,14 +117,36 @@ void Gameboy::initMMU() {
 
     ramEnabled = false;
 
+    readFunc = mbcReads[romFile->getMBC()];
+    writeFunc = mbcWrites[romFile->getMBC()];
+
+    // Rockman8 by Yang Yang uses a silghtly different MBC1 variant
+    rockmanMapper = romFile->getRomTitle().compare("ROCKMAN 99") == 0;
+
+    HuC3Mode = 0;
     HuC3Value = 0;
     HuC3Shift = 0;
 
-    /* Rockman8 by Yang Yang uses a silghtly different MBC1 variant */
-    rockmanMapper = romFile->getRomTitle().compare("ROCKMAN 99") == 0;
+    mbc7WriteEnable = false;
+    mbc7Idle = false;
+    mbc7Cs = 0;
+    mbc7Sk = 0;
+    mbc7OpCode = 0;
+    mbc7Addr = 0;
+    mbc7Count = 0;
+    mbc7State = 0;
+    mbc7Buffer = 0;
+    mbc7RA = 0;
 
-    readFunc = mbcReads[romFile->getMBC()];
-    writeFunc = mbcWrites[romFile->getMBC()];
+    mmm01BankSelected = false;
+    mmm01RomBaseBank = 0;
+
+    cameraIO = false;
+
+    tama5CommandNumber = 0;
+    tama5RamByteSelect = 0;
+    memset(tama5Commands, 0, sizeof(tama5Commands));
+    memset(tama5RAM, 0, sizeof(tama5RAM));
 
     mapMemory();
     for(int i = 0; i < 8; i++) {
@@ -131,6 +154,9 @@ void Gameboy::initMMU() {
     }
 
     memset(highram, 0, 0x1000); // Initializes sprites and IO registers
+
+    memset(vram[0], 0, 0x2000);
+    memset(vram[1], 0, 0x2000);
 
     writeIO(0x02, 0x00);
     writeIO(0x05, 0x00);
@@ -150,27 +176,6 @@ void Gameboy::initMMU() {
     ioRam[0x55] = 0xff;
 
     memset(dirtySectors, 0, sizeof(dirtySectors));
-
-    mbc7WriteEnable = false;
-    mbc7Idle = false;
-    mbc7Cs = 0;
-    mbc7Sk = 0;
-    mbc7OpCode = 0;
-    mbc7Addr = 0;
-    mbc7Count = 0;
-    mbc7State = 0;
-    mbc7Buffer = 0;
-    mbc7RA = 0; // Ram Access register 0xa080
-
-    mmm01BankSelected = false;
-    mmm01RomBaseBank = 0;
-
-    cameraIO = false;
-
-    tama5CommandNumber = 0;
-    tama5RamByteSelect = 0;
-    memset(tama5Commands, 0, sizeof(tama5Commands));
-    memset(tama5RAM, 0, sizeof(tama5RAM));
 }
 
 void Gameboy::mapMemory() {
@@ -278,7 +283,7 @@ u8 Gameboy::readMemoryOther(u16 addr) {
         if(addr >= 0xff00) {
             return readIO(addr & 0xff);
         } else if(addr < 0xfe00) { // Check for echo area
-            addr -= 0x2000;
+            return memory[0xd][addr & 0xfff];
         }
     } else if(area == 0xa || area == 0xb) { /* Check if in range a000-bfff */
         /* Check if there's an handler for this mbc */
@@ -336,9 +341,14 @@ void Gameboy::writeIO(u8 ioReg, u8 val) {
             return;
         case 0x02: {
             ioRam[ioReg] = val;
-            if(val & 0x80 && val & 0x01) {
+            if((val & 0x81) == 0x81) { // Internal clock
                 if(serialCounter == 0) {
-                    serialCounter = clockSpeed / 1024;
+                    if(gbMode == CGB && (val & 0x02)) {
+                        serialCounter = clockSpeed / (1024 * 32);
+                    } else {
+                        serialCounter = clockSpeed / 1024;
+                    }
+
                     if(cyclesToExecute > serialCounter) {
                         cyclesToExecute = serialCounter;
                     }
@@ -359,7 +369,7 @@ void Gameboy::writeIO(u8 ioReg, u8 val) {
             ioRam[ioReg] = val;
             return;
         case 0x07:
-            timerPeriod = periods[val & 0x3];
+            timerPeriod = timerPeriods[val & 0x3];
             ioRam[ioReg] = val;
             return;
         // APU registers.
@@ -430,21 +440,21 @@ void Gameboy::writeIO(u8 ioReg, u8 val) {
             return;
         case 0x69: // CGB BG Palette
             ppu->handleVideoRegister(ioReg, val);
-            bgPaletteData[ioRam[0x68] & 0x3F] = val;
+            bgPaletteData.direct[ioRam[0x68] & 0x3F] = val;
             if(ioRam[0x68] & 0x80) {
                 ioRam[0x68] = 0x80 | (ioRam[0x68] + 1);
             }
 
-            ioRam[0x69] = bgPaletteData[ioRam[0x68] & 0x3F];
+            ioRam[0x69] = bgPaletteData.direct[ioRam[0x68] & 0x3F];
             return;
         case 0x6B: // CGB Sprite palette
             ppu->handleVideoRegister(ioReg, val);
-            sprPaletteData[ioRam[0x6A] & 0x3F] = val;
+            sprPaletteData.direct[ioRam[0x6A] & 0x3F] = val;
             if(ioRam[0x6A] & 0x80) {
                 ioRam[0x6A] = 0x80 | (ioRam[0x6A] + 1);
             }
 
-            ioRam[0x6B] = sprPaletteData[ioRam[0x6A] & 0x3F];
+            ioRam[0x6B] = sprPaletteData.direct[ioRam[0x6A] & 0x3F];
             return;
         case 0x46: { // Sprite DMA
             ppu->handleVideoRegister(ioReg, val);
@@ -488,11 +498,11 @@ void Gameboy::writeIO(u8 ioReg, u8 val) {
             return;
         case 0x68:
             ioRam[ioReg] = val;
-            ioRam[0x69] = bgPaletteData[val & 0x3F];
+            ioRam[0x69] = bgPaletteData.direct[val & 0x3F];
             return;
         case 0x6A:
             ioRam[ioReg] = val;
-            ioRam[0x6B] = sprPaletteData[val & 0x3F];
+            ioRam[0x6B] = sprPaletteData.direct[val & 0x3F];
             return;
         case 0x4D:
             ioRam[ioReg] &= 0x80;

@@ -261,9 +261,9 @@ void setPauseOnMenuFunc(int value) {
     if(value != pauseOnMenu) {
         pauseOnMenu = value;
         if(pauseOnMenu) {
-            gameboy->pause();
+            mgrPause();
         } else {
-            gameboy->unpause();
+            mgrUnpause();
         }
     }
 }
@@ -729,7 +729,7 @@ void closeMenu() {
     uiClear();
     uiFlush();
 
-    gameboy->unpause();
+    mgrUnpause();
 
     if(gameboy->isRomLoaded() && gameboy->getRomFile()->isGBS()) {
         gbsPlayerDraw();

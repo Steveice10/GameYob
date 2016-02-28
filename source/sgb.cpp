@@ -19,13 +19,16 @@ void (Gameboy::*sgbCommands[])(int) = {
 
 void Gameboy::initSGB() {
     sgbPacketLength = 0;
+    sgbPacketsTransferred = 0;
+    sgbPacketBit = -1;
+    sgbCommand = 0;
     sgbNumControllers = 1;
     sgbSelectedController = 0;
-    sgbPacketBit = -1;
-    sgbPacketsTransferred = 0;
     sgbButtonsChecked = 0;
 
-    memset(sgbMap, 0, 20 * 18);
+    memset(sgbPacket, 0, sizeof(sgbPacket));
+    memset(sgbMap, 0, sizeof(sgbMap));
+    memset(&sgbCmdData, 0, sizeof(sgbCmdData));
 }
 
 void Gameboy::sgbHandleP1(u8 val) {
@@ -118,20 +121,6 @@ u8 Gameboy::sgbReadP1() {
     }
 }
 
-void Gameboy::setBackdrop(u16 val) {
-    for(int i = 0; i < 4; i++) {
-        bgPaletteData[i * 8] = val & 0xff;
-        bgPaletteData[i * 8 + 1] = val >> 8;
-        ppu->updateBgPalette(i);
-
-        sprPaletteData[i * 8] = val & 0xff;
-        sprPaletteData[i * 8 + 1] = val >> 8;
-        sprPaletteData[(i + 4) * 8] = val & 0xff;
-        sprPaletteData[(i + 4) * 8 + 1] = val >> 8;
-        ppu->updateSprPalette(i);
-    }
-}
-
 void Gameboy::sgbLoadAttrFile(int index) {
     if(index > 0x2c) {
         return;
@@ -194,15 +183,20 @@ void Gameboy::sgbPalXX(int block) {
             return;
     }
 
-    memcpy(bgPaletteData + s1 * 8 + 2, sgbPacket + 3, 6);
-    memcpy(sprPaletteData + s1 * 8 + 2, sgbPacket + 3, 6);
-    memcpy(sprPaletteData + (s1 + 4) * 8 + 2, sgbPacket + 3, 6);
+    memcpy(bgPaletteData.direct + s1 * 8 + 2, sgbPacket + 3, 6);
+    memcpy(sprPaletteData.direct + s1 * 8 + 2, sgbPacket + 3, 6);
+    memcpy(sprPaletteData.direct + (s1 + 4) * 8 + 2, sgbPacket + 3, 6);
 
-    memcpy(bgPaletteData + s2 * 8 + 2, sgbPacket + 9, 6);
-    memcpy(sprPaletteData + s2 * 8 + 2, sgbPacket + 9, 6);
-    memcpy(sprPaletteData + (s2 + 4) * 8 + 2, sgbPacket + 9, 6);
+    memcpy(bgPaletteData.direct + s2 * 8 + 2, sgbPacket + 9, 6);
+    memcpy(sprPaletteData.direct + s2 * 8 + 2, sgbPacket + 9, 6);
+    memcpy(sprPaletteData.direct + (s2 + 4) * 8 + 2, sgbPacket + 9, 6);
 
-    setBackdrop(sgbPacket[1] | sgbPacket[2] << 8);
+    u16 color0 = (u16) (sgbPacket[1] | sgbPacket[2] << 8);
+    for(int i = 0; i < 4; i++) {
+        bgPaletteData.rgba[i * 4] = color0;
+        sprPaletteData.rgba[i * 4] = color0;
+        sprPaletteData.rgba[(i + 4) * 4] = color0;
+    }
 }
 
 void Gameboy::sgbAttrBlock(int block) {
@@ -400,13 +394,19 @@ void Gameboy::sgbSouTrn(int block) {
 void Gameboy::sgbPalSet(int block) {
     for(int i = 0; i < 4; i++) {
         int paletteId = (sgbPacket[i * 2 + 1] | (sgbPacket[i * 2 + 2] << 8)) & 0x1ff;
-        memcpy(bgPaletteData + i * 8 + 2, sgbPalettes + paletteId * 8 + 2, 6);
-        memcpy(sprPaletteData + i * 8 + 2, sgbPalettes + paletteId * 8 + 2, 6);
-        memcpy(sprPaletteData + (i + 4) * 8 + 2, sgbPalettes + paletteId * 8 + 2, 6);
+        memcpy(bgPaletteData.direct + i * 8 + 2, sgbPalettes + paletteId * 8 + 2, 6);
+        memcpy(sprPaletteData.direct + i * 8 + 2, sgbPalettes + paletteId * 8 + 2, 6);
+        memcpy(sprPaletteData.direct + (i + 4) * 8 + 2, sgbPalettes + paletteId * 8 + 2, 6);
     }
 
     int color0PaletteId = (sgbPacket[1] | (sgbPacket[2] << 8)) & 0x1ff;
-    setBackdrop(sgbPalettes[color0PaletteId * 8] | (sgbPalettes[color0PaletteId * 8 + 1] << 8));
+
+    u16 color0 = (u16) (sgbPalettes[color0PaletteId * 8] | (sgbPalettes[color0PaletteId * 8 + 1] << 8));
+    for(int i = 0; i < 4; i++) {
+        bgPaletteData.rgba[i * 4] = color0;
+        sprPaletteData.rgba[i * 4] = color0;
+        sprPaletteData.rgba[(i + 4) * 4] = color0;
+    }
 
     if(sgbPacket[9] & 0x80) {
         sgbLoadAttrFile(sgbPacket[9] & 0x3f);

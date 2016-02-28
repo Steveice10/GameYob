@@ -16,7 +16,7 @@ static SDL_Window* window = NULL;
 static SDL_Renderer* renderer = NULL;
 static SDL_Texture* texture = NULL;
 
-static u32* screenBuffer;
+static u16* screenBuffer;
 
 static bool fastForward = false;
 
@@ -31,12 +31,12 @@ bool gfxInit() {
         return false;
     }
 
-    texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_STREAMING, 160, 144);
+    texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA5551, SDL_TEXTUREACCESS_STREAMING, 160, 144);
     if(texture == NULL) {
         return false;
     }
 
-    screenBuffer = (u32*) malloc(160 * 144 * sizeof(u32));
+    screenBuffer = (u16*) malloc(160 * 144 * sizeof(u16));
 
     return true;
 }
@@ -83,20 +83,33 @@ void gfxToggleFastForward() {
 void gfxLoadBorder(u8* imgData, u32 imgWidth, u32 imgHeight) {
 }
 
-u32* gfxGetLineBuffer(int line) {
+u16* gfxGetLineBuffer(int line) {
     return screenBuffer + line * 160;
 }
 
-void gfxClearScreenBuffer(u8 r, u8 g, u8 b) {
-    if(r == g && r == b) {
-        memset(screenBuffer, r, 160 * 144 * sizeof(u32));
+void gfxClearScreenBuffer(u16 rgba5551) {
+    if(((rgba5551 >> 8) & 0xFF) == (rgba5551 & 0xFF)) {
+        memset(screenBuffer, rgba5551 & 0xFF, 160 * 144 * sizeof(u16));
     } else {
-        wmemset((wchar_t*) screenBuffer, (wchar_t) RGBA32(r, g, b), 160 * 144);
+        for(int i = 0; i < 160 * 144; i++) {
+            screenBuffer[i] = rgba5551;
+        }
+    }
+}
+
+void gfxClearLineBuffer(int line, u16 rgba5551) {
+    u16* lineBuffer = gfxGetLineBuffer(line);
+    if(((rgba5551 >> 8) & 0xFF) == (rgba5551 & 0xFF)) {
+        memset(lineBuffer, rgba5551 & 0xFF, 160 * sizeof(u16));
+    } else {
+        for(int i = 0; i < 160; i++) {
+            lineBuffer[i] = rgba5551;
+        }
     }
 }
 
 void gfxDrawScreen() {
-    SDL_UpdateTexture(texture, &textureRect, screenBuffer, 160 * 4);
+    SDL_UpdateTexture(texture, &textureRect, screenBuffer, 160 * 2);
     SDL_RenderCopy(renderer, texture, &textureRect, &windowRect);
     SDL_RenderPresent(renderer);
 

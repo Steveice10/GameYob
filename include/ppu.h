@@ -15,7 +15,6 @@ public:
     GameboyPPU(Gameboy* gb);
 
     void initPPU();
-    void refreshPPU();
     void clearPPU();
 
     void drawScanline(int scanline);
@@ -30,9 +29,6 @@ public:
     void writeHram(u16 addr, u8 val);
     void handleVideoRegister(u8 ioReg, u8 val);
 
-    void updateBgPalette(int paletteId);
-    void updateSprPalette(int paletteId);
-
     bool probingForBorder;
     
     u8 gfxMask;
@@ -42,23 +38,14 @@ public:
     int fastForwardFrameSkip = 0;
 
 private:
-    void drawBackground(int scanline, int winX, int winY, bool drawingWindow, bool tileSigned);
-    void drawWindow(int scanline, int winX, int winY, bool drawingWindow, bool tileSigned);
-    void drawSprites(int scanline);
+    inline u16 getBgColor(u32 paletteId, u32 colorId);
+    inline u16 getSprColor(u32 paletteId, u32 colorId);
+
+    void drawBackground(u16* lineBuffer, u8* depthBuffer, int scanline, int winX, int winY, bool drawingWindow, bool tileSigned);
+    void drawWindow(u16* lineBuffer, u8* depthBuffer, int scanline, int winX, int winY, bool drawingWindow, bool tileSigned);
+    void drawSprites(u16* lineBuffer, u8* depthBuffer, int scanline);
 
     Gameboy* gameboy;
 
     int fastForwardCounter = 0;
-
-    u32 bgPalettes[8][4];
-    u32 sprPalettes[8][4];
-
-// For drawScanline / drawSprite
-
-    u32 depthBuffer[256];
-    u32 *lineBuffer;
-    u8 *subSgbMap;
-
-    bool bgPalettesModified[8];
-    bool sprPalettesModified[8];
 };

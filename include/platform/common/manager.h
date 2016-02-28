@@ -19,4 +19,8 @@ bool mgrLoadState(int stateNum);
 bool mgrSaveState(int stateNum);
 void mgrDeleteState(int stateNum);
 
+void mgrPause();
+void mgrUnpause();
+bool mgrIsPaused();
+
 void mgrRun();

@@ -4,6 +4,7 @@
  */
 
 #include <string.h>
+#include <gameboy.h>
 
 #include "platform/gfx.h"
 #include "gameboy.h"
@@ -14,7 +15,7 @@
 #define FLIP_X (0x20)
 #define PRIORITY (0x80)
 
-static const u32 depthOffset[4] =
+static const u8 depthOffset[4] =
         {
                 0x01, 0x00, 0x00, 0x00
         };
@@ -64,34 +65,11 @@ GameboyPPU::GameboyPPU(Gameboy* gb) {
 }
 
 void GameboyPPU::initPPU() {
-    bgPalettes[0][0] = RGBA32(255, 255, 255);
-    bgPalettes[0][1] = RGBA32(192, 192, 192);
-    bgPalettes[0][2] = RGBA32(94, 94, 94);
-    bgPalettes[0][3] = RGBA32(0, 0, 0);
-    sprPalettes[0][0] = RGBA32(255, 255, 255);
-    sprPalettes[0][1] = RGBA32(192, 192, 192);
-    sprPalettes[0][2] = RGBA32(94, 94, 94);
-    sprPalettes[0][3] = RGBA32(0, 0, 0);
-    sprPalettes[1][0] = RGBA32(255, 255, 255);
-    sprPalettes[1][1] = RGBA32(192, 192, 192);
-    sprPalettes[1][2] = RGBA32(94, 94, 94);
-    sprPalettes[1][3] = RGBA32(0, 0, 0);
-
     gfxMask = 0;
-
-    memset(bgPalettesModified, 0, sizeof(bgPalettesModified));
-    memset(sprPalettesModified, 0, sizeof(sprPalettesModified));
-}
-
-void GameboyPPU::refreshPPU() {
-    for(int i = 0; i < 8; i++) {
-        bgPalettesModified[i] = true;
-        sprPalettesModified[i] = true;
-    }
 }
 
 void GameboyPPU::clearPPU() {
-    gfxClearScreenBuffer(0x00, 0x00, 0x00);
+    gfxClearScreenBuffer(0x0000);
 }
 
 void GameboyPPU::drawScanline(int scanline) {
@@ -99,42 +77,49 @@ void GameboyPPU::drawScanline(int scanline) {
         return;
     }
 
-    for(int i = 0; i < 8; i++) {
-        if(bgPalettesModified[i]) {
-            updateBgPalette(i);
-            bgPalettesModified[i] = false;
-        }
-
-        if(sprPalettesModified[i]) {
-            updateSprPalette(i);
-            sprPalettesModified[i] = false;
-        }
-    }
-
-    lineBuffer = gfxGetLineBuffer(scanline);
-
     if(gfxMask == 0) {
-        memset(depthBuffer, 0, 160 * sizeof(u32));
-        subSgbMap = &gameboy->sgbMap[scanline / 8 * 20];
-
         int winX = gameboy->ioRam[0x4B] - 7;
         int winY = gameboy->ioRam[0x4A];
         bool drawingWindow = winY <= scanline && winY < 144 && winX >= 0 && winX < 160 && gameboy->ioRam[0x40] & 0x20;
         bool tileSigned = !(gameboy->ioRam[0x40] & 0x10); // Tile Data location
 
-        drawBackground(scanline, winX, winY, drawingWindow, tileSigned);
-        drawWindow(scanline, winX, winY, drawingWindow, tileSigned);
-        drawSprites(scanline);
+        u16* lineBuffer = gfxGetLineBuffer(scanline);
+        u8 depthBuffer[256] = {0};
+        drawBackground(lineBuffer, depthBuffer, scanline, winX, winY, drawingWindow, tileSigned);
+        drawWindow(lineBuffer, depthBuffer, scanline, winX, winY, drawingWindow, tileSigned);
+        drawSprites(lineBuffer, depthBuffer, scanline);
     } else if(gfxMask == 2) {
-        memset(lineBuffer, 0x00, 160 * sizeof(u32));
+        gfxClearLineBuffer(scanline, 0x0000); // TODO
         return;
     } else if(gfxMask == 3) {
-        wmemset((wchar_t*) lineBuffer, (wchar_t) bgPalettes[0][0], 160);
+        gfxClearLineBuffer(scanline, getBgColor(0, 0));
         return;
     }
 }
 
-void GameboyPPU::drawBackground(int scanline, int winX, int winY, bool drawingWindow, bool tileSigned) {
+inline u16 GameboyPPU::getBgColor(u32 paletteId, u32 colorId) {
+    u8 paletteIndex = gameboy->gbMode == GB ? (u8) ((gameboy->ioRam[0x47] >> (colorId * 2)) & 3) : (u8) colorId;
+
+    u16 color = gameboy->bgPaletteData.rgba[paletteId * 4 + paletteIndex];
+    u8 r = (u8) (color & 0x1F);
+    u8 g = (u8) ((color >> 5) & 0x1F);
+    u8 b = (u8) ((color >> 10) & 0x1F);
+
+    return r << 11 | g << 6 | b << 1 | (u8) 1;
+}
+
+inline u16 GameboyPPU::getSprColor(u32 paletteId, u32 colorId) {
+    u8 paletteIndex = gameboy->gbMode == GB ? (u8) ((gameboy->ioRam[0x48 + paletteId / 4] >> (colorId * 2)) & 3) : (u8) colorId;
+
+    u16 color = gameboy->sprPaletteData.rgba[paletteId * 4 + paletteIndex];
+    u8 r = (u8) (color & 0x1F);
+    u8 g = (u8) ((color >> 5) & 0x1F);
+    u8 b = (u8) ((color >> 10) & 0x1F);
+
+    return r << 11 | g << 6 | b << 1 | (u8) 1;
+}
+
+void GameboyPPU::drawBackground(u16* lineBuffer, u8* depthBuffer, int scanline, int winX, int winY, bool drawingWindow, bool tileSigned) {
     if(gameboy->gbMode == CGB || (gameboy->ioRam[0x40] & 1) != 0) { // Background enabled
         u8 scrollX = gameboy->ioRam[0x43];
         int scrollY = gameboy->ioRam[0x42];
@@ -175,11 +160,11 @@ void GameboyPPU::drawBackground(int scanline, int winX, int winY, bool drawingWi
             // Setup Tile Info
             u32 flag = 0;
             u32 bank = 0;
-            u32 paletteid = 0;
+            u32 paletteId = 0;
             if(gameboy->gbMode == CGB) {
                 flag = gameboy->vram[1][mapAddr];
                 bank = (u32) ((flag & 0x8) != 0);
-                paletteid = flag & 0x7;
+                paletteId = flag & 0x7;
             }
 
             // This is the tile's Y position to be read (0-7)
@@ -202,42 +187,29 @@ void GameboyPPU::drawBackground(int scanline, int winX, int winY, bool drawingWi
             u32 pxData = BitStretchTable256[vRamB1] | (BitStretchTable256[vRamB2] << 1);
 
             // Setup depth based on priority
-            u32 depth = 1;
+            u8 depth = 1;
             if(flag & PRIORITY) {
                 depth = 3;
             }
 
-            // Split Render mode based on sgbMode, slight speed up
-            if(gameboy->sgbMode) {
-                for(int x = 0; x < 16; x += 2, writeX++) {
-                    if(writeX >= 160) {
-                        continue;
-                    }
-
-                    u32 colorid = (pxData >> x) & 0x03;
-
-                    // Draw pixel
-                    depthBuffer[writeX] = depth - depthOffset[colorid];
-                    lineBuffer[writeX] = bgPalettes[subSgbMap[writeX >> 3]][colorid];
+            u8* subSgbMap = &gameboy->sgbMap[scanline / 8 * 20];
+            for(int x = 0; x < 16; x += 2, writeX++) {
+                if(writeX >= 160) {
+                    continue;
                 }
-            } else {
-                for(int x = 0; x < 16; x += 2, writeX++) {
-                    if(writeX >= 160) {
-                        continue;
-                    }
 
-                    u32 colorid = (pxData >> x) & 0x03;
+                u32 colorId = (pxData >> x) & 0x03;
+                u32 subPaletteId = gameboy->sgbMode ? subSgbMap[writeX >> 3] : paletteId;
 
-                    // Draw pixel
-                    depthBuffer[writeX] = depth - depthOffset[colorid];
-                    lineBuffer[writeX] = bgPalettes[paletteid][colorid];
-                }
+                // Draw pixel
+                depthBuffer[writeX] = depth - depthOffset[colorId];
+                lineBuffer[writeX] = getBgColor(subPaletteId, colorId);
             }
         }
     }
 }
 
-void GameboyPPU::drawWindow(int scanline, int winX, int winY, bool drawingWindow, bool tileSigned) {
+void GameboyPPU::drawWindow(u16* lineBuffer, u8* depthBuffer, int scanline, int winX, int winY, bool drawingWindow, bool tileSigned) {
     if(drawingWindow) { // Window enabled
         // The y position (measured in tiles)
         int tileY = (scanline - winY) / 8;
@@ -268,11 +240,11 @@ void GameboyPPU::drawWindow(int scanline, int winX, int winY, bool drawingWindow
             // Setup Tile Info
             u32 flag = 0;
             u32 bank = 0;
-            u32 paletteid = 0;
+            u32 paletteId = 0;
             if(gameboy->gbMode == CGB) {
                 flag = gameboy->vram[1][mapAddr];
                 bank = (u32) ((flag & 0x8) != 0);
-                paletteid = flag & 0x7;
+                paletteId = flag & 0x7;
             }
 
             // This is the tile's Y position to be read (0-7)
@@ -295,42 +267,29 @@ void GameboyPPU::drawWindow(int scanline, int winX, int winY, bool drawingWindow
             u32 pxData = BitStretchTable256[vRamB1] | (BitStretchTable256[vRamB2] << 1);
 
             // Setup depth based on priority
-            u32 depth = 1;
+            u8 depth = 1;
             if(flag & PRIORITY) {
                 depth = 3;
             }
 
-            // Split Render mode based on sgbMode, slight speed up
-            if(gameboy->sgbMode) {
-                for(int x = 0; x < 16; x += 2, writeX++) {
-                    if(writeX >= 160) {
-                        continue;
-                    }
-
-                    u32 colorid = (pxData >> x) & 0x03;
-
-                    // Draw pixel
-                    depthBuffer[writeX] = depth - depthOffset[colorid];
-                    lineBuffer[writeX] = bgPalettes[subSgbMap[writeX >> 3]][colorid];
+            u8* subSgbMap = &gameboy->sgbMap[scanline / 8 * 20];
+            for(int x = 0; x < 16; x += 2, writeX++) {
+                if(writeX >= 160) {
+                    continue;
                 }
-            } else {
-                for(int x = 0; x < 16; x += 2, writeX++) {
-                    if(writeX >= 160) {
-                        continue;
-                    }
 
-                    u32 colorid = (pxData >> x) & 0x03;
+                u32 colorId = (pxData >> x) & 0x03;
+                u32 subPaletteId = gameboy->sgbMode ? subSgbMap[writeX >> 3] : paletteId;
 
-                    // Draw pixel
-                    depthBuffer[writeX] = depth - depthOffset[colorid];
-                    lineBuffer[writeX] = bgPalettes[paletteid][colorid];
-                }
+                // Draw pixel
+                depthBuffer[writeX] = depth - depthOffset[colorId];
+                lineBuffer[writeX] = getBgColor(subPaletteId, colorId);
             }
         }
     }
 }
 
-void GameboyPPU::drawSprites(int scanline) {
+void GameboyPPU::drawSprites(u16* lineBuffer, u8* depthBuffer, int scanline) {
     if(gameboy->ioRam[0x40] & 0x2) { // Sprites enabled
         for(int i = 39; i >= 0; i--) {
             // The sprite's number, times 4 (each uses 4 bytes)
@@ -348,12 +307,12 @@ void GameboyPPU::drawSprites(int scanline) {
             int tileNum = gameboy->hram[spriteOffset + 2];
             u32 flag = gameboy->hram[spriteOffset + 3];
             int bank = 0;
-            int paletteid;
+            u32 paletteId;
             if(gameboy->gbMode == CGB) {
                 bank = (gameboy->hram[spriteOffset + 3] & 0x8) >> 3;
-                paletteid = gameboy->hram[spriteOffset + 3] & 0x7;
+                paletteId = (u32) (gameboy->hram[spriteOffset + 3] & 0x7);
             } else {
-                paletteid = (gameboy->hram[spriteOffset + 3] & 0x10) >> 2;
+                paletteId = (u32) ((gameboy->hram[spriteOffset + 3] & 0x10) >> 2);
             }
 
             // Select Tile base on Tiles Y offset
@@ -387,7 +346,7 @@ void GameboyPPU::drawSprites(int scanline) {
             u32 pxData = BitStretchTable256[vRamB1] | (BitStretchTable256[vRamB2] << 1);
 
             // Setup depth based on priority
-            u32 depth = 2;
+            u8 depth = 2;
             if(flag & PRIORITY) {
                 depth = 0;
             }
@@ -395,34 +354,20 @@ void GameboyPPU::drawSprites(int scanline) {
             // Calculate where to start to draw, negatives treated as unsigned for speed up
             u32 writeX = (u32) ((s32) (gameboy->hram[spriteOffset + 1] - 8));
 
-            // Split Render mode based on sgbMode, slight speed up
-            if(gameboy->sgbMode) {
-                for(int j = 0; j < 16; j += 2, writeX++) {
-                    if(writeX >= 160) {
-                        continue;
-                    }
-
-                    u32 colorid = (pxData >> j) & 0x03;
-
-                    // Draw pixel, If not transparent or above depth buffer
-                    if(colorid != 0 && depth >= depthBuffer[writeX]) {
-                        depthBuffer[writeX] = depth;
-                        lineBuffer[writeX] = sprPalettes[paletteid + subSgbMap[writeX >> 3]][colorid];
-                    }
+            u8* subSgbMap = &gameboy->sgbMap[scanline / 8 * 20];
+            for(int x = 0; x < 16; x += 2, writeX++) {
+                if(writeX >= 160) {
+                    continue;
                 }
-            } else {
-                for(int j = 0; j < 16; j += 2, writeX++) {
-                    if(writeX >= 160) {
-                        continue;
-                    }
 
-                    u32 colorid = (pxData >> j) & 0x03;
+                u32 colorId = (pxData >> x) & 0x03;
 
-                    // Draw pixel, If not transparent or above depth buffer
-                    if(colorid != 0 && depth >= depthBuffer[writeX]) {
-                        depthBuffer[writeX] = depth;
-                        lineBuffer[writeX] = sprPalettes[paletteid][colorid];
-                    }
+                // Draw pixel, If not transparent or above depth buffer
+                if(colorId != 0 && depth >= depthBuffer[writeX]) {
+                    u32 subPaletteId = gameboy->sgbMode ? paletteId + subSgbMap[writeX >> 3] : paletteId;
+
+                    depthBuffer[writeX] = depth;
+                    lineBuffer[writeX] = getSprColor(subPaletteId, colorId);
                 }
             }
         }
@@ -467,58 +412,10 @@ void GameboyPPU::handleVideoRegister(u8 ioReg, u8 val) {
         case 0x40:
             if((gameboy->ioRam[ioReg] & 0x80) && !(val & 0x80)) {
                 if(gameboy->gbMode == GB) {
-                    int red = (gameboy->bgPaletteData[0] & 0x1F) * 8;
-                    int green = (((gameboy->bgPaletteData[0] & 0xE0) >> 5) | ((gameboy->bgPaletteData[1]) & 0x3) << 3) * 8;
-                    int blue = ((gameboy->bgPaletteData[1] >> 2) & 0x1F) * 8;
-                    gfxClearScreenBuffer((u8) red, (u8) green, (u8) blue);
+                    gfxClearScreenBuffer(getBgColor(0, 0));
                 } else {
-                    gfxClearScreenBuffer(0xFF, 0xFF, 0xFF);
+                    gfxClearScreenBuffer(0xFFFF);
                 }
-            }
-
-            break;
-        case 0x47:
-            if(gameboy->gbMode == GB) {
-                bgPalettesModified[0] = true;
-                if(gameboy->sgbMode) {
-                    bgPalettesModified[1] = true;
-                    bgPalettesModified[2] = true;
-                    bgPalettesModified[3] = true;
-                }
-            }
-
-            break;
-        case 0x48:
-            if(gameboy->gbMode == GB) {
-                sprPalettesModified[0] = true;
-                if(gameboy->sgbMode) {
-                    sprPalettesModified[1] = true;
-                    sprPalettesModified[2] = true;
-                    sprPalettesModified[3] = true;
-                }
-            }
-
-            break;
-        case 0x49:
-            if(gameboy->gbMode == GB) {
-                sprPalettesModified[4] = true;
-                if(gameboy->sgbMode) {
-                    sprPalettesModified[5] = true;
-                    sprPalettesModified[6] = true;
-                    sprPalettesModified[7] = true;
-                }
-            }
-
-            break;
-        case 0x69:
-            if(gameboy->gbMode == CGB) {
-                bgPalettesModified[(gameboy->ioRam[0x68] / 8) & 7] = true;
-            }
-
-            break;
-        case 0x6B:
-            if(gameboy->gbMode == CGB) {
-                sprPalettesModified[(gameboy->ioRam[0x6A] / 8) & 7] = true;
             }
 
             break;
@@ -526,32 +423,3 @@ void GameboyPPU::handleVideoRegister(u8 ioReg, u8 val) {
             break;
     }
 }
-
-void GameboyPPU::updateBgPalette(int paletteId) {
-    for(int i = 0; i < 4; i++) {
-        u8 col = gameboy->gbMode == GB ? (u8) ((gameboy->ioRam[0x47] >> (i * 2)) & 3) : (u8) i;
-
-        u8 lsb = gameboy->bgPaletteData[(paletteId * 8) + (col * 2)];
-        u8 msb = gameboy->bgPaletteData[(paletteId * 8) + (col * 2) + 1];
-
-        int red = (lsb & 0x1F) << 3;
-        int green = ((lsb & 0xE0) >> 2) | ((msb & 0x3) << 6);
-        int blue = (msb & 0x7C) << 1;
-        bgPalettes[paletteId][i] = RGBA32(red, green, blue);
-    }
-}
-
-void GameboyPPU::updateSprPalette(int paletteId) {
-    for(int i = 0; i < 4; i++) {
-        u8 col = gameboy->gbMode == GB ? (u8) ((gameboy->ioRam[0x48 + paletteId / 4] >> (i * 2)) & 3) : (u8) i;
-
-        u8 lsb = gameboy->sprPaletteData[(paletteId * 8) + (col * 2)];
-        u8 msb = gameboy->sprPaletteData[(paletteId * 8) + (col * 2) + 1];
-
-        int red = (lsb & 0x1F) << 3;
-        int green = ((lsb & 0xE0) >> 2) | ((msb & 0x3) << 6);
-        int blue = (msb & 0x7C) << 1;
-        sprPalettes[paletteId][i] = RGBA32(red, green, blue);
-    }
-}
-

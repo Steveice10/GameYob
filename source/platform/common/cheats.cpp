@@ -1,6 +1,7 @@
 #include <string.h>
 
 #include "platform/common/cheats.h"
+#include "platform/common/manager.h"
 #include "platform/common/menu.h"
 #include "platform/ui.h"
 #include "cheatengine.h"
@@ -109,7 +110,7 @@ void updateCheatMenu() {
         } else if(key == UI_KEY_B) {
             closeSubMenu();
             if(!cheatMenuGameboyWasPaused) {
-                gameboy->unpause();
+                mgrUnpause();
             }
 
             return;
@@ -122,8 +123,8 @@ void updateCheatMenu() {
 }
 
 void startCheatMenu() {
-    cheatMenuGameboyWasPaused = gameboy->isGameboyPaused();
-    gameboy->pause();
+    cheatMenuGameboyWasPaused = mgrIsPaused();
+    mgrPause();
 
     displaySubMenu(updateCheatMenu);
     redrawCheatMenu();

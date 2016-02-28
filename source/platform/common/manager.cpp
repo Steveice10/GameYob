@@ -27,10 +27,17 @@ time_t lastPrintTime;
 FileChooser romChooser("/", {"gbs", "sgb", "gbc", "cgb", "gb"}, true);
 bool chooserInitialized = false;
 
+int autoFireCounterA = 0;
+int autoFireCounterB = 0;
+
+bool emulationPaused;
+
 void mgrInit() {
     gameboy = new Gameboy();
     fps = 0;
     lastPrintTime = 0;
+
+    emulationPaused = false;
 }
 
 void mgrExit() {
@@ -420,6 +427,18 @@ void mgrSave() {
     gameboy->saveGame();
 }
 
+void mgrPause() {
+    emulationPaused = true;
+}
+
+void mgrUnpause() {
+    emulationPaused = false;
+}
+
+bool mgrIsPaused() {
+    return emulationPaused;
+}
+
 void mgrRun() {
     systemCheckRunning();
 
@@ -427,7 +446,7 @@ void mgrRun() {
         return;
     }
 
-    while(!(gameboy->runEmul() & RET_VBLANK));
+    while(!emulationPaused && !(gameboy->runEmul() & RET_VBLANK));
 
     gameboy->getPPU()->drawScreen();
 
@@ -440,7 +459,63 @@ void mgrRun() {
             gbsPlayerRefresh();
         }
 
-        gameboy->gameboyCheckInput();
+        u8 buttonsPressed = 0xff;
+
+        if(!gameboy->getPPU()->probingForBorder) {
+            if(inputKeyHeld(FUNC_KEY_UP)) {
+                buttonsPressed &= (0xFF ^ GB_UP);
+            }
+
+            if(inputKeyHeld(FUNC_KEY_DOWN)) {
+                buttonsPressed &= (0xFF ^ GB_DOWN);
+            }
+
+            if(inputKeyHeld(FUNC_KEY_LEFT)) {
+                buttonsPressed &= (0xFF ^ GB_LEFT);
+            }
+
+            if(inputKeyHeld(FUNC_KEY_RIGHT)) {
+                buttonsPressed &= (0xFF ^ GB_RIGHT);
+            }
+
+            if(inputKeyHeld(FUNC_KEY_A)) {
+                buttonsPressed &= (0xFF ^ GB_A);
+            }
+
+            if(inputKeyHeld(FUNC_KEY_B)) {
+                buttonsPressed &= (0xFF ^ GB_B);
+            }
+
+            if(inputKeyHeld(FUNC_KEY_START)) {
+                buttonsPressed &= (0xFF ^ GB_START);
+            }
+
+            if(inputKeyHeld(FUNC_KEY_SELECT)) {
+                buttonsPressed &= (0xFF ^ GB_SELECT);
+            }
+
+            if(inputKeyHeld(FUNC_KEY_AUTO_A)) {
+                if(autoFireCounterA <= 0) {
+                    buttonsPressed &= (0xFF ^ GB_A);
+                    autoFireCounterA = 2;
+                }
+
+                autoFireCounterA--;
+            }
+
+            if(inputKeyHeld(FUNC_KEY_AUTO_B)) {
+                if(autoFireCounterB <= 0) {
+                    buttonsPressed &= (0xFF ^ GB_B);
+                    autoFireCounterB = 2;
+                }
+
+                autoFireCounterB--;
+            }
+
+            gameboy->controllers[0] = buttonsPressed;
+            gameboy->checkInput();
+        }
+
         if(inputKeyPressed(FUNC_KEY_SAVE)) {
             if(!gameboy->autosaveEnabled) {
                 gameboy->saveGame();
@@ -453,7 +528,7 @@ void mgrRun() {
 
         if((inputKeyPressed(FUNC_KEY_MENU) || inputKeyPressed(FUNC_KEY_MENU_PAUSE)) && !accelPadMode) {
             if(pauseOnMenu || inputKeyPressed(FUNC_KEY_MENU_PAUSE)) {
-                gameboy->pause();
+                mgrPause();
             }
 
             gfxSetFastForward(false);

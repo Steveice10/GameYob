@@ -8,7 +8,6 @@
 #include "gb_apu/Multi_Buffer.h"
 
 #include "platform/audio.h"
-#include "platform/input.h"
 #include "platform/system.h"
 #include "cheatengine.h"
 #include "gameboy.h"
@@ -16,19 +15,10 @@
 #include "printer.h"
 #include "romfile.h"
 
-#define GB_A 0x01
-#define GB_B 0x02
-#define GB_SELECT 0x04
-#define GB_START 0x08
-#define GB_RIGHT 0x10
-#define GB_LEFT 0x20
-#define GB_UP 0x40
-#define GB_DOWN 0x80
-
 #define MAX_WAIT_CYCLES 1000000
 
-#define TO5BIT(c8) (((c8) * 0x1F * 2 + 0xFF) / (0xFF * 2))
-#define TOCGB(r, g, b) (TO5BIT(b) << 10 | TO5BIT(g) << 5 | TO5BIT(r))
+#define COMPONENT_8_TO_5(c8) (((c8) * 0x1F * 2 + 0xFF) / (0xFF * 2))
+#define TOCGB(r, g, b) ((u16) (COMPONENT_8_TO_5(b) << 10 | COMPONENT_8_TO_5(g) << 5 | COMPONENT_8_TO_5(r)))
 
 static const unsigned short p005[] = {
         TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x52, 0xFF, 0x00), TOCGB(0xFF, 0x42, 0x00), TOCGB(0x00, 0x00, 0x00),
@@ -540,34 +530,47 @@ void Gameboy::init() {
         return;
     }
 
+    linkedGameboy = NULL;
+
+    emuRet = 0;
+
     sgbMode = false;
 
     gameboyFrameCounter = 0;
 
-    gameboyPaused = false;
-
     scanlineCounter = 456 * (doubleSpeed ? 2 : 1);
     phaseCounter = 456 * 153;
-    timerCounter = 0;
     dividerCounter = 256;
+    timerCounter = 0;
     serialCounter = 0;
 
+    cycleCount = 0;
     cyclesToEvent = 0;
-    extraCycles = 0;
     cyclesSinceVBlank = 0;
     cycleToSerialTransfer = -1;
+    extraCycles = 0;
 
-    // Timer stuff
-    periods[0] = clockSpeed / 4096;
-    periods[1] = clockSpeed / 262144;
-    periods[2] = clockSpeed / 65536;
-    periods[3] = clockSpeed / 16384;
-    timerPeriod = periods[0];
+    interruptTriggered = false;
 
-    memset(vram[0], 0, 0x2000);
-    memset(vram[1], 0, 0x2000);
+    timerPeriod = timerPeriods[0];
 
-    memset(bgPaletteData, 0xff, 0x40);
+    gbRegs.sp.w = 0xFFFE;
+    ime = 0;
+    halt = 0;
+    haltBug = false;
+
+    if(biosOn) {
+        gbRegs.pc.w = 0;
+    } else {
+        gbRegs.pc.w = 0x100;
+    }
+
+    doubleSpeed = false;
+
+    memset(controllers, 0xff, sizeof(controllers));
+
+    memset(bgPaletteData.direct, 0xff, sizeof(bgPaletteData));
+    memset(sprPaletteData.direct, 0xff, sizeof(sprPaletteData));
 
     setDoubleSpeed(0);
 
@@ -618,7 +621,6 @@ void Gameboy::init() {
     }
 
     initMMU();
-    initCPU();
     initSGB();
     initSND();
     ppu->initPPU();
@@ -704,104 +706,21 @@ void Gameboy::initGameboyMode() {
     memcpy(&g_gbRegs, &gbRegs, sizeof(Registers));
 }
 
-void Gameboy::gameboyCheckInput() {
-    static int autoFireCounterA = 0;
-    static int autoFireCounterB = 0;
-
-    u8 buttonsPressed = 0xff;
-
-    if(ppu->probingForBorder) {
-        return;
-    }
-
-    if(inputKeyHeld(FUNC_KEY_UP)) {
-        buttonsPressed &= (0xFF ^ GB_UP);
-        if(!(ioRam[0x00] & 0x10)) {
+void Gameboy::checkInput() {
+    if(!(ioRam[0x00] & 0x10)) {
+        if((controllers[0] & 0xf0) != 0xf0) {
+            requestInterrupt(INT_JOYPAD);
+        }
+    } else if(!(ioRam[0x00] & 0x20)) {
+        if((controllers[0] & 0x0f) != 0x0f) {
             requestInterrupt(INT_JOYPAD);
         }
     }
-
-    if(inputKeyHeld(FUNC_KEY_DOWN)) {
-        buttonsPressed &= (0xFF ^ GB_DOWN);
-        if(!(ioRam[0x00] & 0x10)) {
-            requestInterrupt(INT_JOYPAD);
-        }
-    }
-
-    if(inputKeyHeld(FUNC_KEY_LEFT)) {
-        buttonsPressed &= (0xFF ^ GB_LEFT);
-        if(!(ioRam[0x00] & 0x10)) {
-            requestInterrupt(INT_JOYPAD);
-        }
-    }
-
-    if(inputKeyHeld(FUNC_KEY_RIGHT)) {
-        buttonsPressed &= (0xFF ^ GB_RIGHT);
-        if(!(ioRam[0x00] & 0x10)) {
-            requestInterrupt(INT_JOYPAD);
-        }
-    }
-
-    if(inputKeyHeld(FUNC_KEY_A)) {
-        buttonsPressed &= (0xFF ^ GB_A);
-        if(!(ioRam[0x00] & 0x20)) {
-            requestInterrupt(INT_JOYPAD);
-        }
-    }
-
-    if(inputKeyHeld(FUNC_KEY_B)) {
-        buttonsPressed &= (0xFF ^ GB_B);
-        if(!(ioRam[0x00] & 0x20)) {
-            requestInterrupt(INT_JOYPAD);
-        }
-    }
-
-    if(inputKeyHeld(FUNC_KEY_START)) {
-        buttonsPressed &= (0xFF ^ GB_START);
-        if(!(ioRam[0x00] & 0x20)) {
-            requestInterrupt(INT_JOYPAD);
-        }
-    }
-
-    if(inputKeyHeld(FUNC_KEY_SELECT)) {
-        buttonsPressed &= (0xFF ^ GB_SELECT);
-        if(!(ioRam[0x00] & 0x20)) {
-            requestInterrupt(INT_JOYPAD);
-        }
-    }
-
-    if(inputKeyHeld(FUNC_KEY_AUTO_A)) {
-        if(autoFireCounterA <= 0) {
-            buttonsPressed &= (0xFF ^ GB_A);
-            if(!(ioRam[0x00] & 0x20)) {
-                requestInterrupt(INT_JOYPAD);
-            }
-
-            autoFireCounterA = 2;
-        }
-
-        autoFireCounterA--;
-    }
-
-    if(inputKeyHeld(FUNC_KEY_AUTO_B)) {
-        if(autoFireCounterB <= 0) {
-            buttonsPressed &= (0xFF ^ GB_B);
-            if(!(ioRam[0x00] & 0x20)) {
-                requestInterrupt(INT_JOYPAD);
-            }
-
-            autoFireCounterB = 2;
-        }
-
-        autoFireCounterB--;
-    }
-
-    controllers[0] = buttonsPressed;
 }
 
 // This is called 60 times per gameboy second, even if the lcd is off.
 void Gameboy::updateVBlank() {
-    gameboyFrameCounter++;
+    cyclesSinceVBlank = 0;
 
     if(!romFile->isGBS()) {
         if(ppu->probingForBorder) {
@@ -823,29 +742,11 @@ void Gameboy::updateVBlank() {
 
         printer->updateGbPrinter();
     }
-}
 
-void Gameboy::pause() {
-    if(!gameboyPaused) {
-        gameboyPaused = true;
-    }
-}
-
-void Gameboy::unpause() {
-    if(gameboyPaused) {
-        gameboyPaused = false;
-    }
-}
-
-bool Gameboy::isGameboyPaused() {
-    return gameboyPaused;
+    gameboyFrameCounter++;
 }
 
 int Gameboy::runEmul() {
-    if(gameboyPaused) {
-        return RET_VBLANK;
-    }
-
     emuRet = 0;
     memcpy(&g_gbRegs, &gbRegs, sizeof(Registers));
 
@@ -864,8 +765,10 @@ int Gameboy::runEmul() {
         bool opTriggeredInterrupt = cyclesToExecute == -1;
 
         cyclesSinceVBlank += cycles;
+        cycleCount += cycles >> doubleSpeed;
+
         updateTimers(cycles);
-        updateSerial(cycles);
+        emuRet |= updateSerial(cycles);
         updateSound(cycles);
         emuRet |= updateLCD(cycles);
 
@@ -954,11 +857,9 @@ void Gameboy::refreshGFXPalette() {
                 break;
         }
 
-        memcpy(bgPaletteData, palette, 4 * sizeof(u16));
-        memcpy(sprPaletteData, palette + 4, 4 * sizeof(u16));
-        memcpy(sprPaletteData + 4 * 8, palette + 8, 4 * sizeof(u16));
-
-        ppu->refreshPPU();
+        memcpy(bgPaletteData.direct, palette, 4 * sizeof(u16));
+        memcpy(sprPaletteData.direct, palette + 4, 4 * sizeof(u16));
+        memcpy(sprPaletteData.direct + 4 * 8, palette + 8, 4 * sizeof(u16));
     }
 }
 
@@ -985,7 +886,6 @@ inline int Gameboy::updateLCD(int cycles) {
         phaseCounter -= cycles;
         if(phaseCounter <= 0) {
             phaseCounter += CYCLES_PER_FRAME << doubleSpeed;
-            cyclesSinceVBlank = 0;
             // Though not technically vblank, this is a good time to check for 
             // input and whatnot.
             updateVBlank();
@@ -1047,7 +947,6 @@ inline int Gameboy::updateLCD(int cycles) {
                             requestInterrupt(INT_LCD);
                         }
 
-                        cyclesSinceVBlank = scanlineCounter - (456 << doubleSpeed);
                         updateVBlank();
                         setEventCycles(scanlineCounter);
                         return RET_VBLANK;
@@ -1116,7 +1015,7 @@ inline void Gameboy::updateSound(int cycles) {
         centerBuffer->end_frame(CYCLES_PER_BUFFER);
         soundCycles -= CYCLES_PER_BUFFER;
 
-        if(soundEnabled && !gameboyPaused) {
+        if(soundEnabled) {
             long leftCount = leftBuffer->read_samples((blip_sample_t*) audioGetLeftBuffer(), APU_BUFFER_SIZE);
             long rightCount = rightBuffer->read_samples((blip_sample_t*) audioGetRightBuffer(), APU_BUFFER_SIZE);
             long centerCount = centerBuffer->read_samples((blip_sample_t*) audioGetCenterBuffer(), APU_BUFFER_SIZE);
@@ -1129,18 +1028,20 @@ inline void Gameboy::updateSound(int cycles) {
     }
 }
 
-inline void Gameboy::updateSerial(int cycles) {
+inline int Gameboy::updateSerial(int cycles) {
+    int ret = 0;
+
     // For external clock
     if(cycleToSerialTransfer != -1) {
-        if(cyclesSinceVBlank < cycleToSerialTransfer) {
-            setEventCycles(cycleToSerialTransfer - cyclesSinceVBlank);
+        if(cycleCount < cycleToSerialTransfer) {
+            setEventCycles(cycleToSerialTransfer - cycleCount);
         } else {
             cycleToSerialTransfer = -1;
             if((ioRam[0x02] & 0x81) == 0x80) {
                 u8 tmp = ioRam[0x01];
                 ioRam[0x01] = linkedGameboy->ioRam[0x01];
                 linkedGameboy->ioRam[0x01] = tmp;
-                emuRet |= RET_LINK;
+                ret |= RET_LINK;
                 // Execution will be passed back to the other gameboy (the
                 // internal clock gameboy).
             } else {
@@ -1151,6 +1052,8 @@ inline void Gameboy::updateSerial(int cycles) {
                 requestInterrupt(INT_SERIAL);
                 ioRam[0x02] &= ~0x80;
             }
+
+            linkedGameboy->ioRam[0x02] &= ~0x80;
         }
     }
 
@@ -1160,8 +1063,14 @@ inline void Gameboy::updateSerial(int cycles) {
         if(serialCounter <= 0) {
             serialCounter = 0;
             if(linkedGameboy != NULL) {
-                linkedGameboy->cycleToSerialTransfer = cyclesSinceVBlank;
-                emuRet |= RET_LINK;
+                if(linkedGameboy->cycleCount >= cycleCount) {
+                    ioRam[0x01] = 0xff;
+                    ioRam[0x02] &= ~0x80;
+                } else {
+                    linkedGameboy->cycleToSerialTransfer = cycleCount;
+                    ret |= RET_LINK;
+                }
+
                 // Execution will stop here, and this gameboy's SB will be
                 // updated when the other gameboy runs to the appropriate
                 // cycle.
@@ -1172,11 +1081,12 @@ inline void Gameboy::updateSerial(int cycles) {
             }
 
             requestInterrupt(INT_SERIAL);
-            ioRam[0x02] &= ~0x80;
         } else {
             setEventCycles(serialCounter);
         }
     }
+
+    return ret;
 }
 
 
@@ -1194,14 +1104,14 @@ void Gameboy::setDoubleSpeed(int val) {
             scanlineCounter >>= 1;
         }
 
-        doubleSpeed = 0;
+        doubleSpeed = false;
         ioRam[0x4D] &= ~0x80;
     } else {
         if(!doubleSpeed) {
             scanlineCounter <<= 1;
         }
 
-        doubleSpeed = 1;
+        doubleSpeed = true;
         ioRam[0x4D] |= 0x80;
     }
 }
@@ -1217,6 +1127,10 @@ bool Gameboy::loadRomFile(const char* filename) {
     }
 
     romFile = new RomFile(this, filename);
+    if(romFile == NULL) {
+        return false;
+    }
+
     if(!romFile->isLoaded()) {
         delete romFile;
         romFile = NULL;
@@ -1267,6 +1181,7 @@ int Gameboy::loadSave() {
     externRam = (u8*) malloc(romFile->getRamBanks() * 0x2000);
 
     if(romFile->isGBS()) {
+        saveFile = NULL;
         return 0;
     }
 
@@ -1337,7 +1252,7 @@ int Gameboy::saveGame() {
 }
 
 void Gameboy::gameboySyncAutosave() {
-    if(!autosaveStarted) {
+    if(!autosaveStarted || saveFile == NULL) {
         return;
     }
 
@@ -1387,8 +1302,8 @@ bool Gameboy::saveState(FILE* file) {
     }
 
     fwrite(&STATE_VERSION, 1, sizeof(int), file);
-    fwrite(bgPaletteData, 1, sizeof(bgPaletteData), file);
-    fwrite(sprPaletteData, 1, sizeof(sprPaletteData), file);
+    fwrite(bgPaletteData.direct, 1, sizeof(bgPaletteData), file);
+    fwrite(sprPaletteData.direct, 1, sizeof(sprPaletteData), file);
     fwrite(vram, 1, sizeof(vram), file);
     fwrite(wram, 1, sizeof(wram), file);
     fwrite(hram, 1, 0x200, file);
@@ -1482,8 +1397,8 @@ bool Gameboy::loadState(FILE* file) {
         return false;
     }
 
-    fread(bgPaletteData, 1, sizeof(bgPaletteData), file);
-    fread(sprPaletteData, 1, sizeof(sprPaletteData), file);
+    fread(bgPaletteData.direct, 1, sizeof(bgPaletteData), file);
+    fread(sprPaletteData.direct, 1, sizeof(sprPaletteData), file);
     fread(vram, 1, sizeof(vram), file);
     fread(wram, 1, sizeof(wram), file);
     fread(hram, 1, 0x200, file);
@@ -1647,13 +1562,11 @@ bool Gameboy::loadState(FILE* file) {
 
     apu->load_state(apuState);
 
-    timerPeriod = periods[ioRam[0x07] & 0x3];
+    timerPeriod = timerPeriods[ioRam[0x07] & 0x3];
     cyclesToEvent = 1;
 
     mapMemory();
     setDoubleSpeed(doubleSpeed);
-
-    ppu->refreshPPU();
 
     return true;
 }

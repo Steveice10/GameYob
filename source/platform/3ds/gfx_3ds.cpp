@@ -15,7 +15,7 @@
 
 using namespace ctr;
 
-static u32* screenBuffer;
+static u16* screenBuffer;
 
 static int prevScaleMode = -1;
 static int prevScaleFilter = -1;
@@ -38,8 +38,8 @@ static u32 gpuBorderHeight = 0;
 
 bool gfxInit() {
     // Allocate and clear the screen buffer.
-    screenBuffer = (u32*) gpu::galloc(256 * 256 * sizeof(u32));
-    memset(screenBuffer, 0, 256 * 256 * sizeof(u32));
+    screenBuffer = (u16*) gpu::galloc(256 * 256 * sizeof(u16));
+    memset(screenBuffer, 0, 256 * 256 * sizeof(u16));
 
     // Setup the GPU state.
     gpu::setCullMode(gpu::CULL_BACK_CCW);
@@ -147,15 +147,28 @@ void gfxLoadBorder(u8* imgData, u32 imgWidth, u32 imgHeight) {
     borderChanged = true;
 }
 
-u32* gfxGetLineBuffer(int line) {
+u16* gfxGetLineBuffer(int line) {
     return screenBuffer + line * 256;
 }
 
-void gfxClearScreenBuffer(u8 r, u8 g, u8 b) {
-    if(r == g && r == b) {
-        memset(screenBuffer, r, 256 * 256 * sizeof(u32));
+void gfxClearScreenBuffer(u16 rgba5551) {
+    if(((rgba5551 >> 8) & 0xFF) == (rgba5551 & 0xFF)) {
+        memset(screenBuffer, rgba5551 & 0xFF, 256 * 256 * sizeof(u16));
     } else {
-        wmemset((wchar_t*) screenBuffer, (wchar_t) RGBA32(r, g, b), 256 * 256);
+        for(int i = 0; i < 256 * 256; i++) {
+            screenBuffer[i] = rgba5551;
+        }
+    }
+}
+
+void gfxClearLineBuffer(int line, u16 rgba5551) {
+    u16* lineBuffer = gfxGetLineBuffer(line);
+    if(((rgba5551 >> 8) & 0xFF) == (rgba5551 & 0xFF)) {
+        memset(lineBuffer, rgba5551 & 0xFF, 256 * sizeof(u16));
+    } else {
+        for(int i = 0; i < 256; i++) {
+            lineBuffer[i] = rgba5551;
+        }
     }
 }
 
@@ -176,12 +189,12 @@ void gfxClearScreenBuffer(u8 r, u8 g, u8 b) {
                                 *E0 = Ep;                   \
                              }
 
-void gfxScale2x(u32* pixelBuffer) {
+void gfxScale2x(u16* pixelBuffer) {
     int x, y;
-    u32* E, * E0;
+    u16* E, *E0;
     u32 Ep, Bp, Dp, Fp, Hp;
 
-    u32* buffer;
+    u16* buffer;
     gpu::getTextureData(texture, (void**) &buffer);
 
     // Top line and top corners
@@ -402,9 +415,9 @@ void gfxDrawScreen() {
     // Update the texture with the new frame.
     gpu::TextureFilter filter = scaleFilter >= 1 ? gpu::FILTER_LINEAR : gpu::FILTER_NEAREST;
     if(scaleMode == 0 || scaleFilter <= 1) {
-        gpu::setTextureData(texture, screenBuffer, 256, 256, gpu::PIXEL_RGBA8, gpu::textureMinFilter(filter) | gpu::textureMagFilter(filter));
+        gpu::setTextureData(texture, screenBuffer, 256, 256, gpu::PIXEL_RGBA5551, gpu::textureMinFilter(filter) | gpu::textureMagFilter(filter));
     } else {
-        gpu::setTextureInfo(texture, 512, 512, gpu::PIXEL_RGBA8, gpu::textureMinFilter(filter) | gpu::textureMagFilter(filter));
+        gpu::setTextureInfo(texture, 512, 512, gpu::PIXEL_RGBA5551, gpu::textureMinFilter(filter) | gpu::textureMagFilter(filter));
         gfxScale2x(screenBuffer);
     }
 
