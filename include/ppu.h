@@ -30,10 +30,8 @@ public:
     void writeHram(u16 addr, u8 val);
     void handleVideoRegister(u8 ioReg, u8 val);
 
-    void updateBgPalette(int paletteid);
-    void updateBgPaletteDMG();
-    void updateSprPalette(int paletteid);
-    void updateSprPaletteDMG(int paletteid);
+    void updateBgPalette(int paletteId);
+    void updateSprPalette(int paletteId);
 
     bool probingForBorder;
     
