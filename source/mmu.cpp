@@ -312,7 +312,6 @@ void Gameboy::writeMemoryOther(u16 addr, u8 val) {
             if(addr >= 0xFF00) {
                 writeIO(addr & 0xFF, val);
             } else if(addr >= 0xFE00) {
-                ppu->writeHram(addr & 0x1ff, val);
                 hram[addr & 0x1ff] = val;
             } else {// Echo area
                 wram[wramBank][addr & 0xFFF] = val;

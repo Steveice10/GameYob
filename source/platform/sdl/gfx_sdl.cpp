@@ -21,12 +21,12 @@ static u16* screenBuffer;
 static bool fastForward = false;
 
 bool gfxInit() {
-    window = SDL_CreateWindow("GameYob", 0, 0, 160, 144, SDL_WINDOW_RESIZABLE);
+    window = SDL_CreateWindow("GameYob", 0, 0, 160, 144, SDL_WINDOW_RESIZABLE | SDL_WINDOW_OPENGL);
     if(window == NULL) {
         return false;
     }
 
-    renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_PRESENTVSYNC);
+    renderer = SDL_CreateRenderer(window, -1, 0);
     if(renderer == NULL) {
         return false;
     }
@@ -109,6 +109,8 @@ void gfxClearLineBuffer(int line, u16 rgba5551) {
 }
 
 void gfxDrawScreen() {
+    SDL_GL_SetSwapInterval(!gfxGetFastForward());
+
     SDL_UpdateTexture(texture, &textureRect, screenBuffer, 160 * 2);
     SDL_RenderCopy(renderer, texture, &textureRect, &windowRect);
     SDL_RenderPresent(renderer);
@@ -122,8 +124,6 @@ void gfxDrawScreen() {
         SDL_SaveBMP(screenshot, fileStream.str().c_str());
         SDL_FreeSurface(screenshot);
     }
-
-    // TODO: Fast-forward
 }
 
 void gfxWaitForVBlank() {

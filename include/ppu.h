@@ -26,7 +26,6 @@ public:
 
     void writeVram(u16 addr, u8 val);
     void writeVram16(u16 addr, u16 src);
-    void writeHram(u16 addr, u8 val);
     void handleVideoRegister(u8 ioReg, u8 val);
 
     bool probingForBorder;
@@ -41,8 +40,10 @@ private:
     inline u16 getBgColor(u32 paletteId, u32 colorId);
     inline u16 getSprColor(u32 paletteId, u32 colorId);
 
+    void drawStatic(u16* lineBuffer, u8* depthBuffer, int scanline);
     void drawBackground(u16* lineBuffer, u8* depthBuffer, int scanline, int winX, int winY, bool drawingWindow, bool tileSigned);
     void drawWindow(u16* lineBuffer, u8* depthBuffer, int scanline, int winX, int winY, bool drawingWindow, bool tileSigned);
+
     void drawSprites(u16* lineBuffer, u8* depthBuffer, int scanline);
 
     Gameboy* gameboy;
