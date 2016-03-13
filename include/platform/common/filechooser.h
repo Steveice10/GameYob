@@ -12,7 +12,7 @@ public:
 
     std::string getDirectory();
     void setDirectory(std::string directory);
-    char* startFileChooser();
+    char* chooseFile();
 
 private:
     void updateScrollDown();

@@ -37,5 +37,5 @@ void uiSetTextColor(TextColor color);
 void uiPrint(const char* str, ...);
 void uiPrintv(const char* str, va_list list);
 void uiFlush();
-void uiWaitForVBlank();
+void uiSync();
 UIKey uiReadKey();

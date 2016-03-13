@@ -24,14 +24,17 @@
 
 using namespace ctr;
 
+static bool requestedExit;
+
 bool systemInit(int argc, char* argv[]) {
-    if(!core::init(argc) || !gfxInit()) {
+    requestedExit = false;
+
+    if(!core::init(argc) || !gfxInit() || !audioInit()) {
         return 0;
     }
 
     uiInit();
     inputInit();
-    audioInit();
 
     mgrInit();
 
@@ -45,44 +48,40 @@ void systemExit() {
     mgrSave();
     mgrExit();
 
-    audioCleanup();
     inputCleanup();
     uiCleanup();
-
+    audioCleanup();
     gfxCleanup();
 
     core::exit();
-
-    exit(0);
 }
 
 void systemRun() {
-    mgrSelectRom();
-    while(true) {
-        mgrRun();
-    }
+    mgrRun();
 }
 
-void systemCheckRunning() {
-    if(!core::running()) {
-        systemExit();
-    }
+bool systemIsRunning() {
+    return !requestedExit && core::running();
+}
+
+void systemRequestExit() {
+    requestedExit = true;
 }
 
 const std::string systemIniPath() {
-    return "/gameyob.ini";
+    return "gameyob.ini";
 }
 
 const std::string systemDefaultGbBiosPath() {
-    return "/gb_bios.bin";
+    return "gb_bios.bin";
 }
 
 const std::string systemDefaultGbcBiosPath() {
-    return "/gbc_bios.bin";
+    return "gbc_bios.bin";
 }
 
 const std::string systemDefaultBorderPath() {
-    return "/default_border.png";
+    return "default_border.png";
 }
 
 const std::string systemDefaultRomPath() {

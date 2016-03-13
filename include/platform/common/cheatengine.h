@@ -34,7 +34,6 @@ class CheatEngine {
 public:
     CheatEngine(Gameboy* g);
 
-    void enableCheats(bool enable);
     bool addCheat(const char* str);
     void toggleCheat(int i, bool enabled);
 
@@ -50,12 +49,8 @@ public:
 
     inline bool isCheatEnabled(int c) { return cheats[c].flags & CHEAT_FLAG_ENABLED; }
 
-    inline bool areCheatsEnabled() { return cheatsEnabled; }
-
     cheat_t cheats[MAX_CHEATS];
 private:
-    // variables
-    bool cheatsEnabled;
     int numCheats;
 
     Gameboy* gameboy;

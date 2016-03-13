@@ -3,17 +3,14 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include <queue>
 
 #include "platform/common/menu.h"
 #include "platform/ui.h"
 
-#include <citrus/gpu.hpp>
-
 #include <3ds.h>
-
-using namespace ctr;
 
 gfxScreen_t currConsole;
 
@@ -54,18 +51,15 @@ void uiUpdateScreen() {
         gfxSetDoubleBuffering(oldScreen, true);
 
         for(u32 i = 0; i < 2; i++) {
-            gpu::setViewport(gpu::SCREEN_TOP, 0, 0, gpu::TOP_WIDTH, gpu::TOP_HEIGHT);
-            gpu::clear();
-            gpu::flushBuffer();
+            u16 width = 0;
+            u16 height = 0;
 
-            gpu::setViewport(gpu::SCREEN_BOTTOM, 0, 0, gpu::BOTTOM_WIDTH, gpu::BOTTOM_HEIGHT);
-            gpu::clear();
-            gpu::flushBuffer();
+            memset(gfxGetFramebuffer(GFX_TOP, GFX_LEFT, &width, &height), 0, (size_t) (width * height * 3));
+            memset(gfxGetFramebuffer(GFX_TOP, GFX_RIGHT, &width, &height), 0, (size_t) (width * height * 3));
+            memset(gfxGetFramebuffer(GFX_BOTTOM, GFX_LEFT, &width, &height), 0, (size_t) (width * height * 3));
 
-            gpu::swapBuffers(false);
+            gfxSwapBuffers();
         }
-
-        gpu::setViewport(gpu::SCREEN_TOP, 0, 0, gpu::TOP_WIDTH, gpu::TOP_HEIGHT);
 
         currConsole = screen;
         gfxSetScreenFormat(screen, GSP_RGB565_OES);
@@ -173,7 +167,7 @@ void uiFlush() {
     gfxFlushBuffers();
 }
 
-void uiWaitForVBlank() {
+void uiSync() {
     gspWaitForVBlank();
 }
 

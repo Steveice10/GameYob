@@ -6,6 +6,10 @@ int main(int argc, char* argv[]) {
         return false;
     }
 
-    systemRun();
+    while(systemIsRunning()) {
+        systemRun();
+    }
+
+    systemExit();
     return 0;
 }

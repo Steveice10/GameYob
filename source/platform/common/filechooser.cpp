@@ -352,7 +352,7 @@ void FileChooser::refreshContents() {
 void FileChooser::redrawChooser() {
     int screenLen = uiGetWidth();
 
-    uiWaitForVBlank();
+    uiSync();
     uiClear();
 
     std::string currDirName = directory;
@@ -483,16 +483,15 @@ bool FileChooser::updateChooser(char** result) {
  * Returns a pointer to a newly-allocated string. The caller is responsible
  * for free()ing it.
  */
-char* FileChooser::startFileChooser() {
+char* FileChooser::chooseFile() {
     filesPerPage = uiGetHeight() - 1;
 
     refreshContents();
     redrawChooser();
 
     fileChooserActive = true;
-    while(true) {
-        systemCheckRunning();
-        uiWaitForVBlank();
+    while(systemIsRunning()) {
+        uiSync();
         inputUpdate();
 
         char* result;

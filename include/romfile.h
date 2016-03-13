@@ -4,7 +4,6 @@
 
 #include "types.h"
 
-/* All the possible MBC */
 typedef enum {
     MBC0 = 0,
     MBC1,
@@ -16,8 +15,10 @@ typedef enum {
     HUC1,
     HUC3,
     CAMERA,
-    TAMA5
-} MBC;
+    TAMA5,
+
+    MBC_COUNT
+} MBCType;
 
 class Gameboy;
 
@@ -39,7 +40,7 @@ public:
     }
 
     inline bool isGBS() {
-        return this->gbs;
+        return this->gbsInfo != NULL;
     }
 
     inline GBS* getGBS() {
@@ -82,8 +83,8 @@ public:
         return this->rawMBC;
     }
 
-    inline MBC getMBC() {
-        return this->mbc;
+    inline MBCType getMBCType() {
+        return this->mbcType;
     }
 
     inline bool hasRumble() {
@@ -98,7 +99,6 @@ private:
     u8** banks = NULL;
     bool firstBanksAtEnd = false;
 
-    bool gbs = false;
     GBS* gbsInfo = NULL;
 
     std::string fileName = "";
@@ -111,7 +111,7 @@ private:
     int totalRamBanks = 0;
     bool sgb = false;
     u8 rawMBC = 0;
-    MBC mbc = MBC0;
+    MBCType mbcType = MBC0;
     bool rumble = false;
 };
 
@@ -119,7 +119,6 @@ class GBS {
 public:
     GBS(RomFile* romFile, u8* header);
 
-    void init(Gameboy* gameboy);
     void playSong(Gameboy* gameboy, int song);
     void stopSong(Gameboy* gameboy);
 
@@ -133,26 +132,6 @@ public:
 
     inline u16 getLoadAddress() {
         return this->loadAddress;
-    }
-
-    inline u16 getInitAddress() {
-        return this->initAddress;
-    }
-
-    inline u16 getPlayAddress() {
-        return this->playAddress;
-    }
-
-    inline u16 getStackPointer() {
-        return this->stackPointer;
-    }
-
-    inline u8 getTimerModulo() {
-        return this->timerModulo;
-    }
-
-    inline u8 getTimerControl() {
-        return this->timerControl;
     }
 
     inline std::string getTitle() {

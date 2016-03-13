@@ -121,7 +121,7 @@ void uiFlush() {
     wrefresh(window);
 }
 
-void uiWaitForVBlank() {
+void uiSync() {
 }
 
 UIKey uiReadKey() {

@@ -3,21 +3,17 @@
 
 #include <algorithm>
 
+#include "platform/common/cheatengine.h"
 #include "platform/system.h"
-#include "cheatengine.h"
 #include "gameboy.h"
+#include "mmu.h"
 #include "romfile.h"
 
 #define TO_INT(a) ( (a) >= 'a' ? (a) - 'a' + 10 : (a) >= 'A' ? (a) - 'A' + 10 : (a) - '0')
 
 CheatEngine::CheatEngine(Gameboy* g) {
     gameboy = g;
-    cheatsEnabled = true;
     numCheats = 0;
-}
-
-void CheatEngine::enableCheats(bool enable) {
-    cheatsEnabled = enable;
 }
 
 bool CheatEngine::addCheat(const char* str) {
@@ -40,28 +36,28 @@ bool CheatEngine::addCheat(const char* str) {
     if(len == 11) {
         cheats[i].flags |= CHEAT_FLAG_GAMEGENIE;
 
-        cheats[i].data = TO_INT(str[0]) << 4 | TO_INT(str[1]);
-        cheats[i].address = TO_INT(str[6]) << 12 | TO_INT(str[2]) << 8 | TO_INT(str[4]) << 4 | TO_INT(str[5]);
-        cheats[i].compare = TO_INT(str[8]) << 4 | TO_INT(str[10]);
+        cheats[i].data = (u8) (TO_INT(str[0]) << 4 | TO_INT(str[1]));
+        cheats[i].address = (u16) (TO_INT(str[6]) << 12 | TO_INT(str[2]) << 8 | TO_INT(str[4]) << 4 | TO_INT(str[5]));
+        cheats[i].compare = (u8) (TO_INT(str[8]) << 4 | TO_INT(str[10]));
 
         cheats[i].address ^= 0xf000;
-        cheats[i].compare = (cheats[i].compare >> 2) | (cheats[i].compare & 0x3) << 6;
+        cheats[i].compare = (u8) ((cheats[i].compare >> 2) | (cheats[i].compare & 0x3) << 6);
         cheats[i].compare ^= 0xba;
 
         systemPrintDebug("GG %04x / %02x -> %02x\n", cheats[i].address, cheats[i].data, cheats[i].compare);
     } else if(len == 7) { // GameGenie (6digit version) AAA-BBB
         cheats[i].flags |= CHEAT_FLAG_GAMEGENIE1;
 
-        cheats[i].data = TO_INT(str[0]) << 4 | TO_INT(str[1]);
-        cheats[i].address = TO_INT(str[6]) << 12 | TO_INT(str[2]) << 8 | TO_INT(str[4]) << 4 | TO_INT(str[5]);
+        cheats[i].data = (u8) (TO_INT(str[0]) << 4 | TO_INT(str[1]));
+        cheats[i].address = (u16) (TO_INT(str[6]) << 12 | TO_INT(str[2]) << 8 | TO_INT(str[4]) << 4 | TO_INT(str[5]));
 
         systemPrintDebug("GG1 %04x / %02x\n", cheats[i].address, cheats[i].data);
     } else if(len == 8) { // Gameshark AAAAAAAA
         cheats[i].flags |= CHEAT_FLAG_GAMESHARK;
 
-        cheats[i].data = TO_INT(str[2]) << 4 | TO_INT(str[3]);
-        cheats[i].bank = TO_INT(str[0]) << 4 | TO_INT(str[1]);
-        cheats[i].address = TO_INT(str[6]) << 12 | TO_INT(str[7]) << 8 | TO_INT(str[4]) << 4 | TO_INT(str[5]);
+        cheats[i].data = (u8) (TO_INT(str[2]) << 4 | TO_INT(str[3]));
+        cheats[i].bank = (u8) (TO_INT(str[0]) << 4 | TO_INT(str[1]));
+        cheats[i].address = (u16) (TO_INT(str[6]) << 12 | TO_INT(str[7]) << 8 | TO_INT(str[4]) << 4 | TO_INT(str[5]));
 
         systemPrintDebug("GS (%02x)%04x/ %02x\n", cheats[i].bank, cheats[i].address, cheats[i].data);
     } else { // dafuq did i just read ?
@@ -76,7 +72,7 @@ void CheatEngine::toggleCheat(int i, bool enabled) {
     if(enabled) {
         cheats[i].flags |= CHEAT_FLAG_ENABLED;
         if((cheats[i].flags & CHEAT_FLAG_TYPE_MASK) != CHEAT_FLAG_GAMESHARK) {
-            for(int j = 0; j < gameboy->getRomFile()->getRomBanks(); j++) {
+            for(int j = 0; j < gameboy->romFile->getRomBanks(); j++) {
                 applyGGCheatsToBank(j);
             }
         }
@@ -89,7 +85,7 @@ void CheatEngine::toggleCheat(int i, bool enabled) {
 void CheatEngine::unapplyGGCheat(int cheat) {
     if((cheats[cheat].flags & CHEAT_FLAG_TYPE_MASK) != CHEAT_FLAG_GAMESHARK) {
         for(unsigned int i = 0; i < cheats[cheat].patchedBanks.size(); i++) {
-            u8* bank = gameboy->getRomFile()->getRomBank(cheats[cheat].patchedBanks[i]);
+            u8* bank = gameboy->romFile->getRomBank(cheats[cheat].patchedBanks[i]);
             bank[cheats[cheat].address & 0x3fff] = (u8) cheats[cheat].patchedValues[i];
         }
 
@@ -99,7 +95,7 @@ void CheatEngine::unapplyGGCheat(int cheat) {
 }
 
 void CheatEngine::applyGGCheatsToBank(int bank) {
-    u8* bankPtr = gameboy->getRomFile()->getRomBank(bank);
+    u8* bankPtr = gameboy->romFile->getRomBank(bank);
     for(int i = 0; i < numCheats; i++) {
         if(cheats[i].flags & CHEAT_FLAG_ENABLED && ((cheats[i].flags & CHEAT_FLAG_TYPE_MASK) != CHEAT_FLAG_GAMESHARK)) {
             int bankSlot = cheats[i].address / 0x4000;
@@ -118,17 +114,19 @@ void CheatEngine::applyGGCheatsToBank(int bank) {
 void CheatEngine::applyGSCheats() {
     for(int i = 0; i < numCheats; i++) {
         if(cheats[i].flags & CHEAT_FLAG_ENABLED && ((cheats[i].flags & CHEAT_FLAG_TYPE_MASK) == CHEAT_FLAG_GAMESHARK)) {
-            int compareBank = gameboy->getWramBank();
+            u8 compareBank = gameboy->mmu->getWramBank();
             switch(cheats[i].bank & 0xf0) {
                 case 0x90:
-                    gameboy->setWramBank(cheats[i].bank & 0x7);
-                    gameboy->writeMemory(cheats[i].address, cheats[i].data);
-                    gameboy->setWramBank(compareBank);
+                    gameboy->mmu->setWramBank((u8) (cheats[i].bank & 7));
+                    gameboy->mmu->write(cheats[i].address, cheats[i].data);
+                    gameboy->mmu->setWramBank(compareBank);
                     break;
                 case 0x80: /* TODO : Find info and stuff */
                     break;
                 case 0x00:
-                    gameboy->writeMemory(cheats[i].address, cheats[i].data);
+                    gameboy->mmu->write(cheats[i].address, cheats[i].data);
+                    break;
+                default:
                     break;
             }
         }

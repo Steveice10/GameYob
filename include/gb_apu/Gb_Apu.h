@@ -5,16 +5,14 @@
 #define GB_APU_H
 
 #include "gb_apu/Gb_Oscs.h"
+#include "types.h"
 
 struct gb_apu_state_t;
 
 class Gb_Apu {
 public:
 // Basics
-	
-	// Clock rate that sound hardware runs at.
-	enum { clock_rate = 4194304 * GB_APU_OVERCLOCK };
-	
+
 	// Sets buffer(s) to generate sound into. If left and right are NULL, output is mono.
 	// If all are NULL, no output is generated but other emulation still runs.
 	// If chan is specified, only that channel's output is changed, otherwise all are.
@@ -41,14 +39,14 @@ public:
 	// current time frame.
 	
 	// Emulates CPU write of data to addr at specified time.
-	void write_register( blip_time_t time, unsigned addr, int data );
+	void write_register( s32 time, unsigned addr, int data );
 	
 	// Emulates CPU read from addr at specified time.
-	int read_register( blip_time_t time, unsigned addr );
+	int read_register( s32 time, unsigned addr );
 	
 	// Emulates sound hardware up to specified time, ends current time frame, then
 	// starts a new frame at time 0.
-	void end_frame( blip_time_t frame_length );
+	void end_frame( s32 frame_length );
 
     void set_osc_enabled(int osc, bool enabled);
 	
@@ -88,17 +86,10 @@ public:
 	void save_state( gb_apu_state_t* state_out );
 	
 	// Loads state. You should call reset() BEFORE this.
-	blargg_err_t load_state( gb_apu_state_t const& in );
+	const char* load_state( gb_apu_state_t const& in );
 
 public:
 	Gb_Apu();
-	
-	// Use set_output() in place of these
-	BLARGG_DEPRECATED void output    (        Blip_Buffer* c                                 ) { set_output( c, c, c    ); }
-	BLARGG_DEPRECATED void output    (        Blip_Buffer* c, Blip_Buffer* l, Blip_Buffer* r ) { set_output( c, l, r    ); }
-	BLARGG_DEPRECATED void osc_output( int i, Blip_Buffer* c                                 ) { set_output( c, c, c, i ); }
-	BLARGG_DEPRECATED void osc_output( int i, Blip_Buffer* c, Blip_Buffer* l, Blip_Buffer* r ) { set_output( c, l, r, i ); }
-
 private:
 	// noncopyable
 	Gb_Apu( const Gb_Apu& );
@@ -106,8 +97,8 @@ private:
 
     bool        oscs_enabled [osc_count] = {true};
 	Gb_Osc*     oscs [osc_count];
-	blip_time_t last_time;          // time sound emulator has been run to
-	blip_time_t frame_period;       // clocks between each frame sequencer step
+	s32 last_time;          // time sound emulator has been run to
+	s32 frame_period;       // clocks between each frame sequencer step
 	double      volume_;
 	bool        reduce_clicks_;
 	
@@ -115,10 +106,10 @@ private:
 	Gb_Square       square2;
 	Gb_Wave         wave;
 	Gb_Noise        noise;
-	blip_time_t     frame_time;     // time of next frame sequencer action
+	s32     frame_time;     // time of next frame sequencer action
 	int             frame_phase;    // phase of next frame sequencer step
 	enum { regs_size = register_count + 0x10 };
-	uint8_t  regs [regs_size];// last values written to registers
+	u8  regs [regs_size];// last values written to registers
 	
 	// large objects after everything else
 	Gb_Osc::Good_Synth  good_synth;
@@ -130,12 +121,11 @@ private:
 	void apply_stereo();
 	void apply_volume();
 	void synth_volume( int );
-	void run_until_( blip_time_t );
-	void run_until( blip_time_t );
+	void run_until_( s32 );
+	void run_until( s32 );
 	void silence_osc( Gb_Osc& );
 	void write_osc( int index, int reg, int old_data, int data );
 	const char* save_load( gb_apu_state_t*, bool save );
-	void save_load2( gb_apu_state_t*, bool save );
 	friend class Gb_Apu_Tester;
 };
 
@@ -144,22 +134,16 @@ private:
 // room for expansion so the state size shouldn't increase.
 struct gb_apu_state_t
 {
-#if GB_APU_CUSTOM_STATE
-	// Values stored as plain int so your code can read/write them easily.
-	// Structure can NOT be written to disk, since format is not portable.
-	typedef int val_t;
-#else
 	// Values written in portable little-endian format, allowing structure
 	// to be written directly to disk.
-	typedef unsigned char val_t [4];
-#endif
+	typedef u8 val_t [4];
 	
 	enum { format0 = 0x50414247 };
 	
 	val_t format;   // format of all following data
 	val_t version;  // later versions just add fields to end
 	
-	unsigned char regs [0x40];
+	u8 regs [0x40];
 	val_t frame_time;
 	val_t frame_phase;
 	

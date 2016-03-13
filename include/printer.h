@@ -1,5 +1,7 @@
 #pragma once
 
+#include <stdio.h>
+
 #include "types.h"
 
 #define PRINTER_WIDTH 160
@@ -7,45 +9,46 @@
 
 class Gameboy;
 
-class GameboyPrinter {
+class Printer {
 public:
-    GameboyPrinter(Gameboy* gb);
+    Printer(Gameboy* gb);
 
-    void initGbPrinter();
-    u8 sendGbPrinterByte(u8 dat);
-    void updateGbPrinter(); // Called each vblank
+    void reset();
 
+    void loadState(FILE* file, int version);
+    void saveState(FILE* file);
+
+    void update();
+
+    u8 link(u8 val);
 private:
-    // Local functions
-    void resetGbPrinter();
-    void printerSendVariableLenData(u8 dat);
-    void printerSaveFile();
+    void sendVariableLenData(u8 dat);
+    void saveImage();
 
-    // Local variables
     Gameboy* gameboy;
 
-    u8 printerGfx[PRINTER_WIDTH * PRINTER_HEIGHT / 4];
-    int printerGfxIndex;
+    u8 gfx[PRINTER_WIDTH * PRINTER_HEIGHT / 4];
+    int gfxIndex;
 
-    int printerPacketByte;
-    u8 printerStatus;
-    u8 printerCmd;
-    u16 printerCmdLength;
+    int packetByte;
+    u8 status;
+    u8 cmd;
+    u16 cmdLength;
 
-    bool printerPacketCompressed;
-    u8 printerCompressionByte;
-    u8 printerCompressionLen;
+    bool packetCompressed;
+    u8 compressionByte;
+    u8 compressionLen;
 
-    u16 printerExpectedChecksum;
-    u16 printerChecksum;
+    u16 expectedChecksum;
+    u16 checksum;
 
-    int printerMargins;
-    int lastPrinterMargins; // it's an int so that it can have a "nonexistant" value ("never set").
-    u8 printerCmd2Index;
-    u8 printerPalette;
-    u8 printerExposure; // Ignored
+    int margins;
+    int lastMargins; // it's an int so that it can have a "nonexistant" value ("never set").
+    u8 cmd2Index;
+    u8 palette;
+    u8 exposure; // Ignored
 
     int numPrinted; // Corresponds to the number after the filename
 
-    int printCounter = 0; // Timer until the printer "stops printing".
+    int counter = 0; // Timer until the printer "stops printing".
 };

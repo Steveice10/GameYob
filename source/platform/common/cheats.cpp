@@ -1,11 +1,10 @@
 #include <string.h>
 
+#include "platform/common/cheatengine.h"
 #include "platform/common/cheats.h"
 #include "platform/common/manager.h"
 #include "platform/common/menu.h"
 #include "platform/ui.h"
-#include "cheatengine.h"
-#include "gameboy.h"
 
 int cheatsPerPage = 0;
 int cheatMenuSelection = 0;
@@ -13,7 +12,7 @@ bool cheatMenuGameboyWasPaused = false;
 
 void redrawCheatMenu() {
     cheatsPerPage = uiGetHeight() - 2;
-    int numCheats = gameboy->getCheatEngine()->getNumCheats();
+    int numCheats = cheatEngine->getNumCheats();
     int numPages = (numCheats - 1) / cheatsPerPage + 1;
     int page = cheatMenuSelection / cheatsPerPage;
 
@@ -26,13 +25,13 @@ void redrawCheatMenu() {
             uiSetLineHighlighted(true);
         }
 
-        uiPrint("%s", gameboy->getCheatEngine()->cheats[i].name);
+        uiPrint("%s", cheatEngine->cheats[i].name);
 
-        for(unsigned int j = 0; j < 25 - strlen(gameboy->getCheatEngine()->cheats[i].name); j++) {
+        for(unsigned int j = 0; j < 25 - strlen(cheatEngine->cheats[i].name); j++) {
             uiPrint(" ");
         }
 
-        if(gameboy->getCheatEngine()->isCheatEnabled(i)) {
+        if(cheatEngine->isCheatEnabled(i)) {
             if(cheatMenuSelection == i) {
                 uiSetTextColor(TEXT_COLOR_YELLOW);
                 uiPrint("* ");
@@ -72,7 +71,7 @@ void redrawCheatMenu() {
 
 void updateCheatMenu() {
     bool redraw = false;
-    int numCheats = gameboy->getCheatEngine()->getNumCheats();
+    int numCheats = cheatEngine->getNumCheats();
 
     if(cheatMenuSelection >= numCheats) {
         cheatMenuSelection = 0;
@@ -91,7 +90,7 @@ void updateCheatMenu() {
                 redraw = true;
             }
         } else if(key == UI_KEY_RIGHT || key == UI_KEY_LEFT) {
-            gameboy->getCheatEngine()->toggleCheat(cheatMenuSelection, !gameboy->getCheatEngine()->isCheatEnabled(cheatMenuSelection));
+            cheatEngine->toggleCheat(cheatMenuSelection, !cheatEngine->isCheatEnabled(cheatMenuSelection));
             redraw = true;
         } else if(key == UI_KEY_R) {
             cheatMenuSelection += cheatsPerPage;

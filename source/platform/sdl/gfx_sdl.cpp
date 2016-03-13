@@ -10,11 +10,11 @@
 #include <SDL2/SDL.h>
 
 static SDL_Rect windowRect = {0, 0, 160, 144};
-static SDL_Rect textureRect = {0, 0, 160, 144};
+static SDL_Rect screenRect = {0, 0, 160, 144};
 
 static SDL_Window* window = NULL;
 static SDL_Renderer* renderer = NULL;
-static SDL_Texture* texture = NULL;
+static SDL_Texture* screenTexture = NULL;
 
 static u16* screenBuffer;
 
@@ -31,8 +31,8 @@ bool gfxInit() {
         return false;
     }
 
-    texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA5551, SDL_TEXTUREACCESS_STREAMING, 160, 144);
-    if(texture == NULL) {
+    screenTexture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA5551, SDL_TEXTUREACCESS_STREAMING, 160, 144);
+    if(screenTexture == NULL) {
         return false;
     }
 
@@ -47,9 +47,9 @@ void gfxCleanup() {
         screenBuffer = NULL;
     }
 
-    if(texture != NULL) {
-        SDL_DestroyTexture(texture);
-        texture = NULL;
+    if(screenTexture != NULL) {
+        SDL_DestroyTexture(screenTexture);
+        screenTexture = NULL;
     }
 
     if(renderer != NULL) {
@@ -111,8 +111,8 @@ void gfxClearLineBuffer(int line, u16 rgba5551) {
 void gfxDrawScreen() {
     SDL_GL_SetSwapInterval(!gfxGetFastForward());
 
-    SDL_UpdateTexture(texture, &textureRect, screenBuffer, 160 * 2);
-    SDL_RenderCopy(renderer, texture, &textureRect, &windowRect);
+    SDL_UpdateTexture(screenTexture, &screenRect, screenBuffer, 160 * 2);
+    SDL_RenderCopy(renderer, screenTexture, &screenRect, &windowRect);
     SDL_RenderPresent(renderer);
 
     if(inputKeyPressed(FUNC_KEY_SCREENSHOT)) {
@@ -126,7 +126,8 @@ void gfxDrawScreen() {
     }
 }
 
-void gfxWaitForVBlank() {
+void gfxSync() {
+    SDL_GL_SetSwapInterval(true);
     SDL_RenderPresent(renderer);
 }
 

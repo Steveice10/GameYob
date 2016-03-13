@@ -5,7 +5,8 @@
 
 #include <sstream>
 
-#include "platform/common/lodepng/lodepng.h"
+#include "platform/common/picopng.h"
+#include "platform/common/cheatengine.h"
 #include "platform/common/config.h"
 #include "platform/common/filechooser.h"
 #include "platform/common/gbsplayer.h"
@@ -16,68 +17,85 @@
 #include "platform/system.h"
 #include "platform/ui.h"
 #include "gameboy.h"
+#include "mbc.h"
 #include "ppu.h"
 #include "romfile.h"
+#include "sgb.h"
 
 Gameboy* gameboy = NULL;
+CheatEngine* cheatEngine = NULL;
+
+u8 gbBios[0x200];
+bool gbBiosLoaded;
+u8 gbcBios[0x900];
+bool gbcBiosLoaded;
 
 int fps;
 time_t lastPrintTime;
 
-FileChooser romChooser("/", {"gbs", "sgb", "gbc", "cgb", "gb"}, true);
-bool chooserInitialized = false;
+int fastForwardCounter;
 
-int autoFireCounterA = 0;
-int autoFireCounterB = 0;
+int autoFireCounterA;
+int autoFireCounterB;
+
+time_t lastSaveTime;
 
 bool emulationPaused;
 
+FileChooser romChooser("/", {"gbs", "sgb", "gbc", "cgb", "gb"}, true);
+bool chooserInitialized = false;
+
 void mgrInit() {
     gameboy = new Gameboy();
+    cheatEngine = new CheatEngine(gameboy);
+
+    memset(gbBios, 0, sizeof(gbBios));
+    gbBiosLoaded = false;
+    memset(gbcBios, 0, sizeof(gbcBios));
+    gbcBiosLoaded = false;
+
     fps = 0;
     lastPrintTime = 0;
 
+    fastForwardCounter = 0;
+
+    autoFireCounterA = 0;
+    autoFireCounterB = 0;
+
+    lastSaveTime = 0;
+
     emulationPaused = false;
+
+    chooserInitialized = false;
 }
 
 void mgrExit() {
-    if(gameboy) {
+    if(gameboy != NULL) {
         delete gameboy;
         gameboy = NULL;
+    }
+
+    if(cheatEngine != NULL) {
+        delete cheatEngine;
+        cheatEngine = NULL;
     }
 }
 
 void mgrLoadRom(const char* filename) {
-    if(gameboy == NULL) {
+    if(gameboy == NULL || !gameboy->loadRomFile(filename)) {
         return;
     }
 
-    if(!gameboy->loadRomFile(filename)) {
-        uiClear();
-        uiPrint("Error opening %s.", filename);
-        uiPrint("\n\nPlease restart GameYob.\n");
-        uiFlush();
-
-        while(true) {
-            systemCheckRunning();
-            uiWaitForVBlank();
-        }
+    if(gameboy->romFile->isGBS()) {
+        cheatEngine->loadCheats("");
+    } else {
+        cheatEngine->loadCheats((gameboy->romFile->getFileName() + ".cht").c_str());
     }
 
-    gameboy->loadSave();
-
-    // Border probing is broken
-#if 0
-    if(sgbBordersEnabled) {
-        probingForBorder = true; // This will be ignored if starting in sgb mode, or if there is no sgb mode.
-    }
-#endif
-
-    gameboy->getPPU()->sgbBorderLoaded = false; // Effectively unloads any sgb border
     mgrRefreshBorder();
 
-    gameboy->init();
-    if(gameboy->getRomFile()->isGBS()) {
+    gameboy->reset();
+    if(gameboy->romFile->isGBS()) {
         gbsPlayerReset();
         gbsPlayerDraw();
     } else if(mgrStateExists(-1)) {
@@ -85,7 +103,7 @@ void mgrLoadRom(const char* filename) {
         mgrDeleteState(-1);
     }
 
-    if(gameboy->getRomFile()->isGBS()) {
+    if(gameboy->romFile->isGBS()) {
         disableMenuOption("Suspend");
         disableMenuOption("ROM Info");
         disableMenuOption("State Slot");
@@ -110,13 +128,13 @@ void mgrLoadRom(const char* filename) {
 
         enableMenuOption("Manage Cheats");
 
-        if(gameboy->isRomLoaded() && gameboy->getRomFile()->getMBC() == MBC7) {
+        if(gameboy->isRomLoaded() && gameboy->romFile->getMBCType() == MBC7) {
             enableMenuOption("Accelerometer Pad");
         } else {
             disableMenuOption("Accelerometer Pad");
         }
 
-        if(gameboy->isRomLoaded() && gameboy->getRomFile()->getRamBanks() > 0 && !gameboy->autosaveEnabled) {
+        if(gameboy->isRomLoaded() && gameboy->romFile->getRamBanks() > 0 && !autoSaveEnabled) {
             enableMenuOption("Exit without saving");
         } else {
             disableMenuOption("Exit without saving");
@@ -125,15 +143,15 @@ void mgrLoadRom(const char* filename) {
 }
 
 void mgrUnloadRom() {
+    gfxClearScreenBuffer(0x0000);
+    gfxLoadBorder(NULL, 0, 0);
+    gfxDrawScreen();
+
     if(gameboy == NULL || !gameboy->isRomLoaded()) {
         return;
     }
 
     gameboy->unloadRom();
-    gameboy->linkedGameboy = NULL;
-
-    gfxLoadBorder(NULL, 0, 0);
-    gfxDrawScreen();
 }
 
 void mgrSelectRom() {
@@ -149,9 +167,10 @@ void mgrSelectRom() {
         }
     }
 
-    char* filename = romChooser.startFileChooser();
+    char* filename = romChooser.chooseFile();
     if(filename == NULL) {
-        systemExit();
+        systemRequestExit();
+        return;
     }
 
     mgrLoadRom(filename);
@@ -238,10 +257,26 @@ int mgrReadBmp(u8** data, u32* width, u32* height, const char* filename) {
 }
 
 int mgrReadPng(u8** data, u32* width, u32* height, const char* filename) {
-    unsigned char* srcPixels;
-    unsigned int w;
-    unsigned int h;
-    int lodeRet = lodepng_decode32_file(&srcPixels, &w, &h, filename);
+    FILE* fd = fopen(filename, "rb");
+    if(fd == NULL) {
+        return errno;
+    }
+
+    struct stat st;
+    fstat(fileno(fd), &st);
+
+    u8* buf = new u8[st.st_size];
+    int readRes = fread(buf, 1, (size_t) st.st_size, fd);
+    fclose(fd);
+    if(readRes < 0) {
+        return errno;
+    }
+
+    std::vector<u8> srcPixels;
+    u32 w;
+    u32 h;
+    int lodeRet = decodePNG(srcPixels, w, h, buf, (size_t) st.st_size);
+    delete buf;
     if(lodeRet != 0) {
         return lodeRet;
     }
@@ -256,8 +291,6 @@ int mgrReadPng(u8** data, u32* width, u32* height, const char* filename) {
             dstPixels[src + 3] = srcPixels[src + 0];
         }
     }
-
-    free(srcPixels);
 
     *data = dstPixels;
     *width = w;
@@ -318,7 +351,7 @@ void mgrRefreshBorder() {
     // TODO: SGB?
 
     if(borderSetting == 1) {
-        if((gameboy->isRomLoaded() && mgrTryBorderName(gameboy->getRomFile()->getFileName())) || mgrTryBorderFile(borderPath)) {
+        if((gameboy->isRomLoaded() && mgrTryBorderName(gameboy->romFile->getFileName())) || mgrTryBorderFile(borderPath)) {
             return;
         }
     }
@@ -327,8 +360,8 @@ void mgrRefreshBorder() {
 }
 
 void mgrRefreshBios() {
-    gameboy->gbBiosLoaded = false;
-    gameboy->gbcBiosLoaded = false;
+    gbBiosLoaded = false;
+    gbcBiosLoaded = false;
 
     FILE* gbFile = fopen(gbBiosPath.c_str(), "rb");
     if(gbFile != NULL) {
@@ -336,8 +369,8 @@ void mgrRefreshBios() {
         fstat(fileno(gbFile), &st);
 
         if(st.st_size == 0x100) {
-            gameboy->gbBiosLoaded = true;
-            fread(gameboy->gbBios, 1, 0x100, gbFile);
+            gbBiosLoaded = true;
+            fread(gbBios, 1, 0x100, gbFile);
         }
 
         fclose(gbFile);
@@ -349,8 +382,8 @@ void mgrRefreshBios() {
         fstat(fileno(gbcFile), &st);
 
         if(st.st_size == 0x900) {
-            gameboy->gbcBiosLoaded = true;
-            fread(gameboy->gbcBios, 1, 0x900, gbcFile);
+            gbcBiosLoaded = true;
+            fread(gbcBios, 1, 0x900, gbcFile);
         }
 
         fclose(gbFile);
@@ -360,9 +393,9 @@ void mgrRefreshBios() {
 const std::string mgrGetStateName(int stateNum) {
     std::stringstream nameStream;
     if(stateNum == -1) {
-        nameStream << gameboy->getRomFile()->getFileName() << ".yss";
+        nameStream << gameboy->romFile->getFileName() << ".yss";
     } else {
-        nameStream << gameboy->getRomFile()->getFileName() << ".ys" << stateNum;
+        nameStream << gameboy->romFile->getFileName() << ".ys" << stateNum;
     }
 
     return nameStream.str();
@@ -424,7 +457,7 @@ void mgrSave() {
         return;
     }
 
-    gameboy->saveGame();
+    gameboy->mbc->save();
 }
 
 void mgrPause() {
@@ -440,85 +473,99 @@ bool mgrIsPaused() {
 }
 
 void mgrRun() {
-    systemCheckRunning();
-
-    if(gameboy == NULL || !gameboy->isRomLoaded()) {
+    if(gameboy == NULL) {
         return;
     }
 
-    while(!emulationPaused && !(gameboy->runEmul() & RET_VBLANK));
+    while(!gameboy->isRomLoaded()) {
+        if(!systemIsRunning()) {
+            return;
+        }
 
-    gameboy->getPPU()->drawScreen();
+        mgrSelectRom();
+    }
+
+    while(!emulationPaused && !(gameboy->run() & RET_VBLANK));
+
+    cheatEngine->applyGSCheats();
+
+    if(!gfxGetFastForward() || fastForwardCounter++ >= fastForwardFrameSkip) {
+        fastForwardCounter = 0;
+
+        if(!gameboy->romFile->isGBS()) {
+            gfxDrawScreen();
+        } else if(!gfxGetFastForward()) {
+            gfxSync();
+        }
+    }
 
     inputUpdate();
 
     if(isMenuOn()) {
         updateMenu();
     } else {
-        if(gameboy->getRomFile()->isGBS()) {
+        if(gameboy->romFile->isGBS()) {
             gbsPlayerRefresh();
         }
 
         u8 buttonsPressed = 0xff;
 
-        if(!gameboy->getPPU()->probingForBorder) {
-            if(inputKeyHeld(FUNC_KEY_UP)) {
-                buttonsPressed &= (0xFF ^ GB_UP);
-            }
-
-            if(inputKeyHeld(FUNC_KEY_DOWN)) {
-                buttonsPressed &= (0xFF ^ GB_DOWN);
-            }
-
-            if(inputKeyHeld(FUNC_KEY_LEFT)) {
-                buttonsPressed &= (0xFF ^ GB_LEFT);
-            }
-
-            if(inputKeyHeld(FUNC_KEY_RIGHT)) {
-                buttonsPressed &= (0xFF ^ GB_RIGHT);
-            }
-
-            if(inputKeyHeld(FUNC_KEY_A)) {
-                buttonsPressed &= (0xFF ^ GB_A);
-            }
-
-            if(inputKeyHeld(FUNC_KEY_B)) {
-                buttonsPressed &= (0xFF ^ GB_B);
-            }
-
-            if(inputKeyHeld(FUNC_KEY_START)) {
-                buttonsPressed &= (0xFF ^ GB_START);
-            }
-
-            if(inputKeyHeld(FUNC_KEY_SELECT)) {
-                buttonsPressed &= (0xFF ^ GB_SELECT);
-            }
-
-            if(inputKeyHeld(FUNC_KEY_AUTO_A)) {
-                if(autoFireCounterA <= 0) {
-                    buttonsPressed &= (0xFF ^ GB_A);
-                    autoFireCounterA = 2;
-                }
-
-                autoFireCounterA--;
-            }
-
-            if(inputKeyHeld(FUNC_KEY_AUTO_B)) {
-                if(autoFireCounterB <= 0) {
-                    buttonsPressed &= (0xFF ^ GB_B);
-                    autoFireCounterB = 2;
-                }
-
-                autoFireCounterB--;
-            }
-
-            gameboy->controllers[0] = buttonsPressed;
-            gameboy->checkInput();
+        if(inputKeyHeld(FUNC_KEY_UP)) {
+            buttonsPressed &= (0xFF ^ GB_UP);
         }
 
+        if(inputKeyHeld(FUNC_KEY_DOWN)) {
+            buttonsPressed &= (0xFF ^ GB_DOWN);
+        }
+
+        if(inputKeyHeld(FUNC_KEY_LEFT)) {
+            buttonsPressed &= (0xFF ^ GB_LEFT);
+        }
+
+        if(inputKeyHeld(FUNC_KEY_RIGHT)) {
+            buttonsPressed &= (0xFF ^ GB_RIGHT);
+        }
+
+        if(inputKeyHeld(FUNC_KEY_A)) {
+            buttonsPressed &= (0xFF ^ GB_A);
+        }
+
+        if(inputKeyHeld(FUNC_KEY_B)) {
+            buttonsPressed &= (0xFF ^ GB_B);
+        }
+
+        if(inputKeyHeld(FUNC_KEY_START)) {
+            buttonsPressed &= (0xFF ^ GB_START);
+        }
+
+        if(inputKeyHeld(FUNC_KEY_SELECT)) {
+            buttonsPressed &= (0xFF ^ GB_SELECT);
+        }
+
+        if(inputKeyHeld(FUNC_KEY_AUTO_A)) {
+            if(autoFireCounterA <= 0) {
+                buttonsPressed &= (0xFF ^ GB_A);
+                autoFireCounterA = 2;
+            }
+
+            autoFireCounterA--;
+        }
+
+        if(inputKeyHeld(FUNC_KEY_AUTO_B)) {
+            if(autoFireCounterB <= 0) {
+                buttonsPressed &= (0xFF ^ GB_B);
+                autoFireCounterB = 2;
+            }
+
+            autoFireCounterB--;
+        }
+
+        gameboy->sgb->setController(0, buttonsPressed);
+        gameboy->checkInput();
+
         if(inputKeyPressed(FUNC_KEY_SAVE)) {
-            if(!gameboy->autosaveEnabled) {
-                gameboy->saveGame();
+            if(!autoSaveEnabled) {
+                mgrSave();
             }
         }
 
@@ -526,7 +573,7 @@ void mgrRun() {
             gfxToggleFastForward();
         }
 
-        if((inputKeyPressed(FUNC_KEY_MENU) || inputKeyPressed(FUNC_KEY_MENU_PAUSE)) && !accelPadMode) {
+        if((inputKeyPressed(FUNC_KEY_MENU) || inputKeyPressed(FUNC_KEY_MENU_PAUSE))) {
             if(pauseOnMenu || inputKeyPressed(FUNC_KEY_MENU_PAUSE)) {
                 mgrPause();
             }
@@ -540,9 +587,9 @@ void mgrRun() {
         }
 
         if(inputKeyPressed(FUNC_KEY_RESET)) {
-            gameboy->init();
+            gameboy->reset();
 
-            if(gameboy->isRomLoaded() && gameboy->getRomFile()->isGBS()) {
+            if(gameboy->isRomLoaded() && gameboy->romFile->isGBS()) {
                 gbsPlayerReset();
                 gbsPlayerDraw();
             }
@@ -551,9 +598,15 @@ void mgrRun() {
 
     time_t rawTime = 0;
     time(&rawTime);
+
+    if(autoSaveEnabled && rawTime > lastSaveTime + 10) {
+        mgrSave();
+        lastSaveTime = rawTime;
+    }
+
     fps++;
     if(rawTime > lastPrintTime) {
-        if(!isMenuOn() && !showConsoleDebug() && (!gameboy->isRomLoaded() || !gameboy->getRomFile()->isGBS()) && (fpsOutput || timeOutput)) {
+        if(!isMenuOn() && !showConsoleDebug() && (!gameboy->isRomLoaded() || !gameboy->romFile->isGBS()) && (fpsOutput || timeOutput)) {
             uiClear();
             int fpsLength = 0;
             if(fpsOutput) {

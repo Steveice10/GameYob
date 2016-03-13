@@ -5,7 +5,8 @@
 bool systemInit(int argc, char* argv[]);
 void systemExit();
 void systemRun();
-void systemCheckRunning();
+bool systemIsRunning();
+void systemRequestExit();
 
 const std::string systemIniPath();
 const std::string systemDefaultGbBiosPath();

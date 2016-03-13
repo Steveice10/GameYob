@@ -2,9 +2,8 @@
 
 #include "types.h"
 
-void audioInit();
+bool audioInit();
 void audioCleanup();
-u16* audioGetLeftBuffer();
-u16* audioGetRightBuffer();
-u16* audioGetCenterBuffer();
-void audioPlay(long leftSamples, long rightSamples, long centerSamples);
+u16 audioGetSampleRate();
+void audioClear();
+void audioPlay(u32* buffer, long samples);

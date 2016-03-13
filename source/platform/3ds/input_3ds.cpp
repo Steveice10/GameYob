@@ -5,17 +5,14 @@
 
 #include "platform/common/config.h"
 #include "platform/common/filechooser.h"
+#include "platform/common/manager.h"
 #include "platform/common/menu.h"
 #include "platform/input.h"
 #include "platform/ui.h"
 #include "gameboy.h"
 #include "romfile.h"
 
-#include <citrus/core.hpp>
-#include <citrus/gput.hpp>
-#include <citrus/hid.hpp>
-
-using namespace ctr;
+#include <3ds.h>
 
 const char* dsKeyNames[NUM_BUTTONS] = {
         "A",         // 0
@@ -136,46 +133,40 @@ u64 nextUiRepeat = 0;
 extern void uiPushInput(UIKey key);
 
 void inputInit() {
+    HIDUSER_EnableAccelerometer();
 }
 
 void inputCleanup() {
+    HIDUSER_DisableAccelerometer();
 }
 
 void inputUpdate() {
-    hid::poll();
+    hidScanInput();
     for(int i = 0; i < NUM_FUNC_KEYS; i++) {
-        if(!hid::pressed((hid::Button) funcKeyMapping[i]) && !hid::held((hid::Button) funcKeyMapping[i])) {
+        if(!(hidKeysDown() & funcKeyMapping[i]) && !(hidKeysHeld() & funcKeyMapping[i])) {
             forceReleased[i] = false;
         }
     }
 
     for(int i = 0; i < NUM_BUTTONS; i++) {
-        if(!hid::pressed((hid::Button) (1 << i)) && !hid::held((hid::Button) (1 << i))) {
+        if(!(hidKeysDown() & (1 << i)) && !(hidKeysHeld() & (1 << i))) {
             uiForceReleased[i] = false;
         }
     }
 
-    if(accelPadMode && hid::pressed(hid::BUTTON_TOUCH)) {
-        hid::Touch touch = hid::touch();
-        if(touch.x <= gput::getStringHeight("Exit", 8) && touch.y <= gput::getStringWidth("Exit", 8)) {
-            accelPadMode = false;
-            uiClear();
-        }
-    }
-
-    if(isMenuOn() || isFileChooserActive() || (gameboy->isRomLoaded() && gameboy->getRomFile()->isGBS())) {
+    if(isMenuOn() || isFileChooserActive() || (gameboy->isRomLoaded() && gameboy->romFile->isGBS())) {
         for(int i = 0; i < NUM_BUTTONS; i++) {
             if(uiForceReleased[i]) {
                 continue;
             }
 
-            hid::Button button = (hid::Button) (1 << i);
+            int button = 1 << i;
             bool pressed = false;
-            if(hid::pressed(button)) {
-                nextUiRepeat = core::time() + 250;
+            if(hidKeysDown() & button) {
+                nextUiRepeat = osGetTime() + 250;
                 pressed = true;
-            } else if(hid::held(button) && core::time() >= nextUiRepeat) {
-                nextUiRepeat = core::time() + 50;
+            } else if((hidKeysHeld() & button) && osGetTime() >= nextUiRepeat) {
+                nextUiRepeat = osGetTime() + 50;
                 pressed = true;
             }
 
@@ -206,7 +197,7 @@ bool inputKeyHeld(int key) {
         return false;
     }
 
-    return hid::held((hid::Button) funcKeyMapping[key]);
+    return (hidKeysHeld() & funcKeyMapping[key]) != 0;
 }
 
 bool inputKeyPressed(int key) {
@@ -218,7 +209,7 @@ bool inputKeyPressed(int key) {
         return false;
     }
 
-    return hid::pressed((hid::Button) funcKeyMapping[key]);
+    return (hidKeysDown() & funcKeyMapping[key]) != 0;
 }
 
 bool inputKeyRepeat(int key) {
@@ -227,12 +218,12 @@ bool inputKeyRepeat(int key) {
     }
 
     if(inputKeyPressed(key)) {
-        nextRepeat = core::time() + 250;
+        nextRepeat = osGetTime() + 250;
         return true;
     }
 
-    if(inputKeyHeld(key) && core::time() >= nextRepeat) {
-        nextRepeat = core::time() + 50;
+    if(inputKeyHeld(key) && osGetTime() >= nextRepeat) {
+        nextRepeat = osGetTime() + 50;
         return true;
     }
 
@@ -258,13 +249,17 @@ void inputReleaseAll() {
 }
 
 int inputGetMotionSensorX() {
-    int accelX = accelPadMode ? (hid::held(hid::BUTTON_TOUCH) ? 160 - hid::touch().x : 0) : 0;
-    return 2047 + accelX;
+    accelVector vec;
+    hidAccelRead(&vec);
+
+    return (vec.x >> 3) + 2047;
 }
 
 int inputGetMotionSensorY() {
-    int accelY = accelPadMode ? (hid::held(hid::BUTTON_TOUCH) ? 120 - hid::touch().y : 0) : 0;
-    return 2047 + accelY;
+    accelVector vec;
+    hidAccelRead(&vec);
+
+    return (vec.z >> 3) + 2047;
 }
 
 KeyConfig inputGetDefaultKeyConfig() {
@@ -277,7 +272,7 @@ void inputLoadKeyConfig(KeyConfig* keyConfig) {
         funcKeyMapping[keyConfig->funcKeys[i]] |= (1 << i);
     }
 
-    funcKeyMapping[FUNC_KEY_MENU] |= hid::BUTTON_TOUCH;
+    funcKeyMapping[FUNC_KEY_MENU] |= KEY_TOUCH;
 }
 
 #endif

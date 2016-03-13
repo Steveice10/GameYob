@@ -448,7 +448,7 @@ void gfxDrawScreen() {
     gpu::swapBuffers(!gfxGetFastForward());
 }
 
-void gfxWaitForVBlank() {
+void gfxSync() {
     gspWaitForVBlank();
 }
 

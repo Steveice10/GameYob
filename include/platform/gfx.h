@@ -12,4 +12,4 @@ u16* gfxGetLineBuffer(int line);
 void gfxClearScreenBuffer(u16 rgba5551);
 void gfxClearLineBuffer(int line, u16 rgba5551);
 void gfxDrawScreen();
-void gfxWaitForVBlank();
+void gfxSync();

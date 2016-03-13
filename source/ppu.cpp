@@ -1,14 +1,13 @@
-/* Known graphical issues(?):
- * DMG sprite order
- * Horizontal window split behavior
- */
-
 #include <string.h>
-#include <gameboy.h>
 
+#include "platform/common/manager.h"
+#include "platform/common/menu.h"
 #include "platform/gfx.h"
+#include "cpu.h"
 #include "gameboy.h"
+#include "mmu.h"
 #include "ppu.h"
+#include "sgb.h"
 #include "romfile.h"
 
 #define PALETTE_NUMBER (0x7)
@@ -17,6 +16,462 @@
 #define FLIP_X (0x20)
 #define FLIP_Y (0x40)
 #define PRIORITY (0x80)
+
+#define COMPONENT_8_TO_5(c8) (((c8) * 0x1F * 2 + 0xFF) / (0xFF * 2))
+#define TOCGB(r, g, b) ((u16) (COMPONENT_8_TO_5(b) << 10 | COMPONENT_8_TO_5(g) << 5 | COMPONENT_8_TO_5(r)))
+
+static const unsigned short p005[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x52, 0xFF, 0x00), TOCGB(0xFF, 0x42, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x52, 0xFF, 0x00), TOCGB(0xFF, 0x42, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x52, 0xFF, 0x00), TOCGB(0xFF, 0x42, 0x00), TOCGB(0x00, 0x00, 0x00)
+};
+
+static const unsigned short p006[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x9C, 0x00), TOCGB(0xFF, 0x00, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x9C, 0x00), TOCGB(0xFF, 0x00, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x9C, 0x00), TOCGB(0xFF, 0x00, 0x00), TOCGB(0x00, 0x00, 0x00)
+};
+
+static const unsigned short p007[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0xFF, 0x00), TOCGB(0xFF, 0x00, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0xFF, 0x00), TOCGB(0xFF, 0x00, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0xFF, 0x00), TOCGB(0xFF, 0x00, 0x00), TOCGB(0x00, 0x00, 0x00)
+};
+
+static const unsigned short p008[] = {
+        TOCGB(0xA5, 0x9C, 0xFF), TOCGB(0xFF, 0xFF, 0x00), TOCGB(0x00, 0x63, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xA5, 0x9C, 0xFF), TOCGB(0xFF, 0xFF, 0x00), TOCGB(0x00, 0x63, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xA5, 0x9C, 0xFF), TOCGB(0xFF, 0xFF, 0x00), TOCGB(0x00, 0x63, 0x00), TOCGB(0x00, 0x00, 0x00)
+};
+
+static const unsigned short p012[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0xAD, 0x63), TOCGB(0x84, 0x31, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0xAD, 0x63), TOCGB(0x84, 0x31, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0xAD, 0x63), TOCGB(0x84, 0x31, 0x00), TOCGB(0x00, 0x00, 0x00)
+};
+
+static const unsigned short p013[] = {
+        TOCGB(0x00, 0x00, 0x00), TOCGB(0x00, 0x84, 0x84), TOCGB(0xFF, 0xDE, 0x00), TOCGB(0xFF, 0xFF, 0xFF),
+        TOCGB(0x00, 0x00, 0x00), TOCGB(0x00, 0x84, 0x84), TOCGB(0xFF, 0xDE, 0x00), TOCGB(0xFF, 0xFF, 0xFF),
+        TOCGB(0x00, 0x00, 0x00), TOCGB(0x00, 0x84, 0x84), TOCGB(0xFF, 0xDE, 0x00), TOCGB(0xFF, 0xFF, 0xFF)
+};
+
+static const unsigned short p016[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xA5, 0xA5, 0xA5), TOCGB(0x52, 0x52, 0x52), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xA5, 0xA5, 0xA5), TOCGB(0x52, 0x52, 0x52), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xA5, 0xA5, 0xA5), TOCGB(0x52, 0x52, 0x52), TOCGB(0x00, 0x00, 0x00)
+};
+
+static const unsigned short p017[] = {
+        TOCGB(0xFF, 0xFF, 0xA5), TOCGB(0xFF, 0x94, 0x94), TOCGB(0x94, 0x94, 0xFF), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xA5), TOCGB(0xFF, 0x94, 0x94), TOCGB(0x94, 0x94, 0xFF), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xA5), TOCGB(0xFF, 0x94, 0x94), TOCGB(0x94, 0x94, 0xFF), TOCGB(0x00, 0x00, 0x00)
+};
+
+static const unsigned short p01B[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0xCE, 0x00), TOCGB(0x9C, 0x63, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0xCE, 0x00), TOCGB(0x9C, 0x63, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0xCE, 0x00), TOCGB(0x9C, 0x63, 0x00), TOCGB(0x00, 0x00, 0x00)
+};
+
+static const unsigned short p100[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xAD, 0xAD, 0x84), TOCGB(0x42, 0x73, 0x7B), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x73, 0x00), TOCGB(0x94, 0x42, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xAD, 0xAD, 0x84), TOCGB(0x42, 0x73, 0x7B), TOCGB(0x00, 0x00, 0x00)
+};
+
+static const unsigned short p10B[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x63, 0xA5, 0xFF), TOCGB(0x00, 0x00, 0xFF), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x84, 0x84), TOCGB(0x94, 0x3A, 0x3A), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x63, 0xA5, 0xFF), TOCGB(0x00, 0x00, 0xFF), TOCGB(0x00, 0x00, 0x00)
+};
+
+static const unsigned short p10D[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x8C, 0x8C, 0xDE), TOCGB(0x52, 0x52, 0x8C), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x84, 0x84), TOCGB(0x94, 0x3A, 0x3A), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x8C, 0x8C, 0xDE), TOCGB(0x52, 0x52, 0x8C), TOCGB(0x00, 0x00, 0x00)
+};
+
+static const unsigned short p110[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x84, 0x84), TOCGB(0x94, 0x3A, 0x3A), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x7B, 0xFF, 0x31), TOCGB(0x00, 0x84, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x84, 0x84), TOCGB(0x94, 0x3A, 0x3A), TOCGB(0x00, 0x00, 0x00)
+};
+
+static const unsigned short p11C[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x7B, 0xFF, 0x31), TOCGB(0x00, 0x63, 0xC5), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x84, 0x84), TOCGB(0x94, 0x3A, 0x3A), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x7B, 0xFF, 0x31), TOCGB(0x00, 0x63, 0xC5), TOCGB(0x00, 0x00, 0x00)
+};
+
+static const unsigned short p20B[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x63, 0xA5, 0xFF), TOCGB(0x00, 0x00, 0xFF), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x63, 0xA5, 0xFF), TOCGB(0x00, 0x00, 0xFF), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x84, 0x84), TOCGB(0x94, 0x3A, 0x3A), TOCGB(0x00, 0x00, 0x00)
+};
+
+static const unsigned short p20C[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x8C, 0x8C, 0xDE), TOCGB(0x52, 0x52, 0x8C), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x8C, 0x8C, 0xDE), TOCGB(0x52, 0x52, 0x8C), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xC5, 0x42), TOCGB(0xFF, 0xD6, 0x00), TOCGB(0x94, 0x3A, 0x00), TOCGB(0x4A, 0x00, 0x00)
+};
+
+static const unsigned short p300[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xAD, 0xAD, 0x84), TOCGB(0x42, 0x73, 0x7B), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x73, 0x00), TOCGB(0x94, 0x42, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x73, 0x00), TOCGB(0x94, 0x42, 0x00), TOCGB(0x00, 0x00, 0x00)
+};
+
+static const unsigned short p304[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x7B, 0xFF, 0x00), TOCGB(0xB5, 0x73, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x84, 0x84), TOCGB(0x94, 0x3A, 0x3A), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x84, 0x84), TOCGB(0x94, 0x3A, 0x3A), TOCGB(0x00, 0x00, 0x00)
+};
+
+static const unsigned short p305[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x52, 0xFF, 0x00), TOCGB(0xFF, 0x42, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x84, 0x84), TOCGB(0x94, 0x3A, 0x3A), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x84, 0x84), TOCGB(0x94, 0x3A, 0x3A), TOCGB(0x00, 0x00, 0x00)
+};
+
+static const unsigned short p306[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x9C, 0x00), TOCGB(0xFF, 0x00, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x84, 0x84), TOCGB(0x94, 0x3A, 0x3A), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x84, 0x84), TOCGB(0x94, 0x3A, 0x3A), TOCGB(0x00, 0x00, 0x00)
+};
+
+static const unsigned short p308[] = {
+        TOCGB(0xA5, 0x9C, 0xFF), TOCGB(0xFF, 0xFF, 0x00), TOCGB(0x00, 0x63, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0x63, 0x52), TOCGB(0xD6, 0x00, 0x00), TOCGB(0x63, 0x00, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0x63, 0x52), TOCGB(0xD6, 0x00, 0x00), TOCGB(0x63, 0x00, 0x00), TOCGB(0x00, 0x00, 0x00)
+};
+
+static const unsigned short p30A[] = {
+        TOCGB(0xB5, 0xB5, 0xFF), TOCGB(0xFF, 0xFF, 0x94), TOCGB(0xAD, 0x5A, 0x42), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0x00, 0x00, 0x00), TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x84, 0x84), TOCGB(0x94, 0x3A, 0x3A),
+        TOCGB(0x00, 0x00, 0x00), TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x84, 0x84), TOCGB(0x94, 0x3A, 0x3A)
+};
+
+static const unsigned short p30C[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x8C, 0x8C, 0xDE), TOCGB(0x52, 0x52, 0x8C), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xC5, 0x42), TOCGB(0xFF, 0xD6, 0x00), TOCGB(0x94, 0x3A, 0x00), TOCGB(0x4A, 0x00, 0x00),
+        TOCGB(0xFF, 0xC5, 0x42), TOCGB(0xFF, 0xD6, 0x00), TOCGB(0x94, 0x3A, 0x00), TOCGB(0x4A, 0x00, 0x00)
+};
+
+static const unsigned short p30D[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x8C, 0x8C, 0xDE), TOCGB(0x52, 0x52, 0x8C), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x84, 0x84), TOCGB(0x94, 0x3A, 0x3A), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x84, 0x84), TOCGB(0x94, 0x3A, 0x3A), TOCGB(0x00, 0x00, 0x00)
+};
+
+static const unsigned short p30E[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x7B, 0xFF, 0x31), TOCGB(0x00, 0x84, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x84, 0x84), TOCGB(0x94, 0x3A, 0x3A), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x84, 0x84), TOCGB(0x94, 0x3A, 0x3A), TOCGB(0x00, 0x00, 0x00)
+};
+
+static const unsigned short p30F[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0xAD, 0x63), TOCGB(0x84, 0x31, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x63, 0xA5, 0xFF), TOCGB(0x00, 0x00, 0xFF), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x63, 0xA5, 0xFF), TOCGB(0x00, 0x00, 0xFF), TOCGB(0x00, 0x00, 0x00)
+};
+
+static const unsigned short p312[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0xAD, 0x63), TOCGB(0x84, 0x31, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x7B, 0xFF, 0x31), TOCGB(0x00, 0x84, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x7B, 0xFF, 0x31), TOCGB(0x00, 0x84, 0x00), TOCGB(0x00, 0x00, 0x00)
+};
+
+static const unsigned short p319[] = {
+        TOCGB(0xFF, 0xE6, 0xC5), TOCGB(0xCE, 0x9C, 0x84), TOCGB(0x84, 0x6B, 0x29), TOCGB(0x5A, 0x31, 0x08),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0xAD, 0x63), TOCGB(0x84, 0x31, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0xAD, 0x63), TOCGB(0x84, 0x31, 0x00), TOCGB(0x00, 0x00, 0x00)
+};
+
+static const unsigned short p31C[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x7B, 0xFF, 0x31), TOCGB(0x00, 0x63, 0xC5), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x84, 0x84), TOCGB(0x94, 0x3A, 0x3A), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x84, 0x84), TOCGB(0x94, 0x3A, 0x3A), TOCGB(0x00, 0x00, 0x00)
+};
+
+static const unsigned short p405[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x52, 0xFF, 0x00), TOCGB(0xFF, 0x42, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x52, 0xFF, 0x00), TOCGB(0xFF, 0x42, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x5A, 0xBD, 0xFF), TOCGB(0xFF, 0x00, 0x00), TOCGB(0x00, 0x00, 0xFF)
+};
+
+static const unsigned short p406[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x9C, 0x00), TOCGB(0xFF, 0x00, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x9C, 0x00), TOCGB(0xFF, 0x00, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x5A, 0xBD, 0xFF), TOCGB(0xFF, 0x00, 0x00), TOCGB(0x00, 0x00, 0xFF)
+};
+
+static const unsigned short p407[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0xFF, 0x00), TOCGB(0xFF, 0x00, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0xFF, 0x00), TOCGB(0xFF, 0x00, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x5A, 0xBD, 0xFF), TOCGB(0xFF, 0x00, 0x00), TOCGB(0x00, 0x00, 0xFF)
+};
+
+static const unsigned short p500[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xAD, 0xAD, 0x84), TOCGB(0x42, 0x73, 0x7B), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x73, 0x00), TOCGB(0x94, 0x42, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x5A, 0xBD, 0xFF), TOCGB(0xFF, 0x00, 0x00), TOCGB(0x00, 0x00, 0xFF)
+};
+
+static const unsigned short p501[] = {
+        TOCGB(0xFF, 0xFF, 0x9C), TOCGB(0x94, 0xB5, 0xFF), TOCGB(0x63, 0x94, 0x73), TOCGB(0x00, 0x3A, 0x3A),
+        TOCGB(0xFF, 0xC5, 0x42), TOCGB(0xFF, 0xD6, 0x00), TOCGB(0x94, 0x3A, 0x00), TOCGB(0x4A, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x84, 0x84), TOCGB(0x94, 0x3A, 0x3A), TOCGB(0x00, 0x00, 0x00)
+};
+
+static const unsigned short p502[] = {
+        TOCGB(0x6B, 0xFF, 0x00), TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x52, 0x4A), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x63, 0xA5, 0xFF), TOCGB(0x00, 0x00, 0xFF),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0xAD, 0x63), TOCGB(0x84, 0x31, 0x00), TOCGB(0x00, 0x00, 0x00)
+};
+
+static const unsigned short p503[] = {
+        TOCGB(0x52, 0xDE, 0x00), TOCGB(0xFF, 0x84, 0x00), TOCGB(0xFF, 0xFF, 0x00), TOCGB(0xFF, 0xFF, 0xFF),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x63, 0xA5, 0xFF), TOCGB(0x00, 0x00, 0xFF),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x84, 0x84), TOCGB(0x94, 0x3A, 0x3A), TOCGB(0x00, 0x00, 0x00)
+};
+
+static const unsigned short p508[] = {
+        TOCGB(0xA5, 0x9C, 0xFF), TOCGB(0xFF, 0xFF, 0x00), TOCGB(0x00, 0x63, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0x63, 0x52), TOCGB(0xD6, 0x00, 0x00), TOCGB(0x63, 0x00, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0x00, 0x00, 0xFF), TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0xFF, 0x7B), TOCGB(0x00, 0x84, 0xFF)
+};
+
+static const unsigned short p509[] = {
+        TOCGB(0xFF, 0xFF, 0xCE), TOCGB(0x63, 0xEF, 0xEF), TOCGB(0x9C, 0x84, 0x31), TOCGB(0x5A, 0x5A, 0x5A),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x73, 0x00), TOCGB(0x94, 0x42, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x63, 0xA5, 0xFF), TOCGB(0x00, 0x00, 0xFF), TOCGB(0x00, 0x00, 0x00)
+};
+
+static const unsigned short p50B[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x63, 0xA5, 0xFF), TOCGB(0x00, 0x00, 0xFF), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x84, 0x84), TOCGB(0x94, 0x3A, 0x3A), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0xFF, 0x7B), TOCGB(0x00, 0x84, 0xFF), TOCGB(0xFF, 0x00, 0x00)
+};
+
+static const unsigned short p50C[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x8C, 0x8C, 0xDE), TOCGB(0x52, 0x52, 0x8C), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xC5, 0x42), TOCGB(0xFF, 0xD6, 0x00), TOCGB(0x94, 0x3A, 0x00), TOCGB(0x4A, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x5A, 0xBD, 0xFF), TOCGB(0xFF, 0x00, 0x00), TOCGB(0x00, 0x00, 0xFF)
+};
+
+static const unsigned short p50D[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x8C, 0x8C, 0xDE), TOCGB(0x52, 0x52, 0x8C), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x84, 0x84), TOCGB(0x94, 0x3A, 0x3A), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0xAD, 0x63), TOCGB(0x84, 0x31, 0x00), TOCGB(0x00, 0x00, 0x00)
+};
+
+static const unsigned short p50E[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x7B, 0xFF, 0x31), TOCGB(0x00, 0x84, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x84, 0x84), TOCGB(0x94, 0x3A, 0x3A), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x63, 0xA5, 0xFF), TOCGB(0x00, 0x00, 0xFF), TOCGB(0x00, 0x00, 0x00)
+};
+
+static const unsigned short p50F[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0xAD, 0x63), TOCGB(0x84, 0x31, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x63, 0xA5, 0xFF), TOCGB(0x00, 0x00, 0xFF), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x7B, 0xFF, 0x31), TOCGB(0x00, 0x84, 0x00), TOCGB(0x00, 0x00, 0x00)
+};
+
+static const unsigned short p510[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x84, 0x84), TOCGB(0x94, 0x3A, 0x3A), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x7B, 0xFF, 0x31), TOCGB(0x00, 0x84, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x63, 0xA5, 0xFF), TOCGB(0x00, 0x00, 0xFF), TOCGB(0x00, 0x00, 0x00)
+};
+
+static const unsigned short p511[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x84, 0x84), TOCGB(0x94, 0x3A, 0x3A), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x00, 0xFF, 0x00), TOCGB(0x31, 0x84, 0x00), TOCGB(0x00, 0x4A, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x63, 0xA5, 0xFF), TOCGB(0x00, 0x00, 0xFF), TOCGB(0x00, 0x00, 0x00)
+};
+
+static const unsigned short p512[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0xAD, 0x63), TOCGB(0x84, 0x31, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x7B, 0xFF, 0x31), TOCGB(0x00, 0x84, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x63, 0xA5, 0xFF), TOCGB(0x00, 0x00, 0xFF), TOCGB(0x00, 0x00, 0x00)
+};
+
+static const unsigned short p514[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x63, 0xA5, 0xFF), TOCGB(0x00, 0x00, 0xFF), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0x00), TOCGB(0xFF, 0x00, 0x00), TOCGB(0x63, 0x00, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x7B, 0xFF, 0x31), TOCGB(0x00, 0x84, 0x00), TOCGB(0x00, 0x00, 0x00)
+};
+
+static const unsigned short p515[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xAD, 0xAD, 0x84), TOCGB(0x42, 0x73, 0x7B), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0xAD, 0x63), TOCGB(0x84, 0x31, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x63, 0xA5, 0xFF), TOCGB(0x00, 0x00, 0xFF), TOCGB(0x00, 0x00, 0x00)
+};
+
+static const unsigned short p518[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x63, 0xA5, 0xFF), TOCGB(0x00, 0x00, 0xFF), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x84, 0x84), TOCGB(0x94, 0x3A, 0x3A), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x7B, 0xFF, 0x31), TOCGB(0x00, 0x84, 0x00), TOCGB(0x00, 0x00, 0x00)
+};
+
+static const unsigned short p51A[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0xFF, 0x00), TOCGB(0x7B, 0x4A, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x63, 0xA5, 0xFF), TOCGB(0x00, 0x00, 0xFF), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x7B, 0xFF, 0x31), TOCGB(0x00, 0x84, 0x00), TOCGB(0x00, 0x00, 0x00)
+};
+
+static const unsigned short p51C[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x7B, 0xFF, 0x31), TOCGB(0x00, 0x63, 0xC5), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x84, 0x84), TOCGB(0x94, 0x3A, 0x3A), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x63, 0xA5, 0xFF), TOCGB(0x00, 0x00, 0xFF), TOCGB(0x00, 0x00, 0x00)
+};
+
+static const unsigned short pCls[] = {
+        TOCGB(0x9B, 0xBC, 0x0F), TOCGB(0x8B, 0xAC, 0x0F), TOCGB(0x30, 0x62, 0x30), TOCGB(0x0F, 0x38, 0x0F),
+        TOCGB(0x9B, 0xBC, 0x0F), TOCGB(0x8B, 0xAC, 0x0F), TOCGB(0x30, 0x62, 0x30), TOCGB(0x0F, 0x38, 0x0F),
+        TOCGB(0x9B, 0xBC, 0x0F), TOCGB(0x8B, 0xAC, 0x0F), TOCGB(0x30, 0x62, 0x30), TOCGB(0x0F, 0x38, 0x0F)
+};
+
+struct GbcPaletteEntry {
+    const char* title;
+    const unsigned short* p;
+};
+
+static const GbcPaletteEntry gbcPalettes[] = {
+        {"GB - Classic",     pCls},
+        {"GBC - Blue",       p518},
+        {"GBC - Brown",      p012},
+        {"GBC - Dark Blue",  p50D},
+        {"GBC - Dark Brown", p319},
+        {"GBC - Dark Green", p31C},
+        {"GBC - Grayscale",  p016},
+        {"GBC - Green",      p005},
+        {"GBC - Inverted",   p013},
+        {"GBC - Orange",     p007},
+        {"GBC - Pastel Mix", p017},
+        {"GBC - Red",        p510},
+        {"GBC - Yellow",     p51A},
+        {"ALLEY WAY",        p008},
+        {"ASTEROIDS/MISCMD", p30E},
+        {"ATOMIC PUNK",      p30F}, // unofficial ("DYNABLASTER" alt.)
+        {"BA.TOSHINDEN",     p50F},
+        {"BALLOON KID",      p006},
+        {"BASEBALL",         p503},
+        {"BOMBERMAN GB",     p31C}, // unofficial ("WARIO BLAST" alt.)
+        {"BOY AND BLOB GB1", p512},
+        {"BOY AND BLOB GB2", p512},
+        {"BT2RAGNAROKWORLD", p312},
+        {"DEFENDER/JOUST",   p50F},
+        {"DMG FOOTBALL",     p30E},
+        {"DONKEY KONG",      p306},
+        {"DONKEYKONGLAND",   p50C},
+        {"DONKEYKONGLAND 2", p50C},
+        {"DONKEYKONGLAND 3", p50C},
+        {"DONKEYKONGLAND95", p501},
+        {"DR.MARIO",         p20B},
+        {"DYNABLASTER",      p30F},
+        {"F1RACE",           p012},
+        {"FOOTBALL INT'L",   p502}, // unofficial ("SOCCER" alt.)
+        {"G&W GALLERY",      p304},
+        {"GALAGA&GALAXIAN",  p013},
+        {"GAME&WATCH",       p012},
+        {"GAMEBOY GALLERY",  p304},
+        {"GAMEBOY GALLERY2", p304},
+        {"GBWARS",           p500},
+        {"GBWARST",          p500}, // unofficial ("GBWARS" alt.)
+        {"GOLF",             p30E},
+        {"Game and Watch 2", p304},
+        {"HOSHINOKA-BI",     p508},
+        {"JAMES  BOND  007", p11C},
+        {"KAERUNOTAMENI",    p10D},
+        {"KEN GRIFFEY JR",   p31C},
+        {"KID ICARUS",       p30D},
+        {"KILLERINSTINCT95", p50D},
+        {"KINGOFTHEZOO",     p30F},
+        {"KIRAKIRA KIDS",    p012},
+        {"KIRBY BLOCKBALL",  p508},
+        {"KIRBY DREAM LAND", p508},
+        {"KIRBY'S PINBALL",  p308},
+        {"KIRBY2",           p508},
+        {"LOLO2",            p50F},
+        {"MAGNETIC SOCCER",  p50E},
+        {"MANSELL",          p012},
+        {"MARIO & YOSHI",    p305},
+        {"MARIO'S PICROSS",  p012},
+        {"MARIOLAND2",       p509},
+        {"MEGA MAN 2",       p50F},
+        {"MEGAMAN",          p50F},
+        {"MEGAMAN3",         p50F},
+        {"METROID2",         p514},
+        {"MILLI/CENTI/PEDE", p31C},
+        {"MOGURANYA",        p300},
+        {"MYSTIC QUEST",     p50E},
+        {"NETTOU KOF 95",    p50F},
+        {"NEW CHESSMASTER",  p30F},
+        {"OTHELLO",          p50E},
+        {"PAC-IN-TIME",      p51C},
+        {"PENGUIN WARS",     p30F}, // unofficial ("KINGOFTHEZOO" alt.)
+        {"PENGUINKUNWARSVS", p30F}, // unofficial ("KINGOFTHEZOO" alt.)
+        {"PICROSS 2",        p012},
+        {"PINOCCHIO",        p20C},
+        {"POKEBOM",          p30C},
+        {"POKEMON BLUE",     p10B},
+        {"POKEMON GREEN",    p11C},
+        {"POKEMON RED",      p110},
+        {"POKEMON YELLOW",   p007},
+        {"QIX",              p407},
+        {"RADARMISSION",     p100},
+        {"ROCKMAN WORLD",    p50F},
+        {"ROCKMAN WORLD2",   p50F},
+        {"ROCKMANWORLD3",    p50F},
+        {"SEIKEN DENSETSU",  p50E},
+        {"SOCCER",           p502},
+        {"SOLARSTRIKER",     p013},
+        {"SPACE INVADERS",   p013},
+        {"STAR STACKER",     p012},
+        {"STAR WARS",        p512},
+        {"STAR WARS-NOA",    p512},
+        {"STREET FIGHTER 2", p50F},
+        {"SUPER BOMBLISS  ", p006}, // unofficial ("TETRIS BLAST" alt.)
+        {"SUPER MARIOLAND",  p30A},
+        {"SUPER RC PRO-AM",  p50F},
+        {"SUPERDONKEYKONG",  p501},
+        {"SUPERMARIOLAND3",  p500},
+        {"TENNIS",           p502},
+        {"TETRIS",           p007},
+        {"TETRIS ATTACK",    p405},
+        {"TETRIS BLAST",     p006},
+        {"TETRIS FLASH",     p407},
+        {"TETRIS PLUS",      p31C},
+        {"TETRIS2",          p407},
+        {"THE CHESSMASTER",  p30F},
+        {"TOPRANKINGTENNIS", p502},
+        {"TOPRANKTENNIS",    p502},
+        {"TOY STORY",        p30E},
+        {"TRIP WORLD",       p500}, // unofficial
+        {"VEGAS STAKES",     p50E},
+        {"WARIO BLAST",      p31C},
+        {"WARIOLAND2",       p515},
+        {"WAVERACE",         p50B},
+        {"WORLD CUP",        p30E},
+        {"X",                p016},
+        {"YAKUMAN",          p012},
+        {"YOSHI'S COOKIE",   p406},
+        {"YOSSY NO COOKIE",  p406},
+        {"YOSSY NO PANEPON", p405},
+        {"YOSSY NO TAMAGO",  p305},
+        {"ZELDA",            p511},
+};
+
+static const unsigned short* findPalette(const char* title) {
+    for(u32 i = 0; i < (sizeof gbcPalettes) / (sizeof gbcPalettes[0]); i++) {
+        if(strcmp(gbcPalettes[i].title, title) == 0) {
+            return gbcPalettes[i].p;
+        }
+    }
+
+    return NULL;
+}
 
 static const u8 depthOffset[4] =
         {
@@ -63,45 +518,566 @@ static const u32 BitStretchTable256[] =
                 0x5500, 0x5501, 0x5504, 0x5505, 0x5510, 0x5511, 0x5514, 0x5515, 0x5540, 0x5541, 0x5544, 0x5545, 0x5550, 0x5551, 0x5554, 0x5555
         };
 
-GameboyPPU::GameboyPPU(Gameboy* gb) {
+static const int modeCycles[] = {
+        204,
+        456,
+        80,
+        172
+};
+
+PPU::PPU(Gameboy* gb) {
     this->gameboy = gb;
 }
 
-void GameboyPPU::initPPU() {
-    gfxMask = 0;
+void PPU::reset() {
+    this->lastScanlineCycle = 0;
+    this->lastPhaseCycle = 0;
+    this->halfSpeed = false;
+
+    memset(this->vram[0], 0, 0x2000);
+    memset(this->vram[1], 0, 0x2000);
+    memset(this->oam, 0, 0xA0);
+
+    memset(this->bgPaletteData, 0xFF, sizeof(this->bgPaletteData));
+    memset(this->sprPaletteData, 0xFF, sizeof(this->sprPaletteData));
+
+    this->lcdc = 0x91;
+    this->stat = 0;
+    this->scy = 0;
+    this->scx = 0;
+    this->ly = 0;
+    this->lyc = 0;
+    this->sdma = 0;
+    this->bgp = 0xfc;
+    this->obp0 = 0xff;
+    this->obp1 = 0xff;
+    this->wy = 0;
+    this->wx = 0;
+    this->vramBank = 0;
+
+    this->dmaSource = 0;
+    this->dmaDest = 0;
+    this->dmaLength = 0;
+    this->dmaMode = 0;
+
+    this->bgPaletteSelect = 0;
+    this->bgPaletteAutoIncrement = 0;
+    this->sprPaletteSelect = 0;
+    this->sprPaletteAutoIncrement = 0;
+
+    this->bgPaletteData[0] = TOCGB(255, 255, 255);
+    this->bgPaletteData[1] = TOCGB(192, 192, 192);
+    this->bgPaletteData[2] = TOCGB(94, 94, 94);
+    this->bgPaletteData[3] = TOCGB(0, 0, 0);
+    this->sprPaletteData[0] = TOCGB(255, 255, 255);
+    this->sprPaletteData[1] = TOCGB(192, 192, 192);
+    this->sprPaletteData[2] = TOCGB(94, 94, 94);
+    this->sprPaletteData[3] = TOCGB(0, 0, 0);
+    this->sprPaletteData[4] = TOCGB(255, 255, 255);
+    this->sprPaletteData[5] = TOCGB(192, 192, 192);
+    this->sprPaletteData[6] = TOCGB(94, 94, 94);
+    this->sprPaletteData[7] = TOCGB(0, 0, 0);
+
+    this->refreshGBPalette();
 }
 
-void GameboyPPU::clearPPU() {
-    gfxClearScreenBuffer(0x0000);
+void PPU::loadState(FILE* file, int version) {
+    fread(&this->lastScanlineCycle, 1, sizeof(this->lastScanlineCycle), file);
+    fread(&this->lastPhaseCycle, 1, sizeof(this->lastPhaseCycle), file);
+    fread(&this->halfSpeed, 1, sizeof(this->halfSpeed), file);
+    fread(this->vram, 1, sizeof(this->vram), file);
+    fread(this->oam, 1, sizeof(this->oam), file);
+    fread(this->bgPaletteData, 1, sizeof(this->bgPaletteData), file);
+    fread(this->sprPaletteData, 1, sizeof(this->sprPaletteData), file);
+    fread(&this->lcdc, 1, sizeof(this->lcdc), file);
+    fread(&this->stat, 1, sizeof(this->stat), file);
+    fread(&this->scy, 1, sizeof(this->scy), file);
+    fread(&this->scx, 1, sizeof(this->scx), file);
+    fread(&this->ly, 1, sizeof(this->ly), file);
+    fread(&this->lyc, 1, sizeof(this->lyc), file);
+    fread(&this->sdma, 1, sizeof(this->sdma), file);
+    fread(&this->bgp, 1, sizeof(this->bgp), file);
+    fread(&this->obp0, 1, sizeof(this->obp0), file);
+    fread(&this->obp1, 1, sizeof(this->obp1), file);
+    fread(&this->wy, 1, sizeof(this->wy), file);
+    fread(&this->wx, 1, sizeof(this->wx), file);
+    fread(&this->vramBank, 1, sizeof(this->vramBank), file);
+    fread(&this->dmaSource, 1, sizeof(this->dmaSource), file);
+    fread(&this->dmaDest, 1, sizeof(this->dmaDest), file);
+    fread(&this->dmaLength, 1, sizeof(this->dmaLength), file);
+    fread(&this->dmaMode, 1, sizeof(this->dmaMode), file);
+    fread(&this->bgPaletteSelect, 1, sizeof(this->bgPaletteSelect), file);
+    fread(&this->bgPaletteAutoIncrement, 1, sizeof(this->bgPaletteAutoIncrement), file);
+    fread(&this->sprPaletteSelect, 1, sizeof(this->sprPaletteSelect), file);
+    fread(&this->sprPaletteAutoIncrement, 1, sizeof(this->sprPaletteAutoIncrement), file);
 }
 
-inline u16 GameboyPPU::getBgColor(u32 paletteId, u32 colorId) {
-    u8 paletteIndex = gameboy->gbMode == GB ? (u8) ((gameboy->ioRam[0x47] >> (colorId * 2)) & 3) : (u8) colorId;
-
-    u16 color = gameboy->bgPaletteData.rgba[paletteId * 4 + paletteIndex];
-    u8 r = (u8) (color & 0x1F);
-    u8 g = (u8) ((color >> 5) & 0x1F);
-    u8 b = (u8) ((color >> 10) & 0x1F);
-
-    return r << 11 | g << 6 | b << 1 | (u8) 1;
+void PPU::saveState(FILE* file) {
+    fwrite(&this->lastScanlineCycle, 1, sizeof(this->lastScanlineCycle), file);
+    fwrite(&this->lastPhaseCycle, 1, sizeof(this->lastPhaseCycle), file);
+    fwrite(&this->halfSpeed, 1, sizeof(this->halfSpeed), file);
+    fwrite(this->vram, 1, sizeof(this->vram), file);
+    fwrite(this->oam, 1, sizeof(this->oam), file);
+    fwrite(this->bgPaletteData, 1, sizeof(this->bgPaletteData), file);
+    fwrite(this->sprPaletteData, 1, sizeof(this->sprPaletteData), file);
+    fwrite(&this->lcdc, 1, sizeof(this->lcdc), file);
+    fwrite(&this->stat, 1, sizeof(this->stat), file);
+    fwrite(&this->scy, 1, sizeof(this->scy), file);
+    fwrite(&this->scx, 1, sizeof(this->scx), file);
+    fwrite(&this->ly, 1, sizeof(this->ly), file);
+    fwrite(&this->lyc, 1, sizeof(this->lyc), file);
+    fwrite(&this->sdma, 1, sizeof(this->sdma), file);
+    fwrite(&this->bgp, 1, sizeof(this->bgp), file);
+    fwrite(&this->obp0, 1, sizeof(this->obp0), file);
+    fwrite(&this->obp1, 1, sizeof(this->obp1), file);
+    fwrite(&this->wy, 1, sizeof(this->wy), file);
+    fwrite(&this->wx, 1, sizeof(this->wx), file);
+    fwrite(&this->vramBank, 1, sizeof(this->vramBank), file);
+    fwrite(&this->dmaSource, 1, sizeof(this->dmaSource), file);
+    fwrite(&this->dmaDest, 1, sizeof(this->dmaDest), file);
+    fwrite(&this->dmaLength, 1, sizeof(this->dmaLength), file);
+    fwrite(&this->dmaMode, 1, sizeof(this->dmaMode), file);
+    fwrite(&this->bgPaletteSelect, 1, sizeof(this->bgPaletteSelect), file);
+    fwrite(&this->bgPaletteAutoIncrement, 1, sizeof(this->bgPaletteAutoIncrement), file);
+    fwrite(&this->sprPaletteSelect, 1, sizeof(this->sprPaletteSelect), file);
+    fwrite(&this->sprPaletteAutoIncrement, 1, sizeof(this->sprPaletteAutoIncrement), file);
 }
 
-inline u16 GameboyPPU::getSprColor(u32 paletteId, u32 colorId) {
-    u8 paletteIndex = gameboy->gbMode == GB ? (u8) ((gameboy->ioRam[0x48 + paletteId / 4] >> (colorId * 2)) & 3) : (u8) colorId;
-
-    u16 color = gameboy->sprPaletteData.rgba[paletteId * 4 + paletteIndex];
-    u8 r = (u8) (color & 0x1F);
-    u8 g = (u8) ((color >> 5) & 0x1F);
-    u8 b = (u8) ((color >> 10) & 0x1F);
-
-    return r << 11 | g << 6 | b << 1 | (u8) 1;
+void PPU::checkLYC() {
+    if(this->ly == this->lyc) {
+        this->stat |= 0x4;
+        if(this->stat & 0x40) {
+            gameboy->cpu->requestInterrupt(INT_LCD);
+        }
+    } else {
+        this->stat &= ~4;
+    }
 }
 
-void GameboyPPU::drawScanline(int scanline) {
-    if((gfxGetFastForward() && fastForwardCounter < fastForwardFrameSkip) || gameboy->getRomFile()->isGBS()) {
-        return;
+bool PPU::updateHBlankDMA() {
+    if(this->dmaLength > 0) {
+        for(int i = 0; i < 16; i++) {
+            this->vram[this->vramBank][this->dmaDest++] = this->gameboy->mmu->read(this->dmaSource++);
+        }
+
+        this->dmaDest &= 0x1FF0;
+        this->dmaLength--;
+        return true;
+    } else {
+        return false;
+    }
+}
+
+int PPU::update() {
+    int ret = 0;
+
+    if(!(this->lcdc & 0x80)) { // If LCD is off
+        this->lastScanlineCycle = this->gameboy->cpu->getCycle();
+        this->ly = 0;
+        this->stat &= 0xF8;
+
+        // Normally timing is synchronized with gameboy's vblank. If the screen
+        // is off, this code kicks in. The "lastPhaseCycle" is the last cycle
+        // checked for input and whatnot.
+        while(this->gameboy->cpu->getCycle() >= this->lastPhaseCycle + (CYCLES_PER_FRAME << this->halfSpeed)) {
+            this->lastPhaseCycle += CYCLES_PER_FRAME << this->halfSpeed;
+            // Though not technically vblank, this is a good time to check for
+            // input and whatnot.
+            ret |= RET_VBLANK;
+        }
+
+        this->gameboy->cpu->setEventCycle(this->lastPhaseCycle + (CYCLES_PER_FRAME << this->halfSpeed));
+    } else {
+        this->lastPhaseCycle = 0;
+
+        while(this->gameboy->cpu->getCycle() >= this->lastScanlineCycle + (modeCycles[this->stat & 3] << this->halfSpeed)) {
+            this->lastScanlineCycle += modeCycles[this->stat & 3] << this->halfSpeed;
+
+            switch(this->stat & 3) {
+                case 0: // fall through to next case
+                case 1:
+                    if(this->ly == 0 && (this->stat & 3) == 1) { // End of vblank
+                        this->stat++; // Set mode 2
+                    } else {
+                        this->ly++;
+                        this->checkLYC();
+
+                        if(this->ly < 144 || this->ly >= 153) { // Not in vblank
+                            if(this->stat & 0x20) {
+                                this->gameboy->cpu->requestInterrupt(INT_LCD);
+                            }
+
+                            if(this->ly >= 153) {
+                                // Don't change the mode. Scanline 0 is twice as
+                                // long as normal - half of it identifies as being
+                                // in the vblank period.
+                                this->ly = 0;
+                            } else { // End of hblank
+                                this->stat &= ~3;
+                                this->stat |= 2; // Set mode 2
+                                if(this->stat & 0x20) {
+                                    this->gameboy->cpu->requestInterrupt(INT_LCD);
+                                }
+                            }
+                        }
+
+                        this->checkLYC();
+
+                        if(this->ly >= 144) { // In vblank
+                            if(this->ly == 144) {// Beginning of vblank
+                                this->stat &= ~3;
+                                this->stat |= 1;   // Set mode 1
+
+                                this->gameboy->cpu->requestInterrupt(INT_VBLANK);
+                                if(this->stat & 0x10) {
+                                    this->gameboy->cpu->requestInterrupt(INT_LCD);
+                                }
+
+                                ret |= RET_VBLANK;
+                            }
+                        }
+                    }
+
+                    break;
+                case 2:
+                    this->stat++; // Set mode 3
+                    break;
+                case 3:
+                    this->stat &= ~3; // Set mode 0
+
+                    if(this->stat & 0x8) {
+                        this->gameboy->cpu->requestInterrupt(INT_LCD);
+                    }
+
+                    if((!gfxGetFastForward() || fastForwardCounter >= fastForwardFrameSkip) && !this->gameboy->romFile->isGBS()) {
+                        this->drawScanline(this->ly);
+                    }
+
+                    if(this->updateHBlankDMA()) {
+                        this->gameboy->cpu->advanceCycles((u64) (8 << this->halfSpeed));
+                    }
+
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        this->gameboy->cpu->setEventCycle(this->lastScanlineCycle + (modeCycles[this->stat & 3] << this->halfSpeed));
     }
 
+    return ret;
+}
+
+u8 PPU::read(u16 addr) {
+    int area = addr >> 12;
+
+    if(area == 0x8 || area == 0x9) {
+        return this->vram[this->vramBank][addr & 0x1FFF];
+    } else if(area == 0xF) {
+        if(addr >= 0xFF00) {
+            switch(addr) {
+                case 0xFF40:
+                    return this->lcdc;
+                case 0xFF41:
+                    return this->stat;
+                case 0xFF42:
+                    return this->scy;
+                case 0xFF43:
+                    return this->scx;
+                case 0xFF44:
+                    return this->ly;
+                case 0xFF45:
+                    return this->lyc;
+                case 0xFF46:
+                    return this->sdma;
+                case 0xFF47:
+                    return this->bgp;
+                case 0xFF48:
+                    return this->obp0;
+                case 0xFF49:
+                    return this->obp1;
+                case 0xFF4A:
+                    return this->wy;
+                case 0xFF4B:
+                    return this->wx;
+                case 0xFF4F:
+                    return this->vramBank;
+                case 0xFF51:
+                    return (u8) (this->dmaSource >> 8);
+                case 0xFF52:
+                    return (u8) (this->dmaSource & 0xFF);
+                case 0xFF53:
+                    return (u8) (this->dmaDest >> 8);
+                case 0xFF54:
+                    return (u8) (this->dmaDest & 0xFF);
+                case 0xFF55:
+                    return (u8) (this->dmaLength - 1);
+                case 0xFF68:
+                    return (u8) ((this->bgPaletteSelect & 0x3F) | ((this->bgPaletteAutoIncrement & 0x1) << 7));
+                case 0xFF69: // CGB BG Palette
+                    return ((u8*) this->bgPaletteData)[this->bgPaletteSelect];
+                case 0xFF6A:
+                    return (u8) ((this->sprPaletteSelect & 0x3F) | ((this->sprPaletteAutoIncrement & 0x1) << 7));
+                case 0xFF6B: // CGB Sprite palette
+                    return ((u8*) this->sprPaletteData)[this->sprPaletteSelect];
+                default:
+                    return 0;
+            }
+        } else if(addr >= 0xFE00 && addr < 0xFEA0) {
+            return this->oam[addr & 0xFF];
+        }
+    }
+
+    return 0;
+}
+
+void PPU::write(u16 addr, u8 val) {
+    int area = addr >> 12;
+
+    if(area == 0x8 || area == 0x9) {
+        this->vram[this->vramBank][addr & 0x1FFF] = val;
+    } else if(area == 0xF) {
+        if(addr >= 0xFF00) {
+            switch(addr) {
+                case 0xFF40: // LCDC
+                    if((this->lcdc & 0x80) && !(val & 0x80)) {
+                        if(this->gameboy->gbMode != MODE_CGB) {
+                            gfxClearScreenBuffer(getBgColor(0, 0));
+                        } else {
+                            gfxClearScreenBuffer(0xFFFF);
+                        }
+                    }
+
+                    this->lcdc = val;
+                    if(!(val & 0x80)) {
+                        this->ly = 0;
+                        this->stat &= ~3; // Set video mode 0
+                    }
+
+                    break;
+                case 0xFF41:
+                    this->stat &= 0x7;
+                    this->stat |= val & 0xF8;
+                    break;
+                case 0xFF42:
+                    this->scy = val;
+                    break;
+                case 0xFF43:
+                    this->scx = val;
+                    break;
+                case 0xFF44:
+                    this->ly = 0;
+                    break;
+                case 0xFF45:
+                    this->lyc = val;
+                    this->checkLYC();
+                    break;
+                case 0xFF46: { // Sprite DMA
+                    this->sdma = val;
+
+                    int src = val << 8;
+                    for(int i = 0; i < 0xA0; i++) {
+                        this->oam[i] = this->gameboy->mmu->read((u16) (src + i));
+                    }
+
+                    break;
+                }
+                case 0xFF47:
+                    this->bgp = val;
+                    break;
+                case 0xFF48:
+                    this->obp0 = val;
+                    break;
+                case 0xFF49:
+                    this->obp1 = val;
+                    break;
+                case 0xFF4A:
+                    this->wy = val;
+                    break;
+                case 0xFF4B:
+                    this->wx = val;
+                    break;
+                case 0xFF4F: // Vram bank
+                    if(this->gameboy->gbMode == MODE_CGB) {
+                        this->vramBank = (u8) (val & 1);
+                    }
+
+                    break;
+                case 0xFF51:
+                    this->dmaSource = (u16) ((this->dmaSource & 0xFF) | (val << 8));
+                    break;
+                case 0xFF52:
+                    this->dmaSource = (u16) ((this->dmaSource & 0xFF00) | val);
+                    this->dmaSource &= 0xFFF0;
+                    break;
+                case 0xFF53:
+                    this->dmaDest = (u16) ((this->dmaDest & 0xFF) | (val << 8));
+                    break;
+                case 0xFF54:
+                    this->dmaDest = (u16) ((this->dmaDest & 0xFF00) | val);
+                    this->dmaDest &= 0x1FF0;
+                    break;
+                case 0xFF55: // CGB DMA
+                    if(this->gameboy->gbMode == MODE_CGB) {
+                        if(this->dmaLength > 0) {
+                            if((val & 0x80) == 0) {
+                                this->dmaLength = 0;
+                            }
+
+                            break;
+                        }
+
+                        this->dmaLength = (u16) ((val & 0x7F) + 1);
+                        this->dmaMode = val >> 7;
+                        if(this->dmaMode == 0) {
+                            for(int i = 0; i < this->dmaLength; i++) {
+                                for(int j = 0; j < 16; j++) {
+                                    this->vram[this->vramBank][this->dmaDest++] = this->gameboy->mmu->read(this->dmaSource++);
+                                }
+
+                                this->dmaDest &= 0x1FF0;
+                            }
+
+                            this->gameboy->cpu->advanceCycles((u64) ((this->dmaLength * 8) << this->halfSpeed));
+                            this->dmaLength = 0;
+                        }
+                    }
+
+                    break;
+                case 0xFF68:
+                    this->bgPaletteSelect = (u8) (val & 0x3F);
+                    this->bgPaletteAutoIncrement = (bool) (val & 0x80);
+                    break;
+                case 0xFF69: // CGB BG Palette
+                    ((u8*) this->bgPaletteData)[this->bgPaletteSelect] = val;
+                    if(this->bgPaletteAutoIncrement) {
+                        this->bgPaletteSelect = (u8) ((this->bgPaletteSelect + 1) & 0x3F);
+                    }
+
+                    break;
+                case 0xFF6A:
+                    this->sprPaletteSelect = (u8) (val & 0x3F);
+                    this->sprPaletteAutoIncrement = (bool) (val & 0x80);
+                    break;
+                case 0xFF6B: // CGB Sprite palette
+                    ((u8*) this->sprPaletteData)[this->sprPaletteSelect] = val;
+                    if(this->sprPaletteAutoIncrement) {
+                        this->sprPaletteSelect = (u8) ((this->sprPaletteSelect + 1) & 0x3F);
+                    }
+
+                    break;
+                default:
+                    break;
+            }
+        } else if(addr >= 0xFE00 && addr < 0xFEA0) {
+            this->oam[addr & 0xFF] = val;
+        }
+    }
+}
+
+void PPU::setHalfSpeed(bool halfSpeed) {
+    if(!this->halfSpeed && halfSpeed) {
+        this->lastScanlineCycle -= this->gameboy->cpu->getCycle() - this->lastScanlineCycle;
+        this->lastPhaseCycle -= this->gameboy->cpu->getCycle() - this->lastPhaseCycle;
+    } else if(this->halfSpeed && !halfSpeed) {
+        this->lastScanlineCycle += (this->gameboy->cpu->getCycle() - this->lastScanlineCycle) / 2;
+        this->lastPhaseCycle += (this->gameboy->cpu->getCycle() - this->lastPhaseCycle) / 2;
+    }
+
+    this->halfSpeed = halfSpeed;
+}
+
+void PPU::refreshGBPalette() {
+    if(gameboy->isRomLoaded() && gameboy->gbMode == MODE_GB) {
+        const u16* palette = NULL;
+        switch(gbColorizeMode) {
+            case 0:
+                palette = findPalette("GBC - Grayscale");
+                break;
+            case 1:
+                // Don't set the game's palette until we're past the BIOS screen.
+                if(!gameboy->biosOn) {
+                    palette = findPalette(gameboy->romFile->getRomTitle().c_str());
+                }
+
+                if(palette == NULL) {
+                    palette = findPalette("GBC - Grayscale");
+                }
+
+                break;
+            case 2:
+                palette = findPalette("GBC - Inverted");
+                break;
+            case 3:
+                palette = findPalette("GBC - Pastel Mix");
+                break;
+            case 4:
+                palette = findPalette("GBC - Red");
+                break;
+            case 5:
+                palette = findPalette("GBC - Orange");
+                break;
+            case 6:
+                palette = findPalette("GBC - Yellow");
+                break;
+            case 7:
+                palette = findPalette("GBC - Green");
+                break;
+            case 8:
+                palette = findPalette("GBC - Blue");
+                break;
+            case 9:
+                palette = findPalette("GBC - Brown");
+                break;
+            case 10:
+                palette = findPalette("GBC - Dark Green");
+                break;
+            case 11:
+                palette = findPalette("GBC - Dark Blue");
+                break;
+            case 12:
+                palette = findPalette("GBC - Dark Brown");
+                break;
+            case 13:
+                palette = findPalette("GB - Classic");
+                break;
+            default:
+                palette = findPalette("GBC - Grayscale");
+                break;
+        }
+
+        memcpy(this->bgPaletteData, palette, 4 * sizeof(u16));
+        memcpy(this->sprPaletteData, palette + 4, 4 * sizeof(u16));
+        memcpy(this->sprPaletteData + 4 * 4, palette + 8, 4 * sizeof(u16));
+    }
+}
+
+inline u16 PPU::getBgColor(u32 paletteId, u32 colorId) {
+    u8 paletteIndex = this->gameboy->gbMode != MODE_CGB ? (u8) ((this->bgp >> (colorId * 2)) & 3) : (u8) colorId;
+
+    u16 color = this->bgPaletteData[paletteId * 4 + paletteIndex];
+    u8 r = (u8) (color & 0x1F);
+    u8 g = (u8) ((color >> 5) & 0x1F);
+    u8 b = (u8) ((color >> 10) & 0x1F);
+
+    return r << 11 | g << 6 | b << 1 | (u8) 1;
+}
+
+inline u16 PPU::getSprColor(u32 paletteId, u32 colorId) {
+    u8 obp = paletteId / 4 == 0 ? this->obp0 : this->obp1;
+    u8 paletteIndex = this->gameboy->gbMode != MODE_CGB ? (u8) ((obp >> (colorId * 2)) & 3) : (u8) colorId;
+
+    u16 color = this->sprPaletteData[paletteId * 4 + paletteIndex];
+    u8 r = (u8) (color & 0x1F);
+    u8 g = (u8) ((color >> 5) & 0x1F);
+    u8 b = (u8) ((color >> 10) & 0x1F);
+
+    return r << 11 | g << 6 | b << 1 | (u8) 1;
+}
+
+void PPU::drawScanline(int scanline) {
+    u8 gfxMask = this->gameboy->sgb->getGfxMask();
     if(gfxMask == 0) {
         u16* lineBuffer = gfxGetLineBuffer(scanline);
         u8 depthBuffer[256] = {0};
@@ -115,28 +1091,25 @@ void GameboyPPU::drawScanline(int scanline) {
     }
 }
 
-void GameboyPPU::drawStatic(u16* lineBuffer, u8* depthBuffer, int scanline) {
-    int winX = gameboy->ioRam[0x4B] - 7;
-    int winY = gameboy->ioRam[0x4A];
-    bool drawingWindow = winY <= scanline && winY < 144 && winX >= 0 && winX < 160 && (gameboy->ioRam[0x40] & 0x20);
-    bool tileSigned = !(gameboy->ioRam[0x40] & 0x10);
+void PPU::drawStatic(u16* lineBuffer, u8* depthBuffer, int scanline) {
+    int winX = this->wx - 7;
+    int winY = this->wy;
+    bool drawingWindow = winY <= scanline && winY < 144 && winX >= 0 && winX < 160 && (this->lcdc & 0x20);
+    bool tileSigned = !(this->lcdc & 0x10);
 
     drawBackground(lineBuffer, depthBuffer, scanline, winX, winY, drawingWindow, tileSigned);
     drawWindow(lineBuffer, depthBuffer, scanline, winX, winY, drawingWindow, tileSigned);
 }
 
-void GameboyPPU::drawBackground(u16* lineBuffer, u8* depthBuffer, int scanline, int winX, int winY, bool drawingWindow, bool tileSigned) {
-    if(gameboy->gbMode == CGB || (gameboy->ioRam[0x40] & 1) != 0) { // Background enabled
-        u8 scrollX = gameboy->ioRam[0x43];
-        u8 scrollY = gameboy->ioRam[0x42];
-
+void PPU::drawBackground(u16* lineBuffer, u8* depthBuffer, int scanline, int winX, int winY, bool drawingWindow, bool tileSigned) {
+    if(this->gameboy->gbMode == MODE_CGB || (this->lcdc & 1) != 0) { // Background enabled
         // The y position (measured in tiles)
-        int tileY = ((scanline + scrollY) & 0xFF) / 8;
-        int basePixelY = (scanline + scrollY) & 0x07;
+        int tileY = ((scanline + this->scy) & 0xFF) / 8;
+        int basePixelY = (scanline + this->scy) & 0x07;
 
         // Tile Map address plus row offset
         int bgMapAddr = 0;
-        if(gameboy->ioRam[0x40] & 0x8) {
+        if(this->lcdc & 0x8) {
             bgMapAddr = 0x1C00 + (tileY * 32);
         } else {
             bgMapAddr = 0x1800 + (tileY * 32);
@@ -149,11 +1122,11 @@ void GameboyPPU::drawBackground(u16* lineBuffer, u8* depthBuffer, int scanline, 
         }
 
         // Tiles to draw
-        int startTile = scrollX / 8;
+        int startTile = this->scx / 8;
         int endTile = (startTile + numTilesX + 1) & 31;
 
         // Calculate lineBuffer Start, negatives treated as unsigned for speed up
-        u32 writeX = (u32) (-(scrollX & 0x07));
+        u8 writeX = (u8) (-(this->scx & 0x07));
         for(int tile = startTile; tile != endTile; tile = (tile + 1) & 31) {
             // The address (from beginning of gameboy->vram) of the tile's mapping
             int mapAddr = bgMapAddr + tile;
@@ -166,14 +1139,14 @@ void GameboyPPU::drawBackground(u16* lineBuffer, u8* depthBuffer, int scanline, 
             u32 vRamB2 = 0;
 
             // This is the tile id.
-            int tileNum = gameboy->vram[0][mapAddr];
+            int tileNum = this->vram[0][mapAddr];
             if(tileSigned) {
                 tileNum = ((s8) tileNum) + 256;
             }
 
             // Setup Tile Info
-            if(gameboy->gbMode == CGB) {
-                u32 flag = gameboy->vram[1][mapAddr];
+            if(this->gameboy->gbMode == MODE_CGB) {
+                u32 flag = this->vram[1][mapAddr];
                 paletteId = flag & PALETTE_NUMBER;
 
                 if(flag & FLIP_Y) {
@@ -182,8 +1155,8 @@ void GameboyPPU::drawBackground(u16* lineBuffer, u8* depthBuffer, int scanline, 
 
                 // Read bytes of tile line
                 u32 bank = (u32) ((flag & VRAM_BANK) != 0);
-                vRamB1 = gameboy->vram[bank][(tileNum << 4) + (pixelY << 1)];
-                vRamB2 = gameboy->vram[bank][(tileNum << 4) + (pixelY << 1) + 1];
+                vRamB1 = this->vram[bank][(tileNum << 4) + (pixelY << 1)];
+                vRamB2 = this->vram[bank][(tileNum << 4) + (pixelY << 1) + 1];
 
                 // Reverse their bits if flipX set
                 if(!(flag & FLIP_X)) {
@@ -197,17 +1170,21 @@ void GameboyPPU::drawBackground(u16* lineBuffer, u8* depthBuffer, int scanline, 
                 }
             } else {
                 // Read bytes of tile line
-                vRamB1 = gameboy->vram[0][(tileNum << 4) + (pixelY << 1)];
-                vRamB2 = gameboy->vram[0][(tileNum << 4) + (pixelY << 1) + 1];
+                vRamB1 = BitReverseTable256[this->vram[0][(tileNum << 4) + (pixelY << 1)]];
+                vRamB2 = BitReverseTable256[this->vram[0][(tileNum << 4) + (pixelY << 1) + 1]];
             }
 
             // Mux the bits to for more logical pixels
             u32 pxData = BitStretchTable256[vRamB1] | (BitStretchTable256[vRamB2] << 1);
 
-            u8* subSgbMap = &gameboy->sgbMap[scanline / 8 * 20];
-            for(int x = 0; x < 16 && writeX < 160; x += 2, writeX++) {
+            u8* subSgbMap = &this->gameboy->sgb->getGfxMap()[scanline / 8 * 20];
+            for(int x = 0; x < 16; x += 2, writeX++) {
+                if(writeX >= 160) {
+                    continue;
+                }
+
                 u32 colorId = (pxData >> x) & 0x03;
-                u32 subPaletteId = gameboy->sgbMode ? subSgbMap[writeX >> 3] : paletteId;
+                u32 subPaletteId = this->gameboy->gbMode == MODE_SGB ? subSgbMap[writeX >> 3] : paletteId;
 
                 // Draw pixel
                 depthBuffer[writeX] = depth - depthOffset[colorId];
@@ -217,7 +1194,7 @@ void GameboyPPU::drawBackground(u16* lineBuffer, u8* depthBuffer, int scanline, 
     }
 }
 
-void GameboyPPU::drawWindow(u16* lineBuffer, u8* depthBuffer, int scanline, int winX, int winY, bool drawingWindow, bool tileSigned) {
+void PPU::drawWindow(u16* lineBuffer, u8* depthBuffer, int scanline, int winX, int winY, bool drawingWindow, bool tileSigned) {
     if(drawingWindow) { // Window enabled
         // The y position (measured in tiles)
         int tileY = (scanline - winY) / 8;
@@ -225,7 +1202,7 @@ void GameboyPPU::drawWindow(u16* lineBuffer, u8* depthBuffer, int scanline, int 
 
         // Tile Map address plus row offset
         int winMapAddr = 0;
-        if(gameboy->ioRam[0x40] & 0x40) {
+        if(this->lcdc & 0x40) {
             winMapAddr = 0x1C00 + (tileY * 32);
         } else {
             winMapAddr = 0x1800 + (tileY * 32);
@@ -248,14 +1225,14 @@ void GameboyPPU::drawWindow(u16* lineBuffer, u8* depthBuffer, int scanline, int 
             u32 vRamB2 = 0;
 
             // This is the tile id.
-            int tileNum = gameboy->vram[0][mapAddr];
+            int tileNum = this->vram[0][mapAddr];
             if(tileSigned) {
                 tileNum = ((s8) tileNum) + 256;
             }
 
             // Setup Tile Info
-            if(gameboy->gbMode == CGB) {
-                u32 flag = gameboy->vram[1][mapAddr];
+            if(this->gameboy->gbMode == MODE_CGB) {
+                u32 flag = this->vram[1][mapAddr];
                 paletteId = flag & PALETTE_NUMBER;
 
                 if(flag & FLIP_Y) {
@@ -264,8 +1241,8 @@ void GameboyPPU::drawWindow(u16* lineBuffer, u8* depthBuffer, int scanline, int 
 
                 // Read bytes of tile line
                 u32 bank = (u32) ((flag & VRAM_BANK) != 0);
-                vRamB1 = gameboy->vram[bank][(tileNum << 4) + (pixelY << 1)];
-                vRamB2 = gameboy->vram[bank][(tileNum << 4) + (pixelY << 1) + 1];
+                vRamB1 = this->vram[bank][(tileNum << 4) + (pixelY << 1)];
+                vRamB2 = this->vram[bank][(tileNum << 4) + (pixelY << 1) + 1];
 
                 // Reverse their bits if flipX set
                 if(!(flag & FLIP_X)) {
@@ -279,17 +1256,21 @@ void GameboyPPU::drawWindow(u16* lineBuffer, u8* depthBuffer, int scanline, int 
                 }
             } else {
                 // Read bytes of tile line
-                vRamB1 = gameboy->vram[0][(tileNum << 4) + (pixelY << 1)];
-                vRamB2 = gameboy->vram[0][(tileNum << 4) + (pixelY << 1) + 1];
+                vRamB1 = BitReverseTable256[this->vram[0][(tileNum << 4) + (pixelY << 1)]];
+                vRamB2 = BitReverseTable256[this->vram[0][(tileNum << 4) + (pixelY << 1) + 1]];
             }
 
             // Mux the bits to for more logical pixels
             u32 pxData = BitStretchTable256[vRamB1] | (BitStretchTable256[vRamB2] << 1);
 
-            u8* subSgbMap = &gameboy->sgbMap[scanline / 8 * 20];
-            for(int x = 0; x < 16 && writeX < 160; x += 2, writeX++) {
+            u8* subSgbMap = &this->gameboy->sgb->getGfxMap()[scanline / 8 * 20];
+            for(int x = 0; x < 16; x += 2, writeX++) {
+                if(writeX >= 160) {
+                    continue;
+                }
+
                 u32 colorId = (pxData >> x) & 0x03;
-                u32 subPaletteId = gameboy->sgbMode ? subSgbMap[writeX >> 3] : paletteId;
+                u32 subPaletteId = this->gameboy->gbMode == MODE_SGB ? subSgbMap[writeX >> 3] : paletteId;
 
                 // Draw pixel
                 depthBuffer[writeX] = depth - depthOffset[colorId];
@@ -299,39 +1280,38 @@ void GameboyPPU::drawWindow(u16* lineBuffer, u8* depthBuffer, int scanline, int 
     }
 }
 
-void GameboyPPU::drawSprites(u16* lineBuffer, u8* depthBuffer, int scanline) {
-    if(gameboy->ioRam[0x40] & 0x2) { // Sprites enabled
+void PPU::drawSprites(u16* lineBuffer, u8* depthBuffer, int scanline) {
+    if(this->lcdc & 0x2) { // Sprites enabled
         for(int sprite = 39; sprite >= 0; sprite--) {
             // The sprite's number, times 4 (each uses 4 bytes)
             int spriteOffset = sprite * 4;
 
-            int y = (gameboy->hram[spriteOffset] - 16);
-            int height = (gameboy->ioRam[0x40] & 0x4) ? 16 : 8;
+            int y = this->oam[spriteOffset] - 16;
+            int height = (this->lcdc & 0x4) ? 16 : 8;
 
             // Clip Sprite to or bottom
             if(scanline < y || scanline >= y + height) {
                 continue;
             }
 
-            int tileNum = gameboy->hram[spriteOffset + 2];
+            // Setup Tile Info
+            int tileNum = this->oam[spriteOffset + 2];
+            u32 flag =this-> oam[spriteOffset + 3];
+            u32 bank = 0;
+            u32 paletteId = 0;
+            if(this->gameboy->gbMode == MODE_CGB) {
+                bank = (flag & VRAM_BANK) >> 3;
+                paletteId = flag & PALETTE_NUMBER;
+            } else {
+                paletteId = (flag & SPRITE_NON_CGB_PALETTE_NUMBER) >> 2;
+            }
 
-            // Select Tile base on Tiles Y offset
+            // Select tile base on tile Y offset
             if(height == 16) {
                 tileNum &= ~1;
                 if(scanline - y >= 8) {
                     tileNum++;
                 }
-            }
-
-            // Setup Tile Info
-            u32 flag = gameboy->hram[spriteOffset + 3];
-            u32 bank = 0;
-            u32 paletteId = 0;
-            if(gameboy->gbMode == CGB) {
-                bank = (flag & VRAM_BANK) >> 3;
-                paletteId = flag & PALETTE_NUMBER;
-            } else {
-                paletteId = (flag & SPRITE_NON_CGB_PALETTE_NUMBER) >> 2;
             }
 
             // This is the tile's Y position to be read (0-7)
@@ -350,8 +1330,8 @@ void GameboyPPU::drawSprites(u16* lineBuffer, u8* depthBuffer, int scanline) {
             }
 
             // Read bytes of tile line
-            u32 vRamB1 = gameboy->vram[bank][(tileNum << 4) + (pixelY << 1)];
-            u32 vRamB2 = gameboy->vram[bank][(tileNum << 4) + (pixelY << 1) + 1];
+            u32 vRamB1 = this->vram[bank][(tileNum << 4) + (pixelY << 1)];
+            u32 vRamB2 = this->vram[bank][(tileNum << 4) + (pixelY << 1) + 1];
 
             // Reverse their bits if flipX set
             if(!(flag & FLIP_X)) {
@@ -363,15 +1343,19 @@ void GameboyPPU::drawSprites(u16* lineBuffer, u8* depthBuffer, int scanline) {
             u32 pxData = BitStretchTable256[vRamB1] | (BitStretchTable256[vRamB2] << 1);
 
             // Calculate where to start to draw, negatives treated as unsigned for speed up
-            u32 writeX = (u32) ((s32) (gameboy->hram[spriteOffset + 1] - 8));
+            u32 writeX = (u32) ((s32) (this->oam[spriteOffset + 1] - 8));
 
-            u8* subSgbMap = &gameboy->sgbMap[scanline / 8 * 20];
-            for(int x = 0; x < 16 && writeX < 160; x += 2, writeX++) {
+            u8* subSgbMap = &this->gameboy->sgb->getGfxMap()[scanline / 8 * 20];
+            for(int x = 0; x < 16; x += 2, writeX++) {
+                if(writeX >= 160) {
+                    continue;
+                }
+
                 u32 colorId = (pxData >> x) & 0x03;
 
-                // Draw pixel, If not transparent or above depth buffer
+                // Draw pixel if not transparent or above depth buffer
                 if(colorId != 0 && depth >= depthBuffer[writeX]) {
-                    u32 subPaletteId = gameboy->sgbMode ? paletteId + subSgbMap[writeX >> 3] : paletteId;
+                    u32 subPaletteId = this->gameboy->gbMode == MODE_SGB ? paletteId + subSgbMap[writeX >> 3] : paletteId;
 
                     depthBuffer[writeX] = depth;
                     lineBuffer[writeX] = getSprColor(subPaletteId, colorId);
@@ -381,53 +1365,8 @@ void GameboyPPU::drawSprites(u16* lineBuffer, u8* depthBuffer, int scanline) {
     }
 }
 
-void GameboyPPU::drawScreen() {
-    if(gfxMask == 1) {
-        return;
-    }
-
-    if(gfxGetFastForward() && fastForwardCounter++ < fastForwardFrameSkip) {
-        return;
-    } else {
-        fastForwardCounter = 0;
-    }
-
-    if(!gameboy->getRomFile()->isGBS()) {
-        gfxDrawScreen();
-    } else if(!gfxGetFastForward()) {
-        gfxWaitForVBlank();
-    }
+void PPU::setSgbTiles(u8* src, u8 flags) {
 }
 
-void GameboyPPU::setSgbMask(int mask) {
-    gfxMask = (u8) mask;
-}
-
-void GameboyPPU::setSgbTiles(u8* src, u8 flags) {
-}
-
-void GameboyPPU::setSgbMap(u8* src) {
-}
-
-void GameboyPPU::writeVram(u16 addr, u8 val) {
-}
-
-void GameboyPPU::writeVram16(u16 addr, u16 src) {
-}
-
-void GameboyPPU::handleVideoRegister(u8 ioReg, u8 val) {
-    switch(ioReg) {
-        case 0x40:
-            if((gameboy->ioRam[ioReg] & 0x80) && !(val & 0x80)) {
-                if(gameboy->gbMode == GB) {
-                    gfxClearScreenBuffer(getBgColor(0, 0));
-                } else {
-                    gfxClearScreenBuffer(0xFFFF);
-                }
-            }
-
-            break;
-        default:
-            break;
-    }
+void PPU::setSgbMap(u8* src) {
 }

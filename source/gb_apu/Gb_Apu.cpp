@@ -13,7 +13,8 @@ details. You should have received a copy of the GNU Lesser General Public
 License along with this module; if not, write to the Free Software Foundation,
 Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA */
 
-#include "gb_apu/blargg_source.h"
+#include <assert.h>
+#include <string.h>
 
 unsigned const vol_reg    = 0xFF24;
 unsigned const stereo_reg = 0xFF25;
@@ -37,8 +38,8 @@ inline int Gb_Apu::calc_output( int osc ) const
 void Gb_Apu::set_output( Blip_Buffer* center, Blip_Buffer* left, Blip_Buffer* right, int osc )
 {
 	// Must be silent (all NULL), mono (left and right NULL), or stereo (none NULL)
-	require( !center || (center && !left && !right) || (center && left && right) );
-	require( (unsigned) osc <= osc_count ); // fails if you pass invalid osc index
+	assert( !center || (center && !left && !right) || (center && left && right) );
+	assert( (unsigned) osc <= osc_count ); // fails if you pass invalid osc index
 	
 	if ( !center || !left || !right )
 	{
@@ -78,7 +79,7 @@ void Gb_Apu::apply_volume()
 	int right = data & 7;
 	//if ( data & 0x88 ) dprintf( "Vin: %02X\n", data & 0x88 );
 	//if ( left != right ) dprintf( "l: %d r: %d\n", left, right );
-	synth_volume( max( left, right ) + 1 );
+	synth_volume( (left > right ? left : right) + 1 );
 }
 
 void Gb_Apu::volume( double v )
@@ -94,7 +95,7 @@ void Gb_Apu::reset_regs()
 {
 	for ( int i = 0; i < 0x20; i++ )
 		regs [i] = 0;
-	
+
 	square1.reset();
 	square2.reset();
 	wave   .reset();
@@ -147,7 +148,7 @@ void Gb_Apu::reset( mode_t mode, bool agb_wave )
 	reset_lengths();
 	
 	// Load initial wave RAM
-	static byte const initial_wave [2] [16] = {
+	static unsigned char const initial_wave [2] [16] = {
 		{0x84,0x40,0x43,0xAA,0x2D,0x78,0x92,0x3C,0x60,0x59,0x59,0xB0,0x34,0xB8,0x2E,0xDA},
 		{0x00,0xFF,0x00,0xFF,0x00,0xFF,0x00,0xFF,0x00,0xFF,0x00,0xFF,0x00,0xFF,0x00,0xFF},
 	};
@@ -165,7 +166,7 @@ void Gb_Apu::set_tempo( double t )
 {
 	frame_period = 4194304 / 512; // 512 Hz
 	if ( t != 1.0 )
-		frame_period = blip_time_t (frame_period / t);
+		frame_period = s32 (frame_period / t);
 }
 
 Gb_Apu::Gb_Apu()
@@ -196,12 +197,12 @@ Gb_Apu::Gb_Apu()
 	reset();
 }
 
-void Gb_Apu::run_until_( blip_time_t end_time )
+void Gb_Apu::run_until_( s32 end_time )
 {
 	while ( true )
 	{
 		// run oscillators
-		blip_time_t time = end_time;
+		s32 time = end_time;
 		if ( time > frame_time )
 			time = frame_time;
 
@@ -227,7 +228,7 @@ void Gb_Apu::run_until_( blip_time_t end_time )
 			break;
 		
 		// run frame sequencer
-		frame_time += frame_period * Gb_Osc::clk_mul;
+		frame_time += frame_period;
 		switch ( frame_phase++ )
 		{
 		case 2:
@@ -253,14 +254,14 @@ void Gb_Apu::run_until_( blip_time_t end_time )
 	}
 }
 
-inline void Gb_Apu::run_until( blip_time_t time )
+inline void Gb_Apu::run_until( s32 time )
 {
-	require( time >= last_time ); // end_time must not be before previous time
+	assert( time >= last_time ); // end_time must not be before previous time
 	if ( time > last_time )
 		run_until_( time );
 }
 
-void Gb_Apu::end_frame( blip_time_t end_time )
+void Gb_Apu::end_frame( s32 end_time )
 {
 	if ( end_time > last_time )
 		run_until( end_time );
@@ -300,14 +301,14 @@ void Gb_Apu::apply_stereo()
 	}
 }
 
-void Gb_Apu::write_register( blip_time_t time, unsigned addr, int data )
+void Gb_Apu::write_register( s32 time, unsigned addr, int data )
 {
-	require( (unsigned) data < 0x100 );
+	assert( (unsigned) data < 0x100 );
 	
 	int reg = addr - start_addr;
 	if ( (unsigned) reg >= register_count )
 	{
-		require( false );
+		assert( false );
 		return;
 	}
 	
@@ -368,22 +369,18 @@ void Gb_Apu::write_register( blip_time_t time, unsigned addr, int data )
 	}
 }
 
-int Gb_Apu::read_register( blip_time_t time, unsigned addr )
+int Gb_Apu::read_register( s32 time, unsigned addr )
 {
 	run_until( time );
 	
 	int reg = addr - start_addr;
-	if ( (unsigned) reg >= register_count )
-	{
-		require( false );
-		return 0;
-	}
+	assert( (unsigned) reg < register_count );
 	
 	if ( addr >= wave_ram )
 		return wave.read( addr );
 	
 	// Value read back has some bits always set
-	static byte const masks [] = {
+	static unsigned char const masks [] = {
 		0x80,0x3F,0x00,0xFF,0xBF,
 		0xFF,0x3F,0x00,0xFF,0xBF,
 		0x7F,0xFF,0x9F,0xFF,0xBF,
@@ -407,4 +404,88 @@ int Gb_Apu::read_register( blip_time_t time, unsigned addr )
 	}
 	
 	return data;
+}
+
+#define REFLECT( x, y ) ({                                                     \
+    if(save) {                                                                 \
+		(y)[0] = (u8) ((x) >> 0);                                              \
+	    (y)[1] = (u8) ((x) >> 8);                                              \
+	    (y)[2] = (u8) ((x) >> 16);                                             \
+	    (y)[3] = (u8) ((x) >> 24);                                             \
+    } else {                                                                   \
+        (x) = ((y)[0] << 0) | ((y)[1] << 8) | ((y)[2] << 16) | ((y)[3] << 24); \
+    }                                                                          \
+})
+
+inline const char* Gb_Apu::save_load( gb_apu_state_t* io, bool save )
+{
+	assert( sizeof (gb_apu_state_t) == 256 );
+
+	int format = io->format0;
+	REFLECT( format, io->format );
+	if ( format != io->format0 )
+		return "Unsupported sound save state format";
+
+	int version = 0;
+	REFLECT( version, io->version );
+
+	// Registers and wave RAM
+	assert( regs_size == sizeof io->regs );
+	if ( save )
+		memcpy( io->regs, regs, sizeof io->regs );
+	else
+		memcpy( regs, io->regs, sizeof     regs );
+
+	// Frame sequencer
+	REFLECT( frame_time,  io->frame_time  );
+	REFLECT( frame_phase, io->frame_phase );
+
+	REFLECT( square1.sweep_freq,    io->sweep_freq );
+	REFLECT( square1.sweep_delay,   io->sweep_delay );
+	REFLECT( square1.sweep_enabled, io->sweep_enabled );
+	REFLECT( square1.sweep_neg,     io->sweep_neg );
+
+	REFLECT( noise.divider,         io->noise_divider );
+	REFLECT( wave.sample_buf,       io->wave_buf );
+
+	for ( int i = osc_count; --i >= 0; )
+	{
+		Gb_Osc& osc = *oscs [i];
+		REFLECT( osc.delay,      io->delay      [i] );
+		REFLECT( osc.length_ctr, io->length_ctr [i] );
+		REFLECT( osc.phase,      io->phase      [i] );
+		REFLECT( osc.enabled,    io->enabled    [i] );
+
+		if ( i != 2 )
+		{
+			int j = i < 2 ? i : 2;
+			Gb_Env& env = static_cast<Gb_Env&>(osc);
+			REFLECT( env.env_delay,   io->env_delay   [j] );
+			REFLECT( env.volume,      io->env_volume  [j] );
+			REFLECT( env.env_enabled, io->env_enabled [j] );
+		}
+	}
+
+	return 0;
+}
+
+void Gb_Apu::save_state( gb_apu_state_t* out )
+{
+	(void) save_load( out, true );
+	memset( out->unused, 0, sizeof out->unused );
+}
+
+const char* Gb_Apu::load_state( gb_apu_state_t const& in )
+{
+	const char* err = save_load( const_cast<gb_apu_state_t*>(&in), false );
+	if(err) {
+		return err;
+	}
+
+	apply_stereo();
+	synth_volume( 0 );          // suppress output for the moment
+	run_until_( last_time );    // get last_amp updated
+	apply_volume();             // now use correct volume
+
+	return 0;
 }

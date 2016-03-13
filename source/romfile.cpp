@@ -5,103 +5,16 @@
 #include <algorithm>
 
 #include "platform/system.h"
+#include "apu.h"
+#include "cpu.h"
 #include "gameboy.h"
+#include "mbc.h"
+#include "mmu.h"
 #include "romfile.h"
 
-GBS::GBS(RomFile* romFile, u8* header) {
-    this->rom = romFile;
-
-    this->songCount = header[0x04];
-    this->firstSong = header[0x05] - (u8) 1;
-    this->loadAddress = header[0x06] | (header[0x07] << 8);
-    this->initAddress = header[0x08] | (header[0x09] << 8);
-    this->playAddress = header[0x0A] | (header[0x0B] << 8);
-    this->stackPointer = header[0x0C] | (header[0x0D] << 8);
-    this->timerModulo = header[0x0E];
-    this->timerControl = header[0x0F];
-
-    this->title = std::string(reinterpret_cast<char*>(&header[0x10]), 0x20);
-    this->title.erase(std::find_if(this->title.rbegin(), this->title.rend(), [](int c) { return c != 0; }).base(), this->title.end());
-
-    this->author = std::string(reinterpret_cast<char*>(&header[0x30]), 0x20);
-    this->author.erase(std::find_if(this->author.rbegin(), this->author.rend(), [](int c) { return c != 0; }).base(), this->author.end());
-
-    this->copyright = std::string(reinterpret_cast<char*>(&header[0x50]), 0x20);
-    this->copyright.erase(std::find_if(this->copyright.rbegin(), this->copyright.rend(), [](int c) { return c != 0; }).base(), this->copyright.end());
-}
-
-void GBS::init(Gameboy* gameboy) {
-    u8* bank0 = this->rom->getRomBank(0);
-
-    // RST vectors.
-    for(u16 vector = 0; vector < 8; vector++) {
-        u16 dest = this->loadAddress + vector * (u16) 8;
-
-        // JP dest;
-        bank0[vector * 8] = 0xC3;
-        bank0[vector * 8 + 1] = (u8) (dest & 0xFF);
-        bank0[vector * 8 + 2] = (u8) (dest >> 8);
-    }
-
-    // Interrupt handlers.
-    for(u16 handler = 0; handler < 5; handler++) {
-        // RETI;
-        bank0[0x40 + handler * 8] = 0xD9;
-    }
-
-    // IME; HALT; JR -3;
-    bank0[0x100] = 0xFB;
-    bank0[0x101] = 0x76;
-    bank0[0x102] = 0x18;
-    bank0[0x103] = (u8) -3;
-
-    this->playSong(gameboy, this->firstSong);
-}
-
-void GBS::playSong(Gameboy* gameboy, int song) {
-    gameboy->initMMU();
-    gameboy->ime = 0;
-
-    gameboy->gbRegs.sp.w = this->stackPointer;
-    gameboy->writeMemory(--gameboy->gbRegs.sp.w, 0x01);
-    gameboy->writeMemory(--gameboy->gbRegs.sp.w, 0x00);
-
-    gameboy->gbRegs.af.b.h = (u8) song;
-    gameboy->gbRegs.pc.w = this->initAddress;
-
-    u8 TMA = this->timerModulo;
-    u8 TAC = this->timerControl;
-    if(TAC & 0x80) {
-        gameboy->setDoubleSpeed(1);
-    }
-
-    TAC &= ~0x80;
-
-    gameboy->writeIO(0x05, 0x00);
-    gameboy->writeIO(0x06, TMA);
-    gameboy->writeIO(0x07, TAC);
-
-    u32 base = (TMA == 0 && TAC == 0) ? 0x40 : 0x50;
-    u8* bank0 = this->rom->getRomBank(0);
-
-    // CALL playAddress; RETI;
-    bank0[base + 0] = 0xCD;
-    bank0[base + 1] = (u8) (this->playAddress & 0xFF);
-    bank0[base + 2] = (u8) (this->playAddress >> 8);
-    bank0[base + 3] = 0xD9;
-
-    gameboy->writeIO(0xFF, (u8) ((TMA == 0 && TAC == 0) ? INT_VBLANK : INT_TIMER));
-}
-
-void GBS::stopSong(Gameboy* gameboy) {
-    gameboy->ime = 0;
-    gameboy->writeIO(0xFF, 0);
-    gameboy->initSND();
-}
-
 RomFile::RomFile(Gameboy* gb, const std::string path) {
-    this->file = fopen(path.c_str(), "r");
-    if(!this->file) {
+    this->file = fopen(path.c_str(), "rb");
+    if(this->file == NULL) {
         this->loaded = false;
         return;
     }
@@ -118,18 +31,20 @@ RomFile::RomFile(Gameboy* gb, const std::string path) {
     fstat(fileno(this->file), &st);
     u32 size = (u32) st.st_size;
 
-    if(strcasecmp(strrchr(path.c_str(), '.'), ".gbs") == 0 && size >= 0x70) {
-        u8* gbsHeader = new u8[0x70]();
+    if(size >= 0x70) {
+        char gbsMagic[4] = {0};
+        fread(gbsMagic, 1, sizeof(gbsMagic), this->file);
         fseek(this->file, 0, SEEK_SET);
-        fread(gbsHeader, 1, 0x70, this->file);
 
-        if(gbsHeader[0x00] == 'G' && gbsHeader[0x01] == 'B' && gbsHeader[0x02] == 'S' && gbsHeader[0x03] == 1) {
-            this->gbs = true;
+        if(gbsMagic[0] == 'G' && gbsMagic[1] == 'B' && gbsMagic[2] == 'S' && gbsMagic[3] == 1) {
+            u8* gbsHeader = new u8[0x70]();
+            fread(gbsHeader, 1, 0x70, this->file);
+
             this->gbsInfo = new GBS(this, gbsHeader);
             size -= 0x70;
-        }
 
-        delete gbsHeader;
+            delete gbsHeader;
+        }
     }
 
     // Round number of banks to next power of two.
@@ -145,7 +60,7 @@ RomFile::RomFile(Gameboy* gb, const std::string path) {
     this->banks = new u8*[this->totalRomBanks]();
 
     // Most MMM01 dumps have the initial banks at the end of the ROM rather than the beginning, so check if this is the case and compensate.
-    if(!this->gbs && this->totalRomBanks > 2) {
+    if(this->gbsInfo == NULL && this->totalRomBanks > 2) {
         // Check for the logo.
         static const u8 logo[] = {
                 0xCE, 0xED, 0x66, 0x66, 0xCC, 0x0D, 0x00, 0x0B, 0x03, 0x73, 0x00, 0x83, 0x00, 0x0C, 0x00, 0x0D,
@@ -182,71 +97,71 @@ RomFile::RomFile(Gameboy* gb, const std::string path) {
     this->cgbRequired = bank0[0x0143] == 0xC0;
     this->sgb = bank0[0x146] == 0x03 && bank0[0x014B] == 0x33;
 
-    this->rawMBC = !this->gbs ? bank0[0x0147] : (u8) 0x19;
+    this->rawMBC = this->gbsInfo == NULL ? bank0[0x0147] : (u8) 0x19;
     switch(this->rawMBC) {
         case 0x00:
         case 0x08:
         case 0x09:
-            this->mbc = MBC0;
+            this->mbcType = MBC0;
             break;
         case 0x01:
         case 0x02:
         case 0x03:
-            this->mbc = MBC1;
+            this->mbcType = MBC1;
             break;
         case 0x05:
         case 0x06:
-            this->mbc = MBC2;
+            this->mbcType = MBC2;
             break;
         case 0x0B:
         case 0x0C:
         case 0x0D:
-            this->mbc = MMM01;
+            this->mbcType = MMM01;
             break;
         case 0x0F:
         case 0x10:
         case 0x11:
         case 0x12:
         case 0x13:
-            this->mbc = MBC3;
+            this->mbcType = MBC3;
             break;
         case 0x19:
         case 0x1A:
         case 0x1B:
-            this->mbc = MBC5;
+            this->mbcType = MBC5;
             break;
         case 0x1C:
         case 0x1D:
         case 0x1E:
-            this->mbc = MBC5;
+            this->mbcType = MBC5;
             this->rumble = true;
             break;
         case 0x22:
-            this->mbc = MBC7;
+            this->mbcType = MBC7;
             break;
         case 0xEA: // Hack for SONIC5
-            this->mbc = MBC1;
+            this->mbcType = MBC1;
             break;
         case 0xFC:
-            this->mbc = CAMERA;
+            this->mbcType = CAMERA;
             break;
         case 0xFD:
-            this->mbc = TAMA5;
+            this->mbcType = TAMA5;
             break;
         case 0xFE:
-            this->mbc = HUC3;
+            this->mbcType = HUC3;
             break;
         case 0xFF:
-            this->mbc = HUC1;
+            this->mbcType = HUC1;
             break;
         default:
             systemPrintDebug("Unsupported mapper value %02x\n", bank0[0x0147]);
-            this->mbc = MBC5;
+            this->mbcType = MBC5;
             break;
     }
 
     this->rawRomSize = bank0[0x0148];
-    this->rawRamSize = this->mbc != MBC2 && this->mbc != MBC7 && this->mbc != TAMA5 && !this->gbs ? bank0[0x0149] : (u8) 1;
+    this->rawRamSize = this->mbcType != MBC2 && this->mbcType != MBC7 && this->mbcType != TAMA5 && this->gbsInfo == NULL ? bank0[0x0149] : (u8) 1;
     switch(this->rawRamSize) {
         case 0:
             this->totalRamBanks = 0;
@@ -269,14 +184,14 @@ RomFile::RomFile(Gameboy* gb, const std::string path) {
 }
 
 RomFile::~RomFile() {
-    for(int i = 0; i < this->totalRomBanks; i++) {
-        if(this->banks[i] != NULL) {
-            delete this->banks[i];
-            this->banks[i] = NULL;
-        }
-    }
-
     if(this->banks != NULL) {
+        for(int i = 0; i < this->totalRomBanks; i++) {
+            if(this->banks[i] != NULL) {
+                delete this->banks[i];
+                this->banks[i] = NULL;
+            }
+        }
+
         delete this->banks;
         this->banks = NULL;
     }
@@ -301,7 +216,7 @@ u8* RomFile::getRomBank(int bank) {
         this->banks[bank] = new u8[0x4000]();
 
         u32 baseAddress = 0;
-        if(this->gbs) {
+        if(this->gbsInfo != NULL) {
             if(bank == 0) {
                 fseek(this->file, 0x70, SEEK_SET);
                 baseAddress = this->gbsInfo->getLoadAddress();
@@ -322,4 +237,93 @@ u8* RomFile::getRomBank(int bank) {
     }
 
     return this->banks[bank];
+}
+
+GBS::GBS(RomFile* romFile, u8* header) {
+    this->rom = romFile;
+
+    this->songCount = header[0x04];
+    this->firstSong = header[0x05] - (u8) 1;
+    this->loadAddress = header[0x06] | (header[0x07] << 8);
+    this->initAddress = header[0x08] | (header[0x09] << 8);
+    this->playAddress = header[0x0A] | (header[0x0B] << 8);
+    this->stackPointer = header[0x0C] | (header[0x0D] << 8);
+    this->timerModulo = header[0x0E];
+    this->timerControl = header[0x0F];
+
+    this->title = std::string(reinterpret_cast<char*>(&header[0x10]), 0x20);
+    this->title.erase(std::find_if(this->title.rbegin(), this->title.rend(), [](int c) { return c != 0; }).base(), this->title.end());
+
+    this->author = std::string(reinterpret_cast<char*>(&header[0x30]), 0x20);
+    this->author.erase(std::find_if(this->author.rbegin(), this->author.rend(), [](int c) { return c != 0; }).base(), this->author.end());
+
+    this->copyright = std::string(reinterpret_cast<char*>(&header[0x50]), 0x20);
+    this->copyright.erase(std::find_if(this->copyright.rbegin(), this->copyright.rend(), [](int c) { return c != 0; }).base(), this->copyright.end());
+}
+
+void GBS::playSong(Gameboy* gameboy, int song) {
+    gameboy->reset();
+
+    u8* bank0 = this->rom->getRomBank(0);
+    bool vblank = this->timerModulo == 0 && (this->timerControl & 0x7F) == 0;
+
+    // RST vectors.
+    for(u16 vector = 0; vector < 8; vector++) {
+        u16 base = (u16) (vector * 8);
+        u16 dest = (u16) (this->loadAddress + vector * 8);
+
+        // JP dest;
+        bank0[base + 0] = 0xC3;
+        bank0[base + 1] = (u8) (dest & 0xFF);
+        bank0[base + 2] = (u8) (dest >> 8);
+    }
+
+    // Interrupt handlers.
+    for(u8 handler = 0; handler < 5; handler++) {
+        u16 base = (u16) (0x40 + handler * 8);
+
+        if((vblank && handler == 0) || (!vblank && handler == 2)) {
+            // CALL playAddress; RETI;
+            bank0[base + 0] = 0xCD;
+            bank0[base + 1] = (u8) (this->playAddress & 0xFF);
+            bank0[base + 2] = (u8) (this->playAddress >> 8);
+            bank0[base + 3] = 0xD9;
+        } else {
+            // RETI;
+            bank0[base] = 0xD9;
+        }
+    }
+
+    // LD SP, stackPointer; LD A, song; CALL initAddress; EI; HALT; JR -3;
+    bank0[0x100] = 0x31;
+    bank0[0x101] = (u8) (this->stackPointer & 0xFF);
+    bank0[0x102] = (u8) (this->stackPointer >> 8);
+    bank0[0x103] = 0x3E;
+    bank0[0x104] = (u8) song;
+    bank0[0x105] = 0xCD;
+    bank0[0x106] = (u8) (this->initAddress & 0xFF);
+    bank0[0x107] = (u8) (this->initAddress >> 8);
+    bank0[0x108] = 0xFB;
+    bank0[0x109] = 0x76;
+    bank0[0x10A] = 0x18;
+    bank0[0x10B] = (u8) -3;
+
+    if(this->timerControl & 0x80) {
+        gameboy->cpu->setDoubleSpeed(true);
+    }
+
+    gameboy->mmu->write(0xFF05, 0x00);
+    gameboy->mmu->write(0xFF06, this->timerModulo);
+    gameboy->mmu->write(0xFF07, (u8) (this->timerControl & 0x7F));
+    gameboy->mmu->write(0xFFFF, (u8) (vblank ? INT_VBLANK : INT_TIMER));
+}
+
+void GBS::stopSong(Gameboy* gameboy) {
+    gameboy->reset();
+
+    u8* bank0 = this->rom->getRomBank(0);
+
+    // JR -2;
+    bank0[0x100] = 0x18;
+    bank0[0x101] = (u8) -2;
 }

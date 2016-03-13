@@ -6,13 +6,13 @@
 #include <sstream>
 #include <vector>
 
+#include "platform/common/cheatengine.h"
 #include "platform/common/config.h"
 #include "platform/common/manager.h"
 #include "platform/common/menu.h"
 #include "platform/input.h"
 #include "platform/system.h"
 #include "platform/ui.h"
-#include "cheatengine.h"
 #include "gameboy.h"
 #include "romfile.h"
 
@@ -237,7 +237,7 @@ void writeConfigFile() {
     fclose(file);
 
     if(gameboy->isRomLoaded()) {
-        gameboy->getCheatEngine()->saveCheats((gameboy->getRomFile()->getFileName() + ".cht").c_str());
+        cheatEngine->saveCheats((gameboy->romFile->getFileName() + ".cht").c_str());
     }
 }
 
