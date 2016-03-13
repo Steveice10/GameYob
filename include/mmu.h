@@ -29,11 +29,9 @@ public:
         this->wramBank = bank;
     }
 private:
-    u8 readRomBank0(u16 addr);
     u8 readBankF(u16 addr);
     void writeBankF(u16 addr, u8 val);
 
-    static u8 readRomBank0Entry(void* data, u16 addr);
     static u8 readBankFEntry(void* data, u16 addr);
     static void writeBankFEntry(void* data, u16 addr, u8 val);
 

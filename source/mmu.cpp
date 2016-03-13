@@ -58,7 +58,7 @@ u8 MMU::read(u16 addr) {
         return this->mappedBlocks[area][addr & 0xFFF];
     } else {
         systemPrintDebug("Attempted to read from unmapped memory bank: 0x%x\n", area);
-        return 0;
+        return 0xFF;
     }
 }
 
@@ -70,27 +70,6 @@ void MMU::write(u16 addr, u8 val) {
         this->mappedBlocks[area][addr & 0xFFF] = val;
     } else {
         systemPrintDebug("Attempted to write to unmapped memory bank: 0x%x\n", area);
-    }
-}
-
-u8 MMU::readRomBank0(u16 addr) {
-    if(this->gameboy->biosOn && (addr < 0x100 || addr >= 0x200)) {
-        u8* bios = gbcBios;
-        if(biosMode == 1) {
-            bios = this->gameboy->gbMode != MODE_CGB && gbBiosLoaded ? (u8*) gbBios : (u8*) gbcBios;
-        } else if(biosMode == 2) {
-            bios = gbBios;
-        } else if(biosMode == 3) {
-            bios = gbcBios;
-        }
-
-        return bios[addr & 0xFFF];
-    }
-
-    if(this->mappedBlocks[0] != NULL) {
-        return this->mappedBlocks[0][addr & 0xFFF];
-    } else {
-        return 0xFF;
     }
 }
 
@@ -338,10 +317,6 @@ void MMU::writeBankF(u16 addr, u8 val) {
     }
 }
 
-u8 MMU::readRomBank0Entry(void* data, u16 addr) {
-    return ((MMU*) data)->readRomBank0(addr);
-}
-
 u8 MMU::readBankFEntry(void* data, u16 addr) {
     return ((MMU*) data)->readBankF(addr);
 }
@@ -377,8 +352,6 @@ void MMU::mapBanks() {
     this->mapBlock(0xD, this->wram[this->wramBank]);
     this->mapBlock(0xE, this->wram[0]);
 
-    this->mapReadFunc(0x0, this, MMU::readRomBank0Entry);
     this->mapReadFunc(0xF, this, MMU::readBankFEntry);
-
     this->mapWriteFunc(0xF, this, MMU::writeBankFEntry);
 }

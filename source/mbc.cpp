@@ -1,6 +1,8 @@
 #include <sys/stat.h>
 #include <errno.h>
 #include <string.h>
+#include <platform/common/manager.h>
+#include <platform/common/menu.h>
 
 #include "platform/input.h"
 #include "platform/system.h"
@@ -330,43 +332,71 @@ void MBC::mapRomBank0(int bank) {
     this->romBank0Num = bank;
 
     u8* bankPtr = this->gameboy->romFile->getRomBank(bank);
-    if(bankPtr == NULL) {
+    if(bankPtr != NULL) {
+        this->gameboy->mmu->mapBlock(0x0, bankPtr + 0x0000);
+        this->gameboy->mmu->mapBlock(0x1, bankPtr + 0x1000);
+        this->gameboy->mmu->mapBlock(0x2, bankPtr + 0x2000);
+        this->gameboy->mmu->mapBlock(0x3, bankPtr + 0x3000);
+    } else {
         systemPrintDebug("Attempted to access invalid ROM bank: %d\n", bank);
-        return;
+
+        this->gameboy->mmu->mapBlock(0x0, NULL);
+        this->gameboy->mmu->mapBlock(0x1, NULL);
+        this->gameboy->mmu->mapBlock(0x2, NULL);
+        this->gameboy->mmu->mapBlock(0x3, NULL);
     }
 
-    this->gameboy->mmu->mapBlock(0x0, bankPtr + 0x0000);
-    this->gameboy->mmu->mapBlock(0x1, bankPtr + 0x1000);
-    this->gameboy->mmu->mapBlock(0x2, bankPtr + 0x2000);
-    this->gameboy->mmu->mapBlock(0x3, bankPtr + 0x3000);
+    if(this->gameboy->biosOn) {
+        u8* bios = gbcBios;
+        if(biosMode == 1) {
+            bios = this->gameboy->gbMode != MODE_CGB && gbBiosLoaded ? (u8*) gbBios : (u8*) gbcBios;
+        } else if(biosMode == 2) {
+            bios = gbBios;
+        } else if(biosMode == 3) {
+            bios = gbcBios;
+        }
+
+        memcpy(bios + 0x100, this->gameboy->romFile->getRomBank(0) + 0x100, 0x100);
+
+        this->gameboy->mmu->mapBlock(0x0, bios);
+    }
 }
 
 void MBC::mapRomBank1(int bank) {
     this->romBank1Num = bank;
 
     u8* bankPtr = this->gameboy->romFile->getRomBank(bank);
-    if(bankPtr == NULL) {
+    if(bankPtr != NULL) {
+        this->gameboy->mmu->mapBlock(0x4, bankPtr + 0x0000);
+        this->gameboy->mmu->mapBlock(0x5, bankPtr + 0x1000);
+        this->gameboy->mmu->mapBlock(0x6, bankPtr + 0x2000);
+        this->gameboy->mmu->mapBlock(0x7, bankPtr + 0x3000);
+    } else {
         systemPrintDebug("Attempted to access invalid ROM bank: %d\n", bank);
-        return;
-    }
 
-    this->gameboy->mmu->mapBlock(0x4, bankPtr + 0x0000);
-    this->gameboy->mmu->mapBlock(0x5, bankPtr + 0x1000);
-    this->gameboy->mmu->mapBlock(0x6, bankPtr + 0x2000);
-    this->gameboy->mmu->mapBlock(0x7, bankPtr + 0x3000);
+        this->gameboy->mmu->mapBlock(0x4, NULL);
+        this->gameboy->mmu->mapBlock(0x5, NULL);
+        this->gameboy->mmu->mapBlock(0x6, NULL);
+        this->gameboy->mmu->mapBlock(0x7, NULL);
+    }
 }
 
 void MBC::mapRamBank(int bank) {
     this->ramBankNum = bank;
 
     u8* bankPtr = this->getRamBank(bank);
-    if(bankPtr == NULL && this->readFunc == NULL) {
-        systemPrintDebug("Attempted to access invalid RAM bank: %d\n", bank);
-        return;
-    }
+    if(bankPtr != NULL) {
+        this->gameboy->mmu->mapBlock(0xA, bankPtr + 0x0000);
+        this->gameboy->mmu->mapBlock(0xB, bankPtr + 0x1000);
+    } else {
+        // Only report if there's no chance it's a special bank number.
+        if(this->readFunc == NULL) {
+            systemPrintDebug("Attempted to access invalid RAM bank: %d\n", bank);
+        }
 
-    this->gameboy->mmu->mapBlock(0xA, bankPtr + 0x0000);
-    this->gameboy->mmu->mapBlock(0xB, bankPtr + 0x1000);
+        this->gameboy->mmu->mapBlock(0xA, NULL);
+        this->gameboy->mmu->mapBlock(0xB, NULL);
+    }
 }
 
 void MBC::mapBanks() {
