@@ -518,6 +518,9 @@ static const u32 BitStretchTable256[] =
                 0x5500, 0x5501, 0x5504, 0x5505, 0x5510, 0x5511, 0x5514, 0x5515, 0x5540, 0x5541, 0x5544, 0x5545, 0x5550, 0x5551, 0x5554, 0x5555
         };
 
+static u16 RGBA5551ReverseTable[UINT16_MAX + 1];
+static bool tablesInit = false;
+
 static const int modeCycles[] = {
         204,
         456,
@@ -525,11 +528,23 @@ static const int modeCycles[] = {
         172
 };
 
+void initTables() {
+    if(!tablesInit) {
+        for(u32 rgba5551 = 0; rgba5551 <= UINT16_MAX; rgba5551++) {
+            RGBA5551ReverseTable[rgba5551] = (u16) ((rgba5551 & 0x1F) << 11 | ((rgba5551 >> 5) & 0x1F) << 6 | ((rgba5551 >> 10) & 0x1F) << 1 | 1);
+        }
+
+        tablesInit = true;
+    }
+}
+
 PPU::PPU(Gameboy* gb) {
     this->gameboy = gb;
 }
 
 void PPU::reset() {
+    initTables();
+
     this->lastScanlineCycle = 0;
     this->lastPhaseCycle = 0;
     this->halfSpeed = false;
@@ -826,11 +841,7 @@ void PPU::write(u16 addr, u8 val) {
         switch(addr) {
             case 0xFF40: // LCDC
                 if((this->lcdc & 0x80) && !(val & 0x80)) {
-                    if(this->gameboy->gbMode != MODE_CGB) {
-                        gfxClearScreenBuffer(getBgColor(0, 0));
-                    } else {
-                        gfxClearScreenBuffer(0xFFFF);
-                    }
+                    gfxClearScreenBuffer(0xFFFF);
                 }
 
                 this->lcdc = val;
@@ -1059,35 +1070,11 @@ void PPU::drawScanline(int scanline) {
             gfxClearLineBuffer(scanline, 0x0000);
             break;
         case 3:
-            gfxClearLineBuffer(scanline, getBgColor(0, 0));
+            gfxClearLineBuffer(scanline, RGBA5551ReverseTable[this->bgPaletteData[this->gameboy->gbMode != MODE_CGB ? this->bgp & 3 : 0]]);
             break;
         default:
             break;
     }
-}
-
-inline u16 PPU::getBgColor(u32 paletteId, u32 colorId) {
-    u8 paletteIndex = this->gameboy->gbMode != MODE_CGB ? (u8) ((this->bgp >> (colorId * 2)) & 3) : (u8) colorId;
-
-    u16 color = this->bgPaletteData[paletteId * 4 + paletteIndex];
-
-    u8 r = (u8) (color & 0x1F);
-    u8 g = (u8) ((color >> 5) & 0x1F);
-    u8 b = (u8) ((color >> 10) & 0x1F);
-
-    return r << 11 | g << 6 | b << 1 | (u8) 1;
-}
-
-inline u16 PPU::getSprColor(u32 paletteId, u32 colorId) {
-    u8 paletteIndex = this->gameboy->gbMode != MODE_CGB ? (u8) ((this->obp[paletteId / 4] >> (colorId * 2)) & 3) : (u8) colorId;
-
-    u16 color = this->sprPaletteData[paletteId * 4 + paletteIndex];
-
-    u8 r = (u8) (color & 0x1F);
-    u8 g = (u8) ((color >> 5) & 0x1F);
-    u8 b = (u8) ((color >> 10) & 0x1F);
-
-    return r << 11 | g << 6 | b << 1 | (u8) 1;
 }
 
 void PPU::drawStatic(u16* lineBuffer, u8* depthBuffer, int scanline) {
@@ -1184,10 +1171,11 @@ void PPU::drawBackground(u16* lineBuffer, u8* depthBuffer, int scanline, int win
 
                 u32 colorId = (pxData >> x) & 0x03;
                 u32 subPaletteId = this->gameboy->gbMode == MODE_SGB ? subSgbMap[writeX >> 3] : paletteId;
+                u8 paletteIndex = this->gameboy->gbMode != MODE_CGB ? (u8) ((this->bgp >> (colorId * 2)) & 3) : (u8) colorId;
 
                 // Draw pixel
                 depthBuffer[writeX] = depth - depthOffset[colorId];
-                lineBuffer[writeX] = getBgColor(subPaletteId, colorId);
+                lineBuffer[writeX] = RGBA5551ReverseTable[this->bgPaletteData[subPaletteId * 4 + paletteIndex]];
             }
         }
     }
@@ -1270,10 +1258,11 @@ void PPU::drawWindow(u16* lineBuffer, u8* depthBuffer, int scanline, int winX, i
 
                 u32 colorId = (pxData >> x) & 0x03;
                 u32 subPaletteId = this->gameboy->gbMode == MODE_SGB ? subSgbMap[writeX >> 3] : paletteId;
+                u8 paletteIndex = this->gameboy->gbMode != MODE_CGB ? (u8) ((this->bgp >> (colorId * 2)) & 3) : (u8) colorId;
 
                 // Draw pixel
                 depthBuffer[writeX] = depth - depthOffset[colorId];
-                lineBuffer[writeX] = getBgColor(subPaletteId, colorId);
+                lineBuffer[writeX] = RGBA5551ReverseTable[this->bgPaletteData[subPaletteId * 4 + paletteIndex]];
             }
         }
     }
@@ -1355,9 +1344,10 @@ void PPU::drawSprites(u16* lineBuffer, u8* depthBuffer, int scanline) {
                 // Draw pixel if not transparent or above depth buffer
                 if(colorId != 0 && depth >= depthBuffer[writeX]) {
                     u32 subPaletteId = this->gameboy->gbMode == MODE_SGB ? paletteId + subSgbMap[writeX >> 3] : paletteId;
+                    u8 paletteIndex = this->gameboy->gbMode != MODE_CGB ? (u8) ((this->obp[paletteId / 4] >> (colorId * 2)) & 3) : (u8) colorId;
 
                     depthBuffer[writeX] = depth;
-                    lineBuffer[writeX] = getSprColor(subPaletteId, colorId);
+                    lineBuffer[writeX] = RGBA5551ReverseTable[this->sprPaletteData[subPaletteId * 4 + paletteIndex]];
                 }
             }
         }

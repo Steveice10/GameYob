@@ -41,9 +41,6 @@ private:
 
     void mapBanks();
 
-    inline u16 getBgColor(u32 paletteId, u32 colorId);
-    inline u16 getSprColor(u32 paletteId, u32 colorId);
-
     void drawStatic(u16* lineBuffer, u8* depthBuffer, int scanline);
     void drawBackground(u16* lineBuffer, u8* depthBuffer, int scanline, int winX, int winY, bool drawingWindow, bool tileSigned);
     void drawWindow(u16* lineBuffer, u8* depthBuffer, int scanline, int winX, int winY, bool drawingWindow, bool tileSigned);

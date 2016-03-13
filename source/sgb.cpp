@@ -527,7 +527,6 @@ void SGB::jump(int block) {
 }
 
 void SGB::chrTrn(int block) {
-    u8 flags = this->packet[1];
     u8* data = new u8[0x1000];
     this->doVramTransfer(data);
     // TODO: SGB Border Tiles

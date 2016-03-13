@@ -181,6 +181,8 @@ u8 MMU::readBankF(u16 addr) {
     } else if(addr < 0xFE00) {
         return this->wram[this->wramBank][addr & 0xFFF];
     }
+
+    return 0;
 }
 
 void MMU::writeBankF(u16 addr, u8 val) {
