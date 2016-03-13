@@ -560,9 +560,7 @@ void PPU::reset() {
     this->dmaMode = 0;
 
     this->bgPaletteSelect = 0;
-    this->bgPaletteAutoIncrement = 0;
     this->sprPaletteSelect = 0;
-    this->sprPaletteAutoIncrement = 0;
 
     this->bgPaletteData[0] = TOCGB(255, 255, 255);
     this->bgPaletteData[1] = TOCGB(192, 192, 192);
@@ -605,9 +603,7 @@ void PPU::loadState(FILE* file, int version) {
     fread(&this->dmaLength, 1, sizeof(this->dmaLength), file);
     fread(&this->dmaMode, 1, sizeof(this->dmaMode), file);
     fread(&this->bgPaletteSelect, 1, sizeof(this->bgPaletteSelect), file);
-    fread(&this->bgPaletteAutoIncrement, 1, sizeof(this->bgPaletteAutoIncrement), file);
     fread(&this->sprPaletteSelect, 1, sizeof(this->sprPaletteSelect), file);
-    fread(&this->sprPaletteAutoIncrement, 1, sizeof(this->sprPaletteAutoIncrement), file);
 }
 
 void PPU::saveState(FILE* file) {
@@ -635,9 +631,7 @@ void PPU::saveState(FILE* file) {
     fwrite(&this->dmaLength, 1, sizeof(this->dmaLength), file);
     fwrite(&this->dmaMode, 1, sizeof(this->dmaMode), file);
     fwrite(&this->bgPaletteSelect, 1, sizeof(this->bgPaletteSelect), file);
-    fwrite(&this->bgPaletteAutoIncrement, 1, sizeof(this->bgPaletteAutoIncrement), file);
     fwrite(&this->sprPaletteSelect, 1, sizeof(this->sprPaletteSelect), file);
-    fwrite(&this->sprPaletteAutoIncrement, 1, sizeof(this->sprPaletteAutoIncrement), file);
 }
 
 void PPU::checkLYC() {
@@ -670,6 +664,7 @@ int PPU::update() {
 
     if(!(this->lcdc & 0x80)) { // If LCD is off
         this->lastScanlineCycle = this->gameboy->cpu->getCycle();
+
         this->ly = 0;
         this->stat &= 0xF8;
 
@@ -685,7 +680,7 @@ int PPU::update() {
 
         this->gameboy->cpu->setEventCycle(this->lastPhaseCycle + (CYCLES_PER_FRAME << this->halfSpeed));
     } else {
-        this->lastPhaseCycle = 0;
+        this->lastPhaseCycle = this->gameboy->cpu->getCycle();
 
         while(this->gameboy->cpu->getCycle() >= this->lastScanlineCycle + (modeCycles[this->stat & 3] << this->halfSpeed)) {
             this->lastScanlineCycle += modeCycles[this->stat & 3] << this->halfSpeed;
@@ -808,13 +803,13 @@ u8 PPU::read(u16 addr) {
                     case 0xFF55:
                         return (u8) (this->dmaLength - 1);
                     case 0xFF68:
-                        return (u8) ((this->bgPaletteSelect & 0x3F) | ((this->bgPaletteAutoIncrement & 0x1) << 7));
+                        return this->bgPaletteSelect;
                     case 0xFF69: // CGB BG Palette
-                        return ((u8*) this->bgPaletteData)[this->bgPaletteSelect];
+                        return ((u8*) this->bgPaletteData)[this->bgPaletteSelect & 0x3F];
                     case 0xFF6A:
-                        return (u8) ((this->sprPaletteSelect & 0x3F) | ((this->sprPaletteAutoIncrement & 0x1) << 7));
+                        return this->sprPaletteSelect;
                     case 0xFF6B: // CGB Sprite palette
-                        return ((u8*) this->sprPaletteData)[this->sprPaletteSelect];
+                        return ((u8*) this->sprPaletteData)[this->sprPaletteSelect & 0x3F];
                     default:
                         return 0;
                 }
@@ -865,12 +860,13 @@ void PPU::write(u16 addr, u8 val) {
                         break;
                     case 0xFF44:
                         this->ly = 0;
+                        this->checkLYC();
                         break;
                     case 0xFF45:
                         this->lyc = val;
                         this->checkLYC();
                         break;
-                    case 0xFF46: { // Sprite DMA
+                    case 0xFF46: {
                         this->sdma = val;
 
                         int src = val << 8;
@@ -943,24 +939,22 @@ void PPU::write(u16 addr, u8 val) {
 
                         break;
                     case 0xFF68:
-                        this->bgPaletteSelect = (u8) (val & 0x3F);
-                        this->bgPaletteAutoIncrement = (bool) (val & 0x80);
+                        this->bgPaletteSelect = val;
                         break;
                     case 0xFF69: // CGB BG Palette
-                        ((u8*) this->bgPaletteData)[this->bgPaletteSelect] = val;
-                        if(this->bgPaletteAutoIncrement) {
-                            this->bgPaletteSelect = (u8) ((this->bgPaletteSelect + 1) & 0x3F);
+                        ((u8*) this->bgPaletteData)[this->bgPaletteSelect & 0x3F] = val;
+                        if(this->bgPaletteSelect & 0x80) {
+                            this->bgPaletteSelect = (u8) (((this->bgPaletteSelect + 1) & 0x3F) | (this->bgPaletteSelect & 0x80));
                         }
 
                         break;
                     case 0xFF6A:
-                        this->sprPaletteSelect = (u8) (val & 0x3F);
-                        this->sprPaletteAutoIncrement = (bool) (val & 0x80);
+                        this->sprPaletteSelect = val;
                         break;
                     case 0xFF6B: // CGB Sprite palette
-                        ((u8*) this->sprPaletteData)[this->sprPaletteSelect] = val;
-                        if(this->sprPaletteAutoIncrement) {
-                            this->sprPaletteSelect = (u8) ((this->sprPaletteSelect + 1) & 0x3F);
+                        ((u8*) this->sprPaletteData)[this->sprPaletteSelect & 0x3F] = val;
+                        if(this->sprPaletteSelect & 0x80) {
+                            this->sprPaletteSelect = (u8) (((this->sprPaletteSelect + 1) & 0x3F) | (this->sprPaletteSelect & 0x80));
                         }
 
                         break;

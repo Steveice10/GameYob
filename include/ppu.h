@@ -82,7 +82,5 @@ private:
     int dmaMode;
 
     u8 bgPaletteSelect;
-    bool bgPaletteAutoIncrement;
     u8 sprPaletteSelect;
-    bool sprPaletteAutoIncrement;
 };
