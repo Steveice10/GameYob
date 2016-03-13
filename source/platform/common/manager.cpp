@@ -489,7 +489,7 @@ void mgrRun() {
 
     if(isMenuOn()) {
         updateMenu();
-    } else {
+    } else if(gameboy->isRomLoaded()) {
         if(gameboy->romFile->isGBS()) {
             gbsPlayerRefresh();
         }
@@ -581,17 +581,19 @@ void mgrRun() {
         }
     }
 
-    while(!emulationPaused && !(gameboy->run() & RET_VBLANK));
+    if(gameboy->isRomLoaded()) {
+        while(!emulationPaused && !(gameboy->run() & RET_VBLANK));
 
-    cheatEngine->applyGSCheats();
+        cheatEngine->applyGSCheats();
 
-    if(!gfxGetFastForward() || fastForwardCounter++ >= fastForwardFrameSkip) {
-        fastForwardCounter = 0;
+        if(!gfxGetFastForward() || fastForwardCounter++ >= fastForwardFrameSkip) {
+            fastForwardCounter = 0;
 
-        if(!gameboy->romFile->isGBS()) {
-            gfxDrawScreen();
-        } else if(!gfxGetFastForward()) {
-            gfxSync();
+            if(!gameboy->romFile->isGBS()) {
+                gfxDrawScreen();
+            } else if(!gfxGetFastForward()) {
+                gfxSync();
+            }
         }
     }
 

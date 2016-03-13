@@ -42,6 +42,8 @@ private:
     void checkLYC();
     bool updateHBlankDMA();
 
+    void mapBanks();
+
     inline u16 getBgColor(u32 paletteId, u32 colorId);
     inline u16 getSprColor(u32 paletteId, u32 colorId);
 

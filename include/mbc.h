@@ -15,14 +15,22 @@ public:
 
     void loadState(FILE* file, int version);
     void saveState(FILE* file);
-
-    u8 read(u16 addr);
-    void write(u16 addr, u8 val);
 private:
     u8* getRamBank(int bank);
 
     u8 readSram(u16 addr);
     void writeSram(u16 addr, u8 val);
+
+    void mapRomBank0(int bank);
+    void mapRomBank1(int bank);
+    void mapRamBank(int bank);
+    void mapBanks();
+
+    u8 read(u16 addr);
+    void write(u16 addr, u8 val);
+
+    static u8 readEntry(void* data, u16 addr);
+    static void writeEntry(void* data, u16 addr, u8 val);
 
     u8 m3r(u16 addr);
     u8 m7r(u16 addr);

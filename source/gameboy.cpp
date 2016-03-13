@@ -165,10 +165,7 @@ bool Gameboy::isRomLoaded() {
 }
 
 bool Gameboy::loadRomFile(const char* filename) {
-    if(this->romFile != NULL) {
-        delete this->romFile;
-        this->romFile = NULL;
-    }
+    this->unloadRom();
 
     if(filename == NULL) {
         return true;
