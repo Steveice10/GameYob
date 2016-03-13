@@ -772,207 +772,216 @@ int PPU::update() {
 u8 PPU::read(u16 addr) {
     int area = addr >> 12;
 
-    if(area == 0x8 || area == 0x9) {
-        return this->vram[this->vramBank][addr & 0x1FFF];
-    } else if(area == 0xF) {
-        if(addr >= 0xFF00) {
-            switch(addr) {
-                case 0xFF40:
-                    return this->lcdc;
-                case 0xFF41:
-                    return this->stat;
-                case 0xFF42:
-                    return this->scy;
-                case 0xFF43:
-                    return this->scx;
-                case 0xFF44:
-                    return this->ly;
-                case 0xFF45:
-                    return this->lyc;
-                case 0xFF46:
-                    return this->sdma;
-                case 0xFF47:
-                    return this->bgp;
-                case 0xFF48:
-                    return this->obp0;
-                case 0xFF49:
-                    return this->obp1;
-                case 0xFF4A:
-                    return this->wy;
-                case 0xFF4B:
-                    return this->wx;
-                case 0xFF4F:
-                    return this->vramBank;
-                case 0xFF51:
-                    return (u8) (this->dmaSource >> 8);
-                case 0xFF52:
-                    return (u8) (this->dmaSource & 0xFF);
-                case 0xFF53:
-                    return (u8) (this->dmaDest >> 8);
-                case 0xFF54:
-                    return (u8) (this->dmaDest & 0xFF);
-                case 0xFF55:
-                    return (u8) (this->dmaLength - 1);
-                case 0xFF68:
-                    return (u8) ((this->bgPaletteSelect & 0x3F) | ((this->bgPaletteAutoIncrement & 0x1) << 7));
-                case 0xFF69: // CGB BG Palette
-                    return ((u8*) this->bgPaletteData)[this->bgPaletteSelect];
-                case 0xFF6A:
-                    return (u8) ((this->sprPaletteSelect & 0x3F) | ((this->sprPaletteAutoIncrement & 0x1) << 7));
-                case 0xFF6B: // CGB Sprite palette
-                    return ((u8*) this->sprPaletteData)[this->sprPaletteSelect];
-                default:
-                    return 0;
+    switch(area) {
+        case 0x8:
+        case 0x9:
+            return this->vram[this->vramBank][addr & 0x1FFF];
+        case 0xF:
+            if(addr >= 0xFF00) {
+                switch(addr) {
+                    case 0xFF40:
+                        return this->lcdc;
+                    case 0xFF41:
+                        return this->stat;
+                    case 0xFF42:
+                        return this->scy;
+                    case 0xFF43:
+                        return this->scx;
+                    case 0xFF44:
+                        return this->ly;
+                    case 0xFF45:
+                        return this->lyc;
+                    case 0xFF46:
+                        return this->sdma;
+                    case 0xFF47:
+                        return this->bgp;
+                    case 0xFF48:
+                        return this->obp0;
+                    case 0xFF49:
+                        return this->obp1;
+                    case 0xFF4A:
+                        return this->wy;
+                    case 0xFF4B:
+                        return this->wx;
+                    case 0xFF4F:
+                        return this->vramBank;
+                    case 0xFF51:
+                        return (u8) (this->dmaSource >> 8);
+                    case 0xFF52:
+                        return (u8) (this->dmaSource & 0xFF);
+                    case 0xFF53:
+                        return (u8) (this->dmaDest >> 8);
+                    case 0xFF54:
+                        return (u8) (this->dmaDest & 0xFF);
+                    case 0xFF55:
+                        return (u8) (this->dmaLength - 1);
+                    case 0xFF68:
+                        return (u8) ((this->bgPaletteSelect & 0x3F) | ((this->bgPaletteAutoIncrement & 0x1) << 7));
+                    case 0xFF69: // CGB BG Palette
+                        return ((u8*) this->bgPaletteData)[this->bgPaletteSelect];
+                    case 0xFF6A:
+                        return (u8) ((this->sprPaletteSelect & 0x3F) | ((this->sprPaletteAutoIncrement & 0x1) << 7));
+                    case 0xFF6B: // CGB Sprite palette
+                        return ((u8*) this->sprPaletteData)[this->sprPaletteSelect];
+                    default:
+                        return 0;
+                }
+            } else if(addr >= 0xFE00 && addr < 0xFEA0) {
+                return this->oam[addr & 0xFF];
             }
-        } else if(addr >= 0xFE00 && addr < 0xFEA0) {
-            return this->oam[addr & 0xFF];
-        }
+        default:
+            return 0;
     }
-
-    return 0;
 }
 
 void PPU::write(u16 addr, u8 val) {
     int area = addr >> 12;
 
-    if(area == 0x8 || area == 0x9) {
-        this->vram[this->vramBank][addr & 0x1FFF] = val;
-    } else if(area == 0xF) {
-        if(addr >= 0xFF00) {
-            switch(addr) {
-                case 0xFF40: // LCDC
-                    if((this->lcdc & 0x80) && !(val & 0x80)) {
-                        if(this->gameboy->gbMode != MODE_CGB) {
-                            gfxClearScreenBuffer(getBgColor(0, 0));
-                        } else {
-                            gfxClearScreenBuffer(0xFFFF);
-                        }
-                    }
-
-                    this->lcdc = val;
-                    if(!(val & 0x80)) {
-                        this->ly = 0;
-                        this->stat &= ~3; // Set video mode 0
-                    }
-
-                    break;
-                case 0xFF41:
-                    this->stat &= 0x7;
-                    this->stat |= val & 0xF8;
-                    break;
-                case 0xFF42:
-                    this->scy = val;
-                    break;
-                case 0xFF43:
-                    this->scx = val;
-                    break;
-                case 0xFF44:
-                    this->ly = 0;
-                    break;
-                case 0xFF45:
-                    this->lyc = val;
-                    this->checkLYC();
-                    break;
-                case 0xFF46: { // Sprite DMA
-                    this->sdma = val;
-
-                    int src = val << 8;
-                    for(int i = 0; i < 0xA0; i++) {
-                        this->oam[i] = this->gameboy->mmu->read((u16) (src + i));
-                    }
-
-                    break;
-                }
-                case 0xFF47:
-                    this->bgp = val;
-                    break;
-                case 0xFF48:
-                    this->obp0 = val;
-                    break;
-                case 0xFF49:
-                    this->obp1 = val;
-                    break;
-                case 0xFF4A:
-                    this->wy = val;
-                    break;
-                case 0xFF4B:
-                    this->wx = val;
-                    break;
-                case 0xFF4F: // Vram bank
-                    if(this->gameboy->gbMode == MODE_CGB) {
-                        this->vramBank = (u8) (val & 1);
-                    }
-
-                    break;
-                case 0xFF51:
-                    this->dmaSource = (u16) ((this->dmaSource & 0xFF) | (val << 8));
-                    break;
-                case 0xFF52:
-                    this->dmaSource = (u16) ((this->dmaSource & 0xFF00) | val);
-                    this->dmaSource &= 0xFFF0;
-                    break;
-                case 0xFF53:
-                    this->dmaDest = (u16) ((this->dmaDest & 0xFF) | (val << 8));
-                    break;
-                case 0xFF54:
-                    this->dmaDest = (u16) ((this->dmaDest & 0xFF00) | val);
-                    this->dmaDest &= 0x1FF0;
-                    break;
-                case 0xFF55: // CGB DMA
-                    if(this->gameboy->gbMode == MODE_CGB) {
-                        if(this->dmaLength > 0) {
-                            if((val & 0x80) == 0) {
-                                this->dmaLength = 0;
+    switch(area) {
+        case 0x8:
+        case 0x9:
+            this->vram[this->vramBank][addr & 0x1FFF] = val;
+            break;
+        case 0xF:
+            if(addr >= 0xFF00) {
+                switch(addr) {
+                    case 0xFF40: // LCDC
+                        if((this->lcdc & 0x80) && !(val & 0x80)) {
+                            if(this->gameboy->gbMode != MODE_CGB) {
+                                gfxClearScreenBuffer(getBgColor(0, 0));
+                            } else {
+                                gfxClearScreenBuffer(0xFFFF);
                             }
-
-                            break;
                         }
 
-                        this->dmaLength = (u16) ((val & 0x7F) + 1);
-                        this->dmaMode = val >> 7;
-                        if(this->dmaMode == 0) {
-                            for(int i = 0; i < this->dmaLength; i++) {
-                                for(int j = 0; j < 16; j++) {
-                                    this->vram[this->vramBank][this->dmaDest++] = this->gameboy->mmu->read(this->dmaSource++);
+                        this->lcdc = val;
+                        if(!(val & 0x80)) {
+                            this->ly = 0;
+                            this->stat &= ~3; // Set video mode 0
+                        }
+
+                        break;
+                    case 0xFF41:
+                        this->stat &= 0x7;
+                        this->stat |= val & 0xF8;
+                        break;
+                    case 0xFF42:
+                        this->scy = val;
+                        break;
+                    case 0xFF43:
+                        this->scx = val;
+                        break;
+                    case 0xFF44:
+                        this->ly = 0;
+                        break;
+                    case 0xFF45:
+                        this->lyc = val;
+                        this->checkLYC();
+                        break;
+                    case 0xFF46: { // Sprite DMA
+                        this->sdma = val;
+
+                        int src = val << 8;
+                        for(int i = 0; i < 0xA0; i++) {
+                            this->oam[i] = this->gameboy->mmu->read((u16) (src + i));
+                        }
+
+                        break;
+                    }
+                    case 0xFF47:
+                        this->bgp = val;
+                        break;
+                    case 0xFF48:
+                        this->obp0 = val;
+                        break;
+                    case 0xFF49:
+                        this->obp1 = val;
+                        break;
+                    case 0xFF4A:
+                        this->wy = val;
+                        break;
+                    case 0xFF4B:
+                        this->wx = val;
+                        break;
+                    case 0xFF4F: // Vram bank
+                        if(this->gameboy->gbMode == MODE_CGB) {
+                            this->vramBank = (u8) (val & 1);
+                        }
+
+                        break;
+                    case 0xFF51:
+                        this->dmaSource = (u16) ((this->dmaSource & 0xFF) | (val << 8));
+                        break;
+                    case 0xFF52:
+                        this->dmaSource = (u16) ((this->dmaSource & 0xFF00) | val);
+                        this->dmaSource &= 0xFFF0;
+                        break;
+                    case 0xFF53:
+                        this->dmaDest = (u16) ((this->dmaDest & 0xFF) | (val << 8));
+                        break;
+                    case 0xFF54:
+                        this->dmaDest = (u16) ((this->dmaDest & 0xFF00) | val);
+                        this->dmaDest &= 0x1FF0;
+                        break;
+                    case 0xFF55: // CGB DMA
+                        if(this->gameboy->gbMode == MODE_CGB) {
+                            if(this->dmaLength > 0) {
+                                if((val & 0x80) == 0) {
+                                    this->dmaLength = 0;
                                 }
 
-                                this->dmaDest &= 0x1FF0;
+                                break;
                             }
 
-                            this->gameboy->cpu->advanceCycles((u64) ((this->dmaLength * 8) << this->halfSpeed));
-                            this->dmaLength = 0;
+                            this->dmaLength = (u16) ((val & 0x7F) + 1);
+                            this->dmaMode = val >> 7;
+                            if(this->dmaMode == 0) {
+                                for(int i = 0; i < this->dmaLength; i++) {
+                                    for(int j = 0; j < 16; j++) {
+                                        this->vram[this->vramBank][this->dmaDest++] = this->gameboy->mmu->read(this->dmaSource++);
+                                    }
+
+                                    this->dmaDest &= 0x1FF0;
+                                }
+
+                                this->gameboy->cpu->advanceCycles((u64) ((this->dmaLength * 8) << this->halfSpeed));
+                                this->dmaLength = 0;
+                            }
                         }
-                    }
 
-                    break;
-                case 0xFF68:
-                    this->bgPaletteSelect = (u8) (val & 0x3F);
-                    this->bgPaletteAutoIncrement = (bool) (val & 0x80);
-                    break;
-                case 0xFF69: // CGB BG Palette
-                    ((u8*) this->bgPaletteData)[this->bgPaletteSelect] = val;
-                    if(this->bgPaletteAutoIncrement) {
-                        this->bgPaletteSelect = (u8) ((this->bgPaletteSelect + 1) & 0x3F);
-                    }
+                        break;
+                    case 0xFF68:
+                        this->bgPaletteSelect = (u8) (val & 0x3F);
+                        this->bgPaletteAutoIncrement = (bool) (val & 0x80);
+                        break;
+                    case 0xFF69: // CGB BG Palette
+                        ((u8*) this->bgPaletteData)[this->bgPaletteSelect] = val;
+                        if(this->bgPaletteAutoIncrement) {
+                            this->bgPaletteSelect = (u8) ((this->bgPaletteSelect + 1) & 0x3F);
+                        }
 
-                    break;
-                case 0xFF6A:
-                    this->sprPaletteSelect = (u8) (val & 0x3F);
-                    this->sprPaletteAutoIncrement = (bool) (val & 0x80);
-                    break;
-                case 0xFF6B: // CGB Sprite palette
-                    ((u8*) this->sprPaletteData)[this->sprPaletteSelect] = val;
-                    if(this->sprPaletteAutoIncrement) {
-                        this->sprPaletteSelect = (u8) ((this->sprPaletteSelect + 1) & 0x3F);
-                    }
+                        break;
+                    case 0xFF6A:
+                        this->sprPaletteSelect = (u8) (val & 0x3F);
+                        this->sprPaletteAutoIncrement = (bool) (val & 0x80);
+                        break;
+                    case 0xFF6B: // CGB Sprite palette
+                        ((u8*) this->sprPaletteData)[this->sprPaletteSelect] = val;
+                        if(this->sprPaletteAutoIncrement) {
+                            this->sprPaletteSelect = (u8) ((this->sprPaletteSelect + 1) & 0x3F);
+                        }
 
-                    break;
-                default:
-                    break;
+                        break;
+                    default:
+                        break;
+                }
+            } else if(addr >= 0xFE00 && addr < 0xFEA0) {
+                this->oam[addr & 0xFF] = val;
             }
-        } else if(addr >= 0xFE00 && addr < 0xFEA0) {
-            this->oam[addr & 0xFF] = val;
-        }
+
+            break;
+        default:
+            break;
     }
 }
 

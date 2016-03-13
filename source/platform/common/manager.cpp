@@ -485,20 +485,6 @@ void mgrRun() {
         mgrSelectRom();
     }
 
-    while(!emulationPaused && !(gameboy->run() & RET_VBLANK));
-
-    cheatEngine->applyGSCheats();
-
-    if(!gfxGetFastForward() || fastForwardCounter++ >= fastForwardFrameSkip) {
-        fastForwardCounter = 0;
-
-        if(!gameboy->romFile->isGBS()) {
-            gfxDrawScreen();
-        } else if(!gfxGetFastForward()) {
-            gfxSync();
-        }
-    }
-
     inputUpdate();
 
     if(isMenuOn()) {
@@ -561,7 +547,6 @@ void mgrRun() {
         }
 
         gameboy->sgb->setController(0, buttonsPressed);
-        gameboy->checkInput();
 
         if(inputKeyPressed(FUNC_KEY_SAVE)) {
             if(!autoSaveEnabled) {
@@ -593,6 +578,20 @@ void mgrRun() {
                 gbsPlayerReset();
                 gbsPlayerDraw();
             }
+        }
+    }
+
+    while(!emulationPaused && !(gameboy->run() & RET_VBLANK));
+
+    cheatEngine->applyGSCheats();
+
+    if(!gfxGetFastForward() || fastForwardCounter++ >= fastForwardFrameSkip) {
+        fastForwardCounter = 0;
+
+        if(!gameboy->romFile->isGBS()) {
+            gfxDrawScreen();
+        } else if(!gfxGetFastForward()) {
+            gfxSync();
         }
     }
 

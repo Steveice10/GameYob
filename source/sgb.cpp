@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "cpu.h"
 #include "gameboy.h"
 #include "mmu.h"
 #include "ppu.h"
@@ -71,6 +72,18 @@ void SGB::saveState(FILE* file) {
     fwrite(this->map, 1, sizeof(this->map), file);
     fwrite(this->packet, 1, sizeof(this->packet), file);
     fwrite(&this->cmdData, 1, sizeof(this->cmdData), file);
+}
+
+void SGB::update() {
+    if(!(this->p1 & 0x10)) {
+        if((this->controllers[0] & 0xf0) != 0xf0) {
+            this->gameboy->cpu->requestInterrupt(INT_JOYPAD);
+        }
+    } else if(!(this->p1 & 0x20)) {
+        if((this->controllers[0] & 0x0f) != 0x0f) {
+            this->gameboy->cpu->requestInterrupt(INT_JOYPAD);
+        }
+    }
 }
 
 u8 SGB::read(u16 addr) {

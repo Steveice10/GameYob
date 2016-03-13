@@ -51,7 +51,23 @@ void Gameboy::reset(bool allowBios) {
         return;
     }
 
-    this->pickMode();
+    if(this->romFile->isGBS()) {
+        this->gbMode = MODE_CGB;
+    } else {
+        if((gbcModeOption == 1 && this->romFile->isCgbRequired()) || (gbcModeOption == 2 && this->romFile->isCgbSupported())) {
+            if(sgbModeOption == 2 && this->romFile->isSgbEnhanced()) {
+                this->gbMode = MODE_SGB;
+            } else {
+                this->gbMode = MODE_CGB;
+            }
+        } else {
+            if(sgbModeOption != 0 && this->romFile->isSgbEnhanced()) {
+                this->gbMode = MODE_SGB;
+            } else {
+                this->gbMode = MODE_GB;
+            }
+        }
+    }
 
     this->biosOn = allowBios && !this->romFile->isGBS() && ((biosMode == 1 && ((this->gbMode != MODE_CGB && gbBiosLoaded) || gbcBiosLoaded)) || (biosMode == 2 && this->gbMode != MODE_CGB && gbBiosLoaded) || (biosMode == 3 && gbcBiosLoaded));
     if(this->biosOn) {
@@ -134,41 +150,9 @@ int Gameboy::run() {
     return this->cpu->run(Gameboy::pollEvents);
 }
 
-void Gameboy::checkInput() {
-    u8 p1 = this->mmu->read(0xFF00);
-    if(!(p1 & 0x10)) {
-        if((this->sgb->getController(0) & 0xf0) != 0xf0) {
-            this->cpu->requestInterrupt(INT_JOYPAD);
-        }
-    } else if(!(p1 & 0x20)) {
-        if((this->sgb->getController(0) & 0x0f) != 0x0f) {
-            this->cpu->requestInterrupt(INT_JOYPAD);
-        }
-    }
-}
-
-void Gameboy::pickMode() {
-    if(this->romFile->isGBS()) {
-        this->gbMode = MODE_CGB;
-    } else {
-        if((gbcModeOption == 1 && this->romFile->isCgbRequired()) || (gbcModeOption == 2 && this->romFile->isCgbSupported())) {
-            if(sgbModeOption == 2 && this->romFile->isSgbEnhanced()) {
-                this->gbMode = MODE_SGB;
-            } else {
-                this->gbMode = MODE_CGB;
-            }
-        } else {
-            if(sgbModeOption != 0 && this->romFile->isSgbEnhanced()) {
-                this->gbMode = MODE_SGB;
-            } else {
-                this->gbMode = MODE_GB;
-            }
-        }
-    }
-}
-
 int Gameboy::pollEvents(Gameboy* gameboy) {
     int ret = 0;
+    gameboy->sgb->update();
     gameboy->timer->update();
     gameboy->apu->update();
     ret |= gameboy->serial->update();

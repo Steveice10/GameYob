@@ -11,6 +11,8 @@ public:
     void loadState(FILE* file, int version);
     void saveState(FILE* file);
 
+    void update();
+
     u8 read(u16 addr);
     void write(u16 addr, u8 val);
 
@@ -20,10 +22,6 @@ public:
 
     u8* getGfxMap() {
         return this->map;
-    }
-
-    inline u8 getController(u8 controller) {
-        return this->controllers[controller];
     }
 
     inline void setController(u8 controller, u8 val) {

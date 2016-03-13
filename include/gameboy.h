@@ -52,9 +52,6 @@ public:
 
     int run();
 
-    void checkInput();
-    void pickMode();
-
     bool isRomLoaded();
     bool loadRomFile(const char* filename);
     void unloadRom();

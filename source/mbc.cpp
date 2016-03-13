@@ -290,10 +290,6 @@ void MBC::saveState(FILE* file) {
 
 u8 MBC::read(u16 addr) {
     if(!(addr & 0x8000)) {
-        if(!this->gameboy->isRomLoaded()) {
-            return 0xFF;
-        }
-
         int bankNum = !(addr & 0x4000) ? this->romBank0Num : this->romBank1Num;
         u8* bank = this->gameboy->romFile->getRomBank(bankNum);
         if(bank == NULL) {
@@ -305,8 +301,10 @@ u8 MBC::read(u16 addr) {
     } else {
         if(this->readFunc != NULL) {
             return (this->*readFunc)(addr);
-        } else {
+        } else if(addr >= 0xA000 && addr <= 0xBFFF) {
             return this->readSram((u16) (addr & 0x1FFF));
+        } else {
+            return 0xFF;
         }
     }
 }
@@ -314,7 +312,7 @@ u8 MBC::read(u16 addr) {
 void MBC::write(u16 addr, u8 val) {
     if(this->writeFunc != NULL) {
         (this->*writeFunc)(addr, val);
-    } else {
+    } else if(addr >= 0xA000 && addr <= 0xBFFF) {
         this->writeSram((u16) (addr & 0x1FFF), val);
     }
 }
@@ -357,7 +355,7 @@ void MBC::writeSram(u16 addr, u8 val) {
 /* MBC3 */
 u8 MBC::m3r(u16 addr) {
     if(!this->ramEnabled) {
-        return 0xff;
+        return 0xFF;
     }
 
     switch(this->ramBankNum) { // Check for RTC register
