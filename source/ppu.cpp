@@ -789,6 +789,8 @@ u8 PPU::read(u16 addr) {
                 return this->wy;
             case 0xFF4B:
                 return this->wx;
+            case 0xFF4C:
+                return 0; // TODO
             case 0xFF4F:
                 return this->vramBank;
             case 0xFF51:
@@ -809,6 +811,8 @@ u8 PPU::read(u16 addr) {
                 return this->sprPaletteSelect;
             case 0xFF6B: // CGB Sprite palette
                 return ((u8*) this->sprPaletteData)[this->sprPaletteSelect & 0x3F];
+            case 0xFF6C:
+                return 0; // TODO
             default:
                 return 0;
         }
@@ -879,6 +883,9 @@ void PPU::write(u16 addr, u8 val) {
             case 0xFF4B:
                 this->wx = val;
                 break;
+            case 0xFF4C:
+                // TODO
+                break;
             case 0xFF4F: // Vram bank
                 if(this->gameboy->gbMode == MODE_CGB) {
                     this->vramBank = (u8) (val & 1);
@@ -946,6 +953,9 @@ void PPU::write(u16 addr, u8 val) {
                     this->sprPaletteSelect = (u8) (((this->sprPaletteSelect + 1) & 0x3F) | (this->sprPaletteSelect & 0x80));
                 }
 
+                break;
+            case 0xFF6C:
+                // TODO
                 break;
             default:
                 break;

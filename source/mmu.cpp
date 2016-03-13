@@ -20,11 +20,11 @@ MMU::MMU(Gameboy* gameboy) {
 }
 
 void MMU::reset() {
-    memset(this->mappedBlocks, NULL, sizeof(this->mappedBlocks));
-    memset(this->mappedReadFuncs, NULL, sizeof(this->mappedReadFuncs));
-    memset(this->mappedReadFuncData, NULL, sizeof(this->mappedReadFuncData));
-    memset(this->mappedWriteFuncs, NULL, sizeof(this->mappedWriteFuncs));
-    memset(this->mappedWriteFuncData, NULL, sizeof(this->mappedWriteFuncData));
+    memset(this->mappedBlocks, 0, sizeof(this->mappedBlocks));
+    memset(this->mappedReadFuncs, 0, sizeof(this->mappedReadFuncs));
+    memset(this->mappedReadFuncData, 0, sizeof(this->mappedReadFuncData));
+    memset(this->mappedWriteFuncs, 0, sizeof(this->mappedWriteFuncs));
+    memset(this->mappedWriteFuncData, 0, sizeof(this->mappedWriteFuncData));
 
     this->wramBank = 1;
     for(int i = 0; i < 8; i++) {
@@ -89,6 +89,8 @@ u8 MMU::readRomBank0(u16 addr) {
 
     if(this->mappedBlocks[0] != NULL) {
         return this->mappedBlocks[0][addr & 0xFFF];
+    } else {
+        return 0xFF;
     }
 }
 
@@ -173,6 +175,7 @@ u8 MMU::readBankF(u16 addr) {
                 case 0xFF49:
                 case 0xFF4A:
                 case 0xFF4B:
+                case 0xFF4C:
                 case 0xFF4F:
                 case 0xFF51:
                 case 0xFF52:
@@ -183,6 +186,7 @@ u8 MMU::readBankF(u16 addr) {
                 case 0xFF69:
                 case 0xFF6A:
                 case 0xFF6B:
+                case 0xFF6C:
                     return this->gameboy->ppu->read(addr);
                 case 0xFF56:
                     return this->gameboy->ir->read(addr);
@@ -288,6 +292,7 @@ void MMU::writeBankF(u16 addr, u8 val) {
                 case 0xFF49:
                 case 0xFF4A:
                 case 0xFF4B:
+                case 0xFF4C:
                 case 0xFF4F:
                 case 0xFF51:
                 case 0xFF52:
@@ -298,6 +303,7 @@ void MMU::writeBankF(u16 addr, u8 val) {
                 case 0xFF69:
                 case 0xFF6A:
                 case 0xFF6B:
+                case 0xFF6C:
                     this->gameboy->ppu->write(addr, val);
                     break;
                 case 0xFF56:
