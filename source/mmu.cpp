@@ -74,245 +74,241 @@ void MMU::write(u16 addr, u8 val) {
 }
 
 u8 MMU::readBankF(u16 addr) {
-    if(addr >= 0xFF00) {
-        if(addr >= 0xFF80 && addr != 0xFFFF) {
-            return this->hram[addr & 0x7F];
-        } else {
-            switch(addr) {
-                case 0xFF00:
-                    return this->gameboy->sgb->read(addr);
-                case 0xFF01:
-                case 0xFF02:
-                    return this->gameboy->serial->read(addr);
-                case 0xFF04:
-                case 0xFF05:
-                case 0xFF06:
-                case 0xFF07:
-                    return this->gameboy->timer->read(addr);
-                case 0xFF0F:
-                case 0xFF4D:
-                case 0xFFFF:
-                    return this->gameboy->cpu->read(addr);
-                case 0xFF10:
-                case 0xFF11:
-                case 0xFF12:
-                case 0xFF13:
-                case 0xFF14:
-                case 0xFF15:
-                case 0xFF16:
-                case 0xFF17:
-                case 0xFF18:
-                case 0xFF19:
-                case 0xFF1A:
-                case 0xFF1B:
-                case 0xFF1C:
-                case 0xFF1D:
-                case 0xFF1E:
-                case 0xFF1F:
-                case 0xFF20:
-                case 0xFF21:
-                case 0xFF22:
-                case 0xFF23:
-                case 0xFF24:
-                case 0xFF25:
-                case 0xFF26:
-                case 0xFF27:
-                case 0xFF28:
-                case 0xFF29:
-                case 0xFF2A:
-                case 0xFF2B:
-                case 0xFF2C:
-                case 0xFF2D:
-                case 0xFF2E:
-                case 0xFF2F:
-                case 0xFF30:
-                case 0xFF31:
-                case 0xFF32:
-                case 0xFF33:
-                case 0xFF34:
-                case 0xFF35:
-                case 0xFF36:
-                case 0xFF37:
-                case 0xFF38:
-                case 0xFF39:
-                case 0xFF3A:
-                case 0xFF3B:
-                case 0xFF3C:
-                case 0xFF3D:
-                case 0xFF3E:
-                case 0xFF3F:
-                    return this->gameboy->apu->read(addr);
-                case 0xFF40:
-                case 0xFF41:
-                case 0xFF42:
-                case 0xFF43:
-                case 0xFF44:
-                case 0xFF45:
-                case 0xFF46:
-                case 0xFF47:
-                case 0xFF48:
-                case 0xFF49:
-                case 0xFF4A:
-                case 0xFF4B:
-                case 0xFF4C:
-                case 0xFF4F:
-                case 0xFF51:
-                case 0xFF52:
-                case 0xFF53:
-                case 0xFF54:
-                case 0xFF55:
-                case 0xFF68:
-                case 0xFF69:
-                case 0xFF6A:
-                case 0xFF6B:
-                case 0xFF6C:
-                    return this->gameboy->ppu->read(addr);
-                case 0xFF56:
-                    return this->gameboy->ir->read(addr);
-                case 0xFF50:
-                    return (u8) (this->gameboy->biosOn ? 0 : 1);
-                case 0xFF70:
-                    return (u8) (this->wramBank | 0xF8);
-                default:
-                    systemPrintDebug("Unimplemented IO register read: 0x%x\n", addr);
-                    return 0;
-            }
+    if(addr >= 0xFF80 && addr != 0xFFFF) {
+        return this->hram[addr & 0x7F];
+    } else if(addr >= 0xFF00) {
+        switch(addr) {
+            case 0xFF00:
+                return this->gameboy->sgb->read(addr);
+            case 0xFF01:
+            case 0xFF02:
+                return this->gameboy->serial->read(addr);
+            case 0xFF04:
+            case 0xFF05:
+            case 0xFF06:
+            case 0xFF07:
+                return this->gameboy->timer->read(addr);
+            case 0xFF0F:
+            case 0xFF4D:
+            case 0xFFFF:
+                return this->gameboy->cpu->read(addr);
+            case 0xFF10:
+            case 0xFF11:
+            case 0xFF12:
+            case 0xFF13:
+            case 0xFF14:
+            case 0xFF15:
+            case 0xFF16:
+            case 0xFF17:
+            case 0xFF18:
+            case 0xFF19:
+            case 0xFF1A:
+            case 0xFF1B:
+            case 0xFF1C:
+            case 0xFF1D:
+            case 0xFF1E:
+            case 0xFF1F:
+            case 0xFF20:
+            case 0xFF21:
+            case 0xFF22:
+            case 0xFF23:
+            case 0xFF24:
+            case 0xFF25:
+            case 0xFF26:
+            case 0xFF27:
+            case 0xFF28:
+            case 0xFF29:
+            case 0xFF2A:
+            case 0xFF2B:
+            case 0xFF2C:
+            case 0xFF2D:
+            case 0xFF2E:
+            case 0xFF2F:
+            case 0xFF30:
+            case 0xFF31:
+            case 0xFF32:
+            case 0xFF33:
+            case 0xFF34:
+            case 0xFF35:
+            case 0xFF36:
+            case 0xFF37:
+            case 0xFF38:
+            case 0xFF39:
+            case 0xFF3A:
+            case 0xFF3B:
+            case 0xFF3C:
+            case 0xFF3D:
+            case 0xFF3E:
+            case 0xFF3F:
+                return this->gameboy->apu->read(addr);
+            case 0xFF40:
+            case 0xFF41:
+            case 0xFF42:
+            case 0xFF43:
+            case 0xFF44:
+            case 0xFF45:
+            case 0xFF46:
+            case 0xFF47:
+            case 0xFF48:
+            case 0xFF49:
+            case 0xFF4A:
+            case 0xFF4B:
+            case 0xFF4C:
+            case 0xFF4F:
+            case 0xFF51:
+            case 0xFF52:
+            case 0xFF53:
+            case 0xFF54:
+            case 0xFF55:
+            case 0xFF68:
+            case 0xFF69:
+            case 0xFF6A:
+            case 0xFF6B:
+            case 0xFF6C:
+                return this->gameboy->ppu->read(addr);
+            case 0xFF56:
+                return this->gameboy->ir->read(addr);
+            case 0xFF50:
+                return (u8) (this->gameboy->biosOn ? 0 : 1);
+            case 0xFF70:
+                return (u8) (this->wramBank | 0xF8);
+            default:
+                systemPrintDebug("Unimplemented IO register read: 0x%x\n", addr);
+                return 0;
         }
     } else if(addr >= 0xFE00 && addr < 0xFEA0) {
         return this->gameboy->ppu->read(addr);
-    } else {
+    } else if(addr < 0xFE00) {
         return this->wram[this->wramBank][addr & 0xFFF];
     }
 }
 
 void MMU::writeBankF(u16 addr, u8 val) {
-    if(addr >= 0xFF00) {
-        if(addr >= 0xFF80 && addr != 0xFFFF) {
-            this->hram[addr & 0x7F] = val;
-        } else {
-            switch(addr) {
-                case 0xFF00:
-                    this->gameboy->sgb->write(addr, val);
-                    break;
-                case 0xFF01:
-                case 0xFF02:
-                    this->gameboy->serial->write(addr, val);
-                    break;
-                case 0xFF04:
-                case 0xFF05:
-                case 0xFF06:
-                case 0xFF07:
-                    this->gameboy->timer->write(addr, val);
-                    break;
-                case 0xFF0F:
-                case 0xFF4D:
-                case 0xFFFF:
-                    this->gameboy->cpu->write(addr, val);
-                    break;
-                case 0xFF10:
-                case 0xFF11:
-                case 0xFF12:
-                case 0xFF13:
-                case 0xFF14:
-                case 0xFF15:
-                case 0xFF16:
-                case 0xFF17:
-                case 0xFF18:
-                case 0xFF19:
-                case 0xFF1A:
-                case 0xFF1B:
-                case 0xFF1C:
-                case 0xFF1D:
-                case 0xFF1E:
-                case 0xFF1F:
-                case 0xFF20:
-                case 0xFF21:
-                case 0xFF22:
-                case 0xFF23:
-                case 0xFF24:
-                case 0xFF25:
-                case 0xFF26:
-                case 0xFF27:
-                case 0xFF28:
-                case 0xFF29:
-                case 0xFF2A:
-                case 0xFF2B:
-                case 0xFF2C:
-                case 0xFF2D:
-                case 0xFF2E:
-                case 0xFF2F:
-                case 0xFF30:
-                case 0xFF31:
-                case 0xFF32:
-                case 0xFF33:
-                case 0xFF34:
-                case 0xFF35:
-                case 0xFF36:
-                case 0xFF37:
-                case 0xFF38:
-                case 0xFF39:
-                case 0xFF3A:
-                case 0xFF3B:
-                case 0xFF3C:
-                case 0xFF3D:
-                case 0xFF3E:
-                case 0xFF3F:
-                    this->gameboy->apu->write(addr, val);
-                    break;
-                case 0xFF40:
-                case 0xFF41:
-                case 0xFF42:
-                case 0xFF43:
-                case 0xFF44:
-                case 0xFF45:
-                case 0xFF46:
-                case 0xFF47:
-                case 0xFF48:
-                case 0xFF49:
-                case 0xFF4A:
-                case 0xFF4B:
-                case 0xFF4C:
-                case 0xFF4F:
-                case 0xFF51:
-                case 0xFF52:
-                case 0xFF53:
-                case 0xFF54:
-                case 0xFF55:
-                case 0xFF68:
-                case 0xFF69:
-                case 0xFF6A:
-                case 0xFF6B:
-                case 0xFF6C:
-                    this->gameboy->ppu->write(addr, val);
-                    break;
-                case 0xFF56:
-                    this->gameboy->ir->write(addr, val);
-                    break;
-                case 0xFF50:
-                    if(this->gameboy->biosOn) {
-                        this->gameboy->reset(false);
+    if(addr >= 0xFF80 && addr != 0xFFFF) {
+        this->hram[addr & 0x7F] = val;
+    } else if(addr >= 0xFF00) {
+        switch(addr) {
+            case 0xFF00:
+                this->gameboy->sgb->write(addr, val);
+                break;
+            case 0xFF01:
+            case 0xFF02:
+                this->gameboy->serial->write(addr, val);
+                break;
+            case 0xFF04:
+            case 0xFF05:
+            case 0xFF06:
+            case 0xFF07:
+                this->gameboy->timer->write(addr, val);
+                break;
+            case 0xFF0F:
+            case 0xFF4D:
+            case 0xFFFF:
+                this->gameboy->cpu->write(addr, val);
+                break;
+            case 0xFF10:
+            case 0xFF11:
+            case 0xFF12:
+            case 0xFF13:
+            case 0xFF14:
+            case 0xFF15:
+            case 0xFF16:
+            case 0xFF17:
+            case 0xFF18:
+            case 0xFF19:
+            case 0xFF1A:
+            case 0xFF1B:
+            case 0xFF1C:
+            case 0xFF1D:
+            case 0xFF1E:
+            case 0xFF1F:
+            case 0xFF20:
+            case 0xFF21:
+            case 0xFF22:
+            case 0xFF23:
+            case 0xFF24:
+            case 0xFF25:
+            case 0xFF26:
+            case 0xFF27:
+            case 0xFF28:
+            case 0xFF29:
+            case 0xFF2A:
+            case 0xFF2B:
+            case 0xFF2C:
+            case 0xFF2D:
+            case 0xFF2E:
+            case 0xFF2F:
+            case 0xFF30:
+            case 0xFF31:
+            case 0xFF32:
+            case 0xFF33:
+            case 0xFF34:
+            case 0xFF35:
+            case 0xFF36:
+            case 0xFF37:
+            case 0xFF38:
+            case 0xFF39:
+            case 0xFF3A:
+            case 0xFF3B:
+            case 0xFF3C:
+            case 0xFF3D:
+            case 0xFF3E:
+            case 0xFF3F:
+                this->gameboy->apu->write(addr, val);
+                break;
+            case 0xFF40:
+            case 0xFF41:
+            case 0xFF42:
+            case 0xFF43:
+            case 0xFF44:
+            case 0xFF45:
+            case 0xFF46:
+            case 0xFF47:
+            case 0xFF48:
+            case 0xFF49:
+            case 0xFF4A:
+            case 0xFF4B:
+            case 0xFF4C:
+            case 0xFF4F:
+            case 0xFF51:
+            case 0xFF52:
+            case 0xFF53:
+            case 0xFF54:
+            case 0xFF55:
+            case 0xFF68:
+            case 0xFF69:
+            case 0xFF6A:
+            case 0xFF6B:
+            case 0xFF6C:
+                this->gameboy->ppu->write(addr, val);
+                break;
+            case 0xFF56:
+                this->gameboy->ir->write(addr, val);
+                break;
+            case 0xFF50:
+                if(this->gameboy->biosOn) {
+                    this->gameboy->reset(false);
+                }
+
+                break;
+            case 0xFF70:
+                if(this->gameboy->gbMode == MODE_CGB) {
+                    this->wramBank = (u8) (val & 7);
+                    if(this->wramBank == 0) {
+                        this->wramBank = 1;
                     }
 
-                    break;
-                case 0xFF70:
-                    if(this->gameboy->gbMode == MODE_CGB) {
-                        this->wramBank = (u8) (val & 7);
-                        if(this->wramBank == 0) {
-                            this->wramBank = 1;
-                        }
+                    this->mapBanks();
+                }
 
-                        this->mapBanks();
-                    }
-
-                    break;
-                default:
-                    systemPrintDebug("Unimplemented IO register write: 0x%x, 0x%x\n", addr, val);
-                    break;
-            }
+                break;
+            default:
+                systemPrintDebug("Unimplemented IO register write: 0x%x, 0x%x\n", addr, val);
+                break;
         }
     } else if(addr >= 0xFE00 && addr < 0xFEA0) {
         this->gameboy->ppu->write(addr, val);
-    } else {
+    } else if(addr < 0xFE00) {
         this->wram[this->wramBank][addr & 0xFFF] = val;
     }
 }
