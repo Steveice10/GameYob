@@ -24,9 +24,6 @@ public:
 
     void drawScanline(int scanline);
 
-    void setSgbTiles(u8* src, u8 flags);
-    void setSgbMap(u8* src);
-
     inline u16* getBgPaletteData() {
         return this->bgPaletteData;
     }

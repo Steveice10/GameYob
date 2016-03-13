@@ -981,7 +981,7 @@ void PPU::setHalfSpeed(bool halfSpeed) {
 }
 
 void PPU::refreshGBPalette() {
-    if(gameboy->isRomLoaded() && gameboy->gbMode == MODE_GB) {
+    if(this->gameboy->isRomLoaded() && this->gameboy->gbMode == MODE_GB) {
         const u16* palette = NULL;
         switch(gbColorizeMode) {
             case 0:
@@ -989,8 +989,8 @@ void PPU::refreshGBPalette() {
                 break;
             case 1:
                 // Don't set the game's palette until we're past the BIOS screen.
-                if(!gameboy->biosOn) {
-                    palette = findPalette(gameboy->romFile->getRomTitle().c_str());
+                if(!this->gameboy->biosOn) {
+                    palette = findPalette(this->gameboy->romFile->getRomTitle().c_str());
                 }
 
                 if(palette == NULL) {
@@ -1045,6 +1045,27 @@ void PPU::refreshGBPalette() {
     }
 }
 
+void PPU::drawScanline(int scanline) {
+    switch(this->gameboy->sgb->getGfxMask()) {
+        case 0: {
+            u16* lineBuffer = gfxGetLineBuffer(scanline);
+            u8 depthBuffer[256] = {0};
+
+            drawStatic(lineBuffer, depthBuffer, scanline);
+            drawSprites(lineBuffer, depthBuffer, scanline);
+            break;
+        }
+        case 2:
+            gfxClearLineBuffer(scanline, 0x0000);
+            break;
+        case 3:
+            gfxClearLineBuffer(scanline, getBgColor(0, 0));
+            break;
+        default:
+            break;
+    }
+}
+
 inline u16 PPU::getBgColor(u32 paletteId, u32 colorId) {
     u8 paletteIndex = this->gameboy->gbMode != MODE_CGB ? (u8) ((this->bgp >> (colorId * 2)) & 3) : (u8) colorId;
 
@@ -1067,21 +1088,6 @@ inline u16 PPU::getSprColor(u32 paletteId, u32 colorId) {
     u8 b = (u8) ((color >> 10) & 0x1F);
 
     return r << 11 | g << 6 | b << 1 | (u8) 1;
-}
-
-void PPU::drawScanline(int scanline) {
-    u8 gfxMask = this->gameboy->sgb->getGfxMask();
-    if(gfxMask == 0) {
-        u16* lineBuffer = gfxGetLineBuffer(scanline);
-        u8 depthBuffer[256] = {0};
-
-        drawStatic(lineBuffer, depthBuffer, scanline);
-        drawSprites(lineBuffer, depthBuffer, scanline);
-    } else if(gfxMask == 2) {
-        gfxClearLineBuffer(scanline, 0x0000);
-    } else if(gfxMask == 3) {
-        gfxClearLineBuffer(scanline, getBgColor(0, 0));
-    }
 }
 
 void PPU::drawStatic(u16* lineBuffer, u8* depthBuffer, int scanline) {
@@ -1356,10 +1362,4 @@ void PPU::drawSprites(u16* lineBuffer, u8* depthBuffer, int scanline) {
             }
         }
     }
-}
-
-void PPU::setSgbTiles(u8* src, u8 flags) {
-}
-
-void PPU::setSgbMap(u8* src) {
 }

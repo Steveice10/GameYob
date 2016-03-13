@@ -527,16 +527,17 @@ void SGB::jump(int block) {
 }
 
 void SGB::chrTrn(int block) {
+    u8 flags = this->packet[1];
     u8* data = new u8[0x1000];
     this->doVramTransfer(data);
-    this->gameboy->ppu->setSgbTiles(data, this->packet[1]);
+    // TODO: SGB Border Tiles
     delete data;
 }
 
 void SGB::pctTrn(int block) {
     u8* data = new u8[0x1000];
     this->doVramTransfer(data);
-    this->gameboy->ppu->setSgbMap(data);
+    // TODO: SGB Border Map
     delete data;
 }
 
