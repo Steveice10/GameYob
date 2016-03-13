@@ -549,8 +549,7 @@ void PPU::reset() {
     this->lyc = 0;
     this->sdma = 0;
     this->bgp = 0xfc;
-    this->obp0 = 0xff;
-    this->obp1 = 0xff;
+    memset(this->obp, 0xFF, sizeof(this->obp));
     this->wy = 0;
     this->wx = 0;
     this->vramBank = 0;
@@ -597,8 +596,7 @@ void PPU::loadState(FILE* file, int version) {
     fread(&this->lyc, 1, sizeof(this->lyc), file);
     fread(&this->sdma, 1, sizeof(this->sdma), file);
     fread(&this->bgp, 1, sizeof(this->bgp), file);
-    fread(&this->obp0, 1, sizeof(this->obp0), file);
-    fread(&this->obp1, 1, sizeof(this->obp1), file);
+    fread(this->obp, 1, sizeof(this->obp), file);
     fread(&this->wy, 1, sizeof(this->wy), file);
     fread(&this->wx, 1, sizeof(this->wx), file);
     fread(&this->vramBank, 1, sizeof(this->vramBank), file);
@@ -628,8 +626,7 @@ void PPU::saveState(FILE* file) {
     fwrite(&this->lyc, 1, sizeof(this->lyc), file);
     fwrite(&this->sdma, 1, sizeof(this->sdma), file);
     fwrite(&this->bgp, 1, sizeof(this->bgp), file);
-    fwrite(&this->obp0, 1, sizeof(this->obp0), file);
-    fwrite(&this->obp1, 1, sizeof(this->obp1), file);
+    fwrite(this->obp, 1, sizeof(this->obp), file);
     fwrite(&this->wy, 1, sizeof(this->wy), file);
     fwrite(&this->wx, 1, sizeof(this->wx), file);
     fwrite(&this->vramBank, 1, sizeof(this->vramBank), file);
@@ -712,6 +709,7 @@ int PPU::update() {
                                 // long as normal - half of it identifies as being
                                 // in the vblank period.
                                 this->ly = 0;
+                                this->checkLYC();
                             } else { // End of hblank
                                 this->stat &= ~3;
                                 this->stat |= 2; // Set mode 2
@@ -719,22 +717,16 @@ int PPU::update() {
                                     this->gameboy->cpu->requestInterrupt(INT_LCD);
                                 }
                             }
-                        }
+                        } else if(this->ly == 144) {// Beginning of vblank
+                            this->stat &= ~3;
+                            this->stat |= 1;   // Set mode 1
 
-                        this->checkLYC();
-
-                        if(this->ly >= 144) { // In vblank
-                            if(this->ly == 144) {// Beginning of vblank
-                                this->stat &= ~3;
-                                this->stat |= 1;   // Set mode 1
-
-                                this->gameboy->cpu->requestInterrupt(INT_VBLANK);
-                                if(this->stat & 0x10) {
-                                    this->gameboy->cpu->requestInterrupt(INT_LCD);
-                                }
-
-                                ret |= RET_VBLANK;
+                            this->gameboy->cpu->requestInterrupt(INT_VBLANK);
+                            if(this->stat & 0x10) {
+                                this->gameboy->cpu->requestInterrupt(INT_LCD);
                             }
+
+                            ret |= RET_VBLANK;
                         }
                     }
 
@@ -796,9 +788,9 @@ u8 PPU::read(u16 addr) {
                     case 0xFF47:
                         return this->bgp;
                     case 0xFF48:
-                        return this->obp0;
+                        return this->obp[0];
                     case 0xFF49:
-                        return this->obp1;
+                        return this->obp[1];
                     case 0xFF4A:
                         return this->wy;
                     case 0xFF4B:
@@ -892,10 +884,10 @@ void PPU::write(u16 addr, u8 val) {
                         this->bgp = val;
                         break;
                     case 0xFF48:
-                        this->obp0 = val;
+                        this->obp[0] = val;
                         break;
                     case 0xFF49:
-                        this->obp1 = val;
+                        this->obp[1] = val;
                         break;
                     case 0xFF4A:
                         this->wy = val;
@@ -1074,8 +1066,7 @@ inline u16 PPU::getBgColor(u32 paletteId, u32 colorId) {
 }
 
 inline u16 PPU::getSprColor(u32 paletteId, u32 colorId) {
-    u8 obp = paletteId / 4 == 0 ? this->obp0 : this->obp1;
-    u8 paletteIndex = this->gameboy->gbMode != MODE_CGB ? (u8) ((obp >> (colorId * 2)) & 3) : (u8) colorId;
+    u8 paletteIndex = this->gameboy->gbMode != MODE_CGB ? (u8) ((this->obp[paletteId / 4] >> (colorId * 2)) & 3) : (u8) colorId;
 
     u16 color = this->sprPaletteData[paletteId * 4 + paletteIndex];
     u8 r = (u8) (color & 0x1F);

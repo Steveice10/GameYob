@@ -71,8 +71,7 @@ private:
     u8 lyc;
     u8 sdma;
     u8 bgp;
-    u8 obp0;
-    u8 obp1;
+    u8 obp[2];
     u8 wy;
     u8 wx;
     u8 vramBank;

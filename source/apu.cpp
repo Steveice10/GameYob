@@ -66,12 +66,12 @@ void APU::update() {
 
         if(soundEnabled) {
             long available = this->buffer->samples_avail();
-            u32* buf = (u32*) malloc(available / 2 * sizeof(u32));
+            u32* buf = new u32[available / 2 * sizeof(u32)];
 
             long count = this->buffer->read_samples((s16*) buf, available);
             audioPlay(buf, count / 2);
 
-            free(buf);
+            delete buf;
         } else {
             this->buffer->clear();
         }
