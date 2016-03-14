@@ -8,7 +8,7 @@
 #include "sgb.h"
 
 #define sgbPalettes (gameboy->ppu->getVramBank(1))
-#define sgbAttrFiles (gameboy->ppu->getVramBank(1)+0x1000)
+#define sgbAttrFiles (gameboy->ppu->getVramBank(1) + 0x1000)
 
 SGB::SGB(Gameboy* gameboy) {
     this->gameboy = gameboy;
@@ -213,23 +213,24 @@ void SGB::loadAttrFile(int index) {
 
 void SGB::doVramTransfer(u8* dest) {
     u8 lcdc = this->gameboy->mmu->read(0xFF40);
+    u8* vram = this->gameboy->ppu->getVramBank(0);
 
-    int map = 0x1800 + ((lcdc >> 3) & 1) * 0x400;
-    int index = 0;
-    for(int y = 0; y < 18; y++) {
-        for(int x = 0; x < 20; x++) {
+    u32 map = (u32) (0x1800 + ((lcdc >> 3) & 1) * 0x400);
+    u32 index = 0;
+    for(u32 y = 0; y < 18; y++) {
+        for(u32 x = 0; x < 20; x++) {
             if(index == 0x1000) {
                 return;
             }
 
-            int tile = this->gameboy->ppu->getVramBank(0)[map + y * 32 + x];
+            s8 tile = vram[map + y * 32 + x];
             if(lcdc & 0x10) {
-                memcpy(dest + index, this->gameboy->ppu->getVramBank(0) + tile * 16, 16);
+                memcpy(dest + index, &vram[tile * 0x10], 0x10);
             } else {
-                memcpy(dest + index, this->gameboy->ppu->getVramBank(0) + 0x1000 + ((s8) tile) * 16, 16);
+                memcpy(dest + index, &vram[0x1000 + tile * 0x10], 0x10);
             }
 
-            index += 16;
+            index += 0x10;
         }
     }
 }

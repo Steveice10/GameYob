@@ -1085,12 +1085,7 @@ void PPU::drawBackground(u16* lineBuffer, u8* depthBuffer, u32 scanline, bool dr
         u32 basePixelY = (scanline + this->scy) & 0x07;
 
         // Tile Map address plus row offset
-        u32 bgMapAddr = 0;
-        if(this->lcdc & 0x8) {
-            bgMapAddr = 0x1C00 + (tileY * 32);
-        } else {
-            bgMapAddr = 0x1800 + (tileY * 32);
-        }
+        u32 bgMapAddr = 0x1800 + ((this->lcdc >> 3) & 1) * 0x400 + (tileY * 32);
 
         // Number of tiles to draw in a row
         u32 numTilesX = 20;
@@ -1183,12 +1178,7 @@ void PPU::drawWindow(u16* lineBuffer, u8* depthBuffer, u32 scanline, bool drawin
         u32 basePixelY = (scanline - this->wy) & 0x07;
 
         // Tile Map address plus row offset
-        u32 winMapAddr = 0;
-        if(this->lcdc & 0x40) {
-            winMapAddr = 0x1C00 + (tileY * 32);
-        } else {
-            winMapAddr = 0x1800 + (tileY * 32);
-        }
+        u32 winMapAddr = 0x1800 + ((this->lcdc >> 6) & 1) * 0x400 + (tileY * 32);
 
         // Tiles to draw
         u32 endTile = (u32) (21 - (this->wx - 7) / 8);

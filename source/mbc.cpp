@@ -404,37 +404,31 @@ void MBC::mapBanks() {
     this->mapRomBank1(this->romBank1Num);
     this->mapRamBank(this->ramBankNum);
 
-    this->gameboy->mmu->mapReadFunc(0xA, this, MBC::readEntry);
-    this->gameboy->mmu->mapReadFunc(0xB, this, MBC::readEntry);
+    if(this->readFunc != NULL) {
+        this->gameboy->mmu->mapReadFunc(0xA, this, MBC::readEntry);
+        this->gameboy->mmu->mapReadFunc(0xB, this, MBC::readEntry);
+    }
 
-    this->gameboy->mmu->mapWriteFunc(0x0, this, MBC::writeEntry);
-    this->gameboy->mmu->mapWriteFunc(0x1, this, MBC::writeEntry);
-    this->gameboy->mmu->mapWriteFunc(0x2, this, MBC::writeEntry);
-    this->gameboy->mmu->mapWriteFunc(0x3, this, MBC::writeEntry);
-    this->gameboy->mmu->mapWriteFunc(0x4, this, MBC::writeEntry);
-    this->gameboy->mmu->mapWriteFunc(0x5, this, MBC::writeEntry);
-    this->gameboy->mmu->mapWriteFunc(0x6, this, MBC::writeEntry);
-    this->gameboy->mmu->mapWriteFunc(0x7, this, MBC::writeEntry);
-    this->gameboy->mmu->mapWriteFunc(0xA, this, MBC::writeEntry);
-    this->gameboy->mmu->mapWriteFunc(0xB, this, MBC::writeEntry);
+    if(this->writeFunc != NULL) {
+        this->gameboy->mmu->mapWriteFunc(0x0, this, MBC::writeEntry);
+        this->gameboy->mmu->mapWriteFunc(0x1, this, MBC::writeEntry);
+        this->gameboy->mmu->mapWriteFunc(0x2, this, MBC::writeEntry);
+        this->gameboy->mmu->mapWriteFunc(0x3, this, MBC::writeEntry);
+        this->gameboy->mmu->mapWriteFunc(0x4, this, MBC::writeEntry);
+        this->gameboy->mmu->mapWriteFunc(0x5, this, MBC::writeEntry);
+        this->gameboy->mmu->mapWriteFunc(0x6, this, MBC::writeEntry);
+        this->gameboy->mmu->mapWriteFunc(0x7, this, MBC::writeEntry);
+        this->gameboy->mmu->mapWriteFunc(0xA, this, MBC::writeEntry);
+        this->gameboy->mmu->mapWriteFunc(0xB, this, MBC::writeEntry);
+    }
 }
 
 u8 MBC::read(u16 addr) {
-    if(this->readFunc != NULL) {
-        return (this->*readFunc)(addr);
-    } else if(addr >= 0xA000 && addr <= 0xBFFF) {
-        return this->readSram(addr);
-    }
-
-    return 0xFF;
+    return (this->*readFunc)(addr);
 }
 
 void MBC::write(u16 addr, u8 val) {
-    if(this->writeFunc != NULL) {
-        (this->*writeFunc)(addr, val);
-    } else if(addr >= 0xA000 && addr <= 0xBFFF) {
-        return this->writeSram(addr, val);
-    }
+    (this->*writeFunc)(addr, val);
 }
 
 u8 MBC::readEntry(void* data, u16 addr) {
