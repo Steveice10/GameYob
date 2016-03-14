@@ -71,11 +71,11 @@ void CPU::saveState(FILE* file) {
 
 u8 CPU::read(u16 addr) {
     switch(addr) {
-        case 0xFF0F:
+        case IF:
             return this->iff;
-        case 0xFF4D:
+        case KEY1:
             return this->key1;
-        case 0xFFFF:
+        case IE:
             return this->ie;
         default:
             return 0;
@@ -84,14 +84,14 @@ u8 CPU::read(u16 addr) {
 
 void CPU::write(u16 addr, u8 val) {
     switch(addr) {
-        case 0xFF0F:
+        case IF:
             this->iff = val;
             break;
-        case 0xFF4D:
+        case KEY1:
             this->key1 &= 0x80;
             this->key1 |= (val & 1);
             break;
-        case 0xFFFF:
+        case IE:
             this->ie = val;
             break;
         default:

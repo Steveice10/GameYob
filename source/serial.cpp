@@ -93,9 +93,9 @@ int Serial::update() {
 
 u8 Serial::read(u16 addr) {
     switch(addr) {
-        case 0xFF01:
+        case SB:
             return this->sb;
-        case 0xFF02:
+        case SC:
             return this->sc;
         default:
             return 0;
@@ -104,10 +104,10 @@ u8 Serial::read(u16 addr) {
 
 void Serial::write(u16 addr, u8 val) {
     switch(addr) {
-        case 0xFF01:
+        case SB:
             this->sb = val;
             break;
-        case 0xFF02:
+        case SC:
             this->sc = val;
             if((val & 0x81) == 0x81) { // Internal clock
                 if(this->nextSerialInternalCycle == 0) {

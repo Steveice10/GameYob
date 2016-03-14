@@ -3,9 +3,10 @@
 #include "platform/system.h"
 #include "cpu.h"
 #include "gameboy.h"
+#include "mmu.h"
 #include "timer.h"
 
-static const int timerPeriods[] = {
+static const u32 timerPeriods[] = {
         CYCLES_PER_SECOND / 4096,
         CYCLES_PER_SECOND / 262144,
         CYCLES_PER_SECOND / 65536,
@@ -65,7 +66,7 @@ void Timer::updateDivider() {
 
 void Timer::updateTimer() {
     if(this->timerEnabled) {
-        int period = timerPeriods[this->timerPeriod];
+        u32 period = timerPeriods[this->timerPeriod];
 
         if(this->gameboy->cpu->getCycle() >= this->lastTimerCycle + period) {
             u32 add = (u32) (this->gameboy->cpu->getCycle() - this->lastTimerCycle) / period;
@@ -88,15 +89,15 @@ void Timer::updateTimer() {
 
 u8 Timer::read(u16 addr) {
     switch(addr) {
-        case 0xFF04:
+        case DIV:
             this->updateDivider();
             return this->dividerCounter;
-        case 0xFF05:
+        case TIMA:
             this->updateTimer();
             return this->timerCounter;
-        case 0xFF06:
+        case TMA:
             return this->timerModulo;
-        case 0xFF07:
+        case TAC:
             return (u8) ((this->timerPeriod & 0x3) | ((this->timerEnabled & 0x1) << 2));
         default:
             return 0;
@@ -105,18 +106,18 @@ u8 Timer::read(u16 addr) {
 
 void Timer::write(u16 addr, u8 val) {
     switch(addr) {
-        case 0xFF04:
+        case DIV:
             this->updateDivider();
             this->dividerCounter = 0;
             break;
-        case 0xFF05:
+        case TIMA:
             this->updateTimer();
             this->timerCounter = val;
             break;
-        case 0xFF06:
+        case TMA:
             this->timerModulo = val;
             break;
-        case 0xFF07: {
+        case TAC: {
             this->updateTimer();
 
             bool wasEnabled = this->timerEnabled;

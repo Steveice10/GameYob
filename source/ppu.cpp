@@ -780,54 +780,50 @@ u8 PPU::read(u16 addr) {
         return this->oam[addr & 0xFF];
     } else {
         switch(addr) {
-            case 0xFF40:
+            case LCDC:
                 return this->lcdc;
-            case 0xFF41:
+            case STAT:
                 return this->stat;
-            case 0xFF42:
+            case SCY:
                 return this->scy;
-            case 0xFF43:
+            case SCX:
                 return this->scx;
-            case 0xFF44:
+            case LY:
                 return this->ly;
-            case 0xFF45:
+            case LYC:
                 return this->lyc;
-            case 0xFF46:
+            case DMA:
                 return this->sdma;
-            case 0xFF47:
+            case BGP:
                 return this->bgp;
-            case 0xFF48:
+            case OBP0:
                 return this->obp[0];
-            case 0xFF49:
+            case OBP1:
                 return this->obp[1];
-            case 0xFF4A:
+            case WY:
                 return this->wy;
-            case 0xFF4B:
+            case WX:
                 return this->wx;
-            case 0xFF4C:
-                return 0; // TODO
-            case 0xFF4F:
+            case VBK:
                 return this->vramBank;
-            case 0xFF51:
+            case HDMA1:
                 return (u8) (this->dmaSource >> 8);
-            case 0xFF52:
+            case HDMA2:
                 return (u8) (this->dmaSource & 0xFF);
-            case 0xFF53:
+            case HDMA3:
                 return (u8) (this->dmaDest >> 8);
-            case 0xFF54:
+            case HDMA4:
                 return (u8) (this->dmaDest & 0xFF);
-            case 0xFF55:
+            case HDMA5:
                 return (u8) (this->dmaLength - 1);
-            case 0xFF68:
+            case BCPS:
                 return this->bgPaletteSelect;
-            case 0xFF69: // CGB BG Palette
+            case BCPD:
                 return ((u8*) this->bgPaletteData)[this->bgPaletteSelect & 0x3F];
-            case 0xFF6A:
+            case OCPS:
                 return this->sprPaletteSelect;
-            case 0xFF6B: // CGB Sprite palette
+            case OCPD:
                 return ((u8*) this->sprPaletteData)[this->sprPaletteSelect & 0x3F];
-            case 0xFF6C:
-                return 0; // TODO
             default:
                 return 0;
         }
@@ -839,7 +835,7 @@ void PPU::write(u16 addr, u8 val) {
         this->oam[addr & 0xFF] = val;
     } else {
         switch(addr) {
-            case 0xFF40: // LCDC
+            case LCDC:
                 if((this->lcdc & 0x80) && !(val & 0x80)) {
                     gfxClearScreenBuffer(0xFFFF);
                 }
@@ -851,25 +847,25 @@ void PPU::write(u16 addr, u8 val) {
                 }
 
                 break;
-            case 0xFF41:
+            case STAT:
                 this->stat &= 0x7;
                 this->stat |= val & 0xF8;
                 break;
-            case 0xFF42:
+            case SCY:
                 this->scy = val;
                 break;
-            case 0xFF43:
+            case SCX:
                 this->scx = val;
                 break;
-            case 0xFF44:
+            case LY:
                 this->ly = 0;
                 this->checkLYC();
                 break;
-            case 0xFF45:
+            case LYC:
                 this->lyc = val;
                 this->checkLYC();
                 break;
-            case 0xFF46: {
+            case DMA: {
                 this->sdma = val;
 
                 int src = val << 8;
@@ -879,46 +875,43 @@ void PPU::write(u16 addr, u8 val) {
 
                 break;
             }
-            case 0xFF47:
+            case BGP:
                 this->bgp = val;
                 break;
-            case 0xFF48:
+            case OBP0:
                 this->obp[0] = val;
                 break;
-            case 0xFF49:
+            case OBP1:
                 this->obp[1] = val;
                 break;
-            case 0xFF4A:
+            case WY:
                 this->wy = val;
                 break;
-            case 0xFF4B:
+            case WX:
                 this->wx = val;
                 break;
-            case 0xFF4C:
-                // TODO
-                break;
-            case 0xFF4F: // Vram bank
+            case VBK:
                 if(this->gameboy->gbMode == MODE_CGB) {
                     this->vramBank = (u8) (val & 1);
                     this->mapBanks();
                 }
 
                 break;
-            case 0xFF51:
+            case HDMA1:
                 this->dmaSource = (u16) ((this->dmaSource & 0xFF) | (val << 8));
                 break;
-            case 0xFF52:
+            case HDMA2:
                 this->dmaSource = (u16) ((this->dmaSource & 0xFF00) | val);
                 this->dmaSource &= 0xFFF0;
                 break;
-            case 0xFF53:
+            case HDMA3:
                 this->dmaDest = (u16) ((this->dmaDest & 0xFF) | (val << 8));
                 break;
-            case 0xFF54:
+            case HDMA4:
                 this->dmaDest = (u16) ((this->dmaDest & 0xFF00) | val);
                 this->dmaDest &= 0x1FF0;
                 break;
-            case 0xFF55: // CGB DMA
+            case HDMA5:
                 if(this->gameboy->gbMode == MODE_CGB) {
                     if(this->dmaLength > 0) {
                         if((val & 0x80) == 0) {
@@ -945,28 +938,25 @@ void PPU::write(u16 addr, u8 val) {
                 }
 
                 break;
-            case 0xFF68:
+            case BCPS:
                 this->bgPaletteSelect = val;
                 break;
-            case 0xFF69: // CGB BG Palette
+            case BCPD:
                 ((u8*) this->bgPaletteData)[this->bgPaletteSelect & 0x3F] = val;
                 if(this->bgPaletteSelect & 0x80) {
                     this->bgPaletteSelect = (u8) (((this->bgPaletteSelect + 1) & 0x3F) | (this->bgPaletteSelect & 0x80));
                 }
 
                 break;
-            case 0xFF6A:
+            case OCPS:
                 this->sprPaletteSelect = val;
                 break;
-            case 0xFF6B: // CGB Sprite palette
+            case OCPD:
                 ((u8*) this->sprPaletteData)[this->sprPaletteSelect & 0x3F] = val;
                 if(this->sprPaletteSelect & 0x80) {
                     this->sprPaletteSelect = (u8) (((this->sprPaletteSelect + 1) & 0x3F) | (this->sprPaletteSelect & 0x80));
                 }
 
-                break;
-            case 0xFF6C:
-                // TODO
                 break;
             default:
                 break;
@@ -1086,6 +1076,8 @@ void PPU::drawStatic(u16* lineBuffer, u8* depthBuffer, u32 scanline) {
 
 void PPU::drawBackground(u16* lineBuffer, u8* depthBuffer, u32 scanline, bool drawingWindow) {
     if(this->gameboy->gbMode == MODE_CGB || (this->lcdc & 1) != 0) { // Background enabled
+        u8* sgbMap = this->gameboy->sgb->getGfxMap();
+
         bool tileSigned = !(this->lcdc & 0x10);
 
         // The y position (measured in tiles)
@@ -1162,7 +1154,7 @@ void PPU::drawBackground(u16* lineBuffer, u8* depthBuffer, u32 scanline, bool dr
             // Mux the bits to for more logical pixels
             u32 pxData = BitStretchTable256[vRamB1] | (BitStretchTable256[vRamB2] << 1);
 
-            u8* subSgbMap = &this->gameboy->sgb->getGfxMap()[scanline / 8 * 20];
+            u8* subSgbMap = &sgbMap[scanline / 8 * 20];
             for(u32 x = 0; x < 16; x += 2, writeX++) {
                 if(writeX >= 160) {
                     continue;
@@ -1182,6 +1174,8 @@ void PPU::drawBackground(u16* lineBuffer, u8* depthBuffer, u32 scanline, bool dr
 
 void PPU::drawWindow(u16* lineBuffer, u8* depthBuffer, u32 scanline, bool drawingWindow) {
     if(drawingWindow) { // Window enabled
+        u8* sgbMap = this->gameboy->sgb->getGfxMap();
+
         bool tileSigned = !(this->lcdc & 0x10);
 
         // The y position (measured in tiles)
@@ -1251,7 +1245,7 @@ void PPU::drawWindow(u16* lineBuffer, u8* depthBuffer, u32 scanline, bool drawin
             // Mux the bits to for more logical pixels
             u32 pxData = BitStretchTable256[vRamB1] | (BitStretchTable256[vRamB2] << 1);
 
-            u8* subSgbMap = &this->gameboy->sgb->getGfxMap()[scanline / 8 * 20];
+            u8* subSgbMap = &sgbMap[scanline / 8 * 20];
             for(u32 x = 0; x < 16; x += 2, writeX++) {
                 if(writeX >= 160) {
                     continue;
@@ -1271,6 +1265,8 @@ void PPU::drawWindow(u16* lineBuffer, u8* depthBuffer, u32 scanline, bool drawin
 
 void PPU::drawSprites(u16* lineBuffer, u8* depthBuffer, u32 scanline) {
     if(this->lcdc & 0x2) { // Sprites enabled
+        u8* sgbMap = this->gameboy->sgb->getGfxMap();
+
         for(u32 sprite = 39; (int) sprite >= 0; sprite--) {
             // The sprite's number, times 4 (each uses 4 bytes)
             u32 spriteOffset = (u32) sprite * 4;
@@ -1334,7 +1330,7 @@ void PPU::drawSprites(u16* lineBuffer, u8* depthBuffer, u32 scanline) {
             // Calculate where to start to draw, negatives treated as unsigned for speed up
             u32 writeX = (u32) ((s32) (this->oam[spriteOffset + 1] - 8));
 
-            u8* subSgbMap = &this->gameboy->sgb->getGfxMap()[scanline / 8 * 20];
+            u8* subSgbMap = &sgbMap[scanline / 8 * 20];
             for(u32 x = 0; x < 16; x += 2, writeX++) {
                 if(writeX >= 160) {
                     continue;
