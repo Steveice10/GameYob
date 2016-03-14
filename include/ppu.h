@@ -22,7 +22,7 @@ public:
 
     void refreshGBPalette();
 
-    void drawScanline(int scanline);
+    void drawScanline(u32 scanline);
 
     inline u16* getBgPaletteData() {
         return this->bgPaletteData;
@@ -41,11 +41,11 @@ private:
 
     void mapBanks();
 
-    void drawStatic(u16* lineBuffer, u8* depthBuffer, int scanline);
-    void drawBackground(u16* lineBuffer, u8* depthBuffer, int scanline, int winX, int winY, bool drawingWindow, bool tileSigned);
-    void drawWindow(u16* lineBuffer, u8* depthBuffer, int scanline, int winX, int winY, bool drawingWindow, bool tileSigned);
+    void drawStatic(u16* lineBuffer, u8* depthBuffer, u32 scanline);
+    void drawBackground(u16* lineBuffer, u8* depthBuffer, u32 scanline, bool drawingWindow);
+    void drawWindow(u16* lineBuffer, u8* depthBuffer, u32 scanline, bool drawingWindow);
 
-    void drawSprites(u16* lineBuffer, u8* depthBuffer, int scanline);
+    void drawSprites(u16* lineBuffer, u8* depthBuffer, u32 scanline);
 
     Gameboy* gameboy;
 

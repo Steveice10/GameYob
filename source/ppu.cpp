@@ -1056,7 +1056,7 @@ void PPU::refreshGBPalette() {
     }
 }
 
-void PPU::drawScanline(int scanline) {
+void PPU::drawScanline(u32 scanline) {
     switch(this->gameboy->sgb->getGfxMask()) {
         case 0: {
             u16* lineBuffer = gfxGetLineBuffer(scanline);
@@ -1077,24 +1077,23 @@ void PPU::drawScanline(int scanline) {
     }
 }
 
-void PPU::drawStatic(u16* lineBuffer, u8* depthBuffer, int scanline) {
-    int winX = this->wx - 7;
-    int winY = this->wy;
-    bool drawingWindow = winY <= scanline && winY < 144 && winX >= 0 && winX < 160 && (this->lcdc & 0x20);
-    bool tileSigned = !(this->lcdc & 0x10);
+void PPU::drawStatic(u16* lineBuffer, u8* depthBuffer, u32 scanline) {
+    bool drawingWindow = this->wy <= scanline && this->wy < 144 && this->wx >= 7 && this->wx < 167 && (this->lcdc & 0x20);
 
-    drawBackground(lineBuffer, depthBuffer, scanline, winX, winY, drawingWindow, tileSigned);
-    drawWindow(lineBuffer, depthBuffer, scanline, winX, winY, drawingWindow, tileSigned);
+    drawBackground(lineBuffer, depthBuffer, scanline, drawingWindow);
+    drawWindow(lineBuffer, depthBuffer, scanline, drawingWindow);
 }
 
-void PPU::drawBackground(u16* lineBuffer, u8* depthBuffer, int scanline, int winX, int winY, bool drawingWindow, bool tileSigned) {
+void PPU::drawBackground(u16* lineBuffer, u8* depthBuffer, u32 scanline, bool drawingWindow) {
     if(this->gameboy->gbMode == MODE_CGB || (this->lcdc & 1) != 0) { // Background enabled
+        bool tileSigned = !(this->lcdc & 0x10);
+
         // The y position (measured in tiles)
-        int tileY = ((scanline + this->scy) & 0xFF) / 8;
-        int basePixelY = (scanline + this->scy) & 0x07;
+        u32 tileY = ((scanline + this->scy) & 0xFF) / 8;
+        u32 basePixelY = (scanline + this->scy) & 0x07;
 
         // Tile Map address plus row offset
-        int bgMapAddr = 0;
+        u32 bgMapAddr = 0;
         if(this->lcdc & 0x8) {
             bgMapAddr = 0x1C00 + (tileY * 32);
         } else {
@@ -1102,22 +1101,22 @@ void PPU::drawBackground(u16* lineBuffer, u8* depthBuffer, int scanline, int win
         }
 
         // Number of tiles to draw in a row
-        int numTilesX = 20;
+        u32 numTilesX = 20;
         if(drawingWindow) {
-            numTilesX = (winX + 7) / 8;
+            numTilesX = (u32) (this->wx / 8);
         }
 
         // Tiles to draw
-        int startTile = this->scx / 8;
-        int endTile = (startTile + numTilesX + 1) & 31;
+        u32 startTile = (u32) (this->scx / 8);
+        u32 endTile = (startTile + numTilesX + 1) & 31;
 
         // Calculate lineBuffer Start, negatives treated as unsigned for speed up
         u8 writeX = (u8) (-(this->scx & 0x07));
-        for(int tile = startTile; tile != endTile; tile = (tile + 1) & 31) {
+        for(u32 tile = startTile; tile != endTile; tile = (tile + 1) & 31) {
             // The address (from beginning of gameboy->vram) of the tile's mapping
-            int mapAddr = bgMapAddr + tile;
+            u32 mapAddr = bgMapAddr + tile;
 
-            int pixelY = basePixelY;
+            u32 pixelY = basePixelY;
             u8 depth = 1;
             u32 paletteId = 0;
 
@@ -1125,7 +1124,7 @@ void PPU::drawBackground(u16* lineBuffer, u8* depthBuffer, int scanline, int win
             u32 vRamB2 = 0;
 
             // This is the tile id.
-            int tileNum = this->vram[0][mapAddr];
+            u32 tileNum = this->vram[0][mapAddr];
             if(tileSigned) {
                 tileNum = ((s8) tileNum) + 256;
             }
@@ -1164,7 +1163,7 @@ void PPU::drawBackground(u16* lineBuffer, u8* depthBuffer, int scanline, int win
             u32 pxData = BitStretchTable256[vRamB1] | (BitStretchTable256[vRamB2] << 1);
 
             u8* subSgbMap = &this->gameboy->sgb->getGfxMap()[scanline / 8 * 20];
-            for(int x = 0; x < 16; x += 2, writeX++) {
+            for(u32 x = 0; x < 16; x += 2, writeX++) {
                 if(writeX >= 160) {
                     continue;
                 }
@@ -1181,14 +1180,16 @@ void PPU::drawBackground(u16* lineBuffer, u8* depthBuffer, int scanline, int win
     }
 }
 
-void PPU::drawWindow(u16* lineBuffer, u8* depthBuffer, int scanline, int winX, int winY, bool drawingWindow, bool tileSigned) {
+void PPU::drawWindow(u16* lineBuffer, u8* depthBuffer, u32 scanline, bool drawingWindow) {
     if(drawingWindow) { // Window enabled
+        bool tileSigned = !(this->lcdc & 0x10);
+
         // The y position (measured in tiles)
-        int tileY = (scanline - winY) / 8;
-        int basePixelY = (scanline - winY) & 0x07;
+        u32 tileY = (scanline - this->wy) / 8;
+        u32 basePixelY = (scanline - this->wy) & 0x07;
 
         // Tile Map address plus row offset
-        int winMapAddr = 0;
+        u32 winMapAddr = 0;
         if(this->lcdc & 0x40) {
             winMapAddr = 0x1C00 + (tileY * 32);
         } else {
@@ -1196,15 +1197,15 @@ void PPU::drawWindow(u16* lineBuffer, u8* depthBuffer, int scanline, int winX, i
         }
 
         // Tiles to draw
-        int endTile = 21 - winX / 8;
+        u32 endTile = (u32) (21 - (this->wx - 7) / 8);
 
         // Calculate lineBuffer Start, negatives treated as unsigned for speed up
-        u32 writeX = (u32) winX;
-        for(int tile = 0; tile < endTile; tile++) {
+        u32 writeX = (u32) (this->wx - 7);
+        for(u32 tile = 0; tile < endTile; tile++) {
             // The address (from beginning of gameboy->vram) of the tile's mapping
-            int mapAddr = winMapAddr + tile;
+            u32 mapAddr = winMapAddr + tile;
 
-            int pixelY = basePixelY;
+            u32 pixelY = basePixelY;
             u8 depth = 1;
             u32 paletteId = 0;
 
@@ -1212,7 +1213,7 @@ void PPU::drawWindow(u16* lineBuffer, u8* depthBuffer, int scanline, int winX, i
             u32 vRamB2 = 0;
 
             // This is the tile id.
-            int tileNum = this->vram[0][mapAddr];
+            u32 tileNum = this->vram[0][mapAddr];
             if(tileSigned) {
                 tileNum = ((s8) tileNum) + 256;
             }
@@ -1251,7 +1252,7 @@ void PPU::drawWindow(u16* lineBuffer, u8* depthBuffer, int scanline, int winX, i
             u32 pxData = BitStretchTable256[vRamB1] | (BitStretchTable256[vRamB2] << 1);
 
             u8* subSgbMap = &this->gameboy->sgb->getGfxMap()[scanline / 8 * 20];
-            for(int x = 0; x < 16; x += 2, writeX++) {
+            for(u32 x = 0; x < 16; x += 2, writeX++) {
                 if(writeX >= 160) {
                     continue;
                 }
@@ -1268,23 +1269,23 @@ void PPU::drawWindow(u16* lineBuffer, u8* depthBuffer, int scanline, int winX, i
     }
 }
 
-void PPU::drawSprites(u16* lineBuffer, u8* depthBuffer, int scanline) {
+void PPU::drawSprites(u16* lineBuffer, u8* depthBuffer, u32 scanline) {
     if(this->lcdc & 0x2) { // Sprites enabled
-        for(int sprite = 39; sprite >= 0; sprite--) {
+        for(u32 sprite = 39; (int) sprite >= 0; sprite--) {
             // The sprite's number, times 4 (each uses 4 bytes)
-            int spriteOffset = sprite * 4;
+            u32 spriteOffset = (u32) sprite * 4;
 
-            int y = this->oam[spriteOffset] - 16;
-            int height = (this->lcdc & 0x4) ? 16 : 8;
+            u32 y = this->oam[spriteOffset];
+            u32 height = (this->lcdc & 0x4) ? 16 : 8;
 
             // Clip Sprite to or bottom
-            if(scanline < y || scanline >= y + height) {
+            if(scanline + 16 < y || scanline + 16 >= y + height) {
                 continue;
             }
 
             // Setup Tile Info
-            int tileNum = this->oam[spriteOffset + 2];
-            u32 flag =this-> oam[spriteOffset + 3];
+            u32 tileNum = this->oam[spriteOffset + 2];
+            u32 flag = this->oam[spriteOffset + 3];
             u32 bank = 0;
             u32 paletteId = 0;
             if(this->gameboy->gbMode == MODE_CGB) {
@@ -1297,13 +1298,13 @@ void PPU::drawSprites(u16* lineBuffer, u8* depthBuffer, int scanline) {
             // Select tile base on tile Y offset
             if(height == 16) {
                 tileNum &= ~1;
-                if(scanline - y >= 8) {
+                if(scanline - y + 16 >= 8) {
                     tileNum++;
                 }
             }
 
             // This is the tile's Y position to be read (0-7)
-            int pixelY = (scanline - y) & 0x07;
+            u32 pixelY = (scanline - y + 16) & 0x07;
             if(flag & FLIP_Y) {
                 pixelY = 7 - pixelY;
                 if(height == 16) {
@@ -1334,7 +1335,7 @@ void PPU::drawSprites(u16* lineBuffer, u8* depthBuffer, int scanline) {
             u32 writeX = (u32) ((s32) (this->oam[spriteOffset + 1] - 8));
 
             u8* subSgbMap = &this->gameboy->sgb->getGfxMap()[scanline / 8 * 20];
-            for(int x = 0; x < 16; x += 2, writeX++) {
+            for(u32 x = 0; x < 16; x += 2, writeX++) {
                 if(writeX >= 160) {
                     continue;
                 }

@@ -147,7 +147,7 @@ void gfxLoadBorder(u8* imgData, u32 imgWidth, u32 imgHeight) {
     borderChanged = true;
 }
 
-u16* gfxGetLineBuffer(int line) {
+u16* gfxGetLineBuffer(u32 line) {
     return screenBuffer + line * 256;
 }
 
@@ -161,7 +161,7 @@ void gfxClearScreenBuffer(u16 rgba5551) {
     }
 }
 
-void gfxClearLineBuffer(int line, u16 rgba5551) {
+void gfxClearLineBuffer(u32 line, u16 rgba5551) {
     u16* lineBuffer = gfxGetLineBuffer(line);
     if(((rgba5551 >> 8) & 0xFF) == (rgba5551 & 0xFF)) {
         memset(lineBuffer, rgba5551 & 0xFF, 256 * sizeof(u16));
