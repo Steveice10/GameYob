@@ -190,10 +190,9 @@ void CPU::runInstruction() {
 
 #define FLAG_SET(f, x) (this->registers.af.b.l ^= (-(x) ^ this->registers.af.b.l) & (f))
 
-#define READPC8() ({                                       \
-    u8 b = this->gameboy->mmu->read(this->registers.pc.w); \
-    this->registers.pc.w++;                                \
-    b;                                                     \
+#define READPC8() ({                                         \
+    u8 b = this->gameboy->mmu->read(this->registers.pc.w++); \
+    b;                                                       \
 })
 
 #define READPC16() (READPC8() | (READPC8() << 8))
