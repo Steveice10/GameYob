@@ -20,35 +20,29 @@ Timer::Timer(Gameboy* gameboy) {
 void Timer::reset() {
     this->lastDividerCycle = 0;
     this->lastTimerCycle = 0;
-    this->timerCatchUpCycles = 0;
 
-    this->dividerCounter = 0;
-    this->timerEnabled = false;
-    this->timerPeriod = 0;
-    this->timerCounter = 0;
-    this->timerModulo = 0;
+    this->div = 0;
+    this->tac = 0;
+    this->tima = 0;
+    this->tma = 0;
 }
 
 void Timer::loadState(FILE* file, int version) {
     fread(&this->lastDividerCycle, 1, sizeof(this->lastDividerCycle), file);
     fread(&this->lastTimerCycle, 1, sizeof(this->lastTimerCycle), file);
-    fread(&this->timerCatchUpCycles, 1, sizeof(this->timerCatchUpCycles), file);
-    fread(&this->dividerCounter, 1, sizeof(this->dividerCounter), file);
-    fread(&this->timerEnabled, 1, sizeof(this->timerEnabled), file);
-    fread(&this->timerPeriod, 1, sizeof(this->timerPeriod), file);
-    fread(&this->timerCounter, 1, sizeof(this->timerCounter), file);
-    fread(&this->timerModulo, 1, sizeof(this->timerModulo), file);
+    fread(&this->div, 1, sizeof(this->div), file);
+    fread(&this->tac, 1, sizeof(this->tac), file);
+    fread(&this->tima, 1, sizeof(this->tima), file);
+    fread(&this->tma, 1, sizeof(this->tma), file);
 }
 
 void Timer::saveState(FILE* file) {
     fwrite(&this->lastDividerCycle, 1, sizeof(this->lastDividerCycle), file);
     fwrite(&this->lastTimerCycle, 1, sizeof(this->lastTimerCycle), file);
-    fwrite(&this->timerCatchUpCycles, 1, sizeof(this->timerCatchUpCycles), file);
-    fwrite(&this->dividerCounter, 1, sizeof(this->dividerCounter), file);
-    fwrite(&this->timerEnabled, 1, sizeof(this->timerEnabled), file);
-    fwrite(&this->timerPeriod, 1, sizeof(this->timerPeriod), file);
-    fwrite(&this->timerCounter, 1, sizeof(this->timerCounter), file);
-    fwrite(&this->timerModulo, 1, sizeof(this->timerModulo), file);
+    fwrite(&this->div, 1, sizeof(this->div), file);
+    fwrite(&this->tac, 1, sizeof(this->tac), file);
+    fwrite(&this->tima, 1, sizeof(this->tima), file);
+    fwrite(&this->tma, 1, sizeof(this->tma), file);
 }
 
 void Timer::update() {
@@ -59,82 +53,66 @@ void Timer::update() {
 void Timer::updateDivider() {
     if(this->gameboy->cpu->getCycle() > this->lastDividerCycle) {
         u32 add = (u32) (this->gameboy->cpu->getCycle() - this->lastDividerCycle) / 256;
-        this->dividerCounter = (u8) ((this->dividerCounter + add) & 0xFF);
+        this->div = (u8) ((this->div + add) & 0xFF);
         this->lastDividerCycle += add * 256;
     }
 }
 
 void Timer::updateTimer() {
-    if(this->timerEnabled) {
-        u32 period = timerPeriods[this->timerPeriod];
+    if((this->tac & 0x4) != 0) {
+        u32 period = timerPeriods[this->tac & 0x3];
 
         if(this->gameboy->cpu->getCycle() >= this->lastTimerCycle + period) {
             u32 add = (u32) (this->gameboy->cpu->getCycle() - this->lastTimerCycle) / period;
-            u32 counter = this->timerCounter + add;
+            u32 counter = this->tima + add;
             if(counter >= 0x100) {
                 while(counter >= 0x100) {
-                    counter = this->timerModulo + (counter - 0x100);
+                    counter = this->tma + (counter - 0x100);
                 }
 
                 this->gameboy->cpu->requestInterrupt(INT_TIMER);
             }
 
-            this->timerCounter = (u8) counter;
+            this->tima = (u8) counter;
             this->lastTimerCycle += add * period;
         }
 
-        this->gameboy->cpu->setEventCycle(this->lastTimerCycle + (period * (0x100 - this->timerCounter)));
+        this->gameboy->cpu->setEventCycle(this->lastTimerCycle + (period * (0x100 - this->tima)));
     }
 }
 
 u8 Timer::read(u16 addr) {
+    this->update();
     switch(addr) {
         case DIV:
-            this->updateDivider();
-            return this->dividerCounter;
+            return this->div;
         case TIMA:
-            this->updateTimer();
-            return this->timerCounter;
+            return this->tima;
         case TMA:
-            return this->timerModulo;
+            return this->tma;
         case TAC:
-            return (u8) ((this->timerPeriod & 0x3) | ((this->timerEnabled & 0x1) << 2));
+            return this->tac;
         default:
             return 0;
     }
 }
 
 void Timer::write(u16 addr, u8 val) {
+    this->update();
     switch(addr) {
         case DIV:
-            this->updateDivider();
-            this->dividerCounter = 0;
+            this->div = 0;
             break;
         case TIMA:
-            this->updateTimer();
-            this->timerCounter = val;
+            this->tima = val;
             break;
         case TMA:
-            this->timerModulo = val;
+            this->tma = val;
             break;
-        case TAC: {
-            this->updateTimer();
-
-            bool wasEnabled = this->timerEnabled;
-
-            this->timerPeriod = (u8) (val & 0x3);
-            this->timerEnabled = (bool) ((val >> 2) & 0x1);
-
-            if(!this->timerEnabled && wasEnabled) {
-                this->timerCatchUpCycles = (u32) (this->gameboy->cpu->getCycle() - this->lastTimerCycle);
-            } else if(this->timerEnabled && !wasEnabled) {
-                this->lastTimerCycle = this->gameboy->cpu->getCycle() + this->timerCatchUpCycles;
-                this->timerCatchUpCycles = 0;
-            }
-
-            this->updateTimer();
+        case TAC:
+            this->tac = val;
+            this->lastTimerCycle = this->gameboy->cpu->getCycle() - (this->gameboy->cpu->getCycle() % timerPeriods[this->tac & 0x3]);
             break;
-        }
         default:
             break;
     }

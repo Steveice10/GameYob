@@ -25,11 +25,9 @@ private:
 
     u64 lastDividerCycle;
     u64 lastTimerCycle;
-    u32 timerCatchUpCycles;
 
-    u8 dividerCounter;
-    bool timerEnabled;
-    u8 timerPeriod;
-    u8 timerCounter;
-    u8 timerModulo;
+    u8 div;
+    u8 tima;
+    u8 tma;
+    u8 tac;
 };

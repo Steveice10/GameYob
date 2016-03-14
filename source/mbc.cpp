@@ -402,7 +402,9 @@ void MBC::mapRamBank(int bank) {
 void MBC::mapBanks() {
     this->mapRomBank0(this->romBank0Num);
     this->mapRomBank1(this->romBank1Num);
-    this->mapRamBank(this->ramBankNum);
+    if(this->ramBanks > 0) {
+        this->mapRamBank(this->ramBankNum);
+    }
 
     if(this->readFunc != NULL) {
         this->gameboy->mmu->mapReadFunc(0xA, this, MBC::readEntry);
