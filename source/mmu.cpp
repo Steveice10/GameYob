@@ -211,6 +211,7 @@ void MMU::writeBankF(u16 addr, u8 val) {
             case NR12:
             case NR13:
             case NR14:
+            case NR20:
             case NR21:
             case NR22:
             case NR23:
@@ -220,6 +221,7 @@ void MMU::writeBankF(u16 addr, u8 val) {
             case NR32:
             case NR33:
             case NR34:
+            case NR40:
             case NR41:
             case NR42:
             case NR43:
