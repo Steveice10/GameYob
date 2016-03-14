@@ -41,10 +41,8 @@ private:
 
     void mapBanks();
 
-    void drawStatic(u16* lineBuffer, u8* depthBuffer, u32 scanline);
-    void drawBackground(u16* lineBuffer, u8* depthBuffer, u32 scanline, bool drawingWindow);
-    void drawWindow(u16* lineBuffer, u8* depthBuffer, u32 scanline, bool drawingWindow);
-
+    void drawBackground(u16* lineBuffer, u8* depthBuffer, u32 scanline);
+    void drawWindow(u16* lineBuffer, u8* depthBuffer, u32 scanline);
     void drawSprites(u16* lineBuffer, u8* depthBuffer, u32 scanline);
 
     Gameboy* gameboy;

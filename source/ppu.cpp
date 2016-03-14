@@ -1052,8 +1052,9 @@ void PPU::drawScanline(u32 scanline) {
             u16* lineBuffer = gfxGetLineBuffer(scanline);
             u8 depthBuffer[256] = {0};
 
-            drawStatic(lineBuffer, depthBuffer, scanline);
-            drawSprites(lineBuffer, depthBuffer, scanline);
+            this->drawBackground(lineBuffer, depthBuffer, scanline);
+            this->drawWindow(lineBuffer, depthBuffer, scanline);
+            this->drawSprites(lineBuffer, depthBuffer, scanline);
             break;
         }
         case 2:
@@ -1067,14 +1068,7 @@ void PPU::drawScanline(u32 scanline) {
     }
 }
 
-void PPU::drawStatic(u16* lineBuffer, u8* depthBuffer, u32 scanline) {
-    bool drawingWindow = this->wy <= scanline && this->wy < 144 && this->wx >= 7 && this->wx < 167 && (this->lcdc & 0x20);
-
-    drawBackground(lineBuffer, depthBuffer, scanline, drawingWindow);
-    drawWindow(lineBuffer, depthBuffer, scanline, drawingWindow);
-}
-
-void PPU::drawBackground(u16* lineBuffer, u8* depthBuffer, u32 scanline, bool drawingWindow) {
+void PPU::drawBackground(u16* lineBuffer, u8* depthBuffer, u32 scanline) {
     if(this->gameboy->gbMode == MODE_CGB || (this->lcdc & 1) != 0) { // Background enabled
         u8* sgbMap = this->gameboy->sgb->getGfxMap();
 
@@ -1089,7 +1083,7 @@ void PPU::drawBackground(u16* lineBuffer, u8* depthBuffer, u32 scanline, bool dr
 
         // Number of tiles to draw in a row
         u32 numTilesX = 20;
-        if(drawingWindow) {
+        if(this->wy <= scanline && this->wy < 144 && this->wx >= 7 && this->wx < 167 && (this->lcdc & 0x20)) {
             numTilesX = (u32) (this->wx / 8);
         }
 
@@ -1167,8 +1161,8 @@ void PPU::drawBackground(u16* lineBuffer, u8* depthBuffer, u32 scanline, bool dr
     }
 }
 
-void PPU::drawWindow(u16* lineBuffer, u8* depthBuffer, u32 scanline, bool drawingWindow) {
-    if(drawingWindow) { // Window enabled
+void PPU::drawWindow(u16* lineBuffer, u8* depthBuffer, u32 scanline) {
+    if(this->wy <= scanline && this->wy < 144 && this->wx >= 7 && this->wx < 167 && (this->lcdc & 0x20)) { // Window enabled
         u8* sgbMap = this->gameboy->sgb->getGfxMap();
 
         bool tileSigned = !(this->lcdc & 0x10);
