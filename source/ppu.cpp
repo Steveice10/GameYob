@@ -1151,7 +1151,7 @@ void PPU::drawBackground(u16* lineBuffer, u8* depthBuffer, int scanline, int win
                 }
 
                 // Setup depth based on priority
-                if(flag & PRIORITY) {
+                if((flag & PRIORITY) && (this->lcdc & 1) != 0) {
                     depth = 3;
                 }
             } else {
@@ -1238,7 +1238,7 @@ void PPU::drawWindow(u16* lineBuffer, u8* depthBuffer, int scanline, int winX, i
                 }
 
                 // Setup depth based on priority
-                if(flag & PRIORITY) {
+                if((flag & PRIORITY) && (this->lcdc & 1) != 0) {
                     depth = 3;
                 }
             } else {
