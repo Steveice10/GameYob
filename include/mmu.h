@@ -17,6 +17,7 @@
 #define NR12 0xFF12
 #define NR13 0xFF13
 #define NR14 0xFF14
+#define NR20 0xFF15
 #define NR21 0xFF16
 #define NR22 0xFF17
 #define NR23 0xFF18
@@ -26,6 +27,7 @@
 #define NR32 0xFF1C
 #define NR33 0xFF1D
 #define NR34 0xFF1E
+#define NR40 0xFF1F
 #define NR41 0xFF20
 #define NR42 0xFF21
 #define NR43 0xFF22
