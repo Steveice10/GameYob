@@ -14,7 +14,7 @@
 
 #include <3ds.h>
 
-const char* dsKeyNames[NUM_BUTTONS] = {
+static const char* dsKeyNames[NUM_BUTTONS] = {
         "A",         // 0
         "B",         // 1
         "Select",    // 2
@@ -87,7 +87,7 @@ static KeyConfig defaultKeyConfig = {
         }
 };
 
-UIKey uiKeyMapping[NUM_BUTTONS] = {
+static UIKey uiKeyMapping[NUM_BUTTONS] = {
         UI_KEY_A,     // 0 = BUTTON_A
         UI_KEY_B,     // 1 = BUTTON_B
         UI_KEY_NONE,  // 2 = BUTTON_SELECT
@@ -122,13 +122,13 @@ UIKey uiKeyMapping[NUM_BUTTONS] = {
         UI_KEY_DOWN   // 31 = BUTTON_CPAD_DOWN
 };
 
-int funcKeyMapping[NUM_FUNC_KEYS];
+static int funcKeyMapping[NUM_FUNC_KEYS];
 
-bool forceReleased[NUM_FUNC_KEYS] = {false};
-bool uiForceReleased[NUM_BUTTONS] = {false};
+static bool forceReleased[NUM_FUNC_KEYS] = {false};
+static bool uiForceReleased[NUM_BUTTONS] = {false};
 
-u64 nextRepeat = 0;
-u64 nextUiRepeat = 0;
+static u64 nextRepeat = 0;
+static u64 nextUiRepeat = 0;
 
 extern void uiPushInput(UIKey key);
 

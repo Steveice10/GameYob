@@ -10,8 +10,8 @@
 
 WINDOW* window;
 
-TextColor textColor = TEXT_COLOR_NONE;
-bool highlighted = false;
+static TextColor textColor = TEXT_COLOR_NONE;
+static bool highlighted = false;
 
 void uiInit() {
     initscr();

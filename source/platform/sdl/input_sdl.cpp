@@ -13,13 +13,16 @@ static KeyConfig defaultKeyConfig = {
         {FUNC_KEY_NONE}
 };
 
-KeyConfig* currKeyConfig = &defaultKeyConfig;
+static KeyConfig* currKeyConfig = &defaultKeyConfig;
 
-bool pressed[NUM_BUTTONS] = {false};
-bool held[NUM_BUTTONS] = {false};
-bool forceReleased[NUM_FUNC_KEYS] = {false};
+static bool pressed[NUM_BUTTONS] = {false};
+static bool held[NUM_BUTTONS] = {false};
+static bool forceReleased[NUM_FUNC_KEYS] = {false};
 
-long nextRepeat = 0;
+static long nextRepeat = 0;
+
+static const Uint8* keyState = NULL;
+static int keyCount = 0;
 
 void inputInit() {
     defaultKeyConfig.funcKeys[SDL_SCANCODE_Z] = FUNC_KEY_A;
@@ -40,16 +43,16 @@ void inputInit() {
     defaultKeyConfig.funcKeys[SDL_SCANCODE_RCTRL] = FUNC_KEY_SCALE;
     defaultKeyConfig.funcKeys[SDL_SCANCODE_RALT] = FUNC_KEY_RESET;
     defaultKeyConfig.funcKeys[SDL_SCANCODE_BACKSPACE] = FUNC_KEY_SCREENSHOT;
+
+    keyState = SDL_GetKeyboardState(&keyCount);
 }
 
 void inputCleanup() {
 }
 
 void inputUpdate() {
-    int count = NUM_BUTTONS;
-    const Uint8* state = SDL_GetKeyboardState(&count);
-    for(int key = 0; key < NUM_BUTTONS; key++) {
-        if(state[key] == 1) {
+    for(int key = 0; key < keyCount; key++) {
+        if(keyState[key] == 1) {
             pressed[key] = !held[key];
             held[key] = true;
         } else {
@@ -60,8 +63,8 @@ void inputUpdate() {
 
     for(int key = 0; key < NUM_FUNC_KEYS; key++) {
         bool currPressed = false;
-        for(int i = 0; i < NUM_BUTTONS; i++) {
-            if((pressed[i] || held[i]) && key == currKeyConfig->funcKeys[i]) {
+        for(int i = 0; i < keyCount; i++) {
+            if(keyState[i] == 1 && key == currKeyConfig->funcKeys[i]) {
                 currPressed = true;
                 break;
             }

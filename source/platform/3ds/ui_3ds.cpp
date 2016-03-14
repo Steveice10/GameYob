@@ -12,15 +12,15 @@
 
 #include <3ds.h>
 
-gfxScreen_t currConsole;
+static gfxScreen_t currConsole;
 
-PrintConsole* topConsole;
-PrintConsole* bottomConsole;
+static PrintConsole* topConsole;
+static PrintConsole* bottomConsole;
 
-TextColor textColor;
-bool highlighted;
+static TextColor textColor;
+static bool highlighted;
 
-std::queue<UIKey> keyQueue;
+static std::queue<UIKey> keyQueue;
 
 void uiInit() {
     topConsole = (PrintConsole*) calloc(1, sizeof(PrintConsole));
