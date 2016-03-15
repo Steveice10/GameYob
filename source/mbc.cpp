@@ -333,17 +333,17 @@ void MBC::mapRomBank0(int bank) {
 
     u8* bankPtr = this->gameboy->romFile->getRomBank(bank);
     if(bankPtr != NULL) {
-        this->gameboy->mmu->mapBlock(0x0, bankPtr + 0x0000);
-        this->gameboy->mmu->mapBlock(0x1, bankPtr + 0x1000);
-        this->gameboy->mmu->mapBlock(0x2, bankPtr + 0x2000);
-        this->gameboy->mmu->mapBlock(0x3, bankPtr + 0x3000);
+        this->gameboy->mmu->mapBank(0x0, bankPtr + 0x0000);
+        this->gameboy->mmu->mapBank(0x1, bankPtr + 0x1000);
+        this->gameboy->mmu->mapBank(0x2, bankPtr + 0x2000);
+        this->gameboy->mmu->mapBank(0x3, bankPtr + 0x3000);
     } else {
         systemPrintDebug("Attempted to access invalid ROM bank: %d\n", bank);
 
-        this->gameboy->mmu->mapBlock(0x0, NULL);
-        this->gameboy->mmu->mapBlock(0x1, NULL);
-        this->gameboy->mmu->mapBlock(0x2, NULL);
-        this->gameboy->mmu->mapBlock(0x3, NULL);
+        this->gameboy->mmu->mapBank(0x0, NULL);
+        this->gameboy->mmu->mapBank(0x1, NULL);
+        this->gameboy->mmu->mapBank(0x2, NULL);
+        this->gameboy->mmu->mapBank(0x3, NULL);
     }
 
     if(this->gameboy->biosOn) {
@@ -358,7 +358,7 @@ void MBC::mapRomBank0(int bank) {
 
         memcpy(bios + 0x100, this->gameboy->romFile->getRomBank(0) + 0x100, 0x100);
 
-        this->gameboy->mmu->mapBlock(0x0, bios);
+        this->gameboy->mmu->mapBank(0x0, bios);
     }
 }
 
@@ -367,17 +367,17 @@ void MBC::mapRomBank1(int bank) {
 
     u8* bankPtr = this->gameboy->romFile->getRomBank(bank);
     if(bankPtr != NULL) {
-        this->gameboy->mmu->mapBlock(0x4, bankPtr + 0x0000);
-        this->gameboy->mmu->mapBlock(0x5, bankPtr + 0x1000);
-        this->gameboy->mmu->mapBlock(0x6, bankPtr + 0x2000);
-        this->gameboy->mmu->mapBlock(0x7, bankPtr + 0x3000);
+        this->gameboy->mmu->mapBank(0x4, bankPtr + 0x0000);
+        this->gameboy->mmu->mapBank(0x5, bankPtr + 0x1000);
+        this->gameboy->mmu->mapBank(0x6, bankPtr + 0x2000);
+        this->gameboy->mmu->mapBank(0x7, bankPtr + 0x3000);
     } else {
         systemPrintDebug("Attempted to access invalid ROM bank: %d\n", bank);
 
-        this->gameboy->mmu->mapBlock(0x4, NULL);
-        this->gameboy->mmu->mapBlock(0x5, NULL);
-        this->gameboy->mmu->mapBlock(0x6, NULL);
-        this->gameboy->mmu->mapBlock(0x7, NULL);
+        this->gameboy->mmu->mapBank(0x4, NULL);
+        this->gameboy->mmu->mapBank(0x5, NULL);
+        this->gameboy->mmu->mapBank(0x6, NULL);
+        this->gameboy->mmu->mapBank(0x7, NULL);
     }
 }
 
@@ -386,16 +386,16 @@ void MBC::mapRamBank(int bank) {
 
     u8* bankPtr = this->getRamBank(bank);
     if(bankPtr != NULL) {
-        this->gameboy->mmu->mapBlock(0xA, bankPtr + 0x0000);
-        this->gameboy->mmu->mapBlock(0xB, bankPtr + 0x1000);
+        this->gameboy->mmu->mapBank(0xA, bankPtr + 0x0000);
+        this->gameboy->mmu->mapBank(0xB, bankPtr + 0x1000);
     } else {
         // Only report if there's no chance it's a special bank number.
         if(this->readFunc == NULL) {
             systemPrintDebug("Attempted to access invalid RAM bank: %d\n", bank);
         }
 
-        this->gameboy->mmu->mapBlock(0xA, NULL);
-        this->gameboy->mmu->mapBlock(0xB, NULL);
+        this->gameboy->mmu->mapBank(0xA, NULL);
+        this->gameboy->mmu->mapBank(0xB, NULL);
     }
 }
 
@@ -407,38 +407,30 @@ void MBC::mapBanks() {
     }
 
     if(this->readFunc != NULL) {
-        this->gameboy->mmu->mapReadFunc(0xA, this, MBC::readEntry);
-        this->gameboy->mmu->mapReadFunc(0xB, this, MBC::readEntry);
+        auto read = [this](u16 addr) -> u8 {
+            return (this->*readFunc)(addr);
+        };
+
+        this->gameboy->mmu->mapBankReadFunc(0xA, read);
+        this->gameboy->mmu->mapBankReadFunc(0xB, read);
     }
 
     if(this->writeFunc != NULL) {
-        this->gameboy->mmu->mapWriteFunc(0x0, this, MBC::writeEntry);
-        this->gameboy->mmu->mapWriteFunc(0x1, this, MBC::writeEntry);
-        this->gameboy->mmu->mapWriteFunc(0x2, this, MBC::writeEntry);
-        this->gameboy->mmu->mapWriteFunc(0x3, this, MBC::writeEntry);
-        this->gameboy->mmu->mapWriteFunc(0x4, this, MBC::writeEntry);
-        this->gameboy->mmu->mapWriteFunc(0x5, this, MBC::writeEntry);
-        this->gameboy->mmu->mapWriteFunc(0x6, this, MBC::writeEntry);
-        this->gameboy->mmu->mapWriteFunc(0x7, this, MBC::writeEntry);
-        this->gameboy->mmu->mapWriteFunc(0xA, this, MBC::writeEntry);
-        this->gameboy->mmu->mapWriteFunc(0xB, this, MBC::writeEntry);
+        auto write = [this](u16 addr, u8 val) -> void {
+            (this->*writeFunc)(addr, val);
+        };
+
+        this->gameboy->mmu->mapBankWriteFunc(0x0, write);
+        this->gameboy->mmu->mapBankWriteFunc(0x1, write);
+        this->gameboy->mmu->mapBankWriteFunc(0x2, write);
+        this->gameboy->mmu->mapBankWriteFunc(0x3, write);
+        this->gameboy->mmu->mapBankWriteFunc(0x4, write);
+        this->gameboy->mmu->mapBankWriteFunc(0x5, write);
+        this->gameboy->mmu->mapBankWriteFunc(0x6, write);
+        this->gameboy->mmu->mapBankWriteFunc(0x7, write);
+        this->gameboy->mmu->mapBankWriteFunc(0xA, write);
+        this->gameboy->mmu->mapBankWriteFunc(0xB, write);
     }
-}
-
-u8 MBC::read(u16 addr) {
-    return (this->*readFunc)(addr);
-}
-
-void MBC::write(u16 addr, u8 val) {
-    (this->*writeFunc)(addr, val);
-}
-
-u8 MBC::readEntry(void* data, u16 addr) {
-    return ((MBC*) data)->read(addr);
-}
-
-void MBC::writeEntry(void* data, u16 addr, u8 val) {
-    ((MBC*) data)->write(addr, val);
 }
 
 /* MBC read handlers */

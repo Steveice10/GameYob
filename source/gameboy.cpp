@@ -6,7 +6,6 @@
 #include "apu.h"
 #include "cpu.h"
 #include "gameboy.h"
-#include "ir.h"
 #include "mbc.h"
 #include "mmu.h"
 #include "printer.h"
@@ -29,7 +28,6 @@ Gameboy::Gameboy() {
     this->sgb = new SGB(this);
     this->mbc = new MBC(this);
     this->serial = new Serial(this);
-    this->ir = new IR(this);
 }
 
 Gameboy::~Gameboy() {
@@ -43,7 +41,6 @@ Gameboy::~Gameboy() {
     delete this->apu;
     delete this->sgb;
     delete this->serial;
-    delete this->ir;
 }
 
 void Gameboy::reset(bool allowBios) {
@@ -88,7 +85,6 @@ void Gameboy::reset(bool allowBios) {
     this->sgb->reset();
     this->mbc->reset();
     this->serial->reset();
-    this->ir->reset();
 }
 
 bool Gameboy::loadState(FILE* file) {
@@ -114,7 +110,6 @@ bool Gameboy::loadState(FILE* file) {
     this->sgb->loadState(file, version);
     this->mbc->loadState(file, version);
     this->serial->loadState(file, version);
-    this->ir->loadState(file, version);
 
     if(this->biosOn && ((this->gbMode == MODE_GB && !gbBiosLoaded) || (this->gbMode == MODE_CGB && !gbcBiosLoaded))) {
         this->biosOn = false;
@@ -141,7 +136,6 @@ bool Gameboy::saveState(FILE* file) {
     this->sgb->saveState(file);
     this->mbc->saveState(file);
     this->serial->saveState(file);
-    this->ir->saveState(file);
 
     return true;
 }

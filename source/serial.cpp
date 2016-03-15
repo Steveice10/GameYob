@@ -24,17 +24,30 @@ void Serial::reset() {
     this->nextSerialInternalCycle = 0;
     this->nextSerialExternalCycle = 0;
 
-    this->sb = 0;
-    this->sc = 0;
-
     this->printer->reset();
+
+    this->gameboy->mmu->mapIOWriteFunc(SC, [this](u16 addr, u8 val) -> u8 {
+        if((val & 0x81) == 0x81) { // Internal clock
+            if(this->nextSerialInternalCycle == 0) {
+                if(this->gameboy->gbMode == MODE_CGB && (val & 0x02)) {
+                    this->nextSerialInternalCycle = this->gameboy->cpu->getCycle() + CYCLES_PER_SECOND / (1024 * 32);
+                } else {
+                    this->nextSerialInternalCycle = this->gameboy->cpu->getCycle() + CYCLES_PER_SECOND / 1024;
+                }
+
+                this->gameboy->cpu->setEventCycle(this->nextSerialInternalCycle);
+            }
+        } else {
+            this->nextSerialInternalCycle = 0;
+        }
+
+        return val;
+    });
 }
 
 void Serial::loadState(FILE* file, int version) {
     fread(&this->nextSerialInternalCycle, 1, sizeof(this->nextSerialInternalCycle), file);
     fread(&this->nextSerialExternalCycle, 1, sizeof(this->nextSerialExternalCycle), file);
-    fread(&this->sb, 1, sizeof(this->sb), file);
-    fread(&this->sc, 1, sizeof(this->sc), file);
 
     this->printer->loadState(file, version);
 }
@@ -42,8 +55,6 @@ void Serial::loadState(FILE* file, int version) {
 void Serial::saveState(FILE* file) {
     fwrite(&this->nextSerialInternalCycle, 1, sizeof(this->nextSerialInternalCycle), file);
     fwrite(&this->nextSerialExternalCycle, 1, sizeof(this->nextSerialExternalCycle), file);
-    fwrite(&this->sb, 1, sizeof(this->sb), file);
-    fwrite(&this->sc, 1, sizeof(this->sc), file);
 
     this->printer->saveState(file);
 }
@@ -54,14 +65,16 @@ int Serial::update() {
     // For external clock
     if(this->nextSerialExternalCycle > 0) {
         if(this->gameboy->cpu->getCycle() >= this->nextSerialExternalCycle) {
+            u8 sc = this->gameboy->mmu->readIO(SC);
+
             this->nextSerialExternalCycle = 0;
-            if((this->sc & 0x81) == 0x80) {
+            if((sc & 0x81) == 0x80) {
                 ret |= RET_LINK;
             }
 
-            if(this->sc & 0x80) {
+            if(sc & 0x80) {
                 this->gameboy->cpu->requestInterrupt(INT_SERIAL);
-                this->sc &= ~0x80;
+                this->gameboy->mmu->writeIO(SC, (u8) (sc & ~0x80));
             }
         } else {
             this->gameboy->cpu->setEventCycle(this->nextSerialExternalCycle);
@@ -73,9 +86,9 @@ int Serial::update() {
         if(this->gameboy->cpu->getCycle() >= this->nextSerialInternalCycle) {
             this->nextSerialInternalCycle = 0;
             if(printerEnabled && this->gameboy->romFile->getRomTitle().compare("ALLEY WAY") != 0) { // Alleyway breaks when the printer is enabled, so force disable it.
-                this->sb = this->printer->link(this->sb);
+                this->gameboy->mmu->writeIO(SB, this->printer->link(this->gameboy->mmu->readIO(SB)));
             } else {
-                this->sb = 0xFF;
+                this->gameboy->mmu->writeIO(SB, 0xFF);
             }
 
             this->gameboy->cpu->requestInterrupt(INT_SERIAL);
@@ -89,42 +102,4 @@ int Serial::update() {
     }
 
     return ret;
-}
-
-u8 Serial::read(u16 addr) {
-    switch(addr) {
-        case SB:
-            return this->sb;
-        case SC:
-            return this->sc;
-        default:
-            return 0;
-    }
-}
-
-void Serial::write(u16 addr, u8 val) {
-    switch(addr) {
-        case SB:
-            this->sb = val;
-            break;
-        case SC:
-            this->sc = val;
-            if((val & 0x81) == 0x81) { // Internal clock
-                if(this->nextSerialInternalCycle == 0) {
-                    if(this->gameboy->gbMode == MODE_CGB && (val & 0x02)) {
-                        this->nextSerialInternalCycle = this->gameboy->cpu->getCycle() + CYCLES_PER_SECOND / (1024 * 32);
-                    } else {
-                        this->nextSerialInternalCycle = this->gameboy->cpu->getCycle() + CYCLES_PER_SECOND / 1024;
-                    }
-
-                    this->gameboy->cpu->setEventCycle(this->nextSerialInternalCycle);
-                }
-            } else {
-                this->nextSerialInternalCycle = 0;
-            }
-
-            break;
-        default:
-            break;
-    }
 }

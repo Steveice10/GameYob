@@ -15,8 +15,6 @@ SGB::SGB(Gameboy* gameboy) {
 }
 
 void SGB::reset() {
-    this->p1 = 0;
-
     this->packetLength = 0;
     this->packetsTransferred = 0;
     this->packetBit = -1;
@@ -32,11 +30,100 @@ void SGB::reset() {
     memset(this->map, 0, sizeof(this->map));
     memset(this->packet, 0, sizeof(this->packet));
     memset(&this->cmdData, 0, sizeof(this->cmdData));
+
+    this->gameboy->mmu->mapIOReadFunc(JOYP, [this](u16 addr, u8 val) -> u8 {
+        if(this->gameboy->gbMode == MODE_SGB && (val & 0x30) == 0x30) {
+            return (u8) (0xFF - this->selectedController);
+        }
+
+        if(!(val & 0x20)) {
+            return (u8) (0xC0 | (val & 0xF0) | (this->controllers[this->selectedController] & 0xF));
+        } else if(!(val & 0x10)) {
+            return (u8) (0xC0 | (val & 0xF0) | ((this->controllers[this->selectedController] & 0xF0) >> 4));
+        } else {
+            return (u8) (val | 0xCF);
+        }
+    });
+
+    this->gameboy->mmu->mapIOWriteFunc(JOYP, [this](u16 addr, u8 val) -> u8 {
+        if(this->gameboy->gbMode != MODE_SGB) {
+            return val;
+        }
+
+        if((val & 0x30) == 0) {
+            // Start packet transfer
+            this->packetBit = 0;
+            return 0xCF;
+        }
+
+        if(this->packetBit != -1) {
+            int shift = this->packetBit % 8;
+            int byte = (this->packetBit / 8) % 16;
+            if(shift == 0) {
+                this->packet[byte] = 0;
+            }
+
+            int bit;
+            if((this->gameboy->mmu->readIO(JOYP) & 0x30) == 0 && (val & 0x30) != 0x30) { // A bit of speculation here. Fixes Castlevania.
+                this->packetBit = -1;
+                return val;
+            }
+
+            if(!(val & 0x10)) {
+                bit = 0;
+            } else if(!(val & 0x20)) {
+                bit = 1;
+            } else {
+                return val;
+            }
+
+            this->packet[byte] |= bit << shift;
+            this->packetBit++;
+            if(this->packetBit == 128) {
+                if(this->packetsTransferred == 0) {
+                    this->command = this->packet[0] >> 3;
+                    this->packetLength = this->packet[0] & 7;
+                }
+
+                if(this->sgbCommands[this->command] != 0) {
+                    (this->*sgbCommands[this->command])(this->packetsTransferred);
+                }
+
+                this->packetBit = -1;
+                this->packetsTransferred++;
+                if(this->packetsTransferred == this->packetLength) {
+                    this->packetLength = 0;
+                    this->packetsTransferred = 0;
+                }
+            }
+
+            return val;
+        } else {
+            if((val & 0x30) == 0x30) {
+                if(this->buttonsChecked == 3) {
+                    this->selectedController++;
+                    if(this->selectedController >= this->numControllers) {
+                        this->selectedController = 0;
+                    }
+
+                    this->buttonsChecked = 0;
+                }
+
+                return (u8) (0xFF - this->selectedController);
+            } else {
+                if((val & 0x30) == 0x10) {
+                    this->buttonsChecked |= 1;
+                } else if((val & 0x30) == 0x20) {
+                    this->buttonsChecked |= 2;
+                }
+
+                return (u8) (val | 0xCF);
+            }
+        }
+    });
 }
 
 void SGB::loadState(FILE* file, int version) {
-    fread(&this->p1, 1, sizeof(this->p1), file);
-
     fread(&this->packetLength, 1, sizeof(this->packetLength), file);
     fread(&this->packetsTransferred, 1, sizeof(this->packetsTransferred), file);
     fread(&this->packetBit, 1, sizeof(this->packetBit), file);
@@ -55,8 +142,6 @@ void SGB::loadState(FILE* file, int version) {
 }
 
 void SGB::saveState(FILE* file) {
-    fwrite(&this->p1, 1, sizeof(this->p1), file);
-
     fwrite(&this->packetLength, 1, sizeof(this->packetLength), file);
     fwrite(&this->packetsTransferred, 1, sizeof(this->packetsTransferred), file);
     fwrite(&this->packetBit, 1, sizeof(this->packetBit), file);
@@ -75,123 +160,15 @@ void SGB::saveState(FILE* file) {
 }
 
 void SGB::update() {
-    if(!(this->p1 & 0x10)) {
+    u8 joyp = this->gameboy->mmu->readIO(JOYP);
+    if(!(joyp & 0x10)) {
         if((this->controllers[0] & 0xf0) != 0xf0) {
             this->gameboy->cpu->requestInterrupt(INT_JOYPAD);
         }
-    } else if(!(this->p1 & 0x20)) {
+    } else if(!(joyp & 0x20)) {
         if((this->controllers[0] & 0x0f) != 0x0f) {
             this->gameboy->cpu->requestInterrupt(INT_JOYPAD);
         }
-    }
-}
-
-u8 SGB::read(u16 addr) {
-    switch(addr) {
-        case 0xFF00: {
-            u8 p1 = this->p1;
-
-            if(this->gameboy->gbMode == MODE_SGB && (p1 & 0x30) == 0x30) {
-                return (u8) (0xFF - this->selectedController);
-            }
-
-            if(!(p1 & 0x20)) {
-                return (u8) (0xC0 | (p1 & 0xF0) | (this->controllers[this->selectedController] & 0xF));
-            } else if(!(p1 & 0x10)) {
-                return (u8) (0xC0 | (p1 & 0xF0) | ((this->controllers[this->selectedController] & 0xF0) >> 4));
-            } else {
-                return (u8) (p1 | 0xCF);
-            }
-        }
-        default:
-            return 0;
-    }
-}
-
-void SGB::write(u16 addr, u8 val) {
-    switch(addr) {
-        case 0xFF00: {
-            if(this->gameboy->gbMode != MODE_SGB) {
-                this->p1 = val;
-                return;
-            }
-
-            if((val & 0x30) == 0) {
-                // Start packet transfer
-                this->packetBit = 0;
-                this->p1 = 0xCF;
-                return;
-            }
-
-            if(this->packetBit != -1) {
-                u8 oldVal = this->p1;
-                this->p1 = val;
-
-                int shift = this->packetBit % 8;
-                int byte = (this->packetBit / 8) % 16;
-                if(shift == 0) {
-                    this->packet[byte] = 0;
-                }
-
-                int bit;
-                if((oldVal & 0x30) == 0 && (val & 0x30) != 0x30) { // A bit of speculation here. Fixes Castlevania.
-                    this->packetBit = -1;
-                    return;
-                }
-
-                if(!(val & 0x10)) {
-                    bit = 0;
-                } else if(!(val & 0x20)) {
-                    bit = 1;
-                } else {
-                    return;
-                }
-
-                this->packet[byte] |= bit << shift;
-                this->packetBit++;
-                if(this->packetBit == 128) {
-                    if(this->packetsTransferred == 0) {
-                        this->command = this->packet[0] >> 3;
-                        this->packetLength = this->packet[0] & 7;
-                    }
-
-                    if(this->sgbCommands[this->command] != 0) {
-                        (this->*sgbCommands[this->command])(this->packetsTransferred);
-                    }
-
-                    this->packetBit = -1;
-                    this->packetsTransferred++;
-                    if(this->packetsTransferred == this->packetLength) {
-                        this->packetLength = 0;
-                        this->packetsTransferred = 0;
-                    }
-                }
-            } else {
-                if((val & 0x30) == 0x30) {
-                    if(this->buttonsChecked == 3) {
-                        this->selectedController++;
-                        if(this->selectedController >= this->numControllers) {
-                            this->selectedController = 0;
-                        }
-
-                        this->buttonsChecked = 0;
-                    }
-
-                    this->p1 = (u8) (0xFF - this->selectedController);
-                } else {
-                    this->p1 = (u8) (val | 0xCF);
-                    if((val & 0x30) == 0x10) {
-                        this->buttonsChecked |= 1;
-                    } else if((val & 0x30) == 0x20) {
-                        this->buttonsChecked |= 2;
-                    }
-                }
-            }
-
-            break;
-        }
-        default:
-            break;
     }
 }
 

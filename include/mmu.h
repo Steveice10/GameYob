@@ -2,6 +2,8 @@
 
 #include <stdio.h>
 
+#include <functional>
+
 #include "types.h"
 
 #define JOYP 0xFF00
@@ -99,37 +101,34 @@ public:
     u8 read(u16 addr);
     void write(u16 addr, u8 val);
 
-    void mapBlock(u8 bank, u8* block);
-    void mapReadFunc(u8 bank, void* data, u8 (*readFunc)(void* data, u16 addr));
-    void mapWriteFunc(u8 bank, void* data, void (*writeFunc)(void* data, u16 addr, u8 val));
-    void unmap(u8 bank);
+    void mapBank(u8 bank, u8* block);
+    void mapBankReadFunc(u8 bank, std::function<u8(u16 addr)> readFunc);
+    void mapBankWriteFunc(u8 bank, std::function<void(u16 addr, u8 val)> writeFunc);
+    void unmapBank(u8 bank);
 
-    inline u8 getWramBank() {
-        return this->wramBank;
+    void mapIOReadFunc(u16 addr, std::function<u8(u16 addr, u8 val)> readFunc);
+    void mapIOWriteFunc(u16 addr, std::function<u8(u16 addr, u8 val)> writeFunc);
+    void unmapIO(u16 addr);
+
+    inline u8 readIO(u16 addr) {
+        return this->hram[addr & 0xFF];
     }
 
-    inline void setWramBank(u8 bank) {
-        this->wramBank = bank;
+    inline void writeIO(u16 addr, u8 val) {
+        this->hram[addr & 0xFF] = val;
     }
 private:
-    u8 readBankF(u16 addr);
-    void writeBankF(u16 addr, u8 val);
-
-    static u8 readBankFEntry(void* data, u16 addr);
-    static void writeBankFEntry(void* data, u16 addr, u8 val);
-
     void mapBanks();
 
     Gameboy* gameboy;
 
-    u8* mappedBlocks[0x10];
-    u8 (*mappedReadFuncs[0x10])(void* data, u16 addr);
-    void* mappedReadFuncData[0x10];
-    void (*mappedWriteFuncs[0x10])(void* data, u16 addr, u8 val);
-    void* mappedWriteFuncData[0x10];
+    u8* banks[0x10];
+    std::function<u8(u16 addr)> bankReadFuncs[0x10];
+    std::function<void(u16 addr, u8 val)> bankWriteFuncs[0x10];
 
-    u8 wramBank;
+    std::function<u8(u16 addr, u8 val)> ioReadFuncs[0x100];
+    std::function<u8(u16 addr, u8 val)> ioWriteFuncs[0x100];
 
     u8 wram[8][0x1000];
-    u8 hram[0x7F];
+    u8 hram[0x100];
 };

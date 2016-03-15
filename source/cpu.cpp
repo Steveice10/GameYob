@@ -19,9 +19,6 @@ void CPU::reset() {
     this->haltState = false;
     this->haltBug = false;
     this->ime = false;
-    this->ie = 0;
-    this->iff = 0;
-    this->key1 = 0;
 
     memset(&this->registers, 0, sizeof(this->registers));
 
@@ -43,6 +40,10 @@ void CPU::reset() {
     } else {
         this->registers.af.b.h = 0x01;
     }
+
+    this->gameboy->mmu->mapIOWriteFunc(KEY1, [this](u16 addr, u8 val) -> u8 {
+        return (u8) ((this->gameboy->mmu->readIO(KEY1) & 0x80) | (val & 1));
+    });
 }
 
 void CPU::loadState(FILE* file, int version) {
@@ -51,9 +52,6 @@ void CPU::loadState(FILE* file, int version) {
     fread(&this->haltState, 1, sizeof(this->haltState), file);
     fread(&this->haltBug, 1, sizeof(this->haltBug), file);
     fread(&this->ime, 1, sizeof(this->ime), file);
-    fread(&this->ie, 1, sizeof(this->ie), file);
-    fread(&this->iff, 1, sizeof(this->iff), file);
-    fread(&this->key1, 1, sizeof(this->key1), file);
     fread(&this->registers, 1, sizeof(this->registers), file);
 }
 
@@ -63,40 +61,7 @@ void CPU::saveState(FILE* file) {
     fwrite(&this->haltState, 1, sizeof(this->haltState), file);
     fwrite(&this->haltBug, 1, sizeof(this->haltBug), file);
     fwrite(&this->ime, 1, sizeof(this->ime), file);
-    fwrite(&this->ie, 1, sizeof(this->ie), file);
-    fwrite(&this->iff, 1, sizeof(this->iff), file);
-    fwrite(&this->key1, 1, sizeof(this->key1), file);
     fwrite(&this->registers, 1, sizeof(this->registers), file);
-}
-
-u8 CPU::read(u16 addr) {
-    switch(addr) {
-        case IF:
-            return this->iff;
-        case KEY1:
-            return this->key1;
-        case IE:
-            return this->ie;
-        default:
-            return 0;
-    }
-}
-
-void CPU::write(u16 addr, u8 val) {
-    switch(addr) {
-        case IF:
-            this->iff = val;
-            break;
-        case KEY1:
-            this->key1 &= 0x80;
-            this->key1 |= (val & 1);
-            break;
-        case IE:
-            this->ie = val;
-            break;
-        default:
-            break;
-    }
 }
 
 int CPU::run(int (*pollEvents)(Gameboy* gameboy)) {
@@ -112,9 +77,9 @@ int CPU::run(int (*pollEvents)(Gameboy* gameboy)) {
 
         this->eventCycle = UINT64_MAX;
 
-        int prevTriggered = this->iff & this->ie;
+        int prevTriggered = this->gameboy->mmu->readIO(IF) & this->gameboy->mmu->readIO(IE);
         ret = pollEvents(this->gameboy);
-        int triggered = this->iff & this->ie;
+        int triggered = this->gameboy->mmu->readIO(IF) & this->gameboy->mmu->readIO(IE);
 
         if(triggered != 0) {
             /* Hack to fix Robocop 2 and LEGO Racers, possibly others.
@@ -127,7 +92,7 @@ int CPU::run(int (*pollEvents)(Gameboy* gameboy)) {
              */
             if(!this->haltState && prevTriggered != triggered) {
                 this->runInstruction();
-                triggered = this->iff & this->ie;
+                triggered = this->gameboy->mmu->readIO(IF) & this->gameboy->mmu->readIO(IE);
             }
 
             if(triggered != 0) {
@@ -140,7 +105,7 @@ int CPU::run(int (*pollEvents)(Gameboy* gameboy)) {
 
                     int irqNo = __builtin_ffs(triggered) - 1;
                     this->registers.pc.w = (u16) (0x40 + (irqNo << 3));
-                    this->iff &= ~(1 << irqNo);
+                    this->gameboy->mmu->writeIO(IF, (u8) (this->gameboy->mmu->readIO(IF) & ~(1 << irqNo)));
 
                     this->advanceCycles(20);
                 }
@@ -153,13 +118,17 @@ int CPU::run(int (*pollEvents)(Gameboy* gameboy)) {
 
 void CPU::setDoubleSpeed(bool doubleSpeed) {
     if(doubleSpeed) {
-        this->key1 |= 0x80;
+        this->gameboy->mmu->writeIO(KEY1, (u8) (this->gameboy->mmu->readIO(KEY1) | 0x80));
     } else {
-        this->key1 &= ~0x80;
+        this->gameboy->mmu->writeIO(KEY1, (u8) (this->gameboy->mmu->readIO(KEY1) & ~0x80));
     }
 
     this->gameboy->apu->setHalfSpeed(doubleSpeed);
     this->gameboy->ppu->setHalfSpeed(doubleSpeed);
+}
+
+void CPU::requestInterrupt(int id) {
+    this->gameboy->mmu->writeIO(IF, (u8) (this->gameboy->mmu->readIO(IF) | id));
 }
 
 void CPU::runInstruction() {
@@ -173,7 +142,7 @@ void CPU::runInstruction() {
 
     (this->*opcodes[op])();
 
-    if(this->haltState || (this->ime && (this->iff & this->ie) != 0)) {
+    if(this->haltState || (this->ime && (this->gameboy->mmu->readIO(IF) & this->gameboy->mmu->readIO(IE)) != 0)) {
         this->setEventCycle(this->cycleCount);
     }
 }
@@ -324,10 +293,11 @@ void CPU::rrca() {
 }
 
 void CPU::stop() {
-    if((this->key1 & 1) && this->gameboy->gbMode == MODE_CGB) {
-        this->setDoubleSpeed(!(this->key1 & 0x80));
+    u8 key1 = this->gameboy->mmu->readIO(KEY1);
+    if((key1 & 1) && this->gameboy->gbMode == MODE_CGB) {
+        this->setDoubleSpeed(!(key1 & 0x80));
 
-        this->key1 &= ~1;
+        this->gameboy->mmu->writeIO(KEY1, (u8) (this->gameboy->mmu->readIO(KEY1) & ~1));
         this->registers.pc.w++;
     } else {
         this->haltState = true;
@@ -937,7 +907,7 @@ void CPU::ld_hlp_l() {
 }
 
 void CPU::halt() {
-    if(!this->ime && (this->iff & this->ie & 0x1F) != 0) {
+    if(!this->ime && (this->gameboy->mmu->readIO(IF) & this->gameboy->mmu->readIO(IE) & 0x1F) != 0) {
         if(this->gameboy->gbMode != MODE_CGB) {
             this->haltBug = true;
         }

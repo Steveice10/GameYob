@@ -15,9 +15,6 @@ public:
     void saveState(FILE* file);
 
     int update();
-
-    u8 read(u16 addr);
-    void write(u16 addr, u8 val);
 private:
     Gameboy* gameboy;
 
@@ -25,7 +22,4 @@ private:
 
     u64 nextSerialInternalCycle;
     u64 nextSerialExternalCycle;
-
-    u8 sb;
-    u8 sc;
 };

@@ -36,12 +36,11 @@ public:
     void loadState(FILE* file, int version);
     void saveState(FILE* file);
 
-    u8 read(u16 addr);
-    void write(u16 addr, u8 val);
-
     int run(int (*pollEvents)(Gameboy* gameboy));
 
     void setDoubleSpeed(bool doubleSpeed);
+
+    void requestInterrupt(int id);
 
     inline u64 getCycle() {
         return this->cycleCount;
@@ -55,10 +54,6 @@ public:
         if(cycle < this->eventCycle) {
             this->eventCycle = cycle > this->cycleCount ? cycle : this->cycleCount;
         }
-    }
-
-    inline void requestInterrupt(int id) {
-        this->iff |= id;
     }
 private:
     void runInstruction();
@@ -1089,8 +1084,4 @@ private:
     bool haltBug;
 
     bool ime;
-
-    u8 ie;
-    u8 iff;
-    u8 key1;
 };

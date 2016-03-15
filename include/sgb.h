@@ -13,9 +13,6 @@ public:
 
     void update();
 
-    u8 read(u16 addr);
-    void write(u16 addr, u8 val);
-
     inline u8 getGfxMask() {
         return this->mask;
     }
@@ -67,8 +64,6 @@ private:
     };
 
     Gameboy* gameboy;
-
-    u8 p1;
 
     s32 packetLength; // Number of packets to be transferred this command
     s32 packetsTransferred; // Number of packets which have been transferred so far

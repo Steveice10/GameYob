@@ -26,12 +26,6 @@ private:
     void mapRamBank(int bank);
     void mapBanks();
 
-    u8 read(u16 addr);
-    void write(u16 addr, u8 val);
-
-    static u8 readEntry(void* data, u16 addr);
-    static void writeEntry(void* data, u16 addr, u8 val);
-
     u8 m3r(u16 addr);
     u8 m7r(u16 addr);
     u8 h3r(u16 addr);

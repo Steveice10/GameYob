@@ -15,9 +15,6 @@ public:
 
     int update();
 
-    u8 read(u16 addr);
-    void write(u16 addr, u8 val);
-
     void setHalfSpeed(bool halfSpeed);
 
     void refreshGBPalette();
@@ -35,10 +32,11 @@ public:
     inline u8* getVramBank(u8 bank) {
         return this->vram[bank];
     }
-private:
-    void checkLYC();
-    bool updateHBlankDMA();
 
+    inline u8* getOam() {
+        return this->oam;
+    }
+private:
     void mapBanks();
 
     void drawBackground(u16* lineBuffer, u8* depthBuffer, u32 scanline);
@@ -56,25 +54,4 @@ private:
 
     u16 bgPaletteData[0x20];
     u16 sprPaletteData[0x20];
-
-    u8 lcdc;
-    u8 stat;
-    u8 scy;
-    u8 scx;
-    u8 ly;
-    u8 lyc;
-    u8 sdma;
-    u8 bgp;
-    u8 obp[2];
-    u8 wy;
-    u8 wx;
-    u8 vramBank;
-
-    u16 dmaSource;
-    u16 dmaDest;
-    u16 dmaLength;
-    int dmaMode;
-
-    u8 bgPaletteSelect;
-    u8 sprPaletteSelect;
 };

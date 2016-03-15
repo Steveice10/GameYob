@@ -6,7 +6,6 @@
 
 class APU;
 class CPU;
-class IR;
 class MBC;
 class MMU;
 class PPU;
@@ -18,7 +17,7 @@ class Timer;
 
 // Cycle Constants
 #define CYCLES_PER_SECOND 4194304
-#define CYCLES_PER_FRAME ((u32) (CYCLES_PER_SECOND / 59.71540070833901659232620059483728860926694))
+#define CYCLES_PER_FRAME 70224
 
 // Return Codes
 #define RET_VBLANK 1
@@ -66,7 +65,6 @@ public:
     SGB* sgb;
     MBC* mbc;
     Serial* serial;
-    IR* ir;
 
     GBMode gbMode;
     bool biosOn;

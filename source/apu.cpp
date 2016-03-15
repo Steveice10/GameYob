@@ -1,5 +1,4 @@
 #include <stdio.h>
-#include <stdlib.h>
 
 #include "gb_apu/Gb_Apu.h"
 #include "gb_apu/Multi_Buffer.h"
@@ -9,6 +8,7 @@
 #include "apu.h"
 #include "cpu.h"
 #include "gameboy.h"
+#include "mmu.h"
 
 APU::APU(Gameboy* gameboy) {
     this->gameboy = gameboy;
@@ -34,6 +34,17 @@ void APU::reset() {
 
     this->apu->reset(this->gameboy->gbMode == MODE_CGB ? Gb_Apu::mode_cgb : Gb_Apu::mode_dmg);
     this->buffer->clear();
+
+    for(u16 addr = NR10; addr <= WAVEF; addr++) {
+        this->gameboy->mmu->mapIOReadFunc(addr, [this](u16 addr, u8 val) -> u8 {
+            return (u8) this->apu->read_register((u32) (this->gameboy->cpu->getCycle() - this->lastSoundCycle) >> this->halfSpeed, addr);
+        });
+
+        this->gameboy->mmu->mapIOWriteFunc(addr, [this](u16 addr, u8 val) -> u8 {
+            this->apu->write_register((u32) (this->gameboy->cpu->getCycle() - this->lastSoundCycle) >> this->halfSpeed, addr, val);
+            return val;
+        });
+    }
 }
 
 void APU::loadState(FILE* file, int version) {
@@ -78,14 +89,6 @@ void APU::update() {
     }
 
     this->gameboy->cpu->setEventCycle(this->lastSoundCycle + (CYCLES_PER_FRAME << this->halfSpeed));
-}
-
-u8 APU::read(u16 addr) {
-    return (u8) this->apu->read_register((u32) (this->gameboy->cpu->getCycle() - this->lastSoundCycle) >> this->halfSpeed, addr);
-}
-
-void APU::write(u16 addr, u8 val) {
-    this->apu->write_register((u32) (this->gameboy->cpu->getCycle() - this->lastSoundCycle) >> this->halfSpeed, addr, val);
 }
 
 void APU::setHalfSpeed(bool halfSpeed) {
