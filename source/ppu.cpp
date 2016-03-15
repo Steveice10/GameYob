@@ -1178,6 +1178,8 @@ void PPU::drawSprites(u16* lineBuffer, u8* depthBuffer, u32 scanline) {
                 paletteId = (flag & SPRITE_NON_CGB_PALETTE_NUMBER) >> 2;
             }
 
+            u8 obp = this->gameboy->mmu->readIO((u16) (OBP0 + paletteId / 4));
+
             // Select tile base on tile Y offset
             if(height == 16) {
                 tileNum &= ~1;
@@ -1228,7 +1230,7 @@ void PPU::drawSprites(u16* lineBuffer, u8* depthBuffer, u32 scanline) {
                 // Draw pixel if not transparent or above depth buffer
                 if(colorId != 0 && depth >= depthBuffer[writeX]) {
                     u32 subPaletteId = this->gameboy->gbMode == MODE_SGB ? paletteId + subSgbMap[writeX >> 3] : paletteId;
-                    u8 paletteIndex = this->gameboy->gbMode != MODE_CGB ? (u8) ((this->gameboy->mmu->readIO((u16) (OBP0 + paletteId / 4)) >> (colorId * 2)) & 3) : (u8) colorId;
+                    u8 paletteIndex = this->gameboy->gbMode != MODE_CGB ? (u8) ((obp >> (colorId * 2)) & 3) : (u8) colorId;
 
                     depthBuffer[writeX] = depth;
                     lineBuffer[writeX] = RGBA5551ReverseTable[this->sprPaletteData[subPaletteId * 4 + paletteIndex]];
