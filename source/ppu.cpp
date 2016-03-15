@@ -11,13 +11,6 @@
 #include "sgb.h"
 #include "romfile.h"
 
-#define PALETTE_NUMBER (0x7)
-#define VRAM_BANK (0x8)
-#define SPRITE_NON_CGB_PALETTE_NUMBER (0x10)
-#define FLIP_X (0x20)
-#define FLIP_Y (0x40)
-#define PRIORITY (0x80)
-
 #define COMPONENT_8_TO_5(c8) (((c8) * 0x1F * 2 + 0xFF) / (0xFF * 2))
 #define TOCGB(r, g, b) ((u16) (COMPONENT_8_TO_5(b) << 10 | COMPONENT_8_TO_5(g) << 5 | COMPONENT_8_TO_5(r)))
 
@@ -473,6 +466,13 @@ static const unsigned short* findPalette(const char* title) {
 
     return NULL;
 }
+
+#define PALETTE_NUMBER (0x7)
+#define VRAM_BANK (0x8)
+#define SPRITE_NON_CGB_PALETTE_NUMBER (0x10)
+#define FLIP_X (0x20)
+#define FLIP_Y (0x40)
+#define PRIORITY (0x80)
 
 static const u8 depthOffset[8] = {
         0x01, 0x00, 0x00, 0x00,
