@@ -250,7 +250,7 @@ int decodePNG(std::vector<u8>& out_image, u32& image_width, u32& image_height, c
     {
         struct Info
         {
-            u32 width, height, colorType, bitDepth, compressionMethod, filterMethod, interlaceMethod, key_r, key_g, key_b;
+            u32 width = 0, height = 0, colorType, bitDepth, compressionMethod, filterMethod, interlaceMethod, key_r = 0, key_g = 0, key_b = 0;
             bool key_defined; //is a transparent color key given?
             std::vector<u8> palette;
         } info;
