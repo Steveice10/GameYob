@@ -32,38 +32,36 @@ void MMU::reset() {
 
     this->mapBanks();
 
-    this->gameboy->mmu->mapIOReadFunc(RP, [this](u16 addr, u8 val) -> u8 {
-        return val | (u8) ((val & 0x80) && systemGetIRState() ? 0x0 : 0x2);
+    this->gameboy->mmu->mapIOReadFunc(RP, [this](u16 addr) -> u8 {
+        u8 rp = this->gameboy->mmu->readIO(RP);
+        return rp | (u8) ((rp & 0x80) && systemGetIRState() ? 0x0 : 0x2);
     });
 
-    this->gameboy->mmu->mapIOReadFunc(SVBK, [this](u16 addr, u8 val) -> u8 {
-        return (u8) (val | 0xF8);
+    this->gameboy->mmu->mapIOReadFunc(SVBK, [this](u16 addr) -> u8 {
+        return (u8) (this->gameboy->mmu->readIO(SVBK) | 0xF8);
     });
 
-    this->gameboy->mmu->mapIOWriteFunc(BIOS, [this](u16 addr, u8 val) -> u8 {
+    this->gameboy->mmu->mapIOWriteFunc(BIOS, [this](u16 addr, u8 val) -> void {
         if(this->gameboy->biosOn) {
             this->gameboy->reset(false);
         }
-
-        return val;
     });
 
-    this->gameboy->mmu->mapIOWriteFunc(RP, [this](u16 addr, u8 val) -> u8 {
+    this->gameboy->mmu->mapIOWriteFunc(RP, [this](u16 addr, u8 val) -> void {
+        this->gameboy->mmu->writeIO(RP, (u8) (val & ~0x2));
         systemSetIRState((val & 0x1) == 1);
-        return (u8) (val & ~0x2);
     });
 
-    this->gameboy->mmu->mapIOWriteFunc(SVBK, [this](u16 addr, u8 val) -> u8 {
+    this->gameboy->mmu->mapIOWriteFunc(SVBK, [this](u16 addr, u8 val) -> void {
         if(this->gameboy->gbMode == MODE_CGB) {
             val = (u8) (val & 7);
             if(val == 0) {
                 val = 1;
             }
 
-            this->mapBank(0xD, this->wram[val]);
+            this->gameboy->mmu->writeIO(SVBK, val);
+            this->mapBanks();
         }
-
-        return val;
     });
 }
 
@@ -128,12 +126,11 @@ void MMU::mapBanks() {
     this->mapBankReadFunc(0xF, [this](u16 addr) -> u8 {
         if(addr >= 0xFF00) {
             u8 reg = (u8) (addr & 0xFF);
-            u8 val = this->hram[reg];
             if(this->ioReadFuncs[reg] != NULL) {
-                val = this->ioReadFuncs[reg](addr, val);
+                return this->ioReadFuncs[reg](addr);
+            } else {
+                return this->hram[reg];
             }
-
-            return val;
         } else if(addr >= 0xFE00 && addr < 0xFEA0) {
             return this->gameboy->ppu->getOam()[addr & 0xFF];
         } else if(addr < 0xFE00) {
@@ -147,10 +144,10 @@ void MMU::mapBanks() {
         if(addr >= 0xFF00) {
             u8 reg = (u8) (addr & 0xFF);
             if(this->ioWriteFuncs[reg] != NULL) {
-                val = this->ioWriteFuncs[reg](addr, val);
+                this->ioWriteFuncs[reg](addr, val);
+            } else {
+                this->hram[reg] = val;
             }
-
-            this->hram[reg] = val;
         } else if(addr >= 0xFE00 && addr < 0xFEA0) {
             this->gameboy->ppu->getOam()[addr & 0xFF] = val;
         } else if(addr < 0xFE00) {
@@ -159,11 +156,11 @@ void MMU::mapBanks() {
     });
 }
 
-void MMU::mapIOReadFunc(u16 addr, std::function<u8(u16 addr, u8 val)> readFunc) {
+void MMU::mapIOReadFunc(u16 addr, std::function<u8(u16 addr)> readFunc) {
     this->ioReadFuncs[addr & 0xFF] = readFunc;
 }
 
-void MMU::mapIOWriteFunc(u16 addr, std::function<u8(u16 addr, u8 val)> writeFunc) {
+void MMU::mapIOWriteFunc(u16 addr, std::function<void(u16 addr, u8 val)> writeFunc) {
     this->ioWriteFuncs[addr & 0xFF] = writeFunc;
 }
 

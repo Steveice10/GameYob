@@ -106,8 +106,8 @@ public:
     void mapBankWriteFunc(u8 bank, std::function<void(u16 addr, u8 val)> writeFunc);
     void unmapBank(u8 bank);
 
-    void mapIOReadFunc(u16 addr, std::function<u8(u16 addr, u8 val)> readFunc);
-    void mapIOWriteFunc(u16 addr, std::function<u8(u16 addr, u8 val)> writeFunc);
+    void mapIOReadFunc(u16 addr, std::function<u8(u16 addr)> readFunc);
+    void mapIOWriteFunc(u16 addr, std::function<void(u16 addr, u8 val)> writeFunc);
     void unmapIO(u16 addr);
 
     inline u8 readIO(u16 addr) {
@@ -126,8 +126,8 @@ private:
     std::function<u8(u16 addr)> bankReadFuncs[0x10];
     std::function<void(u16 addr, u8 val)> bankWriteFuncs[0x10];
 
-    std::function<u8(u16 addr, u8 val)> ioReadFuncs[0x100];
-    std::function<u8(u16 addr, u8 val)> ioWriteFuncs[0x100];
+    std::function<u8(u16 addr)> ioReadFuncs[0x100];
+    std::function<void(u16 addr, u8 val)> ioWriteFuncs[0x100];
 
     u8 wram[8][0x1000];
     u8 hram[0x100];

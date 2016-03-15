@@ -578,99 +578,82 @@ void PPU::reset() {
 
     this->mapBanks();
 
-    this->gameboy->mmu->mapIOReadFunc(BCPD, [this](u16 addr, u8 val) -> u8 {
+    this->gameboy->mmu->mapIOReadFunc(BCPD, [this](u16 addr) -> u8 {
         return ((u8*) this->bgPaletteData)[this->gameboy->mmu->readIO(BCPS) & 0x3F];
     });
 
-    this->gameboy->mmu->mapIOReadFunc(OCPD, [this](u16 addr, u8 val) -> u8 {
+    this->gameboy->mmu->mapIOReadFunc(OCPD, [this](u16 addr) -> u8 {
         return ((u8*) this->sprPaletteData)[this->gameboy->mmu->readIO(OCPS) & 0x3F];
     });
 
-    this->gameboy->mmu->mapIOWriteFunc(LCDC, [this](u16 addr, u8 val) -> u8 {
+    this->gameboy->mmu->mapIOWriteFunc(LCDC, [this](u16 addr, u8 val) -> void {
         if((this->gameboy->mmu->readIO(LCDC) & 0x80) && !(val & 0x80)) {
             gfxClearScreenBuffer(0xFFFF);
         }
 
+        this->gameboy->mmu->writeIO(LCDC, val);
         if(!(val & 0x80)) {
             this->gameboy->mmu->writeIO(LY, 0);
             this->gameboy->mmu->writeIO(STAT, (u8) (this->gameboy->mmu->readIO(STAT) & ~3)); // Set video mode 0
         }
-
-        return val;
     });
 
-    this->gameboy->mmu->mapIOWriteFunc(STAT, [this](u16 addr, u8 val) -> u8 {
-        return (u8) ((this->gameboy->mmu->readIO(STAT) & 0x7) | (val & 0xF8));
+    this->gameboy->mmu->mapIOWriteFunc(STAT, [this](u16 addr, u8 val) -> void {
+        this->gameboy->mmu->writeIO(STAT, (u8) ((this->gameboy->mmu->readIO(STAT) & 0x7) | (val & 0xF8)));
     });
 
-    this->gameboy->mmu->mapIOWriteFunc(LY, [this](u16 addr, u8 val) -> u8 {
-        return this->gameboy->mmu->readIO(LY);
+    this->gameboy->mmu->mapIOWriteFunc(LY, [this](u16 addr, u8 val) -> void {
     });
 
-    this->gameboy->mmu->mapIOWriteFunc(LYC, [this](u16 addr, u8 val) -> u8 {
-        if(this->gameboy->mmu->readIO(LY) == val) {
-            this->gameboy->mmu->writeIO(STAT, (u8) (this->gameboy->mmu->readIO(STAT) | 4));
-            if(this->gameboy->mmu->readIO(STAT) & 0x40) {
-                this->gameboy->cpu->requestInterrupt(INT_LCD);
-            }
-        } else {
-            this->gameboy->mmu->writeIO(STAT, (u8) (this->gameboy->mmu->readIO(STAT) & ~4));
-        }
-
-        return val;
+    this->gameboy->mmu->mapIOWriteFunc(LYC, [this](u16 addr, u8 val) -> void {
+        this->gameboy->mmu->writeIO(LYC, val);
+        this->checkLYC();
     });
 
-    this->gameboy->mmu->mapIOWriteFunc(DMA, [this](u16 addr, u8 val) -> u8 {
+    this->gameboy->mmu->mapIOWriteFunc(DMA, [this](u16 addr, u8 val) -> void {
+        this->gameboy->mmu->writeIO(DMA, val);
+
         u16 src = val << 8;
         for(u8 i = 0; i < 0xA0; i++) {
             this->oam[i] = this->gameboy->mmu->read(src + i);
         }
-
-        return val;
     });
 
-    this->gameboy->mmu->mapIOWriteFunc(VBK, [this](u16 addr, u8 val) -> u8 {
+    this->gameboy->mmu->mapIOWriteFunc(VBK, [this](u16 addr, u8 val) -> void {
         if(this->gameboy->gbMode == MODE_CGB) {
-            val = (u8) (val & 1);
-            this->gameboy->mmu->mapBank(0x8, this->vram[val] + 0x0000);
-            this->gameboy->mmu->mapBank(0x9, this->vram[val] + 0x1000);
+            this->gameboy->mmu->writeIO(VBK, (u8) (val & 1));
+            this->mapBanks();
         }
-
-        return val;
     });
 
-    this->gameboy->mmu->mapIOWriteFunc(BCPD, [this](u16 addr, u8 val) -> u8 {
+    this->gameboy->mmu->mapIOWriteFunc(BCPD, [this](u16 addr, u8 val) -> void {
         u8 bcps = this->gameboy->mmu->readIO(BCPS);
         ((u8*) this->bgPaletteData)[bcps & 0x3F] = val;
         if(bcps & 0x80) {
             this->gameboy->mmu->writeIO(BCPS, (u8) (((bcps + 1) & 0x3F) | (bcps & 0x80)));
         }
-
-        return val;
     });
 
-    this->gameboy->mmu->mapIOWriteFunc(OCPD, [this](u16 addr, u8 val) -> u8 {
+    this->gameboy->mmu->mapIOWriteFunc(OCPD, [this](u16 addr, u8 val) -> void {
         u8 ocps = this->gameboy->mmu->readIO(OCPS);
         ((u8*) this->sprPaletteData)[ocps & 0x3F] = val;
         if(ocps & 0x80) {
             this->gameboy->mmu->writeIO(OCPS, (u8) (((ocps + 1) & 0x3F) | (ocps & 0x80)));
         }
-
-        return val;
     });
 
-    this->gameboy->mmu->mapIOWriteFunc(HDMA5, [this](u16 addr, u8 val) -> u8 {
+    this->gameboy->mmu->mapIOWriteFunc(HDMA5, [this](u16 addr, u8 val) -> void {
         if(this->gameboy->gbMode == MODE_CGB) {
             if((this->gameboy->mmu->readIO(HDMA5) & 0x80) == 0) {
                 if((val & 0x80) == 0) {
-                    val |= 0x80;
+                    this->gameboy->mmu->writeIO(HDMA5, (u8) (val | 0x80));
                 }
             } else {
-                u8 length = (u8) ((val & 0x7F) + 1);
                 if(((val >> 7) & 1) == 0) {
                     u8 bank = this->gameboy->mmu->readIO(VBK);
                     u16 src = (u16) ((this->gameboy->mmu->readIO(HDMA2) | (this->gameboy->mmu->readIO(HDMA1) << 8)) & 0xFFF0);
                     u16 dst = (u16) ((this->gameboy->mmu->readIO(HDMA4) | (this->gameboy->mmu->readIO(HDMA3) << 8)) & 0x1FF0);
+                    u8 length = (u8) ((val & 0x7F) + 1);
                     for(u8 i = 0; i < length; i++) {
                         for(u8 j = 0; j < 0x10; j++) {
                             this->vram[bank][dst++] = this->gameboy->mmu->read(src++);
@@ -683,17 +666,14 @@ void PPU::reset() {
                     this->gameboy->mmu->writeIO(HDMA2, (u8) (src & 0xFF));
                     this->gameboy->mmu->writeIO(HDMA3, (u8) ((dst >> 8) & 0xFF));
                     this->gameboy->mmu->writeIO(HDMA4, (u8) (dst & 0xFF));
+                    this->gameboy->mmu->writeIO(HDMA5, 0xFF);
 
                     this->gameboy->cpu->advanceCycles((u64) ((length * 8) << this->halfSpeed));
-
-                    val = 0xFF;
                 } else {
-                    val = (u8) (length - 1);
+                    this->gameboy->mmu->writeIO(HDMA5, (u8) (val & 0x7F));
                 }
             }
         }
-
-        return val;
     });
 }
 
@@ -717,6 +697,18 @@ void PPU::saveState(FILE* file) {
     fwrite(this->oam, 1, sizeof(this->oam), file);
     fwrite(this->bgPaletteData, 1, sizeof(this->bgPaletteData), file);
     fwrite(this->sprPaletteData, 1, sizeof(this->sprPaletteData), file);
+}
+
+void PPU::checkLYC() {
+    u8 stat = this->gameboy->mmu->readIO(STAT);
+    if(this->gameboy->mmu->readIO(LY) == this->gameboy->mmu->readIO(LYC)) {
+        this->gameboy->mmu->writeIO(STAT, (u8) (stat | 4));
+        if(stat & 0x40) {
+            this->gameboy->cpu->requestInterrupt(INT_LCD);
+        }
+    } else {
+        this->gameboy->mmu->writeIO(STAT, (u8) (stat & ~4));
+    }
 }
 
 int PPU::update() {
@@ -752,14 +744,7 @@ int PPU::update() {
                         this->gameboy->mmu->writeIO(STAT, (u8) (this->gameboy->mmu->readIO(STAT) + 1)); // Set mode 2
                     } else {
                         this->gameboy->mmu->writeIO(LY, (u8) (this->gameboy->mmu->readIO(LY) + 1));
-                        if(this->gameboy->mmu->readIO(LY) == this->gameboy->mmu->readIO(LYC)) {
-                            this->gameboy->mmu->writeIO(STAT, (u8) (this->gameboy->mmu->readIO(STAT) | 4));
-                            if(this->gameboy->mmu->readIO(STAT) & 0x40) {
-                                this->gameboy->cpu->requestInterrupt(INT_LCD);
-                            }
-                        } else {
-                            this->gameboy->mmu->writeIO(STAT, (u8) (this->gameboy->mmu->readIO(STAT) & ~4));
-                        }
+                        this->checkLYC();
 
                         if(this->gameboy->mmu->readIO(LY) < 144 || this->gameboy->mmu->readIO(LY) >= 153) { // Not in vblank
                             if(this->gameboy->mmu->readIO(STAT) & 0x20) {
@@ -771,14 +756,7 @@ int PPU::update() {
                                 // long as normal - half of it identifies as being
                                 // in the vblank period.
                                 this->gameboy->mmu->writeIO(LY, 0);
-                                if(this->gameboy->mmu->readIO(LY) == this->gameboy->mmu->readIO(LYC)) {
-                                    this->gameboy->mmu->writeIO(STAT, (u8) (this->gameboy->mmu->readIO(STAT) | 4));
-                                    if(this->gameboy->mmu->readIO(STAT) & 0x40) {
-                                        this->gameboy->cpu->requestInterrupt(INT_LCD);
-                                    }
-                                } else {
-                                    this->gameboy->mmu->writeIO(STAT, (u8) (this->gameboy->mmu->readIO(STAT) & ~4));
-                                }
+                                this->checkLYC();
                             } else { // End of hblank
                                 this->gameboy->mmu->writeIO(STAT, (u8) ((this->gameboy->mmu->readIO(STAT) & ~3) | 2)); // Set mode 2
                                 if(this->gameboy->mmu->readIO(STAT) & 0x20) {

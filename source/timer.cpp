@@ -21,45 +21,37 @@ void Timer::reset() {
     this->lastDividerCycle = 0;
     this->lastTimerCycle = 0;
 
-    this->gameboy->mmu->mapIOReadFunc(DIV, [this](u16 addr, u8 val) -> u8 {
+    auto genericTimerRead = [this](u16 addr) -> u8 {
+        this->updateTimer();
+        return this->gameboy->mmu->readIO(addr);
+    };
+
+    auto genericTimerWrite = [this](u16 addr, u8 val) -> void {
+        this->updateTimer();
+        this->gameboy->mmu->writeIO(addr, val);
+    };
+
+    this->gameboy->mmu->mapIOReadFunc(DIV, [this](u16 addr) -> u8 {
         this->updateDivider();
-        return val;
+        return this->gameboy->mmu->readIO(DIV);
     });
 
-    this->gameboy->mmu->mapIOReadFunc(TIMA, [this](u16 addr, u8 val) -> u8 {
-        this->updateTimer();
-        return val;
-    });
+    this->gameboy->mmu->mapIOReadFunc(TIMA, genericTimerRead);
+    this->gameboy->mmu->mapIOReadFunc(TMA, genericTimerRead);
+    this->gameboy->mmu->mapIOReadFunc(TAC, genericTimerRead);
 
-    this->gameboy->mmu->mapIOReadFunc(TMA, [this](u16 addr, u8 val) -> u8 {
-        this->updateTimer();
-        return val;
-    });
-
-    this->gameboy->mmu->mapIOReadFunc(TAC, [this](u16 addr, u8 val) -> u8 {
-        this->updateTimer();
-        return val;
-    });
-
-    this->gameboy->mmu->mapIOWriteFunc(DIV, [this](u16 addr, u8 val) -> u8 {
+    this->gameboy->mmu->mapIOWriteFunc(DIV, [this](u16 addr, u8 val) -> void {
         this->updateDivider();
-        return 0;
+        this->gameboy->mmu->writeIO(DIV, 0);
     });
 
-    this->gameboy->mmu->mapIOWriteFunc(TIMA, [this](u16 addr, u8 val) -> u8 {
-        this->updateTimer();
-        return val;
-    });
+    this->gameboy->mmu->mapIOWriteFunc(TIMA, genericTimerWrite);
+    this->gameboy->mmu->mapIOWriteFunc(TMA, genericTimerWrite);
 
-    this->gameboy->mmu->mapIOWriteFunc(TMA, [this](u16 addr, u8 val) -> u8 {
+    this->gameboy->mmu->mapIOWriteFunc(TAC, [this](u16 addr, u8 val) -> void {
         this->updateTimer();
-        return val;
-    });
-
-    this->gameboy->mmu->mapIOWriteFunc(TAC, [this](u16 addr, u8 val) -> u8 {
-        this->updateTimer();
+        this->gameboy->mmu->writeIO(TAC, val);
         this->lastTimerCycle = this->gameboy->cpu->getCycle() - (this->gameboy->cpu->getCycle() % timerPeriods[val & 0x3]);
-        return val;
     });
 }
 

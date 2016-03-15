@@ -35,14 +35,13 @@ void APU::reset() {
     this->apu->reset(this->gameboy->gbMode == MODE_CGB ? Gb_Apu::mode_cgb : Gb_Apu::mode_dmg);
     this->buffer->clear();
 
-    for(u16 addr = NR10; addr <= WAVEF; addr++) {
-        this->gameboy->mmu->mapIOReadFunc(addr, [this](u16 addr, u8 val) -> u8 {
+    for(u16 regAddr = NR10; regAddr <= WAVEF; regAddr++) {
+        this->gameboy->mmu->mapIOReadFunc(regAddr, [this](u16 addr) -> u8 {
             return (u8) this->apu->read_register((u32) (this->gameboy->cpu->getCycle() - this->lastSoundCycle) >> this->halfSpeed, addr);
         });
 
-        this->gameboy->mmu->mapIOWriteFunc(addr, [this](u16 addr, u8 val) -> u8 {
+        this->gameboy->mmu->mapIOWriteFunc(regAddr, [this](u16 addr, u8 val) -> void {
             this->apu->write_register((u32) (this->gameboy->cpu->getCycle() - this->lastSoundCycle) >> this->halfSpeed, addr, val);
-            return val;
         });
     }
 }

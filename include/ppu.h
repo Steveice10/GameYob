@@ -37,6 +37,8 @@ public:
         return this->oam;
     }
 private:
+    void checkLYC();
+
     void mapBanks();
 
     void drawBackground(u16* lineBuffer, u8* depthBuffer, u32 scanline);

@@ -26,7 +26,9 @@ void Serial::reset() {
 
     this->printer->reset();
 
-    this->gameboy->mmu->mapIOWriteFunc(SC, [this](u16 addr, u8 val) -> u8 {
+    this->gameboy->mmu->mapIOWriteFunc(SC, [this](u16 addr, u8 val) -> void {
+        this->gameboy->mmu->writeIO(SC, val);
+
         if((val & 0x81) == 0x81) { // Internal clock
             if(this->nextSerialInternalCycle == 0) {
                 if(this->gameboy->gbMode == MODE_CGB && (val & 0x02)) {
@@ -40,8 +42,6 @@ void Serial::reset() {
         } else {
             this->nextSerialInternalCycle = 0;
         }
-
-        return val;
     });
 }
 

@@ -41,8 +41,8 @@ void CPU::reset() {
         this->registers.af.b.h = 0x01;
     }
 
-    this->gameboy->mmu->mapIOWriteFunc(KEY1, [this](u16 addr, u8 val) -> u8 {
-        return (u8) ((this->gameboy->mmu->readIO(KEY1) & 0x80) | (val & 1));
+    this->gameboy->mmu->mapIOWriteFunc(KEY1, [this](u16 addr, u8 val) -> void {
+        this->gameboy->mmu->writeIO(KEY1, (u8) ((this->gameboy->mmu->readIO(KEY1) & 0x80) | (val & 1)));
     });
 }
 
