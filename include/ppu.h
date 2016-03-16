@@ -19,6 +19,8 @@ public:
 
     void refreshGBPalette();
 
+    void transferTiles(u8* dest);
+
     void drawScanline(u32 scanline);
 
     inline u16* getBgPaletteData() {
@@ -27,10 +29,6 @@ public:
 
     inline u16* getSprPaletteData() {
         return this->sprPaletteData;
-    }
-
-    inline u8* getVramBank(u8 bank) {
-        return this->vram[bank];
     }
 
     inline u8* getOam() {

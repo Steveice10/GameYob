@@ -16,11 +16,10 @@ CPU::CPU(Gameboy* gameboy) {
 void CPU::reset() {
     this->cycleCount = 0;
     this->eventCycle = 0;
+    memset(&this->registers, 0, sizeof(this->registers));
     this->haltState = false;
     this->haltBug = false;
     this->ime = false;
-
-    memset(&this->registers, 0, sizeof(this->registers));
 
     if(this->gameboy->biosOn) {
         this->registers.pc.w = 0;
@@ -49,19 +48,19 @@ void CPU::reset() {
 void CPU::loadState(FILE* file, int version) {
     fread(&this->cycleCount, 1, sizeof(this->cycleCount), file);
     fread(&this->eventCycle, 1, sizeof(this->eventCycle), file);
+    fread(&this->registers, 1, sizeof(this->registers), file);
     fread(&this->haltState, 1, sizeof(this->haltState), file);
     fread(&this->haltBug, 1, sizeof(this->haltBug), file);
     fread(&this->ime, 1, sizeof(this->ime), file);
-    fread(&this->registers, 1, sizeof(this->registers), file);
 }
 
 void CPU::saveState(FILE* file) {
     fwrite(&this->cycleCount, 1, sizeof(this->cycleCount), file);
     fwrite(&this->eventCycle, 1, sizeof(this->eventCycle), file);
+    fwrite(&this->registers, 1, sizeof(this->registers), file);
     fwrite(&this->haltState, 1, sizeof(this->haltState), file);
     fwrite(&this->haltBug, 1, sizeof(this->haltBug), file);
     fwrite(&this->ime, 1, sizeof(this->ime), file);
-    fwrite(&this->registers, 1, sizeof(this->registers), file);
 }
 
 int CPU::run(int (*pollEvents)(Gameboy* gameboy)) {

@@ -7,9 +7,6 @@
 #include "ppu.h"
 #include "sgb.h"
 
-#define sgbPalettes (gameboy->ppu->getVramBank(1))
-#define sgbAttrFiles (gameboy->ppu->getVramBank(1) + 0x1000)
-
 SGB::SGB(Gameboy* gameboy) {
     this->gameboy = gameboy;
 }
@@ -18,18 +15,20 @@ void SGB::reset() {
     this->packetLength = 0;
     this->packetsTransferred = 0;
     this->packetBit = -1;
+    memset(this->packet, 0, sizeof(this->packet));
     this->command = 0;
+    memset(&this->cmdData, 0, sizeof(this->cmdData));
 
+    memset(this->controllers, 0, sizeof(this->controllers));
     this->numControllers = 1;
     this->selectedController = 0;
     this->buttonsChecked = 0;
 
-    this->mask = 0;
+    memset(this->palettes, 0, sizeof(this->palettes));
+    memset(this->attrFiles, 0, sizeof(this->attrFiles));
 
-    memset(this->controllers, 0, sizeof(this->controllers));
+    this->mask = 0;
     memset(this->map, 0, sizeof(this->map));
-    memset(this->packet, 0, sizeof(this->packet));
-    memset(&this->cmdData, 0, sizeof(this->cmdData));
 
     this->gameboy->mmu->mapIOReadFunc(JOYP, [this](u16 addr) -> u8 {
         u8 joyp = this->gameboy->mmu->readIO(JOYP);
@@ -132,36 +131,40 @@ void SGB::loadState(FILE* file, int version) {
     fread(&this->packetLength, 1, sizeof(this->packetLength), file);
     fread(&this->packetsTransferred, 1, sizeof(this->packetsTransferred), file);
     fread(&this->packetBit, 1, sizeof(this->packetBit), file);
+    fread(this->packet, 1, sizeof(this->packet), file);
     fread(&this->command, 1, sizeof(this->command), file);
+    fread(&this->cmdData, 1, sizeof(this->cmdData), file);
 
+    fread(&this->controllers, 1, sizeof(this->controllers), file);
     fread(&this->numControllers, 1, sizeof(this->numControllers), file);
     fread(&this->selectedController, 1, sizeof(this->selectedController), file);
     fread(&this->buttonsChecked, 1, sizeof(this->buttonsChecked), file);
 
-    fread(&this->mask, 1, sizeof(this->mask), file);
+    fread(this->palettes, 1, sizeof(this->palettes), file);
+    fread(this->attrFiles, 1, sizeof(this->attrFiles), file);
 
-    fread(&this->controllers, 1, sizeof(this->controllers), file);
+    fread(&this->mask, 1, sizeof(this->mask), file);
     fread(this->map, 1, sizeof(this->map), file);
-    fread(this->packet, 1, sizeof(this->packet), file);
-    fread(&this->cmdData, 1, sizeof(this->cmdData), file);
 }
 
 void SGB::saveState(FILE* file) {
     fwrite(&this->packetLength, 1, sizeof(this->packetLength), file);
     fwrite(&this->packetsTransferred, 1, sizeof(this->packetsTransferred), file);
     fwrite(&this->packetBit, 1, sizeof(this->packetBit), file);
+    fwrite(this->packet, 1, sizeof(this->packet), file);
     fwrite(&this->command, 1, sizeof(this->command), file);
+    fwrite(&this->cmdData, 1, sizeof(this->cmdData), file);
 
+    fwrite(&this->controllers, 1, sizeof(this->controllers), file);
     fwrite(&this->numControllers, 1, sizeof(this->numControllers), file);
     fwrite(&this->selectedController, 1, sizeof(this->selectedController), file);
     fwrite(&this->buttonsChecked, 1, sizeof(this->buttonsChecked), file);
 
-    fwrite(&this->mask, 1, sizeof(this->mask), file);
+    fwrite(this->palettes, 1, sizeof(this->palettes), file);
+    fwrite(this->attrFiles, 1, sizeof(this->attrFiles), file);
 
-    fwrite(&this->controllers, 1, sizeof(this->controllers), file);
+    fwrite(&this->mask, 1, sizeof(this->mask), file);
     fwrite(this->map, 1, sizeof(this->map), file);
-    fwrite(this->packet, 1, sizeof(this->packet), file);
-    fwrite(&this->cmdData, 1, sizeof(this->cmdData), file);
 }
 
 void SGB::update() {
@@ -178,42 +181,18 @@ void SGB::update() {
 }
 
 void SGB::loadAttrFile(int index) {
-    if(index > 0x2c) {
+    if(index > 0x2C) {
         return;
     }
 
-    int src = index * 90;
+    int src = index * 0x5A;
     int dest = 0;
     for(int i = 0; i < 20 * 18 / 4; i++) {
-        this->map[dest++] = (u8) ((sgbAttrFiles[src] >> 6) & 3);
-        this->map[dest++] = (u8) ((sgbAttrFiles[src] >> 4) & 3);
-        this->map[dest++] = (u8) ((sgbAttrFiles[src] >> 2) & 3);
-        this->map[dest++] = (u8) ((sgbAttrFiles[src] >> 0) & 3);
+        this->map[dest++] = (u8) ((this->attrFiles[src] >> 6) & 3);
+        this->map[dest++] = (u8) ((this->attrFiles[src] >> 4) & 3);
+        this->map[dest++] = (u8) ((this->attrFiles[src] >> 2) & 3);
+        this->map[dest++] = (u8) ((this->attrFiles[src] >> 0) & 3);
         src++;
-    }
-}
-
-void SGB::doVramTransfer(u8* dest) {
-    u8 lcdc = this->gameboy->mmu->read(0xFF40);
-    u8* vram = this->gameboy->ppu->getVramBank(0);
-
-    u32 map = (u32) (0x1800 + ((lcdc >> 3) & 1) * 0x400);
-    u32 index = 0;
-    for(u32 y = 0; y < 18; y++) {
-        for(u32 x = 0; x < 20; x++) {
-            if(index == 0x1000) {
-                return;
-            }
-
-            s8 tile = vram[map + y * 32 + x];
-            if(lcdc & 0x10) {
-                memcpy(dest + index, &vram[tile * 0x10], 0x10);
-            } else {
-                memcpy(dest + index, &vram[0x1000 + tile * 0x10], 0x10);
-            }
-
-            index += 0x10;
-        }
     }
 }
 
@@ -453,14 +432,14 @@ void SGB::souTrn(int block) {
 void SGB::palSet(int block) {
     for(int i = 0; i < 4; i++) {
         int paletteId = (this->packet[i * 2 + 1] | (this->packet[i * 2 + 2] << 8)) & 0x1ff;
-        memcpy(this->gameboy->ppu->getBgPaletteData() + i * 4 + 1, sgbPalettes + paletteId * 8 + 2, 3 * sizeof(u16));
-        memcpy(this->gameboy->ppu->getSprPaletteData() + i * 4 + 1, sgbPalettes + paletteId * 8 + 2, 3 * sizeof(u16));
-        memcpy(this->gameboy->ppu->getSprPaletteData() + (i + 4) * 4 + 1, sgbPalettes + paletteId * 8 + 2, 3 * sizeof(u16));
+        memcpy(this->gameboy->ppu->getBgPaletteData() + i * 4 + 1, &this->palettes[paletteId * 8 + 2], 3 * sizeof(u16));
+        memcpy(this->gameboy->ppu->getSprPaletteData() + i * 4 + 1, &this->palettes[paletteId * 8 + 2], 3 * sizeof(u16));
+        memcpy(this->gameboy->ppu->getSprPaletteData() + (i + 4) * 4 + 1, &this->palettes[paletteId * 8 + 2], 3 * sizeof(u16));
     }
 
     int color0PaletteId = (this->packet[1] | (this->packet[2] << 8)) & 0x1ff;
 
-    u16 color0 = (u16) (sgbPalettes[color0PaletteId * 8] | (sgbPalettes[color0PaletteId * 8 + 1] << 8));
+    u16 color0 = (u16) (this->palettes[color0PaletteId * 8] | (this->palettes[color0PaletteId * 8 + 1] << 8));
     for(int i = 0; i < 4; i++) {
         this->gameboy->ppu->getBgPaletteData()[i * 4] = color0;
         this->gameboy->ppu->getSprPaletteData()[i * 4] = color0;
@@ -477,7 +456,7 @@ void SGB::palSet(int block) {
 }
 
 void SGB::palTrn(int block) {
-    this->doVramTransfer(sgbPalettes);
+    this->gameboy->ppu->transferTiles(this->palettes);
 }
 
 void SGB::atrcEn(int block) {
@@ -511,20 +490,20 @@ void SGB::jump(int block) {
 
 void SGB::chrTrn(int block) {
     u8* data = new u8[0x1000];
-    this->doVramTransfer(data);
+    this->gameboy->ppu->transferTiles(data);
     // TODO: SGB Border Tiles
     delete data;
 }
 
 void SGB::pctTrn(int block) {
     u8* data = new u8[0x1000];
-    this->doVramTransfer(data);
+    this->gameboy->ppu->transferTiles(data);
     // TODO: SGB Border Map
     delete data;
 }
 
 void SGB::attrTrn(int block) {
-    this->doVramTransfer(sgbAttrFiles);
+    this->gameboy->ppu->transferTiles(this->attrFiles);
 }
 
 void SGB::attrSet(int block) {

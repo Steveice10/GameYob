@@ -26,7 +26,6 @@ public:
     }
 private:
     void loadAttrFile(int index);
-    void doVramTransfer(u8* dest);
 
     // Begin commands
     void palXX(int block);
@@ -71,14 +70,6 @@ private:
     u8 packet[16];
     u8 command;
 
-    u8 controllers[4];
-    u8 numControllers;
-    u8 selectedController; // Which controller is being observed
-    u8 buttonsChecked;
-
-    u8 mask;
-    u8 map[20 * 18];
-
     // Data for various different sgb commands
     struct SgbCmdData {
         int numDataSets;
@@ -95,4 +86,15 @@ private:
             } attrChr;
         };
     } cmdData;
+
+    u8 controllers[4];
+    u8 numControllers;
+    u8 selectedController; // Which controller is being observed
+    u8 buttonsChecked;
+
+    u8 palettes[0x1000];
+    u8 attrFiles[0x1000];
+
+    u8 mask;
+    u8 map[20 * 18];
 };

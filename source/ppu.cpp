@@ -906,6 +906,29 @@ void PPU::refreshGBPalette() {
     }
 }
 
+void PPU::transferTiles(u8* dest) {
+    u8 lcdc = this->gameboy->mmu->readIO(LCDC);
+
+    u32 map = (u32) (0x1800 + ((lcdc >> 3) & 1) * 0x400);
+    u32 index = 0;
+    for(u32 y = 0; y < 18; y++) {
+        for(u32 x = 0; x < 20; x++) {
+            if(index == 0x1000) {
+                return;
+            }
+
+            u8 tile = this->vram[0][map + y * 32 + x];
+            if(lcdc & 0x10) {
+                memcpy(dest + index, &this->vram[0][tile * 0x10], 0x10);
+            } else {
+                memcpy(dest + index, &this->vram[0][0x1000 + (s8) tile * 0x10], 0x10);
+            }
+
+            index += 0x10;
+        }
+    }
+}
+
 void PPU::drawScanline(u32 scanline) {
     switch(this->gameboy->sgb->getGfxMask()) {
         case 0: {
