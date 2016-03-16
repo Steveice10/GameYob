@@ -963,6 +963,7 @@ void PPU::drawBackground(u16* lineBuffer, u8* depthBuffer, u32 scanline) {
         u8* sgbMap = this->gameboy->sgb->getGfxMap();
 
         bool tileSigned = (lcdc & 0x10) == 0;
+        bool losePriority = this->gameboy->gbMode == MODE_CGB && (lcdc & 0x01) == 0;
 
         // The y position (measured in tiles)
         u32 tileY = ((scanline + scy) & 0xFF) / 8;
@@ -990,7 +991,6 @@ void PPU::drawBackground(u16* lineBuffer, u8* depthBuffer, u32 scanline) {
             u32 pixelY = basePixelY;
             u8 depth = 1;
             u32 paletteId = 0;
-            bool losePriority = false;
 
             u32 vRamB1 = 0;
             u32 vRamB2 = 0;
@@ -1005,7 +1005,6 @@ void PPU::drawBackground(u16* lineBuffer, u8* depthBuffer, u32 scanline) {
             if(this->gameboy->gbMode == MODE_CGB) {
                 u32 flag = this->vram[1][mapAddr];
                 paletteId = flag & PALETTE_NUMBER;
-                losePriority = (lcdc & 0x01) == 0;
 
                 if(flag & FLIP_Y) {
                     pixelY = 7 - pixelY;
@@ -1065,6 +1064,7 @@ void PPU::drawWindow(u16* lineBuffer, u8* depthBuffer, u32 scanline) {
         u8* sgbMap = this->gameboy->sgb->getGfxMap();
 
         bool tileSigned = (lcdc & 0x10) == 0;
+        bool losePriority = this->gameboy->gbMode == MODE_CGB && (lcdc & 0x01) == 0;
 
         // The y position (measured in tiles)
         u32 tileY = (scanline - wy) / 8;
@@ -1085,7 +1085,6 @@ void PPU::drawWindow(u16* lineBuffer, u8* depthBuffer, u32 scanline) {
             u32 pixelY = basePixelY;
             u8 depth = 1;
             u32 paletteId = 0;
-            bool losePriority = false;
 
             u32 vRamB1 = 0;
             u32 vRamB2 = 0;
@@ -1100,7 +1099,6 @@ void PPU::drawWindow(u16* lineBuffer, u8* depthBuffer, u32 scanline) {
             if(this->gameboy->gbMode == MODE_CGB) {
                 u32 flag = this->vram[1][mapAddr];
                 paletteId = flag & PALETTE_NUMBER;
-                losePriority = (lcdc & 0x01) == 0;
 
                 if(flag & FLIP_Y) {
                     pixelY = 7 - pixelY;
