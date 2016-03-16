@@ -21,6 +21,10 @@ public:
         return this->map;
     }
 
+    u16* getActivePalette() {
+        return this->activePalette;
+    }
+
     inline void setController(u8 controller, u8 val) {
         this->controllers[controller] = val;
     }
@@ -97,4 +101,5 @@ private:
 
     u8 mask;
     u8 map[20 * 18];
+    u16 activePalette[0x20];
 };

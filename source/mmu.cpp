@@ -132,7 +132,7 @@ void MMU::mapBanks() {
                 return this->hram[reg];
             }
         } else if(addr >= 0xFE00 && addr < 0xFEA0) {
-            return this->gameboy->ppu->getOam()[addr & 0xFF];
+            return this->gameboy->ppu->readOAM(addr);
         } else if(addr < 0xFE00) {
             return this->wram[this->readIO(SVBK)][addr & 0xFFF];
         }
@@ -149,7 +149,7 @@ void MMU::mapBanks() {
                 this->hram[reg] = val;
             }
         } else if(addr >= 0xFE00 && addr < 0xFEA0) {
-            this->gameboy->ppu->getOam()[addr & 0xFF] = val;
+            this->gameboy->ppu->writeOAM(addr, val);
         } else if(addr < 0xFE00) {
             this->wram[this->readIO(SVBK)][addr & 0xFFF] = val;
         }

@@ -24,12 +24,461 @@
 #include "printer.h"
 #include "romfile.h"
 
-const int MENU_NONE = 1;
-const int MENU_3DS = 2;
+#define COMPONENT_8_TO_5(c8) (((c8) * 0x1F * 2 + 0xFF) / (0xFF * 2))
+#define TOCGB(r, g, b) ((u16) (COMPONENT_8_TO_5(b) << 10 | COMPONENT_8_TO_5(g) << 5 | COMPONENT_8_TO_5(r)))
 
-const int MENU_ALL = MENU_3DS;
+static const unsigned short p005[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x52, 0xFF, 0x00), TOCGB(0xFF, 0x42, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x52, 0xFF, 0x00), TOCGB(0xFF, 0x42, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x52, 0xFF, 0x00), TOCGB(0xFF, 0x42, 0x00), TOCGB(0x00, 0x00, 0x00)
+};
 
-const int MENU_BITMASK = MENU_3DS;
+static const unsigned short p006[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x9C, 0x00), TOCGB(0xFF, 0x00, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x9C, 0x00), TOCGB(0xFF, 0x00, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x9C, 0x00), TOCGB(0xFF, 0x00, 0x00), TOCGB(0x00, 0x00, 0x00)
+};
+
+static const unsigned short p007[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0xFF, 0x00), TOCGB(0xFF, 0x00, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0xFF, 0x00), TOCGB(0xFF, 0x00, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0xFF, 0x00), TOCGB(0xFF, 0x00, 0x00), TOCGB(0x00, 0x00, 0x00)
+};
+
+static const unsigned short p008[] = {
+        TOCGB(0xA5, 0x9C, 0xFF), TOCGB(0xFF, 0xFF, 0x00), TOCGB(0x00, 0x63, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xA5, 0x9C, 0xFF), TOCGB(0xFF, 0xFF, 0x00), TOCGB(0x00, 0x63, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xA5, 0x9C, 0xFF), TOCGB(0xFF, 0xFF, 0x00), TOCGB(0x00, 0x63, 0x00), TOCGB(0x00, 0x00, 0x00)
+};
+
+static const unsigned short p012[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0xAD, 0x63), TOCGB(0x84, 0x31, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0xAD, 0x63), TOCGB(0x84, 0x31, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0xAD, 0x63), TOCGB(0x84, 0x31, 0x00), TOCGB(0x00, 0x00, 0x00)
+};
+
+static const unsigned short p013[] = {
+        TOCGB(0x00, 0x00, 0x00), TOCGB(0x00, 0x84, 0x84), TOCGB(0xFF, 0xDE, 0x00), TOCGB(0xFF, 0xFF, 0xFF),
+        TOCGB(0x00, 0x00, 0x00), TOCGB(0x00, 0x84, 0x84), TOCGB(0xFF, 0xDE, 0x00), TOCGB(0xFF, 0xFF, 0xFF),
+        TOCGB(0x00, 0x00, 0x00), TOCGB(0x00, 0x84, 0x84), TOCGB(0xFF, 0xDE, 0x00), TOCGB(0xFF, 0xFF, 0xFF)
+};
+
+static const unsigned short p016[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xA5, 0xA5, 0xA5), TOCGB(0x52, 0x52, 0x52), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xA5, 0xA5, 0xA5), TOCGB(0x52, 0x52, 0x52), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xA5, 0xA5, 0xA5), TOCGB(0x52, 0x52, 0x52), TOCGB(0x00, 0x00, 0x00)
+};
+
+static const unsigned short p017[] = {
+        TOCGB(0xFF, 0xFF, 0xA5), TOCGB(0xFF, 0x94, 0x94), TOCGB(0x94, 0x94, 0xFF), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xA5), TOCGB(0xFF, 0x94, 0x94), TOCGB(0x94, 0x94, 0xFF), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xA5), TOCGB(0xFF, 0x94, 0x94), TOCGB(0x94, 0x94, 0xFF), TOCGB(0x00, 0x00, 0x00)
+};
+
+static const unsigned short p01B[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0xCE, 0x00), TOCGB(0x9C, 0x63, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0xCE, 0x00), TOCGB(0x9C, 0x63, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0xCE, 0x00), TOCGB(0x9C, 0x63, 0x00), TOCGB(0x00, 0x00, 0x00)
+};
+
+static const unsigned short p100[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xAD, 0xAD, 0x84), TOCGB(0x42, 0x73, 0x7B), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x73, 0x00), TOCGB(0x94, 0x42, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xAD, 0xAD, 0x84), TOCGB(0x42, 0x73, 0x7B), TOCGB(0x00, 0x00, 0x00)
+};
+
+static const unsigned short p10B[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x63, 0xA5, 0xFF), TOCGB(0x00, 0x00, 0xFF), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x84, 0x84), TOCGB(0x94, 0x3A, 0x3A), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x63, 0xA5, 0xFF), TOCGB(0x00, 0x00, 0xFF), TOCGB(0x00, 0x00, 0x00)
+};
+
+static const unsigned short p10D[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x8C, 0x8C, 0xDE), TOCGB(0x52, 0x52, 0x8C), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x84, 0x84), TOCGB(0x94, 0x3A, 0x3A), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x8C, 0x8C, 0xDE), TOCGB(0x52, 0x52, 0x8C), TOCGB(0x00, 0x00, 0x00)
+};
+
+static const unsigned short p110[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x84, 0x84), TOCGB(0x94, 0x3A, 0x3A), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x7B, 0xFF, 0x31), TOCGB(0x00, 0x84, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x84, 0x84), TOCGB(0x94, 0x3A, 0x3A), TOCGB(0x00, 0x00, 0x00)
+};
+
+static const unsigned short p11C[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x7B, 0xFF, 0x31), TOCGB(0x00, 0x63, 0xC5), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x84, 0x84), TOCGB(0x94, 0x3A, 0x3A), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x7B, 0xFF, 0x31), TOCGB(0x00, 0x63, 0xC5), TOCGB(0x00, 0x00, 0x00)
+};
+
+static const unsigned short p20B[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x63, 0xA5, 0xFF), TOCGB(0x00, 0x00, 0xFF), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x63, 0xA5, 0xFF), TOCGB(0x00, 0x00, 0xFF), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x84, 0x84), TOCGB(0x94, 0x3A, 0x3A), TOCGB(0x00, 0x00, 0x00)
+};
+
+static const unsigned short p20C[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x8C, 0x8C, 0xDE), TOCGB(0x52, 0x52, 0x8C), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x8C, 0x8C, 0xDE), TOCGB(0x52, 0x52, 0x8C), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xC5, 0x42), TOCGB(0xFF, 0xD6, 0x00), TOCGB(0x94, 0x3A, 0x00), TOCGB(0x4A, 0x00, 0x00)
+};
+
+static const unsigned short p300[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xAD, 0xAD, 0x84), TOCGB(0x42, 0x73, 0x7B), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x73, 0x00), TOCGB(0x94, 0x42, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x73, 0x00), TOCGB(0x94, 0x42, 0x00), TOCGB(0x00, 0x00, 0x00)
+};
+
+static const unsigned short p304[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x7B, 0xFF, 0x00), TOCGB(0xB5, 0x73, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x84, 0x84), TOCGB(0x94, 0x3A, 0x3A), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x84, 0x84), TOCGB(0x94, 0x3A, 0x3A), TOCGB(0x00, 0x00, 0x00)
+};
+
+static const unsigned short p305[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x52, 0xFF, 0x00), TOCGB(0xFF, 0x42, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x84, 0x84), TOCGB(0x94, 0x3A, 0x3A), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x84, 0x84), TOCGB(0x94, 0x3A, 0x3A), TOCGB(0x00, 0x00, 0x00)
+};
+
+static const unsigned short p306[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x9C, 0x00), TOCGB(0xFF, 0x00, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x84, 0x84), TOCGB(0x94, 0x3A, 0x3A), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x84, 0x84), TOCGB(0x94, 0x3A, 0x3A), TOCGB(0x00, 0x00, 0x00)
+};
+
+static const unsigned short p308[] = {
+        TOCGB(0xA5, 0x9C, 0xFF), TOCGB(0xFF, 0xFF, 0x00), TOCGB(0x00, 0x63, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0x63, 0x52), TOCGB(0xD6, 0x00, 0x00), TOCGB(0x63, 0x00, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0x63, 0x52), TOCGB(0xD6, 0x00, 0x00), TOCGB(0x63, 0x00, 0x00), TOCGB(0x00, 0x00, 0x00)
+};
+
+static const unsigned short p30A[] = {
+        TOCGB(0xB5, 0xB5, 0xFF), TOCGB(0xFF, 0xFF, 0x94), TOCGB(0xAD, 0x5A, 0x42), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0x00, 0x00, 0x00), TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x84, 0x84), TOCGB(0x94, 0x3A, 0x3A),
+        TOCGB(0x00, 0x00, 0x00), TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x84, 0x84), TOCGB(0x94, 0x3A, 0x3A)
+};
+
+static const unsigned short p30C[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x8C, 0x8C, 0xDE), TOCGB(0x52, 0x52, 0x8C), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xC5, 0x42), TOCGB(0xFF, 0xD6, 0x00), TOCGB(0x94, 0x3A, 0x00), TOCGB(0x4A, 0x00, 0x00),
+        TOCGB(0xFF, 0xC5, 0x42), TOCGB(0xFF, 0xD6, 0x00), TOCGB(0x94, 0x3A, 0x00), TOCGB(0x4A, 0x00, 0x00)
+};
+
+static const unsigned short p30D[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x8C, 0x8C, 0xDE), TOCGB(0x52, 0x52, 0x8C), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x84, 0x84), TOCGB(0x94, 0x3A, 0x3A), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x84, 0x84), TOCGB(0x94, 0x3A, 0x3A), TOCGB(0x00, 0x00, 0x00)
+};
+
+static const unsigned short p30E[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x7B, 0xFF, 0x31), TOCGB(0x00, 0x84, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x84, 0x84), TOCGB(0x94, 0x3A, 0x3A), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x84, 0x84), TOCGB(0x94, 0x3A, 0x3A), TOCGB(0x00, 0x00, 0x00)
+};
+
+static const unsigned short p30F[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0xAD, 0x63), TOCGB(0x84, 0x31, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x63, 0xA5, 0xFF), TOCGB(0x00, 0x00, 0xFF), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x63, 0xA5, 0xFF), TOCGB(0x00, 0x00, 0xFF), TOCGB(0x00, 0x00, 0x00)
+};
+
+static const unsigned short p312[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0xAD, 0x63), TOCGB(0x84, 0x31, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x7B, 0xFF, 0x31), TOCGB(0x00, 0x84, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x7B, 0xFF, 0x31), TOCGB(0x00, 0x84, 0x00), TOCGB(0x00, 0x00, 0x00)
+};
+
+static const unsigned short p319[] = {
+        TOCGB(0xFF, 0xE6, 0xC5), TOCGB(0xCE, 0x9C, 0x84), TOCGB(0x84, 0x6B, 0x29), TOCGB(0x5A, 0x31, 0x08),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0xAD, 0x63), TOCGB(0x84, 0x31, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0xAD, 0x63), TOCGB(0x84, 0x31, 0x00), TOCGB(0x00, 0x00, 0x00)
+};
+
+static const unsigned short p31C[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x7B, 0xFF, 0x31), TOCGB(0x00, 0x63, 0xC5), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x84, 0x84), TOCGB(0x94, 0x3A, 0x3A), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x84, 0x84), TOCGB(0x94, 0x3A, 0x3A), TOCGB(0x00, 0x00, 0x00)
+};
+
+static const unsigned short p405[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x52, 0xFF, 0x00), TOCGB(0xFF, 0x42, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x52, 0xFF, 0x00), TOCGB(0xFF, 0x42, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x5A, 0xBD, 0xFF), TOCGB(0xFF, 0x00, 0x00), TOCGB(0x00, 0x00, 0xFF)
+};
+
+static const unsigned short p406[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x9C, 0x00), TOCGB(0xFF, 0x00, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x9C, 0x00), TOCGB(0xFF, 0x00, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x5A, 0xBD, 0xFF), TOCGB(0xFF, 0x00, 0x00), TOCGB(0x00, 0x00, 0xFF)
+};
+
+static const unsigned short p407[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0xFF, 0x00), TOCGB(0xFF, 0x00, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0xFF, 0x00), TOCGB(0xFF, 0x00, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x5A, 0xBD, 0xFF), TOCGB(0xFF, 0x00, 0x00), TOCGB(0x00, 0x00, 0xFF)
+};
+
+static const unsigned short p500[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xAD, 0xAD, 0x84), TOCGB(0x42, 0x73, 0x7B), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x73, 0x00), TOCGB(0x94, 0x42, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x5A, 0xBD, 0xFF), TOCGB(0xFF, 0x00, 0x00), TOCGB(0x00, 0x00, 0xFF)
+};
+
+static const unsigned short p501[] = {
+        TOCGB(0xFF, 0xFF, 0x9C), TOCGB(0x94, 0xB5, 0xFF), TOCGB(0x63, 0x94, 0x73), TOCGB(0x00, 0x3A, 0x3A),
+        TOCGB(0xFF, 0xC5, 0x42), TOCGB(0xFF, 0xD6, 0x00), TOCGB(0x94, 0x3A, 0x00), TOCGB(0x4A, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x84, 0x84), TOCGB(0x94, 0x3A, 0x3A), TOCGB(0x00, 0x00, 0x00)
+};
+
+static const unsigned short p502[] = {
+        TOCGB(0x6B, 0xFF, 0x00), TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x52, 0x4A), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x63, 0xA5, 0xFF), TOCGB(0x00, 0x00, 0xFF),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0xAD, 0x63), TOCGB(0x84, 0x31, 0x00), TOCGB(0x00, 0x00, 0x00)
+};
+
+static const unsigned short p503[] = {
+        TOCGB(0x52, 0xDE, 0x00), TOCGB(0xFF, 0x84, 0x00), TOCGB(0xFF, 0xFF, 0x00), TOCGB(0xFF, 0xFF, 0xFF),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x63, 0xA5, 0xFF), TOCGB(0x00, 0x00, 0xFF),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x84, 0x84), TOCGB(0x94, 0x3A, 0x3A), TOCGB(0x00, 0x00, 0x00)
+};
+
+static const unsigned short p508[] = {
+        TOCGB(0xA5, 0x9C, 0xFF), TOCGB(0xFF, 0xFF, 0x00), TOCGB(0x00, 0x63, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0x63, 0x52), TOCGB(0xD6, 0x00, 0x00), TOCGB(0x63, 0x00, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0x00, 0x00, 0xFF), TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0xFF, 0x7B), TOCGB(0x00, 0x84, 0xFF)
+};
+
+static const unsigned short p509[] = {
+        TOCGB(0xFF, 0xFF, 0xCE), TOCGB(0x63, 0xEF, 0xEF), TOCGB(0x9C, 0x84, 0x31), TOCGB(0x5A, 0x5A, 0x5A),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x73, 0x00), TOCGB(0x94, 0x42, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x63, 0xA5, 0xFF), TOCGB(0x00, 0x00, 0xFF), TOCGB(0x00, 0x00, 0x00)
+};
+
+static const unsigned short p50B[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x63, 0xA5, 0xFF), TOCGB(0x00, 0x00, 0xFF), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x84, 0x84), TOCGB(0x94, 0x3A, 0x3A), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0xFF, 0x7B), TOCGB(0x00, 0x84, 0xFF), TOCGB(0xFF, 0x00, 0x00)
+};
+
+static const unsigned short p50C[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x8C, 0x8C, 0xDE), TOCGB(0x52, 0x52, 0x8C), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xC5, 0x42), TOCGB(0xFF, 0xD6, 0x00), TOCGB(0x94, 0x3A, 0x00), TOCGB(0x4A, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x5A, 0xBD, 0xFF), TOCGB(0xFF, 0x00, 0x00), TOCGB(0x00, 0x00, 0xFF)
+};
+
+static const unsigned short p50D[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x8C, 0x8C, 0xDE), TOCGB(0x52, 0x52, 0x8C), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x84, 0x84), TOCGB(0x94, 0x3A, 0x3A), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0xAD, 0x63), TOCGB(0x84, 0x31, 0x00), TOCGB(0x00, 0x00, 0x00)
+};
+
+static const unsigned short p50E[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x7B, 0xFF, 0x31), TOCGB(0x00, 0x84, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x84, 0x84), TOCGB(0x94, 0x3A, 0x3A), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x63, 0xA5, 0xFF), TOCGB(0x00, 0x00, 0xFF), TOCGB(0x00, 0x00, 0x00)
+};
+
+static const unsigned short p50F[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0xAD, 0x63), TOCGB(0x84, 0x31, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x63, 0xA5, 0xFF), TOCGB(0x00, 0x00, 0xFF), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x7B, 0xFF, 0x31), TOCGB(0x00, 0x84, 0x00), TOCGB(0x00, 0x00, 0x00)
+};
+
+static const unsigned short p510[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x84, 0x84), TOCGB(0x94, 0x3A, 0x3A), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x7B, 0xFF, 0x31), TOCGB(0x00, 0x84, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x63, 0xA5, 0xFF), TOCGB(0x00, 0x00, 0xFF), TOCGB(0x00, 0x00, 0x00)
+};
+
+static const unsigned short p511[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x84, 0x84), TOCGB(0x94, 0x3A, 0x3A), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x00, 0xFF, 0x00), TOCGB(0x31, 0x84, 0x00), TOCGB(0x00, 0x4A, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x63, 0xA5, 0xFF), TOCGB(0x00, 0x00, 0xFF), TOCGB(0x00, 0x00, 0x00)
+};
+
+static const unsigned short p512[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0xAD, 0x63), TOCGB(0x84, 0x31, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x7B, 0xFF, 0x31), TOCGB(0x00, 0x84, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x63, 0xA5, 0xFF), TOCGB(0x00, 0x00, 0xFF), TOCGB(0x00, 0x00, 0x00)
+};
+
+static const unsigned short p514[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x63, 0xA5, 0xFF), TOCGB(0x00, 0x00, 0xFF), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0x00), TOCGB(0xFF, 0x00, 0x00), TOCGB(0x63, 0x00, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x7B, 0xFF, 0x31), TOCGB(0x00, 0x84, 0x00), TOCGB(0x00, 0x00, 0x00)
+};
+
+static const unsigned short p515[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xAD, 0xAD, 0x84), TOCGB(0x42, 0x73, 0x7B), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0xAD, 0x63), TOCGB(0x84, 0x31, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x63, 0xA5, 0xFF), TOCGB(0x00, 0x00, 0xFF), TOCGB(0x00, 0x00, 0x00)
+};
+
+static const unsigned short p518[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x63, 0xA5, 0xFF), TOCGB(0x00, 0x00, 0xFF), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x84, 0x84), TOCGB(0x94, 0x3A, 0x3A), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x7B, 0xFF, 0x31), TOCGB(0x00, 0x84, 0x00), TOCGB(0x00, 0x00, 0x00)
+};
+
+static const unsigned short p51A[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0xFF, 0x00), TOCGB(0x7B, 0x4A, 0x00), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x63, 0xA5, 0xFF), TOCGB(0x00, 0x00, 0xFF), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x7B, 0xFF, 0x31), TOCGB(0x00, 0x84, 0x00), TOCGB(0x00, 0x00, 0x00)
+};
+
+static const unsigned short p51C[] = {
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x7B, 0xFF, 0x31), TOCGB(0x00, 0x63, 0xC5), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0xFF, 0x84, 0x84), TOCGB(0x94, 0x3A, 0x3A), TOCGB(0x00, 0x00, 0x00),
+        TOCGB(0xFF, 0xFF, 0xFF), TOCGB(0x63, 0xA5, 0xFF), TOCGB(0x00, 0x00, 0xFF), TOCGB(0x00, 0x00, 0x00)
+};
+
+static const unsigned short pCls[] = {
+        TOCGB(0x9B, 0xBC, 0x0F), TOCGB(0x8B, 0xAC, 0x0F), TOCGB(0x30, 0x62, 0x30), TOCGB(0x0F, 0x38, 0x0F),
+        TOCGB(0x9B, 0xBC, 0x0F), TOCGB(0x8B, 0xAC, 0x0F), TOCGB(0x30, 0x62, 0x30), TOCGB(0x0F, 0x38, 0x0F),
+        TOCGB(0x9B, 0xBC, 0x0F), TOCGB(0x8B, 0xAC, 0x0F), TOCGB(0x30, 0x62, 0x30), TOCGB(0x0F, 0x38, 0x0F)
+};
+
+struct GbcPaletteEntry {
+    const char* title;
+    const unsigned short* p;
+};
+
+static const GbcPaletteEntry gbcPalettes[] = {
+        {"GB - Classic",     pCls},
+        {"GBC - Blue",       p518},
+        {"GBC - Brown",      p012},
+        {"GBC - Dark Blue",  p50D},
+        {"GBC - Dark Brown", p319},
+        {"GBC - Dark Green", p31C},
+        {"GBC - Grayscale",  p016},
+        {"GBC - Green",      p005},
+        {"GBC - Inverted",   p013},
+        {"GBC - Orange",     p007},
+        {"GBC - Pastel Mix", p017},
+        {"GBC - Red",        p510},
+        {"GBC - Yellow",     p51A},
+        {"ALLEY WAY",        p008},
+        {"ASTEROIDS/MISCMD", p30E},
+        {"ATOMIC PUNK",      p30F}, // unofficial ("DYNABLASTER" alt.)
+        {"BA.TOSHINDEN",     p50F},
+        {"BALLOON KID",      p006},
+        {"BASEBALL",         p503},
+        {"BOMBERMAN GB",     p31C}, // unofficial ("WARIO BLAST" alt.)
+        {"BOY AND BLOB GB1", p512},
+        {"BOY AND BLOB GB2", p512},
+        {"BT2RAGNAROKWORLD", p312},
+        {"DEFENDER/JOUST",   p50F},
+        {"DMG FOOTBALL",     p30E},
+        {"DONKEY KONG",      p306},
+        {"DONKEYKONGLAND",   p50C},
+        {"DONKEYKONGLAND 2", p50C},
+        {"DONKEYKONGLAND 3", p50C},
+        {"DONKEYKONGLAND95", p501},
+        {"DR.MARIO",         p20B},
+        {"DYNABLASTER",      p30F},
+        {"F1RACE",           p012},
+        {"FOOTBALL INT'L",   p502}, // unofficial ("SOCCER" alt.)
+        {"G&W GALLERY",      p304},
+        {"GALAGA&GALAXIAN",  p013},
+        {"GAME&WATCH",       p012},
+        {"GAMEBOY GALLERY",  p304},
+        {"GAMEBOY GALLERY2", p304},
+        {"GBWARS",           p500},
+        {"GBWARST",          p500}, // unofficial ("GBWARS" alt.)
+        {"GOLF",             p30E},
+        {"Game and Watch 2", p304},
+        {"HOSHINOKA-BI",     p508},
+        {"JAMES  BOND  007", p11C},
+        {"KAERUNOTAMENI",    p10D},
+        {"KEN GRIFFEY JR",   p31C},
+        {"KID ICARUS",       p30D},
+        {"KILLERINSTINCT95", p50D},
+        {"KINGOFTHEZOO",     p30F},
+        {"KIRAKIRA KIDS",    p012},
+        {"KIRBY BLOCKBALL",  p508},
+        {"KIRBY DREAM LAND", p508},
+        {"KIRBY'S PINBALL",  p308},
+        {"KIRBY2",           p508},
+        {"LOLO2",            p50F},
+        {"MAGNETIC SOCCER",  p50E},
+        {"MANSELL",          p012},
+        {"MARIO & YOSHI",    p305},
+        {"MARIO'S PICROSS",  p012},
+        {"MARIOLAND2",       p509},
+        {"MEGA MAN 2",       p50F},
+        {"MEGAMAN",          p50F},
+        {"MEGAMAN3",         p50F},
+        {"METROID2",         p514},
+        {"MILLI/CENTI/PEDE", p31C},
+        {"MOGURANYA",        p300},
+        {"MYSTIC QUEST",     p50E},
+        {"NETTOU KOF 95",    p50F},
+        {"NEW CHESSMASTER",  p30F},
+        {"OTHELLO",          p50E},
+        {"PAC-IN-TIME",      p51C},
+        {"PENGUIN WARS",     p30F}, // unofficial ("KINGOFTHEZOO" alt.)
+        {"PENGUINKUNWARSVS", p30F}, // unofficial ("KINGOFTHEZOO" alt.)
+        {"PICROSS 2",        p012},
+        {"PINOCCHIO",        p20C},
+        {"POKEBOM",          p30C},
+        {"POKEMON BLUE",     p10B},
+        {"POKEMON GREEN",    p11C},
+        {"POKEMON RED",      p110},
+        {"POKEMON YELLOW",   p007},
+        {"QIX",              p407},
+        {"RADARMISSION",     p100},
+        {"ROCKMAN WORLD",    p50F},
+        {"ROCKMAN WORLD2",   p50F},
+        {"ROCKMANWORLD3",    p50F},
+        {"SEIKEN DENSETSU",  p50E},
+        {"SOCCER",           p502},
+        {"SOLARSTRIKER",     p013},
+        {"SPACE INVADERS",   p013},
+        {"STAR STACKER",     p012},
+        {"STAR WARS",        p512},
+        {"STAR WARS-NOA",    p512},
+        {"STREET FIGHTER 2", p50F},
+        {"SUPER BOMBLISS  ", p006}, // unofficial ("TETRIS BLAST" alt.)
+        {"SUPER MARIOLAND",  p30A},
+        {"SUPER RC PRO-AM",  p50F},
+        {"SUPERDONKEYKONG",  p501},
+        {"SUPERMARIOLAND3",  p500},
+        {"TENNIS",           p502},
+        {"TETRIS",           p007},
+        {"TETRIS ATTACK",    p405},
+        {"TETRIS BLAST",     p006},
+        {"TETRIS FLASH",     p407},
+        {"TETRIS PLUS",      p31C},
+        {"TETRIS2",          p407},
+        {"THE CHESSMASTER",  p30F},
+        {"TOPRANKINGTENNIS", p502},
+        {"TOPRANKTENNIS",    p502},
+        {"TOY STORY",        p30E},
+        {"TRIP WORLD",       p500}, // unofficial
+        {"VEGAS STAKES",     p50E},
+        {"WARIO BLAST",      p31C},
+        {"WARIOLAND2",       p515},
+        {"WAVERACE",         p50B},
+        {"WORLD CUP",        p30E},
+        {"X",                p016},
+        {"YAKUMAN",          p012},
+        {"YOSHI'S COOKIE",   p406},
+        {"YOSSY NO COOKIE",  p406},
+        {"YOSSY NO PANEPON", p405},
+        {"YOSSY NO TAMAGO",  p305},
+        {"ZELDA",            p511},
+};
+
+static const unsigned short* findPalette(const char* title) {
+    for(u32 i = 0; i < (sizeof gbcPalettes) / (sizeof gbcPalettes[0]); i++) {
+        if(strcmp(gbcPalettes[i].title, title) == 0) {
+            return gbcPalettes[i].p;
+        }
+    }
+
+    return NULL;
+}
 
 void subMenuGenericUpdateFunc(); // Private function here
 
@@ -56,6 +505,8 @@ bool timeOutput = false;
 bool autoSaveEnabled = false;
 
 int gbColorizeMode = 0;
+u16 gbBgPalette[0x20];
+u16 gbSprPalette[0x20];
 
 bool printerEnabled = 0;
 
@@ -122,14 +573,18 @@ void consoleOutputFunc(int value) {
         timeOutput = false;
         consoleDebugOutput = false;
     } else if(value == 1) {
+        fpsOutput = true;
+        timeOutput = false;
+        consoleDebugOutput = false;
+    } else if(value == 2) {
         fpsOutput = false;
         timeOutput = true;
         consoleDebugOutput = false;
-    } else if(value == 2) {
+    } else if(value == 3) {
         fpsOutput = true;
         timeOutput = true;
         consoleDebugOutput = false;
-    } else if(value == 3) {
+    } else if(value == 4) {
         fpsOutput = false;
         timeOutput = false;
         consoleDebugOutput = true;
@@ -294,9 +749,66 @@ void setFastForwardFrameSkipFunc(int value) {
 
 void gbColorizeFunc(int value) {
     gbColorizeMode = value;
-    if(gameboy->isRomLoaded()) {
-        gameboy->ppu->refreshGBPalette();
+    const u16* palette = NULL;
+    switch(gbColorizeMode) {
+        case 0:
+            palette = findPalette("GBC - Grayscale");
+            break;
+        case 1:
+            // Don't set the game's palette until we're past the BIOS screen.
+            if(!gameboy->biosOn && gameboy->isRomLoaded()) {
+                palette = findPalette(gameboy->romFile->getRomTitle().c_str());
+            }
+
+            if(palette == NULL) {
+                palette = findPalette("GBC - Grayscale");
+            }
+
+            break;
+        case 2:
+            palette = findPalette("GBC - Inverted");
+            break;
+        case 3:
+            palette = findPalette("GBC - Pastel Mix");
+            break;
+        case 4:
+            palette = findPalette("GBC - Red");
+            break;
+        case 5:
+            palette = findPalette("GBC - Orange");
+            break;
+        case 6:
+            palette = findPalette("GBC - Yellow");
+            break;
+        case 7:
+            palette = findPalette("GBC - Green");
+            break;
+        case 8:
+            palette = findPalette("GBC - Blue");
+            break;
+        case 9:
+            palette = findPalette("GBC - Brown");
+            break;
+        case 10:
+            palette = findPalette("GBC - Dark Green");
+            break;
+        case 11:
+            palette = findPalette("GBC - Dark Blue");
+            break;
+        case 12:
+            palette = findPalette("GBC - Dark Brown");
+            break;
+        case 13:
+            palette = findPalette("GB - Classic");
+            break;
+        default:
+            palette = findPalette("GBC - Grayscale");
+            break;
     }
+
+    memcpy(gbBgPalette, palette, 4 * sizeof(u16));
+    memcpy(gbSprPalette, palette + 4, 4 * sizeof(u16));
+    memcpy(gbSprPalette + 4 * 4, palette + 8, 4 * sizeof(u16));
 }
 
 void selectBorderFunc(int value) {
@@ -602,7 +1114,6 @@ struct MenuOption {
     int numValues;
     const char* values[15];
     int defaultSelection;
-    int platforms;
 
     bool enabled;
     int selection;
@@ -619,77 +1130,77 @@ SubMenu menuList[] = {
                 "Game",
                 12,
                 {
-                        {"Exit", exitFunc, 0, {}, 0, MENU_ALL},
-                        {"Reset", resetFunc, 0, {}, 0, MENU_ALL},
-                        {"Suspend", suspendFunc, 0, {}, 0, MENU_ALL},
-                        {"ROM Info", romInfoFunc, 0, {}, 0, MENU_ALL},
-                        {"Version Info", versionInfoFunc, 0, {}, 0, MENU_ALL},
-                        {"State Slot", stateSelectFunc, 10, {"0", "1", "2", "3", "4", "5", "6", "7", "8", "9"}, 0, MENU_ALL},
-                        {"Save State", stateSaveFunc, 0, {}, 0, MENU_ALL},
-                        {"Load State", stateLoadFunc, 0, {}, 0, MENU_ALL},
-                        {"Delete State", stateDeleteFunc, 0, {}, 0, MENU_ALL},
-                        {"Manage Cheats", cheatFunc, 0, {}, 0, MENU_ALL},
-                        {"Exit without saving", exitNoSaveFunc, 0, {}, 0, MENU_ALL},
-                        {"Quit to Launcher", returnToLauncherFunc, 0, {}, 0, MENU_ALL}
+                        {"Exit", exitFunc, 0, {}, 0},
+                        {"Reset", resetFunc, 0, {}, 0},
+                        {"Suspend", suspendFunc, 0, {}, 0},
+                        {"ROM Info", romInfoFunc, 0, {}, 0},
+                        {"Version Info", versionInfoFunc, 0, {}, 0},
+                        {"State Slot", stateSelectFunc, 10, {"0", "1", "2", "3", "4", "5", "6", "7", "8", "9"}, 0},
+                        {"Save State", stateSaveFunc, 0, {}, 0},
+                        {"Load State", stateLoadFunc, 0, {}, 0},
+                        {"Delete State", stateDeleteFunc, 0, {}, 0},
+                        {"Manage Cheats", cheatFunc, 0, {}, 0},
+                        {"Exit without saving", exitNoSaveFunc, 0, {}, 0},
+                        {"Quit to Launcher", returnToLauncherFunc, 0, {}, 0}
                 }
         },
         {
                 "GameYob",
                 5,
                 {
-                        {"Button Mapping", keyConfigFunc, 0, {}, 0, MENU_ALL},
-                        {"Console Output", consoleOutputFunc, 4, {"Off", "Time", "FPS+Time", "Debug"}, 0, MENU_ALL},
-                        {"Autosaving", setAutoSaveFunc, 2, {"Off", "On"}, 0, MENU_ALL},
-                        {"Pause on Menu", setPauseOnMenuFunc, 2, {"Off", "On"}, 0, MENU_ALL},
-                        {"Save Settings", saveSettingsFunc, 0, {}, 0, MENU_ALL}
+                        {"Button Mapping", keyConfigFunc, 0, {}, 0},
+                        {"Console Output", consoleOutputFunc, 4, {"Off", "FPS", "Time", "FPS+Time", "Debug"}, 0},
+                        {"Autosaving", setAutoSaveFunc, 2, {"Off", "On"}, 0},
+                        {"Pause on Menu", setPauseOnMenuFunc, 2, {"Off", "On"}, 0},
+                        {"Save Settings", saveSettingsFunc, 0, {}, 0}
                 }
         },
         {
                 "Gameboy",
                 7,
                 {
-                        {"GB Printer", printerEnableFunc, 2, {"Off", "On"}, 1, MENU_ALL},
-                        {"GBA Mode", gbaModeFunc, 2, {"Off", "On"}, 0, MENU_ALL},
-                        {"GBC Mode", gameboyModeFunc, 3, {"Off", "If Needed", "On"}, 2, MENU_ALL},
-                        {"SGB Mode", sgbModeFunc, 3, {"Off", "Prefer GBC", "Prefer SGB"}, 1, MENU_ALL},
-                        {"BIOS Mode", biosEnableFunc, 4, {"Off", "Auto", "GB", "GBC"}, 1, MENU_ALL},
-                        {"Select GB BIOS", selectGbBiosFunc, 0, {}, 0, MENU_ALL},
-                        {"Select GBC BIOS", selectGbcBiosFunc, 0, {}, 0, MENU_ALL}
+                        {"GB Printer", printerEnableFunc, 2, {"Off", "On"}, 1},
+                        {"GBA Mode", gbaModeFunc, 2, {"Off", "On"}, 0},
+                        {"GBC Mode", gameboyModeFunc, 3, {"Off", "If Needed", "On"}, 2},
+                        {"SGB Mode", sgbModeFunc, 3, {"Off", "Prefer GBC", "Prefer SGB"}, 1},
+                        {"BIOS Mode", biosEnableFunc, 4, {"Off", "Auto", "GB", "GBC"}, 1},
+                        {"Select GB BIOS", selectGbBiosFunc, 0, {}, 0},
+                        {"Select GBC BIOS", selectGbcBiosFunc, 0, {}, 0}
                 }
         },
         {
                 "Display",
                 8,
                 {
-                        {"Game Screen", setScreenFunc, 2, {"Top", "Bottom"}, 0, MENU_ALL},
-                        {"Scaling", setScaleModeFunc, 5, {"Off", "125%", "150%", "Aspect", "Full"}, 0, MENU_ALL},
-                        {"Scale Filter", setScaleFilterFunc, 3, {"Nearest", "Linear", "Scale2x"}, 1, MENU_ALL},
-                        {"FF Frame Skip", setFastForwardFrameSkipFunc, 4, {"0", "1", "2", "3"}, 3, MENU_ALL},
-                        {"Colorize GB", gbColorizeFunc, 14, {"Off", "Auto", "Inverted", "Pastel Mix", "Red", "Orange", "Yellow", "Green", "Blue", "Brown", "Dark Green", "Dark Blue", "Dark Brown", "Classic Green"}, 1, MENU_ALL},
-                        {"Borders", borderFunc, 3, {"Off", "Custom", "SGB"}, 1, MENU_ALL},
-                        {"Border Scaling", setBorderScaleModeFunc, 2, {"Pre-Scaled", "Scale Base"}, 0, MENU_ALL},
-                        {"Select Border", selectBorderFunc, 0, {}, 0, MENU_ALL}
+                        {"Game Screen", setScreenFunc, 2, {"Top", "Bottom"}, 0},
+                        {"Scaling", setScaleModeFunc, 5, {"Off", "125%", "150%", "Aspect", "Full"}, 0},
+                        {"Scale Filter", setScaleFilterFunc, 3, {"Nearest", "Linear", "Scale2x"}, 1},
+                        {"FF Frame Skip", setFastForwardFrameSkipFunc, 4, {"0", "1", "2", "3"}, 3},
+                        {"Colorize GB", gbColorizeFunc, 14, {"Off", "Auto", "Inverted", "Pastel Mix", "Red", "Orange", "Yellow", "Green", "Blue", "Brown", "Dark Green", "Dark Blue", "Dark Brown", "Classic Green"}, 1},
+                        {"Borders", borderFunc, 3, {"Off", "Custom", "SGB"}, 1},
+                        {"Border Scaling", setBorderScaleModeFunc, 2, {"Pre-Scaled", "Scale Base"}, 0},
+                        {"Select Border", selectBorderFunc, 0, {}, 0}
                 }
         },
         {
                 "Sound",
                 5,
                 {
-                        {"Master", soundEnableFunc, 2, {"Off", "On"}, 1, MENU_ALL},
-                        {"Channel 1", chan1Func, 2, {"Off", "On"}, 1, MENU_ALL},
-                        {"Channel 2", chan2Func, 2, {"Off", "On"}, 1, MENU_ALL},
-                        {"Channel 3", chan3Func, 2, {"Off", "On"}, 1, MENU_ALL},
-                        {"Channel 4", chan4Func, 2, {"Off", "On"}, 1, MENU_ALL}
+                        {"Master", soundEnableFunc, 2, {"Off", "On"}, 1},
+                        {"Channel 1", chan1Func, 2, {"Off", "On"}, 1},
+                        {"Channel 2", chan2Func, 2, {"Off", "On"}, 1},
+                        {"Channel 3", chan3Func, 2, {"Off", "On"}, 1},
+                        {"Channel 4", chan4Func, 2, {"Off", "On"}, 1}
                 }
         },
         /*{
                 "Link",
                 4,
                 {
-                        {"Listen", listenFunc, 0, {}, 0, MENU_ALL},
-                        {"Connect", connectFunc, 0, {}, 0, MENU_ALL},
-                        {"Disconnect", disconnectFunc, 0, {}, 0, MENU_ALL},
-                        {"Connection Info", connectionInfoFunc, 0, {}, 0, MENU_ALL}
+                        {"Listen", listenFunc, 0, {}, 0},
+                        {"Connect", connectFunc, 0, {}, 0},
+                        {"Disconnect", disconnectFunc, 0, {}, 0},
+                        {"Connection Info", connectionInfoFunc, 0, {}, 0}
                 }
         },*/
 };
@@ -701,7 +1212,7 @@ void setMenuDefaults() {
         for(int j = 0; j < menuList[i].numOptions; j++) {
             menuList[i].options[j].selection = menuList[i].options[j].defaultSelection;
             menuList[i].options[j].enabled = true;
-            if(menuList[i].options[j].numValues != 0 && menuList[i].options[j].platforms & MENU_BITMASK) {
+            if(menuList[i].options[j].numValues != 0) {
                 int selection = menuList[i].options[j].defaultSelection;
                 menuList[i].options[j].function(selection);
             }
@@ -743,72 +1254,30 @@ void menuCursorUp() {
     if(option < -1) {
         option = menuList[menu].numOptions - 1;
     }
-
-    if(!(menuList[menu].options[option].platforms & MENU_BITMASK)) {
-        menuCursorUp();
-    }
 }
 
 void menuCursorDown() {
     option++;
     if(option >= menuList[menu].numOptions) {
         option = -1;
-    } else if(!(menuList[menu].options[option].platforms & MENU_BITMASK)) {
-        menuCursorDown();
     }
 }
 
-// Get the number of rows down the selected option is
-// Necessary because of leaving out certain options in certain platforms
 int menuGetOptionRow() {
-    if(option == -1) {
-        return option;
-    }
-
-    int row = 0;
-    for(int i = 0; i < option; i++) {
-        if(menuList[menu].options[i].platforms & MENU_BITMASK) {
-            row++;
-        }
-    }
-
-    return row;
+    return option;
 }
 
 void menuSetOptionRow(int row) {
-    if(row == -1) {
-        option = -1;
-        return;
+    if(row >= menuList[menu].numOptions) {
+        row = menuList[menu].numOptions - 1;
     }
 
-    row++;
-    int lastValidRow = -1;
-    for(int i = 0; i < menuList[menu].numOptions; i++) {
-        if(menuList[menu].options[i].platforms & MENU_BITMASK) {
-            row--;
-            lastValidRow = i;
-        }
-
-        if(row == 0) {
-            option = i;
-            return;
-        }
-    }
-
-    // Too high
-    option = lastValidRow;
+    option = row;
 }
 
 // Get the number of VISIBLE rows for this platform
 int menuGetNumRows() {
-    int count = 0;
-    for(int i = 0; i < menuList[menu].numOptions; i++) {
-        if(menuList[menu].options[i].platforms & MENU_BITMASK) {
-            count++;
-        }
-    }
-
-    return count;
+    return menuList[menu].numOptions;
 }
 
 void redrawMenu() {
@@ -875,10 +1344,6 @@ void redrawMenu() {
 
     // Rest of the lines: options
     for(int i = 0; i < menuList[menu].numOptions; i++) {
-        if(!(menuList[menu].options[i].platforms & MENU_BITMASK)) {
-            continue;
-        }
-
         if(!menuList[menu].options[i].enabled) {
             uiSetTextColor(TEXT_COLOR_GRAY);
         } else if(option == i) {
@@ -1092,10 +1557,6 @@ void setMenuOption(const char* optionName, int value) {
     for(int i = 0; i < numMenus; i++) {
         for(int j = 0; j < menuList[i].numOptions; j++) {
             if(strcasecmp(optionName, menuList[i].options[j].name) == 0) {
-                if(!(menuList[i].options[j].platforms & MENU_BITMASK)) {
-                    continue;
-                }
-
                 menuList[i].options[j].selection = value;
                 menuList[i].options[j].function(value);
                 return;
@@ -1143,7 +1604,7 @@ const std::string menuPrintConfig() {
     std::stringstream stream;
     for(int i = 0; i < numMenus; i++) {
         for(int j = 0; j < menuList[i].numOptions; j++) {
-            if(menuList[i].options[j].platforms & MENU_BITMASK && menuList[i].options[j].numValues != 0) {
+            if(menuList[i].options[j].numValues != 0) {
                 stream << menuList[i].options[j].name << "=" << menuList[i].options[j].selection << "\n";
             }
         }

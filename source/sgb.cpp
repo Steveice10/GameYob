@@ -30,6 +30,13 @@ void SGB::reset() {
     this->mask = 0;
     memset(this->map, 0, sizeof(this->map));
 
+    for(int i = 0; i < 4; i++) {
+        this->activePalette[i * 4 + 0] = 0x1F | (0x1F << 5) | (0x1F << 10) | (0x1 << 15);
+        this->activePalette[i * 4 + 1] = 0x14 | (0x14 << 5) | (0x14 << 10) | (0x1 << 15);
+        this->activePalette[i * 4 + 2] = 0x0A | (0x0A << 5) | (0x0A << 10) | (0x1 << 15);
+        this->activePalette[i * 4 + 3] = 0x00 | (0x00 << 5) | (0x00 << 10) | (0x1 << 15);
+    }
+
     this->gameboy->mmu->mapIOReadFunc(JOYP, [this](u16 addr) -> u8 {
         u8 joyp = this->gameboy->mmu->readIO(JOYP);
 
@@ -221,19 +228,20 @@ void SGB::palXX(int block) {
             return;
     }
 
-    memcpy(this->gameboy->ppu->getBgPaletteData() + s1 * 4 + 1, this->packet + 3, 3 * sizeof(u16));
-    memcpy(this->gameboy->ppu->getSprPaletteData() + s1 * 4 + 1, this->packet + 3, 3 * sizeof(u16));
-    memcpy(this->gameboy->ppu->getSprPaletteData() + (s1 + 4) * 4 + 1, this->packet + 3, 3 * sizeof(u16));
+    u16 palette[4];
+    memcpy(palette, &this->packet[1], 4 * sizeof(u16));
 
-    memcpy(this->gameboy->ppu->getBgPaletteData() + s2 * 4 + 1, this->packet + 9, 3 * sizeof(u16));
-    memcpy(this->gameboy->ppu->getSprPaletteData() + s2 * 4 + 1, this->packet + 9, 3 * sizeof(u16));
-    memcpy(this->gameboy->ppu->getSprPaletteData() + (s2 + 4) * 4 + 1, this->packet + 9, 3 * sizeof(u16));
+    memcpy(&this->activePalette[s1 * 4], palette, sizeof(palette));
+    memcpy(&this->activePalette[(s1 + 4) * 4], palette, sizeof(palette));
 
-    u16 color0 = (u16) (packet[1] | packet[2] << 8);
-    for(int i = 0; i < 4; i++) {
-        this->gameboy->ppu->getBgPaletteData()[i * 4] = color0;
-        this->gameboy->ppu->getSprPaletteData()[i * 4] = color0;
-        this->gameboy->ppu->getSprPaletteData()[(i + 4) * 4] = color0;
+    memcpy(&palette[1], &this->packet[9], 3 * sizeof(u16));
+
+    memcpy(&this->activePalette[s2 * 4], palette, sizeof(palette));
+    memcpy(&this->activePalette[(s2 + 4) * 4], palette, sizeof(palette));
+
+    for(int i = 2; i < 4; i++) {
+        this->activePalette[i * 4] = palette[0];
+        this->activePalette[(i + 4) * 4] = palette[0];
     }
 }
 
@@ -430,20 +438,18 @@ void SGB::souTrn(int block) {
 }
 
 void SGB::palSet(int block) {
+    int color0PaletteId = (this->packet[1] | (this->packet[2] << 8)) & 0x1ff;
+    u16 color0 = (u16) (this->palettes[color0PaletteId * 8] | (this->palettes[color0PaletteId * 8 + 1] << 8));
+
     for(int i = 0; i < 4; i++) {
         int paletteId = (this->packet[i * 2 + 1] | (this->packet[i * 2 + 2] << 8)) & 0x1ff;
-        memcpy(this->gameboy->ppu->getBgPaletteData() + i * 4 + 1, &this->palettes[paletteId * 8 + 2], 3 * sizeof(u16));
-        memcpy(this->gameboy->ppu->getSprPaletteData() + i * 4 + 1, &this->palettes[paletteId * 8 + 2], 3 * sizeof(u16));
-        memcpy(this->gameboy->ppu->getSprPaletteData() + (i + 4) * 4 + 1, &this->palettes[paletteId * 8 + 2], 3 * sizeof(u16));
-    }
 
-    int color0PaletteId = (this->packet[1] | (this->packet[2] << 8)) & 0x1ff;
+        u16 palette[4];
+        palette[0] = color0;
+        memcpy(&palette[1], &this->palettes[paletteId * 8 + 2], 3 * sizeof(u16));
 
-    u16 color0 = (u16) (this->palettes[color0PaletteId * 8] | (this->palettes[color0PaletteId * 8 + 1] << 8));
-    for(int i = 0; i < 4; i++) {
-        this->gameboy->ppu->getBgPaletteData()[i * 4] = color0;
-        this->gameboy->ppu->getSprPaletteData()[i * 4] = color0;
-        this->gameboy->ppu->getSprPaletteData()[(i + 4) * 4] = color0;
+        memcpy(&this->activePalette[i * 4], palette, sizeof(palette));
+        memcpy(&this->activePalette[(i + 4) * 4], palette, sizeof(palette));
     }
 
     if(this->packet[9] & 0x80) {

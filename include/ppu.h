@@ -17,22 +17,15 @@ public:
 
     void setHalfSpeed(bool halfSpeed);
 
-    void refreshGBPalette();
-
     void transferTiles(u8* dest);
-
     void drawScanline(u32 scanline);
 
-    inline u16* getBgPaletteData() {
-        return this->bgPaletteData;
+    inline u8 readOAM(u16 addr) {
+        return this->oam[addr & 0xFF];
     }
 
-    inline u16* getSprPaletteData() {
-        return this->sprPaletteData;
-    }
-
-    inline u8* getOam() {
-        return this->oam;
+    inline void writeOAM(u16 addr, u8 val) {
+        this->oam[addr & 0xFF] = val;
     }
 private:
     void checkLYC();
@@ -54,4 +47,6 @@ private:
 
     u16 bgPaletteData[0x20];
     u16 sprPaletteData[0x20];
+
+    u8 tiles[2][384][8 * 8];
 };
