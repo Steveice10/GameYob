@@ -1,4 +1,3 @@
-#include <sys/stat.h>
 #include <stdio.h>
 
 #include "platform/common/manager.h"
@@ -20,26 +19,26 @@ static const int STATE_VERSION = 11;
 Gameboy::Gameboy() {
     this->romFile = NULL;
 
-    this->cpu = new CPU(this);
-    this->timer = new Timer(this);
     this->mmu = new MMU(this);
+    this->cpu = new CPU(this);
     this->ppu = new PPU(this);
     this->apu = new APU(this);
-    this->sgb = new SGB(this);
     this->mbc = new MBC(this);
+    this->sgb = new SGB(this);
+    this->timer = new Timer(this);
     this->serial = new Serial(this);
 }
 
 Gameboy::~Gameboy() {
     this->unloadRom();
 
-    delete this->cpu;
-    delete this->timer;
-    delete this->mbc;
     delete this->mmu;
+    delete this->cpu;
     delete this->ppu;
     delete this->apu;
+    delete this->mbc;
     delete this->sgb;
+    delete this->timer;
     delete this->serial;
 }
 
@@ -47,6 +46,8 @@ void Gameboy::reset(bool allowBios) {
     if(this->romFile == NULL) {
         return;
     }
+
+    this->frontendEvents = 0;
 
     if(this->romFile->isGBS()) {
         this->gbMode = MODE_CGB;
@@ -79,11 +80,11 @@ void Gameboy::reset(bool allowBios) {
 
     this->mmu->reset();
     this->cpu->reset();
-    this->timer->reset();
     this->ppu->reset();
     this->apu->reset();
-    this->sgb->reset();
     this->mbc->reset();
+    this->sgb->reset();
+    this->timer->reset();
     this->serial->reset();
 }
 
@@ -104,11 +105,11 @@ bool Gameboy::loadState(FILE* file) {
 
     this->mmu->loadState(file, version);
     this->cpu->loadState(file, version);
-    this->timer->loadState(file, version);
     this->ppu->loadState(file, version);
     this->apu->loadState(file, version);
-    this->sgb->loadState(file, version);
     this->mbc->loadState(file, version);
+    this->sgb->loadState(file, version);
+    this->timer->loadState(file, version);
     this->serial->loadState(file, version);
 
     if(this->biosOn && ((this->gbMode == MODE_GB && !gbBiosLoaded) || (this->gbMode == MODE_CGB && !gbcBiosLoaded))) {
@@ -130,27 +131,23 @@ bool Gameboy::saveState(FILE* file) {
 
     this->mmu->saveState(file);
     this->cpu->saveState(file);
-    this->timer->saveState(file);
     this->ppu->saveState(file);
     this->apu->saveState(file);
-    this->sgb->saveState(file);
     this->mbc->saveState(file);
+    this->sgb->saveState(file);
+    this->timer->saveState(file);
     this->serial->saveState(file);
 
     return true;
 }
 
 int Gameboy::run() {
-    return this->cpu->run();
-}
+    while(this->frontendEvents == 0) {
+        this->cpu->run();
+    }
 
-int Gameboy::pollEvents() {
-    int ret = 0;
-    this->sgb->update();
-    this->timer->update();
-    this->apu->update();
-    ret |= this->serial->update();
-    ret |= this->ppu->update();
+    int ret = this->frontendEvents;
+    this->frontendEvents = 0;
     return ret;
 }
 

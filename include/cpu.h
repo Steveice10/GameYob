@@ -36,7 +36,7 @@ public:
     void loadState(FILE* file, int version);
     void saveState(FILE* file);
 
-    int run();
+    void run();
 
     void advanceCycles(u64 cycles);
 
@@ -1070,8 +1070,6 @@ private:
     };
     
     Gameboy* gameboy;
-
-    int retVal;
 
     u64 cycleCount;
     u64 eventCycle;

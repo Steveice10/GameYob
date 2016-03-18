@@ -51,8 +51,6 @@ public:
 
     int run();
 
-    int pollEvents();
-
     bool isRomLoaded();
     bool loadRomFile(const char* filename);
     void unloadRom();
@@ -61,12 +59,14 @@ public:
 
     MMU* mmu;
     CPU* cpu;
-    Timer* timer;
     PPU* ppu;
     APU* apu;
-    SGB* sgb;
     MBC* mbc;
+    SGB* sgb;
+    Timer* timer;
     Serial* serial;
+
+    int frontendEvents;
 
     GBMode gbMode;
     bool biosOn;

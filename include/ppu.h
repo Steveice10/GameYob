@@ -13,7 +13,7 @@ public:
     void loadState(FILE* file, int version);
     void saveState(FILE* file);
 
-    int update();
+    void update();
 
     void setHalfSpeed(bool halfSpeed);
 

@@ -261,9 +261,7 @@ void PPU::checkLYC() {
     }
 }
 
-int PPU::update() {
-    int ret = 0;
-
+void PPU::update() {
     if((this->gameboy->mmu->readIO(LCDC) & 0x80) == 0) {
         this->lastScanlineCycle = this->gameboy->cpu->getCycle();
 
@@ -274,7 +272,7 @@ int PPU::update() {
         while(this->gameboy->cpu->getCycle() >= this->lastPhaseCycle + (CYCLES_PER_FRAME << this->halfSpeed)) {
             this->lastPhaseCycle += CYCLES_PER_FRAME << this->halfSpeed;
 
-            ret |= RET_VBLANK;
+            this->gameboy->frontendEvents |= RET_VBLANK;
         }
 
         this->gameboy->cpu->setEventCycle(this->lastPhaseCycle + (CYCLES_PER_FRAME << this->halfSpeed));
@@ -301,7 +299,7 @@ int PPU::update() {
                             this->gameboy->cpu->requestInterrupt(INT_LCD);
                         }
 
-                        ret |= RET_VBLANK;
+                        this->gameboy->frontendEvents |= RET_VBLANK;
                     } else {
                         this->gameboy->mmu->writeIO(STAT, (u8) ((stat & ~3) | LCD_ACCESS_OAM));
 
@@ -372,8 +370,6 @@ int PPU::update() {
 
         this->gameboy->cpu->setEventCycle(this->lastScanlineCycle + (modeCycles[this->gameboy->mmu->readIO(STAT) & 3] << this->halfSpeed));
     }
-
-    return ret;
 }
 
 void PPU::mapBanks() {

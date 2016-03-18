@@ -59,9 +59,7 @@ void Serial::saveState(FILE* file) {
     this->printer->saveState(file);
 }
 
-int Serial::update() {
-    int ret = 0;
-
+void Serial::update() {
     // For external clock
     if(this->nextSerialExternalCycle > 0) {
         if(this->gameboy->cpu->getCycle() >= this->nextSerialExternalCycle) {
@@ -69,7 +67,7 @@ int Serial::update() {
 
             this->nextSerialExternalCycle = 0;
             if((sc & 0x81) == 0x80) {
-                ret |= RET_LINK;
+                this->gameboy->frontendEvents |= RET_LINK;
             }
 
             if(sc & 0x80) {
@@ -100,6 +98,4 @@ int Serial::update() {
     if(printerEnabled) {
         this->printer->update();
     }
-
-    return ret;
 }

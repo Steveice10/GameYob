@@ -8,6 +8,9 @@
 #include "gameboy.h"
 #include "mmu.h"
 #include "ppu.h"
+#include "serial.h"
+#include "sgb.h"
+#include "timer.h"
 
 #define FLAG_ZERO 0x80
 #define FLAG_NEGATIVE 0x40
@@ -58,8 +61,6 @@ CPU::CPU(Gameboy* gameboy) {
 }
 
 void CPU::reset() {
-    this->retVal = 0;
-
     this->cycleCount = 0;
     this->eventCycle = 0;
     memset(&this->registers, 0, sizeof(this->registers));
@@ -115,42 +116,36 @@ void CPU::saveState(FILE* file) {
     fwrite(&this->ime, 1, sizeof(this->ime), file);
 }
 
-int CPU::run() {
-    while(this->retVal == 0) {
-        if(!this->haltState) {
-            u8 op = READPC8();
+void CPU::run() {
+    if(!this->haltState) {
+        u8 op = READPC8();
 
-            if(this->haltBug) {
-                this->registers.pc.w--;
-                this->haltBug = false;
-            }
-
-            (this->*opcodes[op])();
-        } else {
-            this->advanceCycles(this->eventCycle - this->cycleCount);
+        if(this->haltBug) {
+            this->registers.pc.w--;
+            this->haltBug = false;
         }
 
-        int triggered = this->gameboy->mmu->readIO(IF) & this->gameboy->mmu->readIO(IE);
-        if(this->ime && triggered != 0) {
-            this->haltState = false;
-            if(this->ime) {
-                this->ime = false;
-
-                this->gameboy->mmu->write(--this->registers.sp.w, this->registers.pc.b.h);
-                this->gameboy->mmu->write(--this->registers.sp.w, this->registers.pc.b.l);
-
-                int irqNo = __builtin_ffs(triggered) - 1;
-                this->registers.pc.w = (u16) (0x40 + (irqNo << 3));
-                this->gameboy->mmu->writeIO(IF, (u8) (this->gameboy->mmu->readIO(IF) & ~(1 << irqNo)));
-
-                this->advanceCycles(20);
-            }
-        }
+        (this->*opcodes[op])();
+    } else {
+        this->advanceCycles(this->eventCycle - this->cycleCount);
     }
 
-    int ret = this->retVal;
-    this->retVal = 0;
-    return ret;
+    int triggered = this->gameboy->mmu->readIO(IF) & this->gameboy->mmu->readIO(IE);
+    if(this->ime && triggered != 0) {
+        this->haltState = false;
+        if(this->ime) {
+            this->ime = false;
+
+            this->gameboy->mmu->write(--this->registers.sp.w, this->registers.pc.b.h);
+            this->gameboy->mmu->write(--this->registers.sp.w, this->registers.pc.b.l);
+
+            int irqNo = __builtin_ffs(triggered) - 1;
+            this->registers.pc.w = (u16) (0x40 + (irqNo << 3));
+            this->gameboy->mmu->writeIO(IF, (u8) (this->gameboy->mmu->readIO(IF) & ~(1 << irqNo)));
+
+            this->advanceCycles(20);
+        }
+    }
 }
 
 void CPU::advanceCycles(u64 cycles) {
@@ -158,7 +153,12 @@ void CPU::advanceCycles(u64 cycles) {
 
     if(this->cycleCount >= this->eventCycle) {
         this->eventCycle = UINT64_MAX;
-        this->retVal |= this->gameboy->pollEvents();
+
+        this->gameboy->ppu->update();
+        this->gameboy->apu->update();
+        this->gameboy->sgb->update();
+        this->gameboy->timer->update();
+        this->gameboy->serial->update();
     }
 }
 

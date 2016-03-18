@@ -14,7 +14,7 @@ public:
     void loadState(FILE* file, int version);
     void saveState(FILE* file);
 
-    int update();
+    void update();
 private:
     Gameboy* gameboy;
 
