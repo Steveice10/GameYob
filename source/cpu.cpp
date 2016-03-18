@@ -58,6 +58,8 @@ CPU::CPU(Gameboy* gameboy) {
 }
 
 void CPU::reset() {
+    this->retVal = 0;
+
     this->cycleCount = 0;
     this->eventCycle = 0;
     memset(&this->registers, 0, sizeof(this->registers));
@@ -113,56 +115,51 @@ void CPU::saveState(FILE* file) {
     fwrite(&this->ime, 1, sizeof(this->ime), file);
 }
 
-int CPU::run(int (*pollEvents)(Gameboy* gameboy)) {
-    int ret = 0;
-    while(ret == 0) {
+int CPU::run() {
+    while(this->retVal == 0) {
         if(!this->haltState) {
-            while(this->cycleCount < this->eventCycle) {
-                this->runInstruction();
+            u8 op = READPC8();
+
+            if(this->haltBug) {
+                this->registers.pc.w--;
+                this->haltBug = false;
             }
+
+            (this->*opcodes[op])();
         } else {
-            this->cycleCount = this->eventCycle;
+            this->advanceCycles(this->eventCycle - this->cycleCount);
         }
 
-        this->eventCycle = UINT64_MAX;
-
-        int prevTriggered = this->gameboy->mmu->readIO(IF) & this->gameboy->mmu->readIO(IE);
-        ret = pollEvents(this->gameboy);
         int triggered = this->gameboy->mmu->readIO(IF) & this->gameboy->mmu->readIO(IE);
+        if(this->ime && triggered != 0) {
+            this->haltState = false;
+            if(this->ime) {
+                this->ime = false;
 
-        if(triggered != 0) {
-            /* Hack to fix Robocop 2 and LEGO Racers, possibly others.
-             * Interrupts can occur in the middle of an opcode. The result of
-             * this is that said opcode can read the resulting state - most
-             * importantly, it can read LY=144 before the vblank interrupt takes
-             * over. This is a decent approximation of that effect.
-             * This has been known to break Megaman V boss intros, that's fixed
-             * by the "prevTriggered" stuff.
-             */
-            if(!this->haltState && prevTriggered != triggered) {
-                this->runInstruction();
-                triggered = this->gameboy->mmu->readIO(IF) & this->gameboy->mmu->readIO(IE);
-            }
+                this->gameboy->mmu->write(--this->registers.sp.w, this->registers.pc.b.h);
+                this->gameboy->mmu->write(--this->registers.sp.w, this->registers.pc.b.l);
 
-            if(triggered != 0) {
-                this->haltState = false;
-                if(this->ime) {
-                    this->ime = false;
+                int irqNo = __builtin_ffs(triggered) - 1;
+                this->registers.pc.w = (u16) (0x40 + (irqNo << 3));
+                this->gameboy->mmu->writeIO(IF, (u8) (this->gameboy->mmu->readIO(IF) & ~(1 << irqNo)));
 
-                    this->gameboy->mmu->write(--this->registers.sp.w, this->registers.pc.b.h);
-                    this->gameboy->mmu->write(--this->registers.sp.w, this->registers.pc.b.l);
-
-                    int irqNo = __builtin_ffs(triggered) - 1;
-                    this->registers.pc.w = (u16) (0x40 + (irqNo << 3));
-                    this->gameboy->mmu->writeIO(IF, (u8) (this->gameboy->mmu->readIO(IF) & ~(1 << irqNo)));
-
-                    this->advanceCycles(20);
-                }
+                this->advanceCycles(20);
             }
         }
     }
 
+    int ret = this->retVal;
+    this->retVal = 0;
     return ret;
+}
+
+void CPU::advanceCycles(u64 cycles) {
+    this->cycleCount += cycles;
+
+    if(this->cycleCount >= this->eventCycle) {
+        this->eventCycle = UINT64_MAX;
+        this->retVal |= this->gameboy->pollEvents();
+    }
 }
 
 void CPU::setDoubleSpeed(bool doubleSpeed) {
@@ -180,21 +177,6 @@ void CPU::setDoubleSpeed(bool doubleSpeed) {
 
 void CPU::requestInterrupt(int id) {
     this->gameboy->mmu->writeIO(IF, (u8) (this->gameboy->mmu->readIO(IF) | id));
-}
-
-void CPU::runInstruction() {
-    u8 op = READPC8();
-
-    if(this->haltBug) {
-        this->registers.pc.w--;
-        this->haltBug = false;
-    }
-
-    (this->*opcodes[op])();
-
-    if(this->haltState || (this->ime && (this->gameboy->mmu->readIO(IF) & this->gameboy->mmu->readIO(IE)) != 0)) {
-        this->setEventCycle(this->cycleCount);
-    }
 }
 
 void CPU::undefined() {

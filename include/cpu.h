@@ -36,7 +36,9 @@ public:
     void loadState(FILE* file, int version);
     void saveState(FILE* file);
 
-    int run(int (*pollEvents)(Gameboy* gameboy));
+    int run();
+
+    void advanceCycles(u64 cycles);
 
     void setDoubleSpeed(bool doubleSpeed);
 
@@ -46,18 +48,12 @@ public:
         return this->cycleCount;
     }
 
-    inline void advanceCycles(u64 cycles) {
-        this->cycleCount += cycles;
-    }
-
     inline void setEventCycle(u64 cycle) {
         if(cycle < this->eventCycle) {
             this->eventCycle = cycle > this->cycleCount ? cycle : this->cycleCount;
         }
     }
 private:
-    void runInstruction();
-
     void undefined();
     void nop();
     void ld_bc_nn();
@@ -1074,6 +1070,8 @@ private:
     };
     
     Gameboy* gameboy;
+
+    int retVal;
 
     u64 cycleCount;
     u64 eventCycle;

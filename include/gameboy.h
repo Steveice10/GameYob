@@ -51,6 +51,8 @@ public:
 
     int run();
 
+    int pollEvents();
+
     bool isRomLoaded();
     bool loadRomFile(const char* filename);
     void unloadRom();
@@ -68,6 +70,4 @@ public:
 
     GBMode gbMode;
     bool biosOn;
-private:
-    static int pollEvents(Gameboy* gameboy);
 };

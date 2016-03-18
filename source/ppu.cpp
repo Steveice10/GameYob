@@ -125,6 +125,9 @@ void PPU::reset() {
         } else if(!(curr & 0x80) && (val & 0x80)) {
             this->gameboy->mmu->writeIO(LY, 0);
             this->gameboy->mmu->writeIO(STAT, (u8) ((this->gameboy->mmu->readIO(STAT) & ~3) | LCD_ACCESS_OAM));
+
+            this->lastScanlineCycle = this->gameboy->cpu->getCycle() - (4 << this->halfSpeed);
+            this->gameboy->cpu->setEventCycle(this->lastScanlineCycle + modeCycles[LCD_ACCESS_OAM]);
         }
     });
 

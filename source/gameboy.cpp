@@ -141,16 +141,16 @@ bool Gameboy::saveState(FILE* file) {
 }
 
 int Gameboy::run() {
-    return this->cpu->run(Gameboy::pollEvents);
+    return this->cpu->run();
 }
 
-int Gameboy::pollEvents(Gameboy* gameboy) {
+int Gameboy::pollEvents() {
     int ret = 0;
-    gameboy->sgb->update();
-    gameboy->timer->update();
-    gameboy->apu->update();
-    ret |= gameboy->serial->update();
-    ret |= gameboy->ppu->update();
+    this->sgb->update();
+    this->timer->update();
+    this->apu->update();
+    ret |= this->serial->update();
+    ret |= this->ppu->update();
     return ret;
 }
 

@@ -15,9 +15,6 @@ public:
 
     void update();
 private:
-    void updateDivider();
-    void updateTimer();
-
     Gameboy* gameboy;
 
     u64 lastDividerCycle;
