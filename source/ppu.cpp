@@ -334,7 +334,7 @@ void PPU::update() {
                     this->gameboy->mmu->writeIO(STAT, (u8) ((stat & ~3) | LCD_ACCESS_VRAM));
                     break;
                 case LCD_ACCESS_VRAM:
-                    if((!gfxGetFastForward() || fastForwardCounter >= fastForwardFrameSkip) && !this->gameboy->romFile->isGBS()) {
+                    if(!gfxGetFastForward() || fastForwardCounter >= fastForwardFrameSkip) {
                         this->drawScanline(ly);
                     }
 

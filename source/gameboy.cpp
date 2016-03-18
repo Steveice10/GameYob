@@ -49,25 +49,21 @@ void Gameboy::reset(bool allowBios) {
 
     this->frontendEvents = 0;
 
-    if(this->romFile->isGBS()) {
-        this->gbMode = MODE_CGB;
-    } else {
-        if((gbcModeOption == 1 && this->romFile->isCgbRequired()) || (gbcModeOption == 2 && this->romFile->isCgbSupported())) {
-            if(sgbModeOption == 2 && this->romFile->isSgbEnhanced()) {
-                this->gbMode = MODE_SGB;
-            } else {
-                this->gbMode = MODE_CGB;
-            }
+    if((gbcModeOption == 1 && this->romFile->isCgbRequired()) || (gbcModeOption == 2 && this->romFile->isCgbSupported())) {
+        if(sgbModeOption == 2 && this->romFile->isSgbEnhanced()) {
+            this->gbMode = MODE_SGB;
         } else {
-            if(sgbModeOption != 0 && this->romFile->isSgbEnhanced()) {
-                this->gbMode = MODE_SGB;
-            } else {
-                this->gbMode = MODE_GB;
-            }
+            this->gbMode = MODE_CGB;
+        }
+    } else {
+        if(sgbModeOption != 0 && this->romFile->isSgbEnhanced()) {
+            this->gbMode = MODE_SGB;
+        } else {
+            this->gbMode = MODE_GB;
         }
     }
 
-    this->biosOn = allowBios && !this->romFile->isGBS() && ((biosMode == 1 && ((this->gbMode != MODE_CGB && gbBiosLoaded) || gbcBiosLoaded)) || (biosMode == 2 && this->gbMode != MODE_CGB && gbBiosLoaded) || (biosMode == 3 && gbcBiosLoaded));
+    this->biosOn = allowBios && ((biosMode == 1 && ((this->gbMode != MODE_CGB && gbBiosLoaded) || gbcBiosLoaded)) || (biosMode == 2 && this->gbMode != MODE_CGB && gbBiosLoaded) || (biosMode == 3 && gbcBiosLoaded));
     if(this->biosOn) {
         if(biosMode == 1) {
             this->gbMode = this->gbMode != MODE_CGB && gbBiosLoaded ? MODE_GB : MODE_CGB;

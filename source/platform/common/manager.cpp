@@ -9,7 +9,6 @@
 #include "platform/common/cheatengine.h"
 #include "platform/common/config.h"
 #include "platform/common/filechooser.h"
-#include "platform/common/gbsplayer.h"
 #include "platform/common/manager.h"
 #include "platform/common/menu.h"
 #include "platform/gfx.h"
@@ -42,7 +41,7 @@ time_t lastSaveTime;
 
 bool emulationPaused;
 
-FileChooser romChooser("/", {"gbs", "sgb", "gbc", "cgb", "gb"}, true);
+FileChooser romChooser("/", {"sgb", "gbc", "cgb", "gb"}, true);
 bool chooserInitialized = false;
 
 void mgrInit() {
@@ -86,59 +85,40 @@ void mgrLoadRom(const char* filename) {
         return;
     }
 
-    if(gameboy->romFile->isGBS()) {
-        cheatEngine->loadCheats("");
-    } else {
-        cheatEngine->loadCheats((gameboy->romFile->getFileName() + ".cht").c_str());
-    }
+    cheatEngine->loadCheats((gameboy->romFile->getFileName() + ".cht").c_str());
 
     mgrRefreshBorder();
 
     gameboy->reset();
-    if(gameboy->romFile->isGBS()) {
-        gbsPlayerReset();
-        gbsPlayerDraw();
-    } else if(mgrStateExists(-1)) {
+    if(mgrStateExists(-1)) {
         mgrLoadState(-1);
         mgrDeleteState(-1);
     }
 
-    if(gameboy->romFile->isGBS()) {
-        disableMenuOption("Suspend");
-        disableMenuOption("ROM Info");
-        disableMenuOption("State Slot");
-        disableMenuOption("Save State");
+    enableMenuOption("Suspend");
+    enableMenuOption("ROM Info");
+    enableMenuOption("State Slot");
+    enableMenuOption("Save State");
+    if(mgrStateExists(stateNum)) {
+        enableMenuOption("Load State");
+        enableMenuOption("Delete State");
+    } else {
         disableMenuOption("Load State");
         disableMenuOption("Delete State");
-        disableMenuOption("Manage Cheats");
-        disableMenuOption("Accelerometer Pad");
-        disableMenuOption("Exit without saving");
+    }
+
+    enableMenuOption("Manage Cheats");
+
+    if(gameboy->isRomLoaded() && gameboy->romFile->getMBCType() == MBC7) {
+        enableMenuOption("Accelerometer Pad");
     } else {
-        enableMenuOption("Suspend");
-        enableMenuOption("ROM Info");
-        enableMenuOption("State Slot");
-        enableMenuOption("Save State");
-        if(mgrStateExists(stateNum)) {
-            enableMenuOption("Load State");
-            enableMenuOption("Delete State");
-        } else {
-            disableMenuOption("Load State");
-            disableMenuOption("Delete State");
-        }
+        disableMenuOption("Accelerometer Pad");
+    }
 
-        enableMenuOption("Manage Cheats");
-
-        if(gameboy->isRomLoaded() && gameboy->romFile->getMBCType() == MBC7) {
-            enableMenuOption("Accelerometer Pad");
-        } else {
-            disableMenuOption("Accelerometer Pad");
-        }
-
-        if(gameboy->isRomLoaded() && gameboy->romFile->getRamBanks() > 0 && !autoSaveEnabled) {
-            enableMenuOption("Exit without saving");
-        } else {
-            disableMenuOption("Exit without saving");
-        }
+    if(gameboy->isRomLoaded() && gameboy->romFile->getRamBanks() > 0 && !autoSaveEnabled) {
+        enableMenuOption("Exit without saving");
+    } else {
+        disableMenuOption("Exit without saving");
     }
 }
 
@@ -222,7 +202,7 @@ int mgrReadBmp(u8** data, u32* width, u32* height, const char* filename) {
         for(u32 x = 0; x < w; x++) {
             for(u32 y = 0; y < h; y++) {
                 u32 srcPos = (h - y - 1) * w + x;
-                u32 dstPos = (y * w + x) * sizeof(u32);
+                u32 dstPos = (u32) ((y * w + x) * sizeof(u32));
 
                 u16 src = srcPixels16[srcPos];
                 dstPixels[dstPos + 0] = 0xFF;
@@ -235,7 +215,7 @@ int mgrReadBmp(u8** data, u32* width, u32* height, const char* filename) {
         for(u32 x = 0; x < w; x++) {
             for(u32 y = 0; y < h; y++) {
                 u32 srcPos = ((h - y - 1) * w + x) * bytes;
-                u32 dstPos = (y * w + x) * sizeof(u32);
+                u32 dstPos = (u32) ((y * w + x) * sizeof(u32));
 
                 dstPixels[dstPos + 0] = 0xFF;
                 dstPixels[dstPos + 1] = srcPixels[srcPos + bytes - 3];
@@ -490,47 +470,43 @@ void mgrRun() {
     if(isMenuOn()) {
         updateMenu();
     } else if(gameboy->isRomLoaded()) {
-        if(gameboy->romFile->isGBS()) {
-            gbsPlayerRefresh();
-        }
-
-        u8 buttonsPressed = 0xff;
+        u8 buttonsPressed = 0xFF;
 
         if(inputKeyHeld(FUNC_KEY_UP)) {
-            buttonsPressed &= (0xFF ^ GB_UP);
+            buttonsPressed &= ~GB_UP;
         }
 
         if(inputKeyHeld(FUNC_KEY_DOWN)) {
-            buttonsPressed &= (0xFF ^ GB_DOWN);
+            buttonsPressed &= ~GB_DOWN;
         }
 
         if(inputKeyHeld(FUNC_KEY_LEFT)) {
-            buttonsPressed &= (0xFF ^ GB_LEFT);
+            buttonsPressed &= ~GB_LEFT;
         }
 
         if(inputKeyHeld(FUNC_KEY_RIGHT)) {
-            buttonsPressed &= (0xFF ^ GB_RIGHT);
+            buttonsPressed &= ~GB_RIGHT;
         }
 
         if(inputKeyHeld(FUNC_KEY_A)) {
-            buttonsPressed &= (0xFF ^ GB_A);
+            buttonsPressed &= ~GB_A;
         }
 
         if(inputKeyHeld(FUNC_KEY_B)) {
-            buttonsPressed &= (0xFF ^ GB_B);
+            buttonsPressed &= ~GB_B;
         }
 
         if(inputKeyHeld(FUNC_KEY_START)) {
-            buttonsPressed &= (0xFF ^ GB_START);
+            buttonsPressed &= ~GB_START;
         }
 
         if(inputKeyHeld(FUNC_KEY_SELECT)) {
-            buttonsPressed &= (0xFF ^ GB_SELECT);
+            buttonsPressed &= ~GB_SELECT;
         }
 
         if(inputKeyHeld(FUNC_KEY_AUTO_A)) {
             if(autoFireCounterA <= 0) {
-                buttonsPressed &= (0xFF ^ GB_A);
+                buttonsPressed &= ~GB_A;
                 autoFireCounterA = 2;
             }
 
@@ -539,7 +515,7 @@ void mgrRun() {
 
         if(inputKeyHeld(FUNC_KEY_AUTO_B)) {
             if(autoFireCounterB <= 0) {
-                buttonsPressed &= (0xFF ^ GB_B);
+                buttonsPressed &= ~GB_B;
                 autoFireCounterB = 2;
             }
 
@@ -573,41 +549,31 @@ void mgrRun() {
 
         if(inputKeyPressed(FUNC_KEY_RESET)) {
             gameboy->reset();
-
-            if(gameboy->isRomLoaded() && gameboy->romFile->isGBS()) {
-                gbsPlayerReset();
-                gbsPlayerDraw();
-            }
         }
     }
 
-    if(gameboy->isRomLoaded()) {
-        while(!emulationPaused && !(gameboy->run() & RET_VBLANK));
+    if(gameboy->isRomLoaded() && !emulationPaused) {
+        while(!(gameboy->run() & RET_VBLANK));
 
         cheatEngine->applyGSCheats();
 
         if(!gfxGetFastForward() || fastForwardCounter++ >= fastForwardFrameSkip) {
             fastForwardCounter = 0;
-
-            if(!gameboy->romFile->isGBS()) {
-                gfxDrawScreen();
-            } else if(!gfxGetFastForward()) {
-                gfxSync();
-            }
+            gfxDrawScreen();
         }
     }
 
     time_t rawTime = 0;
     time(&rawTime);
 
-    if(autoSaveEnabled && rawTime > lastSaveTime + 10) {
+    if(autoSaveEnabled && rawTime > lastSaveTime + 60) {
         mgrSave();
         lastSaveTime = rawTime;
     }
 
     fps++;
     if(rawTime > lastPrintTime) {
-        if(!isMenuOn() && !showConsoleDebug() && (!gameboy->isRomLoaded() || !gameboy->romFile->isGBS()) && (fpsOutput || timeOutput)) {
+        if(!isMenuOn() && !showConsoleDebug() && (fpsOutput || timeOutput)) {
             uiClear();
             int fpsLength = 0;
             if(fpsOutput) {

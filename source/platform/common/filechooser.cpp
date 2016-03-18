@@ -7,7 +7,6 @@
 #include <platform/ui.h>
 
 #include "platform/common/filechooser.h"
-#include "platform/gfx.h"
 #include "platform/input.h"
 #include "platform/system.h"
 

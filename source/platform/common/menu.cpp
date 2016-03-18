@@ -12,7 +12,6 @@
 #include "platform/common/cheats.h"
 #include "platform/common/config.h"
 #include "platform/common/filechooser.h"
-#include "platform/common/gbsplayer.h"
 #include "platform/common/manager.h"
 #include "platform/common/menu.h"
 #include "platform/input.h"
@@ -664,11 +663,6 @@ void stateDeleteFunc(int value) {
 void resetFunc(int value) {
     closeMenu();
     gameboy->reset();
-
-    if(gameboy->isRomLoaded() && gameboy->romFile->isGBS()) {
-        gbsPlayerReset();
-        gbsPlayerDraw();
-    }
 }
 
 void returnFunc(int value) {
@@ -884,7 +878,7 @@ void setAutoSaveFunc(int value) {
     autoSaveEnabled = (bool) value;
 
     if(gameboy->isRomLoaded()) {
-        if(!autoSaveEnabled && gameboy->romFile->getRamBanks() > 0 && !gameboy->romFile->isGBS()) {
+        if(!autoSaveEnabled && gameboy->romFile->getRamBanks() > 0) {
             enableMenuOption("Exit without saving");
         } else {
             disableMenuOption("Exit without saving");
@@ -1234,10 +1228,6 @@ void closeMenu() {
     uiFlush();
 
     mgrUnpause();
-
-    if(gameboy->isRomLoaded() && gameboy->romFile->isGBS()) {
-        gbsPlayerDraw();
-    }
 }
 
 bool isMenuOn() {
@@ -1614,6 +1604,6 @@ const std::string menuPrintConfig() {
 }
 
 bool showConsoleDebug() {
-    return consoleDebugOutput && !isMenuOn() && !(gameboy->isRomLoaded() && gameboy->romFile->isGBS());
+    return consoleDebugOutput && !isMenuOn();
 }
 

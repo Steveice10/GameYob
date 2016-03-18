@@ -39,14 +39,6 @@ public:
         return this->fileName;
     }
 
-    inline bool isGBS() {
-        return this->gbsInfo != NULL;
-    }
-
-    inline GBS* getGBS() {
-        return this->gbsInfo;
-    }
-
     inline const std::string getRomTitle() {
         return this->romTitle;
     }
@@ -99,8 +91,6 @@ private:
     u8** banks = NULL;
     bool firstBanksAtEnd = false;
 
-    GBS* gbsInfo = NULL;
-
     std::string fileName = "";
     std::string romTitle = "";
     bool cgbSupported = false;
@@ -113,50 +103,4 @@ private:
     u8 rawMBC = 0;
     MBCType mbcType = MBC0;
     bool rumble = false;
-};
-
-class GBS {
-public:
-    GBS(RomFile* romFile, u8* header);
-
-    void playSong(Gameboy* gameboy, int song);
-    void stopSong(Gameboy* gameboy);
-
-    inline u8 getSongCount() {
-        return this->songCount;
-    }
-
-    inline u8 getFirstSong() {
-        return this->firstSong;
-    }
-
-    inline u16 getLoadAddress() {
-        return this->loadAddress;
-    }
-
-    inline std::string getTitle() {
-        return this->title;
-    }
-
-    inline std::string getAuthor() {
-        return this->author;
-    }
-
-    inline std::string getCopyright() {
-        return this->copyright;
-    }
-private:
-    RomFile* rom = NULL;
-
-    u8 songCount = 0;
-    u8 firstSong = 0;
-    u16 loadAddress = 0;
-    u16 initAddress = 0;
-    u16 playAddress = 0;
-    u16 stackPointer = 0;
-    u8 timerModulo = 0;
-    u8 timerControl = 0;
-    std::string title = "";
-    std::string author = "";
-    std::string copyright = "";
 };
