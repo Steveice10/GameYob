@@ -57,9 +57,9 @@ public:
 
     RomFile* romFile;
 
+    MMU* mmu;
     CPU* cpu;
     Timer* timer;
-    MMU* mmu;
     PPU* ppu;
     APU* apu;
     SGB* sgb;

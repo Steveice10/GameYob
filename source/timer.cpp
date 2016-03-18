@@ -6,11 +6,8 @@
 #include "mmu.h"
 #include "timer.h"
 
-static const u32 timerPeriods[] = {
-        CYCLES_PER_SECOND / 4096,
-        CYCLES_PER_SECOND / 262144,
-        CYCLES_PER_SECOND / 65536,
-        CYCLES_PER_SECOND / 16384,
+static const u8 timerShifts[] = {
+        10, 4, 6, 8
 };
 
 Timer::Timer(Gameboy* gameboy) {
@@ -50,8 +47,10 @@ void Timer::reset() {
 
     this->gameboy->mmu->mapIOWriteFunc(TAC, [this](u16 addr, u8 val) -> void {
         this->updateTimer();
-        this->gameboy->mmu->writeIO(TAC, val);
-        this->lastTimerCycle = this->gameboy->cpu->getCycle() - (this->gameboy->cpu->getCycle() % timerPeriods[val & 0x3]);
+        this->gameboy->mmu->writeIO(TAC, (u8) (val | 0xF8));
+
+        u8 shift = timerShifts[val & 0x3];
+        this->lastTimerCycle = this->gameboy->cpu->getCycle() >> shift << shift;
     });
 }
 
@@ -71,20 +70,20 @@ void Timer::update() {
 }
 
 void Timer::updateDivider() {
-    if(this->gameboy->cpu->getCycle() > this->lastDividerCycle) {
-        u32 add = (u32) (this->gameboy->cpu->getCycle() - this->lastDividerCycle) / 256;
+    u32 add = (u32) (this->gameboy->cpu->getCycle() - this->lastDividerCycle) >> 8;
+    if(add > 0) {
         this->gameboy->mmu->writeIO(DIV, (u8) ((this->gameboy->mmu->readIO(DIV) + add) & 0xFF));
-        this->lastDividerCycle += add * 256;
+        this->lastDividerCycle += add << 8;
     }
 }
 
 void Timer::updateTimer() {
     u8 tac = this->gameboy->mmu->readIO(TAC);
     if((tac & 0x4) != 0) {
-        u32 period = timerPeriods[tac & 0x3];
+        u8 shift = timerShifts[tac & 0x3];
 
-        if(this->gameboy->cpu->getCycle() >= this->lastTimerCycle + period) {
-            u32 add = (u32) (this->gameboy->cpu->getCycle() - this->lastTimerCycle) / period;
+        u32 add = (u32) (this->gameboy->cpu->getCycle() - this->lastTimerCycle) >> shift;
+        if(add > 0) {
             u32 counter = this->gameboy->mmu->readIO(TIMA) + add;
             if(counter >= 0x100) {
                 u8 tma = this->gameboy->mmu->readIO(TMA);
@@ -96,9 +95,9 @@ void Timer::updateTimer() {
             }
 
             this->gameboy->mmu->writeIO(TIMA, (u8) counter);
-            this->lastTimerCycle += add * period;
+            this->lastTimerCycle += add << shift;
         }
 
-        this->gameboy->cpu->setEventCycle(this->lastTimerCycle + (period * (0x100 - this->gameboy->mmu->readIO(TIMA))));
+        this->gameboy->cpu->setEventCycle(this->lastTimerCycle + ((0x100 - this->gameboy->mmu->readIO(TIMA)) << shift));
     }
 }

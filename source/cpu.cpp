@@ -9,6 +9,50 @@
 #include "mmu.h"
 #include "ppu.h"
 
+#define FLAG_ZERO 0x80
+#define FLAG_NEGATIVE 0x40
+#define FLAG_HALFCARRY 0x20
+#define FLAG_CARRY 0x10
+
+#define FLAG_ISZERO ((this->registers.af.b.l & FLAG_ZERO) == FLAG_ZERO)
+#define FLAG_ISNEGATIVE ((this->registers.af.b.l & FLAG_NEGATIVE) == FLAG_NEGATIVE)
+#define FLAG_ISCARRY ((this->registers.af.b.l & FLAG_CARRY) == FLAG_CARRY)
+#define FLAG_ISHALFCARRY ((this->registers.af.b.l & FLAG_HALFCARRY) == FLAG_HALFCARRY)
+
+#define FLAG_SET(f, x) (this->registers.af.b.l ^= (-(x) ^ this->registers.af.b.l) & (f))
+
+#define SETPC(val)                \
+    this->registers.pc.w = (val); \
+    this->advanceCycles(4);
+
+#define MEMREAD(addr) ({                   \
+    u8 b = this->gameboy->mmu->read(addr); \
+    this->advanceCycles(4);                \
+    b;                                     \
+})
+
+#define MEMWRITE(addr, val)               \
+    this->gameboy->mmu->write(addr, val); \
+    this->advanceCycles(4);
+
+#define READPC8() MEMREAD(this->registers.pc.w++)
+
+#define READPC16() ({  \
+    u8 lo = READPC8(); \
+    u8 hi = READPC8(); \
+    lo | (hi << 8);    \
+})
+
+#define PUSH(d)                                          \
+    MEMWRITE(--this->registers.sp.w, ((d) >> 8) & 0xFF); \
+    MEMWRITE(--this->registers.sp.w, (d) & 0xFF);
+
+#define POP() ({                             \
+    u8 lo = MEMREAD(this->registers.sp.w++); \
+    u8 hi = MEMREAD(this->registers.sp.w++); \
+    lo | (hi << 8);                          \
+})
+
 CPU::CPU(Gameboy* gameboy) {
     this->gameboy = gameboy;
 }
@@ -40,8 +84,14 @@ void CPU::reset() {
         this->registers.af.b.h = 0x01;
     }
 
+    this->gameboy->mmu->mapIOWriteFunc(IF, [this](u16 addr, u8 val) -> void {
+        this->gameboy->mmu->writeIO(IF, (u8) (val | 0xE0));
+    });
+
     this->gameboy->mmu->mapIOWriteFunc(KEY1, [this](u16 addr, u8 val) -> void {
-        this->gameboy->mmu->writeIO(KEY1, (u8) ((this->gameboy->mmu->readIO(KEY1) & 0x80) | (val & 1)));
+        if(this->gameboy->gbMode == MODE_CGB) {
+            this->gameboy->mmu->writeIO(KEY1, (u8) ((this->gameboy->mmu->readIO(KEY1) & ~1) | (val & 1)));
+        }
     });
 }
 
@@ -116,14 +166,16 @@ int CPU::run(int (*pollEvents)(Gameboy* gameboy)) {
 }
 
 void CPU::setDoubleSpeed(bool doubleSpeed) {
-    if(doubleSpeed) {
-        this->gameboy->mmu->writeIO(KEY1, (u8) (this->gameboy->mmu->readIO(KEY1) | 0x80));
-    } else {
-        this->gameboy->mmu->writeIO(KEY1, (u8) (this->gameboy->mmu->readIO(KEY1) & ~0x80));
-    }
+    if(this->gameboy->gbMode == MODE_CGB) {
+        if(doubleSpeed) {
+            this->gameboy->mmu->writeIO(KEY1, (u8) (this->gameboy->mmu->readIO(KEY1) | 0x80));
+        } else {
+            this->gameboy->mmu->writeIO(KEY1, (u8) (this->gameboy->mmu->readIO(KEY1) & ~0x80));
+        }
 
-    this->gameboy->apu->setHalfSpeed(doubleSpeed);
-    this->gameboy->ppu->setHalfSpeed(doubleSpeed);
+        this->gameboy->apu->setHalfSpeed(doubleSpeed);
+        this->gameboy->ppu->setHalfSpeed(doubleSpeed);
+    }
 }
 
 void CPU::requestInterrupt(int id) {
@@ -131,11 +183,10 @@ void CPU::requestInterrupt(int id) {
 }
 
 void CPU::runInstruction() {
-    u8 op = this->gameboy->mmu->read(this->registers.pc.w);
+    u8 op = READPC8();
 
-    if(!this->haltBug) {
-        this->registers.pc.w++;
-    } else {
+    if(this->haltBug) {
+        this->registers.pc.w--;
         this->haltBug = false;
     }
 
@@ -146,55 +197,24 @@ void CPU::runInstruction() {
     }
 }
 
-#define FLAG_ZERO 0x80
-#define FLAG_NEGATIVE 0x40
-#define FLAG_HALFCARRY 0x20
-#define FLAG_CARRY 0x10
-
-#define FLAG_ISZERO ((this->registers.af.b.l & FLAG_ZERO) == FLAG_ZERO)
-#define FLAG_ISNEGATIVE ((this->registers.af.b.l & FLAG_NEGATIVE) == FLAG_NEGATIVE)
-#define FLAG_ISCARRY ((this->registers.af.b.l & FLAG_CARRY) == FLAG_CARRY)
-#define FLAG_ISHALFCARRY ((this->registers.af.b.l & FLAG_HALFCARRY) == FLAG_HALFCARRY)
-
-#define FLAG_SET(f, x) (this->registers.af.b.l ^= (-(x) ^ this->registers.af.b.l) & (f))
-
-#define READPC8() ({                                         \
-    u8 b = this->gameboy->mmu->read(this->registers.pc.w++); \
-    b;                                                       \
-})
-
-#define READPC16() (READPC8() | (READPC8() << 8))
-
-#define PUSH(d)                                                           \
-    this->gameboy->mmu->write(--this->registers.sp.w, ((d) >> 8) & 0xFF); \
-    this->gameboy->mmu->write(--this->registers.sp.w, (d) & 0xFF);
-
-#define POP(d)                                                \
-    u8 lo = this->gameboy->mmu->read(this->registers.sp.w++); \
-    u8 hi = this->gameboy->mmu->read(this->registers.sp.w++); \
-    (d) = lo | (hi << 8);
-
 void CPU::undefined() {
     systemPrintDebug("Undefined instruction 0x%x at 0x%x\n", this->gameboy->mmu->read((u16) (this->registers.pc.w - 1)), this->registers.pc.w - 1);
 }
 
 void CPU::nop() {
-    this->advanceCycles(4);
 }
 
 void CPU::ld_bc_nn() {
     this->registers.bc.w = READPC16();
-    this->advanceCycles(12);
 }
 
 void CPU::ld_bcp_a() {
-    this->gameboy->mmu->write(this->registers.bc.w, this->registers.af.b.h);
-    this->advanceCycles(8);
+    MEMWRITE(this->registers.bc.w, this->registers.af.b.h);
 }
 
 void CPU::inc_bc() {
     this->registers.bc.w++;
-    this->advanceCycles(8);
+    this->advanceCycles(4);
 }
 
 void CPU::inc_b() {
@@ -203,7 +223,6 @@ void CPU::inc_b() {
     FLAG_SET(FLAG_HALFCARRY, (this->registers.bc.b.h & 0xF) == 0xF);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.bc.b.h = result;
-    this->advanceCycles(4);
 }
 
 void CPU::dec_b() {
@@ -212,12 +231,10 @@ void CPU::dec_b() {
     FLAG_SET(FLAG_HALFCARRY, (this->registers.bc.b.h & 0xF) == 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.bc.b.h = result;
-    this->advanceCycles(4);
 }
 
 void CPU::ld_b_n() {
     this->registers.bc.b.h = READPC8();
-    this->advanceCycles(8);
 }
 
 void CPU::rlca() {
@@ -228,14 +245,12 @@ void CPU::rlca() {
     FLAG_SET(FLAG_CARRY, carry != 0);
     FLAG_SET(FLAG_ZERO, 0);
     this->registers.af.b.h = result;
-    this->advanceCycles(4);
 }
 
 void CPU::ld_nnp_sp() {
     u16 addr = READPC16();
-    this->gameboy->mmu->write(addr, (u8) (this->registers.sp.w & 0xFF));
-    this->gameboy->mmu->write((u16) (addr + 1), (u8) ((this->registers.sp.w >> 8) & 0xFF));
-    this->advanceCycles(20);
+    MEMWRITE(addr, (u8) (this->registers.sp.w & 0xFF));
+    MEMWRITE((u16) (addr + 1), (u8) ((this->registers.sp.w >> 8) & 0xFF));
 }
 
 void CPU::add_hl_bc() {
@@ -244,17 +259,16 @@ void CPU::add_hl_bc() {
     FLAG_SET(FLAG_HALFCARRY, (this->registers.hl.w & 0xFFF) + (this->registers.bc.w & 0xFFF) >= 0x1000);
     FLAG_SET(FLAG_CARRY, result >= 0x10000);
     this->registers.hl.w = (u16) (result & 0xFFFF);
-    this->advanceCycles(8);
+    this->advanceCycles(4);
 }
 
 void CPU::ld_a_bcp() {
-    this->registers.af.b.h = this->gameboy->mmu->read(this->registers.bc.w);
-    this->advanceCycles(8);
+    this->registers.af.b.h = MEMREAD(this->registers.bc.w);
 }
 
 void CPU::dec_bc() {
     this->registers.bc.w--;
-    this->advanceCycles(8);
+    this->advanceCycles(4);
 }
 
 void CPU::inc_c() {
@@ -263,7 +277,6 @@ void CPU::inc_c() {
     FLAG_SET(FLAG_HALFCARRY, (this->registers.bc.b.l & 0xF) == 0xF);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.bc.b.l = result;
-    this->advanceCycles(4);
 }
 
 void CPU::dec_c() {
@@ -272,12 +285,10 @@ void CPU::dec_c() {
     FLAG_SET(FLAG_HALFCARRY, (this->registers.bc.b.l & 0xF) == 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.bc.b.l = result;
-    this->advanceCycles(4);
 }
 
 void CPU::ld_c_n() {
     this->registers.bc.b.l = READPC8();
-    this->advanceCycles(8);
 }
 
 void CPU::rrca() {
@@ -288,36 +299,30 @@ void CPU::rrca() {
     FLAG_SET(FLAG_CARRY, carry != 0);
     FLAG_SET(FLAG_ZERO, 0);
     this->registers.af.b.h = result;
-    this->advanceCycles(4);
 }
 
 void CPU::stop() {
-    u8 key1 = this->gameboy->mmu->readIO(KEY1);
-    if((key1 & 1) && this->gameboy->gbMode == MODE_CGB) {
-        this->setDoubleSpeed(!(key1 & 0x80));
+    if(this->gameboy->gbMode == MODE_CGB && (this->gameboy->mmu->readIO(KEY1) & 1)) {
+        this->setDoubleSpeed(!(this->gameboy->mmu->readIO(KEY1) & 0x80));
 
         this->gameboy->mmu->writeIO(KEY1, (u8) (this->gameboy->mmu->readIO(KEY1) & ~1));
         this->registers.pc.w++;
     } else {
         this->haltState = true;
     }
-
-    this->advanceCycles(4);
 }
 
 void CPU::ld_de_nn() {
     this->registers.de.w = READPC16();
-    this->advanceCycles(12);
 }
 
 void CPU::ld_dep_a() {
-    this->gameboy->mmu->write(this->registers.de.w, this->registers.af.b.h);
-    this->advanceCycles(8);
+    MEMWRITE(this->registers.de.w, this->registers.af.b.h);
 }
 
 void CPU::inc_de() {
     this->registers.de.w++;
-    this->advanceCycles(8);
+    this->advanceCycles(4);
 }
 
 void CPU::inc_d() {
@@ -326,7 +331,6 @@ void CPU::inc_d() {
     FLAG_SET(FLAG_HALFCARRY, (this->registers.de.b.h & 0xF) == 0xF);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.de.b.h = result;
-    this->advanceCycles(4);
 }
 
 void CPU::dec_d() {
@@ -335,12 +339,10 @@ void CPU::dec_d() {
     FLAG_SET(FLAG_HALFCARRY, (this->registers.de.b.h & 0xF) == 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.de.b.h = result;
-    this->advanceCycles(4);
 }
 
 void CPU::ld_d_n() {
     this->registers.de.b.h = READPC8();
-    this->advanceCycles(8);
 }
 
 void CPU::rla() {
@@ -350,12 +352,11 @@ void CPU::rla() {
     FLAG_SET(FLAG_CARRY, (this->registers.af.b.h & 0x80) != 0);
     FLAG_SET(FLAG_ZERO, 0);
     this->registers.af.b.h = result;
-    this->advanceCycles(4);
 }
 
 void CPU::jr_n() {
-    this->registers.pc.w += (s8) READPC8();
-    this->advanceCycles(12);
+    s8 offset = READPC8();
+    SETPC(this->registers.pc.w + offset);
 }
 
 void CPU::add_hl_de() {
@@ -364,17 +365,16 @@ void CPU::add_hl_de() {
     FLAG_SET(FLAG_HALFCARRY, (this->registers.hl.w & 0xFFF) + (this->registers.de.w & 0xFFF) >= 0x1000);
     FLAG_SET(FLAG_CARRY, result >= 0x10000);
     this->registers.hl.w = (u16) (result & 0xFFFF);
-    this->advanceCycles(8);
+    this->advanceCycles(4);
 }
 
 void CPU::ld_a_dep() {
-    this->registers.af.b.h = this->gameboy->mmu->read(this->registers.de.w);
-    this->advanceCycles(8);
+    this->registers.af.b.h = MEMREAD(this->registers.de.w);
 }
 
 void CPU::dec_de() {
     this->registers.de.w--;
-    this->advanceCycles(8);
+    this->advanceCycles(4);
 }
 
 void CPU::inc_e() {
@@ -383,7 +383,6 @@ void CPU::inc_e() {
     FLAG_SET(FLAG_HALFCARRY, (this->registers.de.b.l & 0xF) == 0xF);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.de.b.l = result;
-    this->advanceCycles(4);
 }
 
 void CPU::dec_e() {
@@ -392,12 +391,10 @@ void CPU::dec_e() {
     FLAG_SET(FLAG_HALFCARRY, (this->registers.de.b.l & 0xF) == 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.de.b.l = result;
-    this->advanceCycles(4);
 }
 
 void CPU::ld_e_n() {
     this->registers.de.b.l = READPC8();
-    this->advanceCycles(8);
 }
 
 void CPU::rra() {
@@ -407,32 +404,26 @@ void CPU::rra() {
     FLAG_SET(FLAG_CARRY, (this->registers.af.b.h & 0x01) != 0);
     FLAG_SET(FLAG_ZERO, 0);
     this->registers.af.b.h = result;
-    this->advanceCycles(4);
 }
 
 void CPU::jr_nz_n() {
-    s8 offset = (s8) READPC8();
+    s8 offset = READPC8();
     if(!FLAG_ISZERO) {
-        this->registers.pc.w += offset;
-        this->advanceCycles(12);
-    } else {
-        this->advanceCycles(8);
+        SETPC(this->registers.pc.w + offset);
     }
 }
 
 void CPU::ld_hl_nn() {
     this->registers.hl.w = READPC16();
-    this->advanceCycles(12);
 }
 
 void CPU::ldi_hlp_a() {
-    this->gameboy->mmu->write(this->registers.hl.w++, this->registers.af.b.h);
-    this->advanceCycles(8);
+    MEMWRITE(this->registers.hl.w++, this->registers.af.b.h);
 }
 
 void CPU::inc_hl() {
     this->registers.hl.w++;
-    this->advanceCycles(8);
+    this->advanceCycles(4);
 }
 
 void CPU::inc_h() {
@@ -441,7 +432,6 @@ void CPU::inc_h() {
     FLAG_SET(FLAG_HALFCARRY, (this->registers.hl.b.h & 0xF) == 0xF);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.hl.b.h = result;
-    this->advanceCycles(4);
 }
 
 void CPU::dec_h() {
@@ -450,12 +440,10 @@ void CPU::dec_h() {
     FLAG_SET(FLAG_HALFCARRY, (this->registers.hl.b.h & 0xF) == 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.hl.b.h = result;
-    this->advanceCycles(4);
 }
 
 void CPU::ld_h_n() {
     this->registers.hl.b.h = READPC8();
-    this->advanceCycles(8);
 }
 
 void CPU::daa() {
@@ -484,16 +472,12 @@ void CPU::daa() {
     FLAG_SET(FLAG_HALFCARRY, 0);
     FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
     this->registers.af.b.h = (u8) (result & 0xFF);
-    this->advanceCycles(4);
 }
 
 void CPU::jr_z_n() {
-    s8 offset = (s8) READPC8();
+    s8 offset = READPC8();
     if(FLAG_ISZERO) {
-        this->registers.pc.w += offset;
-        this->advanceCycles(12);
-    } else {
-        this->advanceCycles(8);
+        SETPC(this->registers.pc.w + offset);
     }
 }
 
@@ -503,17 +487,16 @@ void CPU::add_hl_hl() {
     FLAG_SET(FLAG_HALFCARRY, (this->registers.hl.w & 0xFFF) + (this->registers.hl.w & 0xFFF) >= 0x1000);
     FLAG_SET(FLAG_CARRY, result >= 0x10000);
     this->registers.hl.w = (u16) (result & 0xFFFF);
-    this->advanceCycles(8);
+    this->advanceCycles(4);
 }
 
 void CPU::ldi_a_hlp() {
-    this->registers.af.b.h = this->gameboy->mmu->read(this->registers.hl.w++);
-    this->advanceCycles(8);
+    this->registers.af.b.h = MEMREAD(this->registers.hl.w++);
 }
 
 void CPU::dec_hl() {
     this->registers.hl.w--;
-    this->advanceCycles(8);
+    this->advanceCycles(4);
 }
 
 void CPU::inc_l() {
@@ -522,7 +505,6 @@ void CPU::inc_l() {
     FLAG_SET(FLAG_HALFCARRY, (this->registers.hl.b.l & 0xF) == 0xF);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.hl.b.l = result;
-    this->advanceCycles(4);
 }
 
 void CPU::dec_l() {
@@ -531,88 +513,71 @@ void CPU::dec_l() {
     FLAG_SET(FLAG_HALFCARRY, (this->registers.hl.b.l & 0xF) == 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.hl.b.l = result;
-    this->advanceCycles(4);
 }
 
 void CPU::ld_l_n() {
     this->registers.hl.b.l = READPC8();
-    this->advanceCycles(8);
 }
 
 void CPU::cpl() {
     this->registers.af.b.h = ~this->registers.af.b.h;
     FLAG_SET(FLAG_NEGATIVE, 1);
     FLAG_SET(FLAG_HALFCARRY, 1);
-    this->advanceCycles(4);
 }
 
 void CPU::jr_nc_n() {
-    s8 offset = (s8) READPC8();
+    s8 offset = READPC8();
     if(!FLAG_ISCARRY) {
-        this->registers.pc.w += offset;
-        this->advanceCycles(12);
-    } else {
-        this->advanceCycles(8);
+        SETPC(this->registers.pc.w + offset);
     }
 }
 
 void CPU::ld_sp_nn() {
     this->registers.sp.w = READPC16();
-    this->advanceCycles(12);
 }
 
 void CPU::ldd_hlp_a() {
-    this->gameboy->mmu->write(this->registers.hl.w--, this->registers.af.b.h);
-    this->advanceCycles(8);
+    MEMWRITE(this->registers.hl.w--, this->registers.af.b.h);
 }
 
 void CPU::inc_sp() {
     this->registers.sp.w++;
-    this->advanceCycles(8);
+    this->advanceCycles(4);
 }
 
 void CPU::inc_hlp() {
-    u8 val = this->gameboy->mmu->read(this->registers.hl.w);
-    this->advanceCycles(4);
+    u8 val = MEMREAD(this->registers.hl.w);
     u8 result = (u8) (val + 1);
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, (val & 0xF) == 0xF);
     FLAG_SET(FLAG_ZERO, result == 0);
-    this->gameboy->mmu->write(this->registers.hl.w, result);
-    this->advanceCycles(8);
+    MEMWRITE(this->registers.hl.w, result);
 }
 
 void CPU::dec_hlp() {
-    u8 val = this->gameboy->mmu->read(this->registers.hl.w);
-    this->advanceCycles(4);
+    u8 val = MEMREAD(this->registers.hl.w);
     u8 result = (u8) (val - 1);
     FLAG_SET(FLAG_NEGATIVE, 1);
     FLAG_SET(FLAG_HALFCARRY, (val & 0xF) == 0);
     FLAG_SET(FLAG_ZERO, result == 0);
-    this->gameboy->mmu->write(this->registers.hl.w, result);
-    this->advanceCycles(8);
+    MEMWRITE(this->registers.hl.w, result);
 }
 
 void CPU::ld_hlp_n() {
-    this->advanceCycles(4);
-    this->gameboy->mmu->write(this->registers.hl.w, READPC8());
-    this->advanceCycles(8);
+    u8 val = READPC8();
+    MEMWRITE(this->registers.hl.w, val);
 }
 
 void CPU::scf() {
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 0);
     FLAG_SET(FLAG_CARRY, 1);
-    this->advanceCycles(4);
 }
 
 void CPU::jr_c_n() {
-    s8 offset = (s8) READPC8();
+    s8 offset = READPC8();
     if(FLAG_ISCARRY) {
-        this->registers.pc.w += offset;
-        this->advanceCycles(12);
-    } else {
-        this->advanceCycles(8);
+        SETPC(this->registers.pc.w + offset);
     }
 }
 
@@ -622,17 +587,16 @@ void CPU::add_hl_sp() {
     FLAG_SET(FLAG_HALFCARRY, (this->registers.hl.w & 0xFFF) + (this->registers.sp.w & 0xFFF) >= 0x1000);
     FLAG_SET(FLAG_CARRY, result >= 0x10000);
     this->registers.hl.w = (u16) (result & 0xFFFF);
-    this->advanceCycles(8);
+    this->advanceCycles(4);
 }
 
 void CPU::ldd_a_hlp() {
-    this->registers.af.b.h = this->gameboy->mmu->read(this->registers.hl.w--);
-    this->advanceCycles(8);
+    this->registers.af.b.h = MEMREAD(this->registers.hl.w--);
 }
 
 void CPU::dec_sp() {
     this->registers.sp.w--;
-    this->advanceCycles(8);
+    this->advanceCycles(4);
 }
 
 void CPU::inc_a() {
@@ -641,7 +605,6 @@ void CPU::inc_a() {
     FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) == 0xF);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.af.b.h = result;
-    this->advanceCycles(4);
 }
 
 void CPU::dec_a() {
@@ -650,259 +613,208 @@ void CPU::dec_a() {
     FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) == 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.af.b.h = result;
-    this->advanceCycles(4);
 }
 
 void CPU::ld_a_n() {
     this->registers.af.b.h = READPC8();
-    this->advanceCycles(8);
 }
 
 void CPU::ccf() {
     FLAG_SET(FLAG_CARRY, !FLAG_ISCARRY);
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 0);
-    this->advanceCycles(4);
 }
 
 void CPU::ld_b_c() {
     this->registers.bc.b.h = this->registers.bc.b.l;
-    this->advanceCycles(4);
 }
 
 void CPU::ld_b_d() {
     this->registers.bc.b.h = this->registers.de.b.h;
-    this->advanceCycles(4);
 }
 
 void CPU::ld_b_e() {
     this->registers.bc.b.h = this->registers.de.b.l;
-    this->advanceCycles(4);
 }
 
 void CPU::ld_b_h() {
     this->registers.bc.b.h = this->registers.hl.b.h;
-    this->advanceCycles(4);
 }
 
 void CPU::ld_b_l() {
     this->registers.bc.b.h = this->registers.hl.b.l;
-    this->advanceCycles(4);
 }
 
 void CPU::ld_b_hlp() {
-    this->registers.bc.b.h = this->gameboy->mmu->read(this->registers.hl.w);
-    this->advanceCycles(8);
+    this->registers.bc.b.h = MEMREAD(this->registers.hl.w);
 }
 
 void CPU::ld_b_a() {
     this->registers.bc.b.h = this->registers.af.b.h;
-    this->advanceCycles(4);
 }
 
 void CPU::ld_c_b() {
     this->registers.bc.b.l = this->registers.bc.b.h;
-    this->advanceCycles(4);
 }
 
 void CPU::ld_c_d() {
     this->registers.bc.b.l = this->registers.de.b.h;
-    this->advanceCycles(4);
 }
 
 void CPU::ld_c_e() {
     this->registers.bc.b.l = this->registers.de.b.l;
-    this->advanceCycles(4);
 }
 
 void CPU::ld_c_h() {
     this->registers.bc.b.l = this->registers.hl.b.h;
-    this->advanceCycles(4);
 }
 
 void CPU::ld_c_l() {
     this->registers.bc.b.l = this->registers.hl.b.l;
-    this->advanceCycles(4);
 }
 
 void CPU::ld_c_hlp() {
-    this->registers.bc.b.l = this->gameboy->mmu->read(this->registers.hl.w);
-    this->advanceCycles(8);
+    this->registers.bc.b.l = MEMREAD(this->registers.hl.w);
 }
 
 void CPU::ld_c_a() {
     this->registers.bc.b.l = this->registers.af.b.h;
-    this->advanceCycles(4);
 }
 
 void CPU::ld_d_b() {
     this->registers.de.b.h = this->registers.bc.b.h;
-    this->advanceCycles(4);
 }
 
 void CPU::ld_d_c() {
     this->registers.de.b.h = this->registers.bc.b.l;
-    this->advanceCycles(4);
 }
 
 void CPU::ld_d_e() {
     this->registers.de.b.h = this->registers.de.b.l;
-    this->advanceCycles(4);
 }
 
 void CPU::ld_d_h() {
     this->registers.de.b.h = this->registers.hl.b.h;
-    this->advanceCycles(4);
 }
 
 void CPU::ld_d_l() {
     this->registers.de.b.h = this->registers.hl.b.l;
-    this->advanceCycles(4);
 }
 
 void CPU::ld_d_hlp() {
-    this->registers.de.b.h = this->gameboy->mmu->read(this->registers.hl.w);
-    this->advanceCycles(8);
+    this->registers.de.b.h = MEMREAD(this->registers.hl.w);
 }
 
 void CPU::ld_d_a() {
     this->registers.de.b.h = this->registers.af.b.h;
-    this->advanceCycles(4);
 }
 
 void CPU::ld_e_b() {
     this->registers.de.b.l = this->registers.bc.b.h;
-    this->advanceCycles(4);
 }
 
 void CPU::ld_e_c() {
     this->registers.de.b.l = this->registers.bc.b.l;
-    this->advanceCycles(4);
 }
 
 void CPU::ld_e_d() {
     this->registers.de.b.l = this->registers.de.b.h;
-    this->advanceCycles(4);
 }
 
 void CPU::ld_e_h() {
     this->registers.de.b.l = this->registers.hl.b.h;
-    this->advanceCycles(4);
 }
 
 void CPU::ld_e_l() {
     this->registers.de.b.l = this->registers.hl.b.l;
-    this->advanceCycles(4);
 }
 
 void CPU::ld_e_hlp() {
-    this->registers.de.b.l = this->gameboy->mmu->read(this->registers.hl.w);
-    this->advanceCycles(8);
+    this->registers.de.b.l = MEMREAD(this->registers.hl.w);
 }
 
 void CPU::ld_e_a() {
     this->registers.de.b.l = this->registers.af.b.h;
-    this->advanceCycles(4);
 }
 
 void CPU::ld_h_b() {
     this->registers.hl.b.h = this->registers.bc.b.h;
-    this->advanceCycles(4);
 }
 
 void CPU::ld_h_c() {
     this->registers.hl.b.h = this->registers.bc.b.l;
-    this->advanceCycles(4);
 }
 
 void CPU::ld_h_d() {
     this->registers.hl.b.h = this->registers.de.b.h;
-    this->advanceCycles(4);
 }
 
 void CPU::ld_h_e() {
     this->registers.hl.b.h = this->registers.de.b.l;
-    this->advanceCycles(4);
 }
 
 void CPU::ld_h_l() {
     this->registers.hl.b.h = this->registers.hl.b.l;
-    this->advanceCycles(4);
 }
 
 void CPU::ld_h_hlp() {
-    this->registers.hl.b.h = this->gameboy->mmu->read(this->registers.hl.w);
-    this->advanceCycles(8);
+    this->registers.hl.b.h = MEMREAD(this->registers.hl.w);
 }
 
 void CPU::ld_h_a() {
     this->registers.hl.b.h = this->registers.af.b.h;
-    this->advanceCycles(4);
 }
 
 void CPU::ld_l_b() {
     this->registers.hl.b.l = this->registers.bc.b.h;
-    this->advanceCycles(4);
 }
 
 void CPU::ld_l_c() {
     this->registers.hl.b.l = this->registers.bc.b.l;
-    this->advanceCycles(4);
 }
 
 void CPU::ld_l_d() {
     this->registers.hl.b.l = this->registers.de.b.h;
-    this->advanceCycles(4);
 }
 
 void CPU::ld_l_e() {
     this->registers.hl.b.l = this->registers.de.b.l;
-    this->advanceCycles(4);
 }
 
 void CPU::ld_l_h() {
     this->registers.hl.b.l = this->registers.hl.b.h;
-    this->advanceCycles(4);
 }
 
 void CPU::ld_l_hlp() {
-    this->registers.hl.b.l = this->gameboy->mmu->read(this->registers.hl.w);
-    this->advanceCycles(8);
+    this->registers.hl.b.l = MEMREAD(this->registers.hl.w);
 }
 
 void CPU::ld_l_a() {
     this->registers.hl.b.l = this->registers.af.b.h;
-    this->advanceCycles(4);
 }
 
 void CPU::ld_hlp_b() {
-    this->gameboy->mmu->write(this->registers.hl.w, this->registers.bc.b.h);
-    this->advanceCycles(8);
+    MEMWRITE(this->registers.hl.w, this->registers.bc.b.h);
 }
 
 void CPU::ld_hlp_c() {
-    this->gameboy->mmu->write(this->registers.hl.w, this->registers.bc.b.l);
-    this->advanceCycles(8);
+    MEMWRITE(this->registers.hl.w, this->registers.bc.b.l);
 }
 
 void CPU::ld_hlp_d() {
-    this->gameboy->mmu->write(this->registers.hl.w, this->registers.de.b.h);
-    this->advanceCycles(8);
+    MEMWRITE(this->registers.hl.w, this->registers.de.b.h);
 }
 
 void CPU::ld_hlp_e() {
-    this->gameboy->mmu->write(this->registers.hl.w, this->registers.de.b.l);
-    this->advanceCycles(8);
+    MEMWRITE(this->registers.hl.w, this->registers.de.b.l);
 }
 
 void CPU::ld_hlp_h() {
-    this->gameboy->mmu->write(this->registers.hl.w, this->registers.hl.b.h);
-    this->advanceCycles(8);
+    MEMWRITE(this->registers.hl.w, this->registers.hl.b.h);
 }
 
 void CPU::ld_hlp_l() {
-    this->gameboy->mmu->write(this->registers.hl.w, this->registers.hl.b.l);
-    this->advanceCycles(8);
+    MEMWRITE(this->registers.hl.w, this->registers.hl.b.l);
 }
 
 void CPU::halt() {
@@ -913,48 +825,38 @@ void CPU::halt() {
     } else {
         this->haltState = true;
     }
-
-    this->advanceCycles(4);
 }
 
 void CPU::ld_hlp_a() {
-    this->gameboy->mmu->write(this->registers.hl.w, this->registers.af.b.h);
-    this->advanceCycles(8);
+    MEMWRITE(this->registers.hl.w, this->registers.af.b.h);
 }
 
 void CPU::ld_a_b() {
     this->registers.af.b.h = this->registers.bc.b.h;
-    this->advanceCycles(4);
 }
 
 void CPU::ld_a_c() {
     this->registers.af.b.h = this->registers.bc.b.l;
-    this->advanceCycles(4);
 }
 
 void CPU::ld_a_d() {
     this->registers.af.b.h = this->registers.de.b.h;
-    this->advanceCycles(4);
 }
 
 void CPU::ld_a_e() {
     this->registers.af.b.h = this->registers.de.b.l;
-    this->advanceCycles(4);
 }
 
 void CPU::ld_a_h() {
     this->registers.af.b.h = this->registers.hl.b.h;
-    this->advanceCycles(4);
 }
 
 void CPU::ld_a_l() {
     this->registers.af.b.h = this->registers.hl.b.l;
-    this->advanceCycles(4);
 }
 
 void CPU::ld_a_hlp() {
-    this->registers.af.b.h = this->gameboy->mmu->read(this->registers.hl.w);
-    this->advanceCycles(8);
+    this->registers.af.b.h = MEMREAD(this->registers.hl.w);
 }
 
 void CPU::add_a_b() {
@@ -964,7 +866,6 @@ void CPU::add_a_b() {
     FLAG_SET(FLAG_CARRY, result >= 0x100);
     FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
     this->registers.af.b.h = (u8) (result & 0xFF);
-    this->advanceCycles(4);
 }
 
 void CPU::add_a_c() {
@@ -974,7 +875,6 @@ void CPU::add_a_c() {
     FLAG_SET(FLAG_CARRY, result >= 0x100);
     FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
     this->registers.af.b.h = (u8) (result & 0xFF);
-    this->advanceCycles(4);
 }
 
 void CPU::add_a_d() {
@@ -984,7 +884,6 @@ void CPU::add_a_d() {
     FLAG_SET(FLAG_CARRY, result >= 0x100);
     FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
     this->registers.af.b.h = (u8) (result & 0xFF);
-    this->advanceCycles(4);
 }
 
 void CPU::add_a_e() {
@@ -994,7 +893,6 @@ void CPU::add_a_e() {
     FLAG_SET(FLAG_CARRY, result >= 0x100);
     FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
     this->registers.af.b.h = (u8) (result & 0xFF);
-    this->advanceCycles(4);
 }
 
 void CPU::add_a_h() {
@@ -1004,7 +902,6 @@ void CPU::add_a_h() {
     FLAG_SET(FLAG_CARRY, result >= 0x100);
     FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
     this->registers.af.b.h = (u8) (result & 0xFF);
-    this->advanceCycles(4);
 }
 
 void CPU::add_a_l() {
@@ -1014,18 +911,16 @@ void CPU::add_a_l() {
     FLAG_SET(FLAG_CARRY, result >= 0x100);
     FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
     this->registers.af.b.h = (u8) (result & 0xFF);
-    this->advanceCycles(4);
 }
 
 void CPU::add_a_hlp() {
-    u8 val = this->gameboy->mmu->read(this->registers.hl.w);
+    u8 val = MEMREAD(this->registers.hl.w);
     u16 result = this->registers.af.b.h + val;
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) + (val & 0xF) >= 0x10);
     FLAG_SET(FLAG_CARRY, result >= 0x100);
     FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
     this->registers.af.b.h = (u8) (result & 0xFF);
-    this->advanceCycles(8);
 }
 
 void CPU::add_a_a() {
@@ -1035,7 +930,6 @@ void CPU::add_a_a() {
     FLAG_SET(FLAG_CARRY, result >= 0x100);
     FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
     this->registers.af.b.h = (u8) (result & 0xFF);
-    this->advanceCycles(4);
 }
 
 void CPU::adc_b() {
@@ -1045,7 +939,6 @@ void CPU::adc_b() {
     FLAG_SET(FLAG_CARRY, result >= 0x100);
     FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
     this->registers.af.b.h = (u8) (result & 0xFF);
-    this->advanceCycles(4);
 }
 
 void CPU::adc_c() {
@@ -1055,7 +948,6 @@ void CPU::adc_c() {
     FLAG_SET(FLAG_CARRY, result >= 0x100);
     FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
     this->registers.af.b.h = (u8) (result & 0xFF);
-    this->advanceCycles(4);
 }
 
 void CPU::adc_d() {
@@ -1065,7 +957,6 @@ void CPU::adc_d() {
     FLAG_SET(FLAG_CARRY, result >= 0x100);
     FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
     this->registers.af.b.h = (u8) (result & 0xFF);
-    this->advanceCycles(4);
 }
 
 void CPU::adc_e() {
@@ -1075,7 +966,6 @@ void CPU::adc_e() {
     FLAG_SET(FLAG_CARRY, result >= 0x100);
     FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
     this->registers.af.b.h = (u8) (result & 0xFF);
-    this->advanceCycles(4);
 }
 
 void CPU::adc_h() {
@@ -1085,7 +975,6 @@ void CPU::adc_h() {
     FLAG_SET(FLAG_CARRY, result >= 0x100);
     FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
     this->registers.af.b.h = (u8) (result & 0xFF);
-    this->advanceCycles(4);
 }
 
 void CPU::adc_l() {
@@ -1095,18 +984,16 @@ void CPU::adc_l() {
     FLAG_SET(FLAG_CARRY, result >= 0x100);
     FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
     this->registers.af.b.h = (u8) (result & 0xFF);
-    this->advanceCycles(4);
 }
 
 void CPU::adc_hlp() {
-    u8 val = this->gameboy->mmu->read(this->registers.hl.w);
+    u8 val = MEMREAD(this->registers.hl.w);
     u16 result = this->registers.af.b.h + val + (u16) FLAG_ISCARRY;
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) + (val & 0xF) + FLAG_ISCARRY >= 0x10);
     FLAG_SET(FLAG_CARRY, result >= 0x100);
     FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
     this->registers.af.b.h = (u8) (result & 0xFF);
-    this->advanceCycles(8);
 }
 
 void CPU::adc_a() {
@@ -1116,7 +1003,6 @@ void CPU::adc_a() {
     FLAG_SET(FLAG_CARRY, result >= 0x100);
     FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
     this->registers.af.b.h = (u8) (result & 0xFF);
-    this->advanceCycles(4);
 }
 
 void CPU::sub_b() {
@@ -1126,7 +1012,6 @@ void CPU::sub_b() {
     FLAG_SET(FLAG_CARRY, result < 0);
     FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
     this->registers.af.b.h = (u8) (result & 0xFF);
-    this->advanceCycles(4);
 }
 
 void CPU::sub_c() {
@@ -1136,7 +1021,6 @@ void CPU::sub_c() {
     FLAG_SET(FLAG_CARRY, result < 0);
     FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
     this->registers.af.b.h = (u8) (result & 0xFF);
-    this->advanceCycles(4);
 }
 
 void CPU::sub_d() {
@@ -1146,7 +1030,6 @@ void CPU::sub_d() {
     FLAG_SET(FLAG_CARRY, result < 0);
     FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
     this->registers.af.b.h = (u8) (result & 0xFF);
-    this->advanceCycles(4);
 }
 
 void CPU::sub_e() {
@@ -1156,7 +1039,6 @@ void CPU::sub_e() {
     FLAG_SET(FLAG_CARRY, result < 0);
     FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
     this->registers.af.b.h = (u8) (result & 0xFF);
-    this->advanceCycles(4);
 }
 
 void CPU::sub_h() {
@@ -1166,7 +1048,6 @@ void CPU::sub_h() {
     FLAG_SET(FLAG_CARRY, result < 0);
     FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
     this->registers.af.b.h = (u8) (result & 0xFF);
-    this->advanceCycles(4);
 }
 
 void CPU::sub_l() {
@@ -1176,18 +1057,16 @@ void CPU::sub_l() {
     FLAG_SET(FLAG_CARRY, result < 0);
     FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
     this->registers.af.b.h = (u8) (result & 0xFF);
-    this->advanceCycles(4);
 }
 
 void CPU::sub_hlp() {
-    u8 val = this->gameboy->mmu->read(this->registers.hl.w);
+    u8 val = MEMREAD(this->registers.hl.w);
     int result = this->registers.af.b.h - val;
     FLAG_SET(FLAG_NEGATIVE, 1);
     FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) - (val & 0xF) < 0);
     FLAG_SET(FLAG_CARRY, result < 0);
     FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
     this->registers.af.b.h = (u8) (result & 0xFF);
-    this->advanceCycles(8);
 }
 
 void CPU::sub_a() {
@@ -1197,7 +1076,6 @@ void CPU::sub_a() {
     FLAG_SET(FLAG_CARRY, result < 0);
     FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
     this->registers.af.b.h = (u8) (result & 0xFF);
-    this->advanceCycles(4);
 }
 
 void CPU::sbc_b() {
@@ -1207,7 +1085,6 @@ void CPU::sbc_b() {
     FLAG_SET(FLAG_CARRY, result < 0);
     FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
     this->registers.af.b.h = (u8) (result & 0xFF);
-    this->advanceCycles(4);
 }
 
 void CPU::sbc_c() {
@@ -1217,7 +1094,6 @@ void CPU::sbc_c() {
     FLAG_SET(FLAG_CARRY, result < 0);
     FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
     this->registers.af.b.h = (u8) (result & 0xFF);
-    this->advanceCycles(4);
 }
 
 void CPU::sbc_d() {
@@ -1227,7 +1103,6 @@ void CPU::sbc_d() {
     FLAG_SET(FLAG_CARRY, result < 0);
     FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
     this->registers.af.b.h = (u8) (result & 0xFF);
-    this->advanceCycles(4);
 }
 
 void CPU::sbc_e() {
@@ -1237,7 +1112,6 @@ void CPU::sbc_e() {
     FLAG_SET(FLAG_CARRY, result < 0);
     FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
     this->registers.af.b.h = (u8) (result & 0xFF);
-    this->advanceCycles(4);
 }
 
 void CPU::sbc_h() {
@@ -1247,7 +1121,6 @@ void CPU::sbc_h() {
     FLAG_SET(FLAG_CARRY, result < 0);
     FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
     this->registers.af.b.h = (u8) (result & 0xFF);
-    this->advanceCycles(4);
 }
 
 void CPU::sbc_l() {
@@ -1257,18 +1130,16 @@ void CPU::sbc_l() {
     FLAG_SET(FLAG_CARRY, result < 0);
     FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
     this->registers.af.b.h = (u8) (result & 0xFF);
-    this->advanceCycles(4);
 }
 
 void CPU::sbc_hlp() {
-    u8 val = this->gameboy->mmu->read(this->registers.hl.w);
+    u8 val = MEMREAD(this->registers.hl.w);
     int result = this->registers.af.b.h - val - FLAG_ISCARRY;
     FLAG_SET(FLAG_NEGATIVE, 1);
     FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) - (val & 0xF) - FLAG_ISCARRY < 0);
     FLAG_SET(FLAG_CARRY, result < 0);
     FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
     this->registers.af.b.h = (u8) (result & 0xFF);
-    this->advanceCycles(8);
 }
 
 void CPU::sbc_a() {
@@ -1278,7 +1149,6 @@ void CPU::sbc_a() {
     FLAG_SET(FLAG_CARRY, result < 0);
     FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
     this->registers.af.b.h = (u8) (result & 0xFF);
-    this->advanceCycles(4);
 }
 
 void CPU::and_b() {
@@ -1288,7 +1158,6 @@ void CPU::and_b() {
     FLAG_SET(FLAG_CARRY, 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.af.b.h = result;
-    this->advanceCycles(4);
 }
 
 void CPU::and_c() {
@@ -1298,7 +1167,6 @@ void CPU::and_c() {
     FLAG_SET(FLAG_CARRY, 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.af.b.h = result;
-    this->advanceCycles(4);
 }
 
 void CPU::and_d() {
@@ -1308,7 +1176,6 @@ void CPU::and_d() {
     FLAG_SET(FLAG_CARRY, 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.af.b.h = result;
-    this->advanceCycles(4);
 }
 
 void CPU::and_e() {
@@ -1318,7 +1185,6 @@ void CPU::and_e() {
     FLAG_SET(FLAG_CARRY, 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.af.b.h = result;
-    this->advanceCycles(4);
 }
 
 void CPU::and_h() {
@@ -1328,7 +1194,6 @@ void CPU::and_h() {
     FLAG_SET(FLAG_CARRY, 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.af.b.h = result;
-    this->advanceCycles(4);
 }
 
 void CPU::and_l() {
@@ -1338,17 +1203,16 @@ void CPU::and_l() {
     FLAG_SET(FLAG_CARRY, 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.af.b.h = result;
-    this->advanceCycles(4);
 }
 
 void CPU::and_hlp() {
-    u8 result = this->registers.af.b.h & this->gameboy->mmu->read(this->registers.hl.w);
+    u8 val = MEMREAD(this->registers.hl.w);
+    u8 result = this->registers.af.b.h & val;
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 1);
     FLAG_SET(FLAG_CARRY, 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.af.b.h = result;
-    this->advanceCycles(8);
 }
 
 void CPU::and_a() {
@@ -1356,7 +1220,6 @@ void CPU::and_a() {
     FLAG_SET(FLAG_HALFCARRY, 1);
     FLAG_SET(FLAG_CARRY, 0);
     FLAG_SET(FLAG_ZERO, this->registers.af.b.h == 0);
-    this->advanceCycles(4);
 }
 
 void CPU::xor_b() {
@@ -1366,7 +1229,6 @@ void CPU::xor_b() {
     FLAG_SET(FLAG_CARRY, 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.af.b.h = result;
-    this->advanceCycles(4);
 }
 
 void CPU::xor_c() {
@@ -1376,7 +1238,6 @@ void CPU::xor_c() {
     FLAG_SET(FLAG_CARRY, 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.af.b.h = result;
-    this->advanceCycles(4);
 }
 
 void CPU::xor_d() {
@@ -1386,7 +1247,6 @@ void CPU::xor_d() {
     FLAG_SET(FLAG_CARRY, 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.af.b.h = result;
-    this->advanceCycles(4);
 }
 
 void CPU::xor_e() {
@@ -1396,7 +1256,6 @@ void CPU::xor_e() {
     FLAG_SET(FLAG_CARRY, 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.af.b.h = result;
-    this->advanceCycles(4);
 }
 
 void CPU::xor_h() {
@@ -1406,7 +1265,6 @@ void CPU::xor_h() {
     FLAG_SET(FLAG_CARRY, 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.af.b.h = result;
-    this->advanceCycles(4);
 }
 
 void CPU::xor_l() {
@@ -1416,17 +1274,16 @@ void CPU::xor_l() {
     FLAG_SET(FLAG_CARRY, 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.af.b.h = result;
-    this->advanceCycles(4);
 }
 
 void CPU::xor_hlp() {
-    u8 result = this->registers.af.b.h ^this->gameboy->mmu->read(this->registers.hl.w);
+    u8 val = MEMREAD(this->registers.hl.w);
+    u8 result = this->registers.af.b.h ^ val;
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 0);
     FLAG_SET(FLAG_CARRY, 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.af.b.h = result;
-    this->advanceCycles(8);
 }
 
 void CPU::xor_a() {
@@ -1435,7 +1292,6 @@ void CPU::xor_a() {
     FLAG_SET(FLAG_CARRY, 0);
     FLAG_SET(FLAG_ZERO, 1);
     this->registers.af.b.h = 0;
-    this->advanceCycles(4);
 }
 
 void CPU::or_b() {
@@ -1445,7 +1301,6 @@ void CPU::or_b() {
     FLAG_SET(FLAG_CARRY, 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.af.b.h = result;
-    this->advanceCycles(4);
 }
 
 void CPU::or_c() {
@@ -1455,7 +1310,6 @@ void CPU::or_c() {
     FLAG_SET(FLAG_CARRY, 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.af.b.h = result;
-    this->advanceCycles(4);
 }
 
 void CPU::or_d() {
@@ -1465,7 +1319,6 @@ void CPU::or_d() {
     FLAG_SET(FLAG_CARRY, 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.af.b.h = result;
-    this->advanceCycles(4);
 }
 
 void CPU::or_e() {
@@ -1475,7 +1328,6 @@ void CPU::or_e() {
     FLAG_SET(FLAG_CARRY, 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.af.b.h = result;
-    this->advanceCycles(4);
 }
 
 void CPU::or_h() {
@@ -1485,7 +1337,6 @@ void CPU::or_h() {
     FLAG_SET(FLAG_CARRY, 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.af.b.h = result;
-    this->advanceCycles(4);
 }
 
 void CPU::or_l() {
@@ -1495,17 +1346,16 @@ void CPU::or_l() {
     FLAG_SET(FLAG_CARRY, 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.af.b.h = result;
-    this->advanceCycles(4);
 }
 
 void CPU::or_hlp() {
-    u8 result = this->registers.af.b.h | this->gameboy->mmu->read(this->registers.hl.w);
+    u8 val = MEMREAD(this->registers.hl.w);
+    u8 result = this->registers.af.b.h | val;
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 0);
     FLAG_SET(FLAG_CARRY, 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.af.b.h = result;
-    this->advanceCycles(8);
 }
 
 void CPU::or_a() {
@@ -1513,7 +1363,6 @@ void CPU::or_a() {
     FLAG_SET(FLAG_HALFCARRY, 0);
     FLAG_SET(FLAG_CARRY, 0);
     FLAG_SET(FLAG_ZERO, this->registers.af.b.h == 0);
-    this->advanceCycles(4);
 }
 
 void CPU::cp_b() {
@@ -1522,7 +1371,6 @@ void CPU::cp_b() {
     FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) - (this->registers.bc.b.h & 0xF) < 0);
     FLAG_SET(FLAG_CARRY, result < 0);
     FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
-    this->advanceCycles(4);
 }
 
 void CPU::cp_c() {
@@ -1531,7 +1379,6 @@ void CPU::cp_c() {
     FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) - (this->registers.bc.b.l & 0xF) < 0);
     FLAG_SET(FLAG_CARRY, result < 0);
     FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
-    this->advanceCycles(4);
 }
 
 void CPU::cp_d() {
@@ -1540,7 +1387,6 @@ void CPU::cp_d() {
     FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) - (this->registers.de.b.h & 0xF) < 0);
     FLAG_SET(FLAG_CARRY, result < 0);
     FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
-    this->advanceCycles(4);
 }
 
 void CPU::cp_e() {
@@ -1549,7 +1395,6 @@ void CPU::cp_e() {
     FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) - (this->registers.de.b.l & 0xF) < 0);
     FLAG_SET(FLAG_CARRY, result < 0);
     FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
-    this->advanceCycles(4);
 }
 
 void CPU::cp_h() {
@@ -1558,7 +1403,6 @@ void CPU::cp_h() {
     FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) - (this->registers.hl.b.h & 0xF) < 0);
     FLAG_SET(FLAG_CARRY, result < 0);
     FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
-    this->advanceCycles(4);
 }
 
 void CPU::cp_l() {
@@ -1567,17 +1411,15 @@ void CPU::cp_l() {
     FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) - (this->registers.hl.b.l & 0xF) < 0);
     FLAG_SET(FLAG_CARRY, result < 0);
     FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
-    this->advanceCycles(4);
 }
 
 void CPU::cp_hlp() {
-    u8 val = this->gameboy->mmu->read(this->registers.hl.w);
+    u8 val = MEMREAD(this->registers.hl.w);
     int result = this->registers.af.b.h - val;
     FLAG_SET(FLAG_NEGATIVE, 1);
     FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) - (val & 0xF) < 0);
     FLAG_SET(FLAG_CARRY, result < 0);
     FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
-    this->advanceCycles(8);
 }
 
 void CPU::cp_a() {
@@ -1586,52 +1428,43 @@ void CPU::cp_a() {
     FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) - (this->registers.af.b.h & 0xF) < 0);
     FLAG_SET(FLAG_CARRY, result < 0);
     FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
-    this->advanceCycles(4);
 }
 
 void CPU::ret_nz() {
+    this->advanceCycles(4);
     if(!FLAG_ISZERO) {
-        POP(this->registers.pc.w);
-        this->advanceCycles(20);
-    } else {
-        this->advanceCycles(8);
+        u16 addr = POP();
+        SETPC(addr);
     }
 }
 
 void CPU::pop_bc() {
-    POP(this->registers.bc.w);
-    this->advanceCycles(12);
+    this->registers.bc.w = POP();
 }
 
 void CPU::jp_nz_nn() {
     u16 addr = READPC16();
     if(!FLAG_ISZERO) {
-        this->registers.pc.w = addr;
-        this->advanceCycles(16);
-    } else {
-        this->advanceCycles(12);
+        SETPC(addr);
     }
 }
 
 void CPU::jp_nn() {
-    this->registers.pc.w = READPC16();
-    this->advanceCycles(16);
+    u16 addr = READPC16();
+    SETPC(addr);
 }
 
 void CPU::call_nz_nn() {
     u16 addr = READPC16();
     if(!FLAG_ISZERO) {
         PUSH(this->registers.pc.w);
-        this->registers.pc.w = addr;
-        this->advanceCycles(24);
-    } else {
-        this->advanceCycles(12);
+        SETPC(addr);
     }
 }
 
 void CPU::push_bc() {
     PUSH(this->registers.bc.w);
-    this->advanceCycles(16);
+    this->advanceCycles(4);
 }
 
 void CPU::add_a_n() {
@@ -1642,59 +1475,50 @@ void CPU::add_a_n() {
     FLAG_SET(FLAG_CARRY, result >= 0x100);
     FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
     this->registers.af.b.h = (u8) (result & 0xFF);
-    this->advanceCycles(8);
 }
 
 void CPU::rst_0() {
     PUSH(this->registers.pc.w);
-    this->registers.pc.w = 0x0000;
-    this->advanceCycles(16);
+    SETPC(0x0000);
 }
 
 void CPU::ret_z() {
+    this->advanceCycles(4);
     if(FLAG_ISZERO) {
-        POP(this->registers.pc.w);
-        this->advanceCycles(20);
-    } else {
-        this->advanceCycles(8);
+        u16 addr = POP();
+        SETPC(addr);
     }
 }
 
 void CPU::ret() {
-    POP(this->registers.pc.w);
-    this->advanceCycles(16);
+    u16 addr = POP();
+    SETPC(addr);
 }
 
 void CPU::jp_z_nn() {
     u16 addr = READPC16();
     if(FLAG_ISZERO) {
-        this->registers.pc.w = addr;
-        this->advanceCycles(16);
-    } else {
-        this->advanceCycles(12);
+        SETPC(addr);
     }
 }
 
 void CPU::cb_n() {
-    (this->*cbOpcodes[READPC8()])();
+    u8 op = READPC8();
+    (this->*cbOpcodes[op])();
 }
 
 void CPU::call_z_nn() {
     u16 addr = READPC16();
     if(FLAG_ISZERO) {
         PUSH(this->registers.pc.w);
-        this->registers.pc.w = addr;
-        this->advanceCycles(24);
-    } else {
-        this->advanceCycles(12);
+        SETPC(addr);
     }
 }
 
 void CPU::call_nn() {
     u16 addr = READPC16();
     PUSH(this->registers.pc.w);
-    this->registers.pc.w = addr;
-    this->advanceCycles(24);
+    SETPC(addr);
 }
 
 void CPU::adc_n() {
@@ -1705,36 +1529,29 @@ void CPU::adc_n() {
     FLAG_SET(FLAG_CARRY, result >= 0x100);
     FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
     this->registers.af.b.h = (u8) (result & 0xFF);
-    this->advanceCycles(8);
 }
 
 void CPU::rst_08() {
     PUSH(this->registers.pc.w);
-    this->registers.pc.w = 0x0008;
-    this->advanceCycles(16);
+    SETPC(0x0008);
 }
 
 void CPU::ret_nc() {
+    this->advanceCycles(4);
     if(!FLAG_ISCARRY) {
-        POP(this->registers.pc.w);
-        this->advanceCycles(20);
-    } else {
-        this->advanceCycles(8);
+        u16 addr = POP();
+        SETPC(addr);
     }
 }
 
 void CPU::pop_de() {
-    POP(this->registers.de.w);
-    this->advanceCycles(12);
+    this->registers.de.w = POP();
 }
 
 void CPU::jp_nc_nn() {
     u16 addr = READPC16();
     if(!FLAG_ISCARRY) {
-        this->registers.pc.w = addr;
-        this->advanceCycles(16);
-    } else {
-        this->advanceCycles(12);
+        SETPC(addr);
     }
 }
 
@@ -1742,16 +1559,13 @@ void CPU::call_nc_nn() {
     u16 addr = READPC16();
     if(!FLAG_ISCARRY) {
         PUSH(this->registers.pc.w);
-        this->registers.pc.w = addr;
-        this->advanceCycles(24);
-    } else {
-        this->advanceCycles(12);
+        SETPC(addr);
     }
 }
 
 void CPU::push_de() {
     PUSH(this->registers.de.w);
-    this->advanceCycles(16);
+    this->advanceCycles(4);
 }
 
 void CPU::sub_n() {
@@ -1762,37 +1576,31 @@ void CPU::sub_n() {
     FLAG_SET(FLAG_CARRY, result < 0);
     FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
     this->registers.af.b.h = (u8) (result & 0xFF);
-    this->advanceCycles(8);
 }
 
 void CPU::rst_10() {
     PUSH(this->registers.pc.w);
-    this->registers.pc.w = 0x0010;
-    this->advanceCycles(16);
+    SETPC(0x0010);
 }
 
 void CPU::ret_c() {
+    this->advanceCycles(4);
     if(FLAG_ISCARRY) {
-        POP(this->registers.pc.w);
-        this->advanceCycles(20);
-    } else {
-        this->advanceCycles(8);
+        u16 addr = POP();
+        SETPC(addr);
     }
 }
 
 void CPU::reti() {
-    POP(this->registers.pc.w);
+    u16 addr = POP();
     this->ime = true;
-    this->advanceCycles(16);
+    SETPC(addr);
 }
 
 void CPU::jp_c_nn() {
     u16 addr = READPC16();
     if(FLAG_ISCARRY) {
-        this->registers.pc.w = addr;
-        this->advanceCycles(16);
-    } else {
-        this->advanceCycles(12);
+        SETPC(addr);
     }
 }
 
@@ -1800,10 +1608,7 @@ void CPU::call_c_nn() {
     u16 addr = READPC16();
     if(FLAG_ISCARRY) {
         PUSH(this->registers.pc.w);
-        this->registers.pc.w = addr;
-        this->advanceCycles(24);
-    } else {
-        this->advanceCycles(12);
+        SETPC(addr);
     }
 }
 
@@ -1815,50 +1620,44 @@ void CPU::sbc_n() {
     FLAG_SET(FLAG_CARRY, result < 0);
     FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
     this->registers.af.b.h = (u8) (result & 0xFF);
-    this->advanceCycles(8);
 }
 
 void CPU::rst_18() {
     PUSH(this->registers.pc.w);
-    this->registers.pc.w = 0x0018;
-    this->advanceCycles(16);
+    SETPC(0x0018);
 }
 
 void CPU::ld_ff_n_a() {
-    this->advanceCycles(4);
-    this->gameboy->mmu->write((u16) (0xFF00 + READPC8()), this->registers.af.b.h);
-    this->advanceCycles(8);
+    u8 reg = READPC8();
+    MEMWRITE((u16) (0xFF00 + reg), this->registers.af.b.h);
 }
 
 void CPU::pop_hl() {
-    POP(this->registers.hl.w);
-    this->advanceCycles(12);
+    this->registers.hl.w = POP();
 }
 
 void CPU::ld_ff_c_a() {
-    this->gameboy->mmu->write((u16) (0xFF00 + this->registers.bc.b.l), this->registers.af.b.h);
-    this->advanceCycles(8);
+    MEMWRITE((u16) (0xFF00 + this->registers.bc.b.l), this->registers.af.b.h);
 }
 
 void CPU::push_hl() {
     PUSH(this->registers.hl.w);
-    this->advanceCycles(16);
+    this->advanceCycles(4);
 }
 
 void CPU::and_n() {
-    u8 result = this->registers.af.b.h & READPC8();
+    u8 val = READPC8();
+    u8 result = this->registers.af.b.h & val;
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 1);
     FLAG_SET(FLAG_CARRY, 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.af.b.h = result;
-    this->advanceCycles(8);
 }
 
 void CPU::rst_20() {
     PUSH(this->registers.pc.w);
-    this->registers.pc.w = 0x0020;
-    this->advanceCycles(16);
+    SETPC(0x0020);
 }
 
 void CPU::add_sp_n() {
@@ -1869,78 +1668,70 @@ void CPU::add_sp_n() {
     FLAG_SET(FLAG_CARRY, (this->registers.sp.w & 0xFF) + val >= 0x100);
     FLAG_SET(FLAG_ZERO, 0);
     this->registers.sp.w = result;
-    this->advanceCycles(16);
+    this->advanceCycles(8);
 }
 
 void CPU::jp_hl() {
     this->registers.pc.w = this->registers.hl.w;
-    this->advanceCycles(4);
 }
 
 void CPU::ld_nnp_a() {
-    this->advanceCycles(8);
-    this->gameboy->mmu->write(READPC16(), this->registers.af.b.h);
-    this->advanceCycles(8);
+    u16 addr = READPC16();
+    MEMWRITE(addr, this->registers.af.b.h);
 }
 
 void CPU::xor_n() {
-    u8 result = this->registers.af.b.h ^READPC8();
+    u8 val = READPC8();
+    u8 result = this->registers.af.b.h ^ val;
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 0);
     FLAG_SET(FLAG_CARRY, 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.af.b.h = result;
-    this->advanceCycles(8);
 }
 
 void CPU::rst_28() {
     PUSH(this->registers.pc.w);
-    this->registers.pc.w = 0x0028;
-    this->advanceCycles(16);
+    SETPC(0x0028);
 }
 
 void CPU::ld_a_ff_n() {
-    this->advanceCycles(4);
-    this->registers.af.b.h = this->gameboy->mmu->read((u16) (0xFF00 + READPC8()));
-    this->advanceCycles(8);
+    u8 reg = READPC8();
+    this->registers.af.b.h = MEMREAD((u16) (0xFF00 + reg));
 }
 
 void CPU::pop_af() {
     u8 oldFLow = (u8) (this->registers.af.b.l & 0xF);
-    POP(this->registers.af.w);
+    this->registers.af.w = POP();
     this->registers.af.b.l = (u8) ((this->registers.af.b.l & 0xF0) | oldFLow);
-    this->advanceCycles(12);
 }
 
 void CPU::ld_a_ff_c() {
-    this->registers.af.b.h = this->gameboy->mmu->read((u16) (0xFF00 + this->registers.bc.b.l));
-    this->advanceCycles(8);
+    this->registers.af.b.h = MEMREAD((u16) (0xFF00 + this->registers.bc.b.l));
 }
 
 void CPU::di_inst() {
     this->ime = false;
-    this->advanceCycles(4);
 }
 
 void CPU::push_af() {
     PUSH(this->registers.af.w);
-    this->advanceCycles(16);
+    this->advanceCycles(4);
 }
 
 void CPU::or_n() {
-    u8 result = this->registers.af.b.h | READPC8();
+    u8 val = READPC8();
+    u8 result = this->registers.af.b.h | val;
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 0);
     FLAG_SET(FLAG_CARRY, 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.af.b.h = result;
-    this->advanceCycles(8);
 }
 
 void CPU::rst_30() {
     PUSH(this->registers.pc.w);
-    this->registers.pc.w = 0x0030;
-    this->advanceCycles(16);
+    SETPC(0x0030);
 }
 
 void CPU::ld_hl_sp_n() {
@@ -1951,23 +1742,21 @@ void CPU::ld_hl_sp_n() {
     FLAG_SET(FLAG_CARRY, (this->registers.sp.w & 0xFF) + val >= 0x100);
     FLAG_SET(FLAG_ZERO, 0);
     this->registers.hl.w = result;
-    this->advanceCycles(12);
+    this->advanceCycles(4);
 }
 
 void CPU::ld_sp_hl() {
     this->registers.sp.w = this->registers.hl.w;
-    this->advanceCycles(8);
+    this->advanceCycles(4);
 }
 
 void CPU::ld_a_nnp() {
-    this->advanceCycles(8);
-    this->registers.af.b.h = this->gameboy->mmu->read(READPC16());
-    this->advanceCycles(8);
+    u16 addr = READPC16();
+    this->registers.af.b.h = MEMREAD(addr);
 }
 
 void CPU::ei() {
     this->ime = true;
-    this->advanceCycles(4);
 }
 
 void CPU::cp_n() {
@@ -1977,13 +1766,11 @@ void CPU::cp_n() {
     FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) - (val & 0xF) < 0);
     FLAG_SET(FLAG_CARRY, result < 0);
     FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
-    this->advanceCycles(8);
 }
 
 void CPU::rst_38() {
     PUSH(this->registers.pc.w);
-    this->registers.pc.w = 0x0038;
-    this->advanceCycles(16);
+    SETPC(0x0038);
 }
 
 void CPU::rlc_b() {
@@ -1994,7 +1781,6 @@ void CPU::rlc_b() {
     FLAG_SET(FLAG_CARRY, carry != 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.bc.b.h = result;
-    this->advanceCycles(8);
 }
 
 void CPU::rlc_c() {
@@ -2005,7 +1791,6 @@ void CPU::rlc_c() {
     FLAG_SET(FLAG_CARRY, carry != 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.bc.b.l = result;
-    this->advanceCycles(8);
 }
 
 void CPU::rlc_d() {
@@ -2016,7 +1801,6 @@ void CPU::rlc_d() {
     FLAG_SET(FLAG_CARRY, carry != 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.de.b.h = result;
-    this->advanceCycles(8);
 }
 
 void CPU::rlc_e() {
@@ -2027,7 +1811,6 @@ void CPU::rlc_e() {
     FLAG_SET(FLAG_CARRY, carry != 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.de.b.l = result;
-    this->advanceCycles(8);
 }
 
 void CPU::rlc_h() {
@@ -2038,7 +1821,6 @@ void CPU::rlc_h() {
     FLAG_SET(FLAG_CARRY, carry != 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.hl.b.h = result;
-    this->advanceCycles(8);
 }
 
 void CPU::rlc_l() {
@@ -2049,21 +1831,17 @@ void CPU::rlc_l() {
     FLAG_SET(FLAG_CARRY, carry != 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.hl.b.l = result;
-    this->advanceCycles(8);
 }
 
 void CPU::rlc_hlp() {
-    this->advanceCycles(4);
-    u8 val = this->gameboy->mmu->read(this->registers.hl.w);
-    this->advanceCycles(4);
+    u8 val = MEMREAD(this->registers.hl.w);
     u8 carry = (u8) ((val & 0x80) >> 7);
     u8 result = (val << 1) | carry;
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 0);
     FLAG_SET(FLAG_CARRY, carry != 0);
     FLAG_SET(FLAG_ZERO, result == 0);
-    this->gameboy->mmu->write(this->registers.hl.w, result);
-    this->advanceCycles(8);
+    MEMWRITE(this->registers.hl.w, result);
 }
 
 void CPU::rlc_a() {
@@ -2074,7 +1852,6 @@ void CPU::rlc_a() {
     FLAG_SET(FLAG_CARRY, carry != 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.af.b.h = result;
-    this->advanceCycles(8);
 }
 
 void CPU::rrc_b() {
@@ -2085,7 +1862,6 @@ void CPU::rrc_b() {
     FLAG_SET(FLAG_CARRY, carry != 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.bc.b.h = result;
-    this->advanceCycles(8);
 }
 
 void CPU::rrc_c() {
@@ -2096,7 +1872,6 @@ void CPU::rrc_c() {
     FLAG_SET(FLAG_CARRY, carry != 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.bc.b.l = result;
-    this->advanceCycles(8);
 }
 
 void CPU::rrc_d() {
@@ -2107,7 +1882,6 @@ void CPU::rrc_d() {
     FLAG_SET(FLAG_CARRY, carry != 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.de.b.h = result;
-    this->advanceCycles(8);
 }
 
 void CPU::rrc_e() {
@@ -2118,7 +1892,6 @@ void CPU::rrc_e() {
     FLAG_SET(FLAG_CARRY, carry != 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.de.b.l = result;
-    this->advanceCycles(8);
 }
 
 void CPU::rrc_h() {
@@ -2129,7 +1902,6 @@ void CPU::rrc_h() {
     FLAG_SET(FLAG_CARRY, carry != 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.hl.b.h = result;
-    this->advanceCycles(8);
 }
 
 void CPU::rrc_l() {
@@ -2140,21 +1912,17 @@ void CPU::rrc_l() {
     FLAG_SET(FLAG_CARRY, carry != 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.hl.b.l = result;
-    this->advanceCycles(8);
 }
 
 void CPU::rrc_hlp() {
-    this->advanceCycles(4);
-    u8 val = this->gameboy->mmu->read(this->registers.hl.w);
-    this->advanceCycles(4);
+    u8 val = MEMREAD(this->registers.hl.w);
     u8 carry = (u8) ((val & 0x01) << 7);
     u8 result = (val >> 1) | carry;
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 0);
     FLAG_SET(FLAG_CARRY, carry != 0);
     FLAG_SET(FLAG_ZERO, result == 0);
-    this->gameboy->mmu->write(this->registers.hl.w, result);
-    this->advanceCycles(8);
+    MEMWRITE(this->registers.hl.w, result);
 }
 
 void CPU::rrc_a() {
@@ -2165,7 +1933,6 @@ void CPU::rrc_a() {
     FLAG_SET(FLAG_CARRY, carry != 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.af.b.h = result;
-    this->advanceCycles(8);
 }
 
 void CPU::rl_b() {
@@ -2175,7 +1942,6 @@ void CPU::rl_b() {
     FLAG_SET(FLAG_CARRY, (this->registers.bc.b.h & 0x80) != 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.bc.b.h = result;
-    this->advanceCycles(8);
 }
 
 void CPU::rl_c() {
@@ -2185,7 +1951,6 @@ void CPU::rl_c() {
     FLAG_SET(FLAG_CARRY, (this->registers.bc.b.l & 0x80) != 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.bc.b.l = result;
-    this->advanceCycles(8);
 }
 
 void CPU::rl_d() {
@@ -2195,7 +1960,6 @@ void CPU::rl_d() {
     FLAG_SET(FLAG_CARRY, (this->registers.de.b.h & 0x80) != 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.de.b.h = result;
-    this->advanceCycles(8);
 }
 
 void CPU::rl_e() {
@@ -2205,7 +1969,6 @@ void CPU::rl_e() {
     FLAG_SET(FLAG_CARRY, (this->registers.de.b.l & 0x80) != 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.de.b.l = result;
-    this->advanceCycles(8);
 }
 
 void CPU::rl_h() {
@@ -2215,7 +1978,6 @@ void CPU::rl_h() {
     FLAG_SET(FLAG_CARRY, (this->registers.hl.b.h & 0x80) != 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.hl.b.h = result;
-    this->advanceCycles(8);
 }
 
 void CPU::rl_l() {
@@ -2225,20 +1987,16 @@ void CPU::rl_l() {
     FLAG_SET(FLAG_CARRY, (this->registers.hl.b.l & 0x80) != 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.hl.b.l = result;
-    this->advanceCycles(8);
 }
 
 void CPU::rl_hlp() {
-    this->advanceCycles(4);
-    u8 val = this->gameboy->mmu->read(this->registers.hl.w);
-    this->advanceCycles(4);
+    u8 val = MEMREAD(this->registers.hl.w);
     u8 result = (val << 1) | (u8) FLAG_ISCARRY;
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 0);
     FLAG_SET(FLAG_CARRY, (val & 0x80) != 0);
     FLAG_SET(FLAG_ZERO, result == 0);
-    this->gameboy->mmu->write(this->registers.hl.w, result);
-    this->advanceCycles(8);
+    MEMWRITE(this->registers.hl.w, result);
 }
 
 void CPU::rl_a() {
@@ -2248,7 +2006,6 @@ void CPU::rl_a() {
     FLAG_SET(FLAG_CARRY, (this->registers.af.b.h & 0x80) != 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.af.b.h = result;
-    this->advanceCycles(8);
 }
 
 void CPU::rr_b() {
@@ -2258,7 +2015,6 @@ void CPU::rr_b() {
     FLAG_SET(FLAG_CARRY, (this->registers.bc.b.h & 0x01) != 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.bc.b.h = result;
-    this->advanceCycles(8);
 }
 
 void CPU::rr_c() {
@@ -2268,7 +2024,6 @@ void CPU::rr_c() {
     FLAG_SET(FLAG_CARRY, (this->registers.bc.b.l & 0x01) != 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.bc.b.l = result;
-    this->advanceCycles(8);
 }
 
 void CPU::rr_d() {
@@ -2278,7 +2033,6 @@ void CPU::rr_d() {
     FLAG_SET(FLAG_CARRY, (this->registers.de.b.h & 0x01) != 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.de.b.h = result;
-    this->advanceCycles(8);
 }
 
 void CPU::rr_e() {
@@ -2288,7 +2042,6 @@ void CPU::rr_e() {
     FLAG_SET(FLAG_CARRY, (this->registers.de.b.l & 0x01) != 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.de.b.l = result;
-    this->advanceCycles(8);
 }
 
 void CPU::rr_h() {
@@ -2298,7 +2051,6 @@ void CPU::rr_h() {
     FLAG_SET(FLAG_CARRY, (this->registers.hl.b.h & 0x01) != 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.hl.b.h = result;
-    this->advanceCycles(8);
 }
 
 void CPU::rr_l() {
@@ -2308,20 +2060,16 @@ void CPU::rr_l() {
     FLAG_SET(FLAG_CARRY, (this->registers.hl.b.l & 0x01) != 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.hl.b.l = result;
-    this->advanceCycles(8);
 }
 
 void CPU::rr_hlp() {
-    this->advanceCycles(4);
-    u8 val = this->gameboy->mmu->read(this->registers.hl.w);
-    this->advanceCycles(4);
+    u8 val = MEMREAD(this->registers.hl.w);
     u8 result = (val >> 1) | (u8) (FLAG_ISCARRY << 7);
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 0);
     FLAG_SET(FLAG_CARRY, (val & 0x01) != 0);
     FLAG_SET(FLAG_ZERO, result == 0);
-    this->gameboy->mmu->write(this->registers.hl.w, result);
-    this->advanceCycles(8);
+    MEMWRITE(this->registers.hl.w, result);
 }
 
 void CPU::rr_a() {
@@ -2331,7 +2079,6 @@ void CPU::rr_a() {
     FLAG_SET(FLAG_CARRY, (this->registers.af.b.h & 0x01) != 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.af.b.h = result;
-    this->advanceCycles(8);
 }
 
 void CPU::sla_b() {
@@ -2341,7 +2088,6 @@ void CPU::sla_b() {
     FLAG_SET(FLAG_CARRY, (this->registers.bc.b.h & 0x80) != 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.bc.b.h = result;
-    this->advanceCycles(8);
 }
 
 void CPU::sla_c() {
@@ -2351,7 +2097,6 @@ void CPU::sla_c() {
     FLAG_SET(FLAG_CARRY, (this->registers.bc.b.l & 0x80) != 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.bc.b.l = result;
-    this->advanceCycles(8);
 }
 
 void CPU::sla_d() {
@@ -2361,7 +2106,6 @@ void CPU::sla_d() {
     FLAG_SET(FLAG_CARRY, (this->registers.de.b.h & 0x80) != 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.de.b.h = result;
-    this->advanceCycles(8);
 }
 
 void CPU::sla_e() {
@@ -2371,7 +2115,6 @@ void CPU::sla_e() {
     FLAG_SET(FLAG_CARRY, (this->registers.de.b.l & 0x80) != 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.de.b.l = result;
-    this->advanceCycles(8);
 }
 
 void CPU::sla_h() {
@@ -2381,7 +2124,6 @@ void CPU::sla_h() {
     FLAG_SET(FLAG_CARRY, (this->registers.hl.b.h & 0x80) != 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.hl.b.h = result;
-    this->advanceCycles(8);
 }
 
 void CPU::sla_l() {
@@ -2391,20 +2133,16 @@ void CPU::sla_l() {
     FLAG_SET(FLAG_CARRY, (this->registers.hl.b.l & 0x80) != 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.hl.b.l = result;
-    this->advanceCycles(8);
 }
 
 void CPU::sla_hlp() {
-    this->advanceCycles(4);
-    u8 val = this->gameboy->mmu->read(this->registers.hl.w);
-    this->advanceCycles(4);
+    u8 val = MEMREAD(this->registers.hl.w);
     u8 result = val << 1;
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 0);
     FLAG_SET(FLAG_CARRY, (val & 0x80) != 0);
     FLAG_SET(FLAG_ZERO, result == 0);
-    this->gameboy->mmu->write(this->registers.hl.w, result);
-    this->advanceCycles(8);
+    MEMWRITE(this->registers.hl.w, result);
 }
 
 void CPU::sla_a() {
@@ -2414,7 +2152,6 @@ void CPU::sla_a() {
     FLAG_SET(FLAG_CARRY, (this->registers.af.b.h & 0x80) != 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.af.b.h = result;
-    this->advanceCycles(8);
 }
 
 void CPU::sra_b() {
@@ -2424,7 +2161,6 @@ void CPU::sra_b() {
     FLAG_SET(FLAG_CARRY, (this->registers.bc.b.h & 0x01) != 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.bc.b.h = result;
-    this->advanceCycles(8);
 }
 
 void CPU::sra_c() {
@@ -2434,7 +2170,6 @@ void CPU::sra_c() {
     FLAG_SET(FLAG_CARRY, (this->registers.bc.b.l & 0x01) != 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.bc.b.l = result;
-    this->advanceCycles(8);
 }
 
 void CPU::sra_d() {
@@ -2444,7 +2179,6 @@ void CPU::sra_d() {
     FLAG_SET(FLAG_CARRY, (this->registers.de.b.h & 0x01) != 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.de.b.h = result;
-    this->advanceCycles(8);
 }
 
 void CPU::sra_e() {
@@ -2454,7 +2188,6 @@ void CPU::sra_e() {
     FLAG_SET(FLAG_CARRY, (this->registers.de.b.l & 0x01) != 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.de.b.l = result;
-    this->advanceCycles(8);
 }
 
 void CPU::sra_h() {
@@ -2464,7 +2197,6 @@ void CPU::sra_h() {
     FLAG_SET(FLAG_CARRY, (this->registers.hl.b.h & 0x01) != 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.hl.b.h = result;
-    this->advanceCycles(8);
 }
 
 void CPU::sra_l() {
@@ -2474,20 +2206,16 @@ void CPU::sra_l() {
     FLAG_SET(FLAG_CARRY, (this->registers.hl.b.l & 0x01) != 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.hl.b.l = result;
-    this->advanceCycles(8);
 }
 
 void CPU::sra_hlp() {
-    this->advanceCycles(4);
-    u8 val = this->gameboy->mmu->read(this->registers.hl.w);
-    this->advanceCycles(4);
+    u8 val = MEMREAD(this->registers.hl.w);
     u8 result = (val >> 1) | (u8) (val & 0x80);
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 0);
     FLAG_SET(FLAG_CARRY, (val & 0x01) != 0);
     FLAG_SET(FLAG_ZERO, result == 0);
-    this->gameboy->mmu->write(this->registers.hl.w, result);
-    this->advanceCycles(8);
+    MEMWRITE(this->registers.hl.w, result);
 }
 
 void CPU::sra_a() {
@@ -2497,7 +2225,6 @@ void CPU::sra_a() {
     FLAG_SET(FLAG_CARRY, (this->registers.af.b.h & 0x01) != 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.af.b.h = result;
-    this->advanceCycles(8);
 }
 
 void CPU::swap_b() {
@@ -2507,7 +2234,6 @@ void CPU::swap_b() {
     FLAG_SET(FLAG_CARRY, 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.bc.b.h = result;
-    this->advanceCycles(8);
 }
 
 void CPU::swap_c() {
@@ -2517,7 +2243,6 @@ void CPU::swap_c() {
     FLAG_SET(FLAG_CARRY, 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.bc.b.l = result;
-    this->advanceCycles(8);
 }
 
 void CPU::swap_d() {
@@ -2527,7 +2252,6 @@ void CPU::swap_d() {
     FLAG_SET(FLAG_CARRY, 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.de.b.h = result;
-    this->advanceCycles(8);
 }
 
 void CPU::swap_e() {
@@ -2537,7 +2261,6 @@ void CPU::swap_e() {
     FLAG_SET(FLAG_CARRY, 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.de.b.l = result;
-    this->advanceCycles(8);
 }
 
 void CPU::swap_h() {
@@ -2547,7 +2270,6 @@ void CPU::swap_h() {
     FLAG_SET(FLAG_CARRY, 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.hl.b.h = result;
-    this->advanceCycles(8);
 }
 
 void CPU::swap_l() {
@@ -2557,20 +2279,16 @@ void CPU::swap_l() {
     FLAG_SET(FLAG_CARRY, 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.hl.b.l = result;
-    this->advanceCycles(8);
 }
 
 void CPU::swap_hlp() {
-    this->advanceCycles(4);
-    u8 val = this->gameboy->mmu->read(this->registers.hl.w);
-    this->advanceCycles(4);
+    u8 val = MEMREAD(this->registers.hl.w);
     u8 result = (u8) (((val & 0x0F) << 4) | ((val & 0xF0) >> 4));
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 0);
     FLAG_SET(FLAG_CARRY, 0);
     FLAG_SET(FLAG_ZERO, result == 0);
-    this->gameboy->mmu->write(this->registers.hl.w, result);
-    this->advanceCycles(8);
+    MEMWRITE(this->registers.hl.w, result);
 }
 
 void CPU::swap_a() {
@@ -2580,7 +2298,6 @@ void CPU::swap_a() {
     FLAG_SET(FLAG_CARRY, 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.af.b.h = result;
-    this->advanceCycles(8);
 }
 
 void CPU::srl_b() {
@@ -2590,7 +2307,6 @@ void CPU::srl_b() {
     FLAG_SET(FLAG_CARRY, (this->registers.bc.b.h & 0x01) != 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.bc.b.h = result;
-    this->advanceCycles(8);
 }
 
 void CPU::srl_c() {
@@ -2600,7 +2316,6 @@ void CPU::srl_c() {
     FLAG_SET(FLAG_CARRY, (this->registers.bc.b.l & 0x01) != 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.bc.b.l = result;
-    this->advanceCycles(8);
 }
 
 void CPU::srl_d() {
@@ -2610,7 +2325,6 @@ void CPU::srl_d() {
     FLAG_SET(FLAG_CARRY, (this->registers.de.b.h & 0x01) != 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.de.b.h = result;
-    this->advanceCycles(8);
 }
 
 void CPU::srl_e() {
@@ -2620,7 +2334,6 @@ void CPU::srl_e() {
     FLAG_SET(FLAG_CARRY, (this->registers.de.b.l & 0x01) != 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.de.b.l = result;
-    this->advanceCycles(8);
 }
 
 void CPU::srl_h() {
@@ -2630,7 +2343,6 @@ void CPU::srl_h() {
     FLAG_SET(FLAG_CARRY, (this->registers.hl.b.h & 0x01) != 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.hl.b.h = result;
-    this->advanceCycles(8);
 }
 
 void CPU::srl_l() {
@@ -2640,20 +2352,16 @@ void CPU::srl_l() {
     FLAG_SET(FLAG_CARRY, (this->registers.hl.b.l & 0x01) != 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.hl.b.l = result;
-    this->advanceCycles(8);
 }
 
 void CPU::srl_hlp() {
-    this->advanceCycles(4);
-    u8 val = this->gameboy->mmu->read(this->registers.hl.w);
-    this->advanceCycles(4);
+    u8 val = MEMREAD(this->registers.hl.w);
     u8 result = val >> 1;
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 0);
     FLAG_SET(FLAG_CARRY, (val & 0x01) != 0);
     FLAG_SET(FLAG_ZERO, result == 0);
-    this->gameboy->mmu->write(this->registers.hl.w, result);
-    this->advanceCycles(8);
+    MEMWRITE(this->registers.hl.w, result);
 }
 
 void CPU::srl_a() {
@@ -2663,1149 +2371,924 @@ void CPU::srl_a() {
     FLAG_SET(FLAG_CARRY, (this->registers.af.b.h & 0x01) != 0);
     FLAG_SET(FLAG_ZERO, result == 0);
     this->registers.af.b.h = result;
-    this->advanceCycles(8);
 }
 
 void CPU::bit_0_b() {
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 1);
     FLAG_SET(FLAG_ZERO, (this->registers.bc.b.h & (1 << 0)) == 0);
-    this->advanceCycles(8);
 }
 
 void CPU::bit_0_c() {
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 1);
     FLAG_SET(FLAG_ZERO, (this->registers.bc.b.l & (1 << 0)) == 0);
-    this->advanceCycles(8);
 }
 
 void CPU::bit_0_d() {
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 1);
     FLAG_SET(FLAG_ZERO, (this->registers.de.b.h & (1 << 0)) == 0);
-    this->advanceCycles(8);
 }
 
 void CPU::bit_0_e() {
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 1);
     FLAG_SET(FLAG_ZERO, (this->registers.de.b.l & (1 << 0)) == 0);
-    this->advanceCycles(8);
 }
 
 void CPU::bit_0_h() {
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 1);
     FLAG_SET(FLAG_ZERO, (this->registers.hl.b.h & (1 << 0)) == 0);
-    this->advanceCycles(8);
 }
 
 void CPU::bit_0_l() {
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 1);
     FLAG_SET(FLAG_ZERO, (this->registers.hl.b.l & (1 << 0)) == 0);
-    this->advanceCycles(8);
 }
 
 void CPU::bit_0_hlp() {
-    this->advanceCycles(4);
+    u8 val = MEMREAD(this->registers.hl.w);
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_ZERO, (this->gameboy->mmu->read(this->registers.hl.w) & (1 << 0)) == 0);
-    this->advanceCycles(8);
+    FLAG_SET(FLAG_ZERO, (val & (1 << 0)) == 0);
 }
 
 void CPU::bit_0_a() {
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 1);
     FLAG_SET(FLAG_ZERO, (this->registers.af.b.h & (1 << 0)) == 0);
-    this->advanceCycles(8);
 }
 
 void CPU::bit_1_b() {
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 1);
     FLAG_SET(FLAG_ZERO, (this->registers.bc.b.h & (1 << 1)) == 0);
-    this->advanceCycles(8);
 }
 
 void CPU::bit_1_c() {
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 1);
     FLAG_SET(FLAG_ZERO, (this->registers.bc.b.l & (1 << 1)) == 0);
-    this->advanceCycles(8);
 }
 
 void CPU::bit_1_d() {
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 1);
     FLAG_SET(FLAG_ZERO, (this->registers.de.b.h & (1 << 1)) == 0);
-    this->advanceCycles(8);
 }
 
 void CPU::bit_1_e() {
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 1);
     FLAG_SET(FLAG_ZERO, (this->registers.de.b.l & (1 << 1)) == 0);
-    this->advanceCycles(8);
 }
 
 void CPU::bit_1_h() {
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 1);
     FLAG_SET(FLAG_ZERO, (this->registers.hl.b.h & (1 << 1)) == 0);
-    this->advanceCycles(8);
 }
 
 void CPU::bit_1_l() {
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 1);
     FLAG_SET(FLAG_ZERO, (this->registers.hl.b.l & (1 << 1)) == 0);
-    this->advanceCycles(8);
 }
 
 void CPU::bit_1_hlp() {
-    this->advanceCycles(4);
+    u8 val = MEMREAD(this->registers.hl.w);
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_ZERO, (this->gameboy->mmu->read(this->registers.hl.w) & (1 << 1)) == 0);
-    this->advanceCycles(8);
+    FLAG_SET(FLAG_ZERO, (val & (1 << 1)) == 0);
 }
 
 void CPU::bit_1_a() {
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 1);
     FLAG_SET(FLAG_ZERO, (this->registers.af.b.h & (1 << 1)) == 0);
-    this->advanceCycles(8);
 }
 
 void CPU::bit_2_b() {
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 1);
     FLAG_SET(FLAG_ZERO, (this->registers.bc.b.h & (1 << 2)) == 0);
-    this->advanceCycles(8);
 }
 
 void CPU::bit_2_c() {
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 1);
     FLAG_SET(FLAG_ZERO, (this->registers.bc.b.l & (1 << 2)) == 0);
-    this->advanceCycles(8);
 }
 
 void CPU::bit_2_d() {
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 1);
     FLAG_SET(FLAG_ZERO, (this->registers.de.b.h & (1 << 2)) == 0);
-    this->advanceCycles(8);
 }
 
 void CPU::bit_2_e() {
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 1);
     FLAG_SET(FLAG_ZERO, (this->registers.de.b.l & (1 << 2)) == 0);
-    this->advanceCycles(8);
 }
 
 void CPU::bit_2_h() {
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 1);
     FLAG_SET(FLAG_ZERO, (this->registers.hl.b.h & (1 << 2)) == 0);
-    this->advanceCycles(8);
 }
 
 void CPU::bit_2_l() {
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 1);
     FLAG_SET(FLAG_ZERO, (this->registers.hl.b.l & (1 << 2)) == 0);
-    this->advanceCycles(8);
 }
 
 void CPU::bit_2_hlp() {
-    this->advanceCycles(4);
+    u8 val = MEMREAD(this->registers.hl.w);
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_ZERO, (this->gameboy->mmu->read(this->registers.hl.w) & (1 << 2)) == 0);
-    this->advanceCycles(8);
+    FLAG_SET(FLAG_ZERO, (val & (1 << 2)) == 0);
 }
 
 void CPU::bit_2_a() {
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 1);
     FLAG_SET(FLAG_ZERO, (this->registers.af.b.h & (1 << 2)) == 0);
-    this->advanceCycles(8);
 }
 
 void CPU::bit_3_b() {
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 1);
     FLAG_SET(FLAG_ZERO, (this->registers.bc.b.h & (1 << 3)) == 0);
-    this->advanceCycles(8);
 }
 
 void CPU::bit_3_c() {
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 1);
     FLAG_SET(FLAG_ZERO, (this->registers.bc.b.l & (1 << 3)) == 0);
-    this->advanceCycles(8);
 }
 
 void CPU::bit_3_d() {
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 1);
     FLAG_SET(FLAG_ZERO, (this->registers.de.b.h & (1 << 3)) == 0);
-    this->advanceCycles(8);
 }
 
 void CPU::bit_3_e() {
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 1);
     FLAG_SET(FLAG_ZERO, (this->registers.de.b.l & (1 << 3)) == 0);
-    this->advanceCycles(8);
 }
 
 void CPU::bit_3_h() {
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 1);
     FLAG_SET(FLAG_ZERO, (this->registers.hl.b.h & (1 << 3)) == 0);
-    this->advanceCycles(8);
 }
 
 void CPU::bit_3_l() {
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 1);
     FLAG_SET(FLAG_ZERO, (this->registers.hl.b.l & (1 << 3)) == 0);
-    this->advanceCycles(8);
 }
 
 void CPU::bit_3_hlp() {
-    this->advanceCycles(4);
+    u8 val = MEMREAD(this->registers.hl.w);
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_ZERO, (this->gameboy->mmu->read(this->registers.hl.w) & (1 << 3)) == 0);
-    this->advanceCycles(8);
+    FLAG_SET(FLAG_ZERO, (val & (1 << 3)) == 0);
 }
 
 void CPU::bit_3_a() {
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 1);
     FLAG_SET(FLAG_ZERO, (this->registers.af.b.h & (1 << 3)) == 0);
-    this->advanceCycles(8);
 }
 
 void CPU::bit_4_b() {
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 1);
     FLAG_SET(FLAG_ZERO, (this->registers.bc.b.h & (1 << 4)) == 0);
-    this->advanceCycles(8);
 }
 
 void CPU::bit_4_c() {
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 1);
     FLAG_SET(FLAG_ZERO, (this->registers.bc.b.l & (1 << 4)) == 0);
-    this->advanceCycles(8);
 }
 
 void CPU::bit_4_d() {
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 1);
     FLAG_SET(FLAG_ZERO, (this->registers.de.b.h & (1 << 4)) == 0);
-    this->advanceCycles(8);
 }
 
 void CPU::bit_4_e() {
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 1);
     FLAG_SET(FLAG_ZERO, (this->registers.de.b.l & (1 << 4)) == 0);
-    this->advanceCycles(8);
 }
 
 void CPU::bit_4_h() {
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 1);
     FLAG_SET(FLAG_ZERO, (this->registers.hl.b.h & (1 << 4)) == 0);
-    this->advanceCycles(8);
 }
 
 void CPU::bit_4_l() {
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 1);
     FLAG_SET(FLAG_ZERO, (this->registers.hl.b.l & (1 << 4)) == 0);
-    this->advanceCycles(8);
 }
 
 void CPU::bit_4_hlp() {
-    this->advanceCycles(4);
+    u8 val = MEMREAD(this->registers.hl.w);
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_ZERO, (this->gameboy->mmu->read(this->registers.hl.w) & (1 << 4)) == 0);
-    this->advanceCycles(8);
+    FLAG_SET(FLAG_ZERO, (val & (1 << 4)) == 0);
 }
 
 void CPU::bit_4_a() {
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 1);
     FLAG_SET(FLAG_ZERO, (this->registers.af.b.h & (1 << 4)) == 0);
-    this->advanceCycles(8);
 }
 
 void CPU::bit_5_b() {
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 1);
     FLAG_SET(FLAG_ZERO, (this->registers.bc.b.h & (1 << 5)) == 0);
-    this->advanceCycles(8);
 }
 
 void CPU::bit_5_c() {
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 1);
     FLAG_SET(FLAG_ZERO, (this->registers.bc.b.l & (1 << 5)) == 0);
-    this->advanceCycles(8);
 }
 
 void CPU::bit_5_d() {
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 1);
     FLAG_SET(FLAG_ZERO, (this->registers.de.b.h & (1 << 5)) == 0);
-    this->advanceCycles(8);
 }
 
 void CPU::bit_5_e() {
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 1);
     FLAG_SET(FLAG_ZERO, (this->registers.de.b.l & (1 << 5)) == 0);
-    this->advanceCycles(8);
 }
 
 void CPU::bit_5_h() {
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 1);
     FLAG_SET(FLAG_ZERO, (this->registers.hl.b.h & (1 << 5)) == 0);
-    this->advanceCycles(8);
 }
 
 void CPU::bit_5_l() {
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 1);
     FLAG_SET(FLAG_ZERO, (this->registers.hl.b.l & (1 << 5)) == 0);
-    this->advanceCycles(8);
 }
 
 void CPU::bit_5_hlp() {
-    this->advanceCycles(4);
+    u8 val = MEMREAD(this->registers.hl.w);
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_ZERO, (this->gameboy->mmu->read(this->registers.hl.w) & (1 << 5)) == 0);
-    this->advanceCycles(8);
+    FLAG_SET(FLAG_ZERO, (val & (1 << 5)) == 0);
 }
 
 void CPU::bit_5_a() {
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 1);
     FLAG_SET(FLAG_ZERO, (this->registers.af.b.h & (1 << 5)) == 0);
-    this->advanceCycles(8);
 }
 
 void CPU::bit_6_b() {
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 1);
     FLAG_SET(FLAG_ZERO, (this->registers.bc.b.h & (1 << 6)) == 0);
-    this->advanceCycles(8);
 }
 
 void CPU::bit_6_c() {
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 1);
     FLAG_SET(FLAG_ZERO, (this->registers.bc.b.l & (1 << 6)) == 0);
-    this->advanceCycles(8);
 }
 
 void CPU::bit_6_d() {
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 1);
     FLAG_SET(FLAG_ZERO, (this->registers.de.b.h & (1 << 6)) == 0);
-    this->advanceCycles(8);
 }
 
 void CPU::bit_6_e() {
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 1);
     FLAG_SET(FLAG_ZERO, (this->registers.de.b.l & (1 << 6)) == 0);
-    this->advanceCycles(8);
 }
 
 void CPU::bit_6_h() {
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 1);
     FLAG_SET(FLAG_ZERO, (this->registers.hl.b.h & (1 << 6)) == 0);
-    this->advanceCycles(8);
 }
 
 void CPU::bit_6_l() {
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 1);
     FLAG_SET(FLAG_ZERO, (this->registers.hl.b.l & (1 << 6)) == 0);
-    this->advanceCycles(8);
 }
 
 void CPU::bit_6_hlp() {
-    this->advanceCycles(4);
+    u8 val = MEMREAD(this->registers.hl.w);
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_ZERO, (this->gameboy->mmu->read(this->registers.hl.w) & (1 << 6)) == 0);
-    this->advanceCycles(8);
+    FLAG_SET(FLAG_ZERO, (val & (1 << 6)) == 0);
 }
 
 void CPU::bit_6_a() {
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 1);
     FLAG_SET(FLAG_ZERO, (this->registers.af.b.h & (1 << 6)) == 0);
-    this->advanceCycles(8);
 }
 
 void CPU::bit_7_b() {
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 1);
     FLAG_SET(FLAG_ZERO, (this->registers.bc.b.h & (1 << 7)) == 0);
-    this->advanceCycles(8);
 }
 
 void CPU::bit_7_c() {
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 1);
     FLAG_SET(FLAG_ZERO, (this->registers.bc.b.l & (1 << 7)) == 0);
-    this->advanceCycles(8);
 }
 
 void CPU::bit_7_d() {
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 1);
     FLAG_SET(FLAG_ZERO, (this->registers.de.b.h & (1 << 7)) == 0);
-    this->advanceCycles(8);
 }
 
 void CPU::bit_7_e() {
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 1);
     FLAG_SET(FLAG_ZERO, (this->registers.de.b.l & (1 << 7)) == 0);
-    this->advanceCycles(8);
 }
 
 void CPU::bit_7_h() {
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 1);
     FLAG_SET(FLAG_ZERO, (this->registers.hl.b.h & (1 << 7)) == 0);
-    this->advanceCycles(8);
 }
 
 void CPU::bit_7_l() {
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 1);
     FLAG_SET(FLAG_ZERO, (this->registers.hl.b.l & (1 << 7)) == 0);
-    this->advanceCycles(8);
 }
 
 void CPU::bit_7_hlp() {
-    this->advanceCycles(4);
+    u8 val = MEMREAD(this->registers.hl.w);
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_ZERO, (this->gameboy->mmu->read(this->registers.hl.w) & (1 << 7)) == 0);
-    this->advanceCycles(8);
+    FLAG_SET(FLAG_ZERO, (val & (1 << 7)) == 0);
 }
 
 void CPU::bit_7_a() {
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 1);
     FLAG_SET(FLAG_ZERO, (this->registers.af.b.h & (1 << 7)) == 0);
-    this->advanceCycles(8);
 }
 
 void CPU::res_0_b() {
     this->registers.bc.b.h &= ~(1 << 0);
-    this->advanceCycles(8);
 }
 
 void CPU::res_0_c() {
     this->registers.bc.b.l &= ~(1 << 0);
-    this->advanceCycles(8);
 }
 
 void CPU::res_0_d() {
     this->registers.de.b.h &= ~(1 << 0);
-    this->advanceCycles(8);
 }
 
 void CPU::res_0_e() {
     this->registers.de.b.l &= ~(1 << 0);
-    this->advanceCycles(8);
 }
 
 void CPU::res_0_h() {
     this->registers.hl.b.h &= ~(1 << 0);
-    this->advanceCycles(8);
 }
 
 void CPU::res_0_l() {
     this->registers.hl.b.l &= ~(1 << 0);
-    this->advanceCycles(8);
 }
 
 void CPU::res_0_hlp() {
-    this->advanceCycles(4);
-    u8 val = this->gameboy->mmu->read(this->registers.hl.w);
-    this->advanceCycles(4);
-    this->gameboy->mmu->write(this->registers.hl.w, val & (u8) ~(1 << 0));
-    this->advanceCycles(8);
+    u8 val = MEMREAD(this->registers.hl.w);
+    MEMWRITE(this->registers.hl.w, val & (u8) ~(1 << 0));
 }
 
 void CPU::res_0_a() {
     this->registers.af.b.h &= ~(1 << 0);
-    this->advanceCycles(8);
 }
 
 void CPU::res_1_b() {
     this->registers.bc.b.h &= ~(1 << 1);
-    this->advanceCycles(8);
 }
 
 void CPU::res_1_c() {
     this->registers.bc.b.l &= ~(1 << 1);
-    this->advanceCycles(8);
 }
 
 void CPU::res_1_d() {
     this->registers.de.b.h &= ~(1 << 1);
-    this->advanceCycles(8);
 }
 
 void CPU::res_1_e() {
     this->registers.de.b.l &= ~(1 << 1);
-    this->advanceCycles(8);
 }
 
 void CPU::res_1_h() {
     this->registers.hl.b.h &= ~(1 << 1);
-    this->advanceCycles(8);
 }
 
 void CPU::res_1_l() {
     this->registers.hl.b.l &= ~(1 << 1);
-    this->advanceCycles(8);
 }
 
 void CPU::res_1_hlp() {
-    this->advanceCycles(4);
-    u8 val = this->gameboy->mmu->read(this->registers.hl.w);
-    this->advanceCycles(4);
-    this->gameboy->mmu->write(this->registers.hl.w, val & (u8) ~(1 << 1));
-    this->advanceCycles(8);
+    u8 val = MEMREAD(this->registers.hl.w);
+    MEMWRITE(this->registers.hl.w, val & (u8) ~(1 << 1));
 }
 
 void CPU::res_1_a() {
     this->registers.af.b.h &= ~(1 << 1);
-    this->advanceCycles(8);
 }
 
 void CPU::res_2_b() {
     this->registers.bc.b.h &= ~(1 << 2);
-    this->advanceCycles(8);
 }
 
 void CPU::res_2_c() {
     this->registers.bc.b.l &= ~(1 << 2);
-    this->advanceCycles(8);
 }
 
 void CPU::res_2_d() {
     this->registers.de.b.h &= ~(1 << 2);
-    this->advanceCycles(8);
 }
 
 void CPU::res_2_e() {
     this->registers.de.b.l &= ~(1 << 2);
-    this->advanceCycles(8);
 }
 
 void CPU::res_2_h() {
     this->registers.hl.b.h &= ~(1 << 2);
-    this->advanceCycles(8);
 }
 
 void CPU::res_2_l() {
     this->registers.hl.b.l &= ~(1 << 2);
-    this->advanceCycles(8);
 }
 
 void CPU::res_2_hlp() {
-    this->advanceCycles(4);
-    u8 val = this->gameboy->mmu->read(this->registers.hl.w);
-    this->advanceCycles(4);
-    this->gameboy->mmu->write(this->registers.hl.w, val & (u8) ~(1 << 2));
-    this->advanceCycles(8);
+    u8 val = MEMREAD(this->registers.hl.w);
+    MEMWRITE(this->registers.hl.w, val & (u8) ~(1 << 2));
 }
 
 void CPU::res_2_a() {
     this->registers.af.b.h &= ~(1 << 2);
-    this->advanceCycles(8);
 }
 
 void CPU::res_3_b() {
     this->registers.bc.b.h &= ~(1 << 3);
-    this->advanceCycles(8);
 }
 
 void CPU::res_3_c() {
     this->registers.bc.b.l &= ~(1 << 3);
-    this->advanceCycles(8);
 }
 
 void CPU::res_3_d() {
     this->registers.de.b.h &= ~(1 << 3);
-    this->advanceCycles(8);
 }
 
 void CPU::res_3_e() {
     this->registers.de.b.l &= ~(1 << 3);
-    this->advanceCycles(8);
 }
 
 void CPU::res_3_h() {
     this->registers.hl.b.h &= ~(1 << 3);
-    this->advanceCycles(8);
 }
 
 void CPU::res_3_l() {
     this->registers.hl.b.l &= ~(1 << 3);
-    this->advanceCycles(8);
 }
 
 void CPU::res_3_hlp() {
-    this->advanceCycles(4);
-    u8 val = this->gameboy->mmu->read(this->registers.hl.w);
-    this->advanceCycles(4);
-    this->gameboy->mmu->write(this->registers.hl.w, val & (u8) ~(1 << 3));
-    this->advanceCycles(8);
+    u8 val = MEMREAD(this->registers.hl.w);
+    MEMWRITE(this->registers.hl.w, val & (u8) ~(1 << 3));
 }
 
 void CPU::res_3_a() {
     this->registers.af.b.h &= ~(1 << 3);
-    this->advanceCycles(8);
 }
 
 void CPU::res_4_b() {
     this->registers.bc.b.h &= ~(1 << 4);
-    this->advanceCycles(8);
 }
 
 void CPU::res_4_c() {
     this->registers.bc.b.l &= ~(1 << 4);
-    this->advanceCycles(8);
 }
 
 void CPU::res_4_d() {
     this->registers.de.b.h &= ~(1 << 4);
-    this->advanceCycles(8);
 }
 
 void CPU::res_4_e() {
     this->registers.de.b.l &= ~(1 << 4);
-    this->advanceCycles(8);
 }
 
 void CPU::res_4_h() {
     this->registers.hl.b.h &= ~(1 << 4);
-    this->advanceCycles(8);
 }
 
 void CPU::res_4_l() {
     this->registers.hl.b.l &= ~(1 << 4);
-    this->advanceCycles(8);
 }
 
 void CPU::res_4_hlp() {
-    this->advanceCycles(4);
-    u8 val = this->gameboy->mmu->read(this->registers.hl.w);
-    this->advanceCycles(4);
-    this->gameboy->mmu->write(this->registers.hl.w, val & (u8) ~(1 << 4));
-    this->advanceCycles(8);
+    u8 val = MEMREAD(this->registers.hl.w);
+    MEMWRITE(this->registers.hl.w, val & (u8) ~(1 << 4));
 }
 
 void CPU::res_4_a() {
     this->registers.af.b.h &= ~(1 << 4);
-    this->advanceCycles(8);
 }
 
 void CPU::res_5_b() {
     this->registers.bc.b.h &= ~(1 << 5);
-    this->advanceCycles(8);
 }
 
 void CPU::res_5_c() {
     this->registers.bc.b.l &= ~(1 << 5);
-    this->advanceCycles(8);
 }
 
 void CPU::res_5_d() {
     this->registers.de.b.h &= ~(1 << 5);
-    this->advanceCycles(8);
 }
 
 void CPU::res_5_e() {
     this->registers.de.b.l &= ~(1 << 5);
-    this->advanceCycles(8);
 }
 
 void CPU::res_5_h() {
     this->registers.hl.b.h &= ~(1 << 5);
-    this->advanceCycles(8);
 }
 
 void CPU::res_5_l() {
     this->registers.hl.b.l &= ~(1 << 5);
-    this->advanceCycles(8);
 }
 
 void CPU::res_5_hlp() {
-    this->advanceCycles(4);
-    u8 val = this->gameboy->mmu->read(this->registers.hl.w);
-    this->advanceCycles(4);
-    this->gameboy->mmu->write(this->registers.hl.w, val & (u8) ~(1 << 5));
-    this->advanceCycles(8);
+    u8 val = MEMREAD(this->registers.hl.w);
+    MEMWRITE(this->registers.hl.w, val & (u8) ~(1 << 5));
 }
 
 void CPU::res_5_a() {
     this->registers.af.b.h &= ~(1 << 5);
-    this->advanceCycles(8);
 }
 
 void CPU::res_6_b() {
     this->registers.bc.b.h &= ~(1 << 6);
-    this->advanceCycles(8);
 }
 
 void CPU::res_6_c() {
     this->registers.bc.b.l &= ~(1 << 6);
-    this->advanceCycles(8);
 }
 
 void CPU::res_6_d() {
     this->registers.de.b.h &= ~(1 << 6);
-    this->advanceCycles(8);
 }
 
 void CPU::res_6_e() {
     this->registers.de.b.l &= ~(1 << 6);
-    this->advanceCycles(8);
 }
 
 void CPU::res_6_h() {
     this->registers.hl.b.h &= ~(1 << 6);
-    this->advanceCycles(8);
 }
 
 void CPU::res_6_l() {
     this->registers.hl.b.l &= ~(1 << 6);
-    this->advanceCycles(8);
 }
 
 void CPU::res_6_hlp() {
-    this->advanceCycles(4);
-    u8 val = this->gameboy->mmu->read(this->registers.hl.w);
-    this->advanceCycles(4);
-    this->gameboy->mmu->write(this->registers.hl.w, val & (u8) ~(1 << 6));
-    this->advanceCycles(8);
+    u8 val = MEMREAD(this->registers.hl.w);
+    MEMWRITE(this->registers.hl.w, val & (u8) ~(1 << 6));
 }
 
 void CPU::res_6_a() {
     this->registers.af.b.h &= ~(1 << 6);
-    this->advanceCycles(8);
 }
 
 void CPU::res_7_b() {
     this->registers.bc.b.h &= ~(1 << 7);
-    this->advanceCycles(8);
 }
 
 void CPU::res_7_c() {
     this->registers.bc.b.l &= ~(1 << 7);
-    this->advanceCycles(8);
 }
 
 void CPU::res_7_d() {
     this->registers.de.b.h &= ~(1 << 7);
-    this->advanceCycles(8);
 }
 
 void CPU::res_7_e() {
     this->registers.de.b.l &= ~(1 << 7);
-    this->advanceCycles(8);
 }
 
 void CPU::res_7_h() {
     this->registers.hl.b.h &= ~(1 << 7);
-    this->advanceCycles(8);
 }
 
 void CPU::res_7_l() {
     this->registers.hl.b.l &= ~(1 << 7);
-    this->advanceCycles(8);
 }
 
 void CPU::res_7_hlp() {
-    this->advanceCycles(4);
-    u8 val = this->gameboy->mmu->read(this->registers.hl.w);
-    this->advanceCycles(4);
-    this->gameboy->mmu->write(this->registers.hl.w, val & (u8) ~(1 << 7));
-    this->advanceCycles(8);
+    u8 val = MEMREAD(this->registers.hl.w);
+    MEMWRITE(this->registers.hl.w, val & (u8) ~(1 << 7));
 }
 
 void CPU::res_7_a() {
     this->registers.af.b.h &= ~(1 << 7);
-    this->advanceCycles(8);
 }
 
 void CPU::set_0_b() {
     this->registers.bc.b.h |= 1 << 0;
-    this->advanceCycles(8);
 }
 
 void CPU::set_0_c() {
     this->registers.bc.b.l |= 1 << 0;
-    this->advanceCycles(8);
 }
 
 void CPU::set_0_d() {
     this->registers.de.b.h |= 1 << 0;
-    this->advanceCycles(8);
 }
 
 void CPU::set_0_e() {
     this->registers.de.b.l |= 1 << 0;
-    this->advanceCycles(8);
 }
 
 void CPU::set_0_h() {
     this->registers.hl.b.h |= 1 << 0;
-    this->advanceCycles(8);
 }
 
 void CPU::set_0_l() {
     this->registers.hl.b.l |= 1 << 0;
-    this->advanceCycles(8);
 }
 
 void CPU::set_0_hlp() {
-    this->advanceCycles(4);
-    u8 val = this->gameboy->mmu->read(this->registers.hl.w);
-    this->advanceCycles(4);
-    this->gameboy->mmu->write(this->registers.hl.w, val | (u8) (1 << 0));
-    this->advanceCycles(8);
+    u8 val = MEMREAD(this->registers.hl.w);
+    MEMWRITE(this->registers.hl.w, val | (u8) (1 << 0));
 }
 
 void CPU::set_0_a() {
     this->registers.af.b.h |= 1 << 0;
-    this->advanceCycles(8);
 }
 
 void CPU::set_1_b() {
     this->registers.bc.b.h |= 1 << 1;
-    this->advanceCycles(8);
 }
 
 void CPU::set_1_c() {
     this->registers.bc.b.l |= 1 << 1;
-    this->advanceCycles(8);
 }
 
 void CPU::set_1_d() {
     this->registers.de.b.h |= 1 << 1;
-    this->advanceCycles(8);
 }
 
 void CPU::set_1_e() {
     this->registers.de.b.l |= 1 << 1;
-    this->advanceCycles(8);
 }
 
 void CPU::set_1_h() {
     this->registers.hl.b.h |= 1 << 1;
-    this->advanceCycles(8);
 }
 
 void CPU::set_1_l() {
     this->registers.hl.b.l |= 1 << 1;
-    this->advanceCycles(8);
 }
 
 void CPU::set_1_hlp() {
-    this->advanceCycles(4);
-    u8 val = this->gameboy->mmu->read(this->registers.hl.w);
-    this->advanceCycles(4);
-    this->gameboy->mmu->write(this->registers.hl.w, val | (u8) (1 << 1));
-    this->advanceCycles(8);
+    u8 val = MEMREAD(this->registers.hl.w);
+    MEMWRITE(this->registers.hl.w, val | (u8) (1 << 1));
 }
 
 void CPU::set_1_a() {
     this->registers.af.b.h |= 1 << 1;
-    this->advanceCycles(8);
 }
 
 void CPU::set_2_b() {
     this->registers.bc.b.h |= 1 << 2;
-    this->advanceCycles(8);
 }
 
 void CPU::set_2_c() {
     this->registers.bc.b.l |= 1 << 2;
-    this->advanceCycles(8);
 }
 
 void CPU::set_2_d() {
     this->registers.de.b.h |= 1 << 2;
-    this->advanceCycles(8);
 }
 
 void CPU::set_2_e() {
     this->registers.de.b.l |= 1 << 2;
-    this->advanceCycles(8);
 }
 
 void CPU::set_2_h() {
     this->registers.hl.b.h |= 1 << 2;
-    this->advanceCycles(8);
 }
 
 void CPU::set_2_l() {
     this->registers.hl.b.l |= 1 << 2;
-    this->advanceCycles(8);
 }
 
 void CPU::set_2_hlp() {
-    this->advanceCycles(4);
-    u8 val = this->gameboy->mmu->read(this->registers.hl.w);
-    this->advanceCycles(4);
-    this->gameboy->mmu->write(this->registers.hl.w, val | (u8) (1 << 2));
-    this->advanceCycles(8);
+    u8 val = MEMREAD(this->registers.hl.w);
+    MEMWRITE(this->registers.hl.w, val | (u8) (1 << 2));
 }
 
 void CPU::set_2_a() {
     this->registers.af.b.h |= 1 << 2;
-    this->advanceCycles(8);
 }
 
 void CPU::set_3_b() {
     this->registers.bc.b.h |= 1 << 3;
-    this->advanceCycles(8);
 }
 
 void CPU::set_3_c() {
     this->registers.bc.b.l |= 1 << 3;
-    this->advanceCycles(8);
 }
 
 void CPU::set_3_d() {
     this->registers.de.b.h |= 1 << 3;
-    this->advanceCycles(8);
 }
 
 void CPU::set_3_e() {
     this->registers.de.b.l |= 1 << 3;
-    this->advanceCycles(8);
 }
 
 void CPU::set_3_h() {
     this->registers.hl.b.h |= 1 << 3;
-    this->advanceCycles(8);
 }
 
 void CPU::set_3_l() {
     this->registers.hl.b.l |= 1 << 3;
-    this->advanceCycles(8);
 }
 
 void CPU::set_3_hlp() {
-    this->advanceCycles(4);
-    u8 val = this->gameboy->mmu->read(this->registers.hl.w);
-    this->advanceCycles(4);
-    this->gameboy->mmu->write(this->registers.hl.w, val | (u8) (1 << 3));
-    this->advanceCycles(8);
+    u8 val = MEMREAD(this->registers.hl.w);
+    MEMWRITE(this->registers.hl.w, val | (u8) (1 << 3));
 }
 
 void CPU::set_3_a() {
     this->registers.af.b.h |= 1 << 3;
-    this->advanceCycles(8);
 }
 
 void CPU::set_4_b() {
     this->registers.bc.b.h |= 1 << 4;
-    this->advanceCycles(8);
 }
 
 void CPU::set_4_c() {
     this->registers.bc.b.l |= 1 << 4;
-    this->advanceCycles(8);
 }
 
 void CPU::set_4_d() {
     this->registers.de.b.h |= 1 << 4;
-    this->advanceCycles(8);
 }
 
 void CPU::set_4_e() {
     this->registers.de.b.l |= 1 << 4;
-    this->advanceCycles(8);
 }
 
 void CPU::set_4_h() {
     this->registers.hl.b.h |= 1 << 4;
-    this->advanceCycles(8);
 }
 
 void CPU::set_4_l() {
     this->registers.hl.b.l |= 1 << 4;
-    this->advanceCycles(8);
 }
 
 void CPU::set_4_hlp() {
-    this->advanceCycles(4);
-    u8 val = this->gameboy->mmu->read(this->registers.hl.w);
-    this->advanceCycles(4);
-    this->gameboy->mmu->write(this->registers.hl.w, val | (u8) (1 << 4));
-    this->advanceCycles(8);
+    u8 val = MEMREAD(this->registers.hl.w);
+    MEMWRITE(this->registers.hl.w, val | (u8) (1 << 4));
 }
 
 void CPU::set_4_a() {
     this->registers.af.b.h |= 1 << 4;
-    this->advanceCycles(8);
 }
 
 void CPU::set_5_b() {
     this->registers.bc.b.h |= 1 << 5;
-    this->advanceCycles(8);
 }
 
 void CPU::set_5_c() {
     this->registers.bc.b.l |= 1 << 5;
-    this->advanceCycles(8);
 }
 
 void CPU::set_5_d() {
     this->registers.de.b.h |= 1 << 5;
-    this->advanceCycles(8);
 }
 
 void CPU::set_5_e() {
     this->registers.de.b.l |= 1 << 5;
-    this->advanceCycles(8);
 }
 
 void CPU::set_5_h() {
     this->registers.hl.b.h |= 1 << 5;
-    this->advanceCycles(8);
 }
 
 void CPU::set_5_l() {
     this->registers.hl.b.l |= 1 << 5;
-    this->advanceCycles(8);
 }
 
 void CPU::set_5_hlp() {
-    this->advanceCycles(4);
-    u8 val = this->gameboy->mmu->read(this->registers.hl.w);
-    this->advanceCycles(4);
-    this->gameboy->mmu->write(this->registers.hl.w, val | (u8) (1 << 5));
-    this->advanceCycles(8);
+    u8 val = MEMREAD(this->registers.hl.w);
+    MEMWRITE(this->registers.hl.w, val | (u8) (1 << 5));
 }
 
 void CPU::set_5_a() {
     this->registers.af.b.h |= 1 << 5;
-    this->advanceCycles(8);
 }
 
 void CPU::set_6_b() {
     this->registers.bc.b.h |= 1 << 6;
-    this->advanceCycles(8);
 }
 
 void CPU::set_6_c() {
     this->registers.bc.b.l |= 1 << 6;
-    this->advanceCycles(8);
 }
 
 void CPU::set_6_d() {
     this->registers.de.b.h |= 1 << 6;
-    this->advanceCycles(8);
 }
 
 void CPU::set_6_e() {
     this->registers.de.b.l |= 1 << 6;
-    this->advanceCycles(8);
 }
 
 void CPU::set_6_h() {
     this->registers.hl.b.h |= 1 << 6;
-    this->advanceCycles(8);
 }
 
 void CPU::set_6_l() {
     this->registers.hl.b.l |= 1 << 6;
-    this->advanceCycles(8);
 }
 
 void CPU::set_6_hlp() {
-    this->advanceCycles(4);
-    u8 val = this->gameboy->mmu->read(this->registers.hl.w);
-    this->advanceCycles(4);
-    this->gameboy->mmu->write(this->registers.hl.w, val | (u8) (1 << 6));
-    this->advanceCycles(8);
+    u8 val = MEMREAD(this->registers.hl.w);
+    MEMWRITE(this->registers.hl.w, val | (u8) (1 << 6));
 }
 
 void CPU::set_6_a() {
     this->registers.af.b.h |= 1 << 6;
-    this->advanceCycles(8);
 }
 
 void CPU::set_7_b() {
     this->registers.bc.b.h |= 1 << 7;
-    this->advanceCycles(8);
 }
 
 void CPU::set_7_c() {
     this->registers.bc.b.l |= 1 << 7;
-    this->advanceCycles(8);
 }
 
 void CPU::set_7_d() {
     this->registers.de.b.h |= 1 << 7;
-    this->advanceCycles(8);
 }
 
 void CPU::set_7_e() {
     this->registers.de.b.l |= 1 << 7;
-    this->advanceCycles(8);
 }
 
 void CPU::set_7_h() {
     this->registers.hl.b.h |= 1 << 7;
-    this->advanceCycles(8);
 }
 
 void CPU::set_7_l() {
     this->registers.hl.b.l |= 1 << 7;
-    this->advanceCycles(8);
 }
 
 void CPU::set_7_hlp() {
-    this->advanceCycles(4);
-    u8 val = this->gameboy->mmu->read(this->registers.hl.w);
-    this->advanceCycles(4);
-    this->gameboy->mmu->write(this->registers.hl.w, val | (u8) (1 << 7));
-    this->advanceCycles(8);
+    u8 val = MEMREAD(this->registers.hl.w);
+    MEMWRITE(this->registers.hl.w, val | (u8) (1 << 7));
 }
 
 void CPU::set_7_a() {
     this->registers.af.b.h |= 1 << 7;
-    this->advanceCycles(8);
 }

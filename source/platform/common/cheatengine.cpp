@@ -114,12 +114,12 @@ void CheatEngine::applyGGCheatsToBank(int bank) {
 void CheatEngine::applyGSCheats() {
     for(int i = 0; i < numCheats; i++) {
         if(cheats[i].flags & CHEAT_FLAG_ENABLED && ((cheats[i].flags & CHEAT_FLAG_TYPE_MASK) == CHEAT_FLAG_GAMESHARK)) {
-            u8 compareBank = gameboy->mmu->readIO(SVBK);
+            u8 oldSvbk = gameboy->mmu->read(SVBK);
             switch(cheats[i].bank & 0xf0) {
                 case 0x90:
                     gameboy->mmu->write(SVBK, (u8) (cheats[i].bank & 7));
                     gameboy->mmu->write(cheats[i].address, cheats[i].data);
-                    gameboy->mmu->write(SVBK, compareBank);
+                    gameboy->mmu->write(SVBK, oldSvbk);
                     break;
                 case 0x80: /* TODO : Find info and stuff */
                     break;

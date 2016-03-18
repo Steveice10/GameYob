@@ -77,9 +77,9 @@ void Gameboy::reset(bool allowBios) {
         }
     }
 
+    this->mmu->reset();
     this->cpu->reset();
     this->timer->reset();
-    this->mmu->reset();
     this->ppu->reset();
     this->apu->reset();
     this->sgb->reset();
@@ -102,9 +102,9 @@ bool Gameboy::loadState(FILE* file) {
     fread(&this->gbMode, 1, sizeof(this->gbMode), file);
     fread(&this->biosOn, 1, sizeof(this->biosOn), file);
 
+    this->mmu->loadState(file, version);
     this->cpu->loadState(file, version);
     this->timer->loadState(file, version);
-    this->mmu->loadState(file, version);
     this->ppu->loadState(file, version);
     this->apu->loadState(file, version);
     this->sgb->loadState(file, version);
@@ -128,9 +128,9 @@ bool Gameboy::saveState(FILE* file) {
     fwrite(&this->gbMode, 1, sizeof(this->gbMode), file);
     fwrite(&this->biosOn, 1, sizeof(this->biosOn), file);
 
+    this->mmu->saveState(file);
     this->cpu->saveState(file);
     this->timer->saveState(file);
-    this->mmu->saveState(file);
     this->ppu->saveState(file);
     this->apu->saveState(file);
     this->sgb->saveState(file);
