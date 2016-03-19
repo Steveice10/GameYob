@@ -3,6 +3,7 @@
 #include <string.h>
 #include <unistd.h>
 
+#include "platform/common/manager.h"
 #include "platform/system.h"
 #include "gameboy.h"
 #include "printer.h"
@@ -285,7 +286,7 @@ void Printer::saveImage() {
     // Find the first available "print number".
     char filename[300];
     while(true) {
-        snprintf(filename, 300, "%s-%d.bmp", this->gameboy->romFile->getFileName().c_str(), this->numPrinted);
+        snprintf(filename, 300, "%s-%d.bmp", mgrGetRomName().c_str(), this->numPrinted);
 
         // If appending, the last file written to is already selected.
         // Else, if the file doesn't exist, we're done searching.

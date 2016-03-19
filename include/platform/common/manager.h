@@ -18,6 +18,7 @@ extern int fastForwardCounter;
 void mgrInit();
 void mgrExit();
 
+std::string mgrGetRomName();
 void mgrLoadRom(const char* filename);
 void mgrSelectRom();
 void mgrSave();

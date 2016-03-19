@@ -4,7 +4,7 @@
 
 #include "types.h"
 
-typedef enum {
+typedef enum : u8 {
     MBC0 = 0,
     MBC1,
     MBC2,
@@ -17,7 +17,7 @@ typedef enum {
     CAMERA,
     TAMA5,
 
-    MBC_COUNT
+    MBC_MAX
 } MBCType;
 
 class Gameboy;
@@ -26,33 +26,23 @@ class GBS;
 
 class RomFile {
 public:
-    RomFile(Gameboy* gb, const std::string path);
+    RomFile(u8* rom, u32 size);
     ~RomFile();
-
-    u8* getRomBank(int bank);
-
-    inline bool isLoaded() {
-        return this->loaded;
-    }
-
-    inline std::string getFileName() {
-        return this->fileName;
-    }
 
     inline const std::string getRomTitle() {
         return this->romTitle;
     }
 
     inline bool isCgbSupported() {
-        return this->cgbSupported;
+        return this->rom[0x0143] == 0x80 || this->isCgbRequired();
     }
 
     inline bool isCgbRequired() {
-        return this->cgbRequired;
+        return this->rom[0x0143] == 0xC0;
     }
 
     inline u8 getRawRomSize() {
-        return this->rawRomSize;
+        return this->rom[0x0148];
     }
 
     inline int getRomBanks() {
@@ -60,7 +50,7 @@ public:
     }
 
     inline u8 getRawRamSize() {
-        return this->rawRamSize;
+        return this->rom[0x0149];
     }
 
     inline int getRamBanks() {
@@ -68,11 +58,11 @@ public:
     }
 
     inline bool isSgbEnhanced() {
-        return this->sgb;
+        return this->rom[0x146] == 0x03 && this->rom[0x014B] == 0x33;
     }
 
     inline u8 getRawMBC() {
-        return this->rawMBC;
+        return this->rom[0x0147];
     }
 
     inline MBCType getMBCType() {
@@ -82,25 +72,20 @@ public:
     inline bool hasRumble() {
         return this->rumble;
     }
+
+    inline u8* getRomBank(int bank) {
+        if(bank < 0 || bank >= this->totalRomBanks) {
+            return NULL;
+        }
+
+        return &this->rom[bank * 0x4000];
+    }
 private:
-    Gameboy* gameboy = NULL;
-    FILE* file = NULL;
+    u8* rom = NULL;
 
-    bool loaded = true;
-
-    u8** banks = NULL;
-    bool firstBanksAtEnd = false;
-
-    std::string fileName = "";
     std::string romTitle = "";
-    bool cgbSupported = false;
-    bool cgbRequired = false;
-    u8 rawRomSize = 0;
     int totalRomBanks = 0;
-    u8 rawRamSize = 0;
     int totalRamBanks = 0;
-    bool sgb = false;
-    u8 rawMBC = 0;
     MBCType mbcType = MBC0;
     bool rumble = false;
 };

@@ -129,4 +129,7 @@ FILE* systemSocketConnect(const std::string ipAddress, u16 port) {
     return NULL;
 }
 
+void systemSetRumble(bool rumble) {
+}
+
 #endif

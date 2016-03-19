@@ -2,8 +2,8 @@
 
 #include <stdio.h>
 
-#include "romfile.h"
 #include "types.h"
+#include "romfile.h"
 
 class MBC {
 public:
@@ -48,7 +48,7 @@ private:
     typedef void (MBC::*mbcWrite)(u16, u8);
     typedef u8 (MBC::*mbcRead)(u16);
 
-    const mbcRead mbcReads[MBC_COUNT] = {
+    const mbcRead mbcReads[MBC_MAX] = {
             NULL,
             NULL,
             NULL,
@@ -62,7 +62,7 @@ private:
             NULL
     };
 
-    const mbcWrite mbcWrites[MBC_COUNT] = {
+    const mbcWrite mbcWrites[MBC_MAX] = {
             &MBC::m0w,
             &MBC::m1w,
             &MBC::m2w,

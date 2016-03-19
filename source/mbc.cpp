@@ -56,7 +56,7 @@ void MBC::reset() {
 
     this->ramBanks = this->gameboy->romFile->getRamBanks();
     if(this->ramBanks > 0) {
-        this->file = fopen((this->gameboy->romFile->getFileName() + ".sav").c_str(), "w+b");
+        this->file = fopen((mgrGetRomName() + ".sav").c_str(), "w+b");
         if(this->file != NULL) {
             int neededFileSize = this->ramBanks * 0x2000;
             if(this->gameboy->romFile->getMBCType() == MBC3 || this->gameboy->romFile->getMBCType() == HUC3 || this->gameboy->romFile->getMBCType() == TAMA5) {
@@ -705,9 +705,10 @@ void MBC::m5w(u16 addr, u8 val) {
             /* MBC5 might have a rumble motor, which is triggered by the
              * 4th bit of the value written */
             if(this->gameboy->romFile->hasRumble()) {
-                val &= 0x07;
+                systemSetRumble((val & 0x8) != 0);
+                val &= 0x7;
             } else {
-                val &= 0x0f;
+                val &= 0xF;
             }
 
             this->mapRamBank(val);

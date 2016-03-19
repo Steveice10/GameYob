@@ -5,32 +5,11 @@
 #include <algorithm>
 
 #include "platform/system.h"
-#include "apu.h"
-#include "cpu.h"
 #include "gameboy.h"
-#include "mbc.h"
 #include "mmu.h"
 #include "romfile.h"
 
-RomFile::RomFile(Gameboy* gb, const std::string path) {
-    this->file = fopen(path.c_str(), "rb");
-    if(this->file == NULL) {
-        this->loaded = false;
-        return;
-    }
-
-    this->gameboy = gb;
-
-    this->fileName = path;
-    std::string::size_type dot = this->fileName.find_last_of('.');
-    if(dot != std::string::npos) {
-        this->fileName = this->fileName.substr(0, dot);
-    }
-
-    struct stat st;
-    fstat(fileno(this->file), &st);
-    u32 size = (u32) st.st_size;
-
+RomFile::RomFile(u8* rom, u32 size) {
     // Round number of banks to next power of two.
     this->totalRomBanks = (int) ((size + 0x3FFF) / 0x4000);
     this->totalRomBanks--;
@@ -41,10 +20,15 @@ RomFile::RomFile(Gameboy* gb, const std::string path) {
     this->totalRomBanks |= this->totalRomBanks >> 16;
     this->totalRomBanks++;
 
-    this->banks = new u8*[this->totalRomBanks]();
+    if(this->totalRomBanks < 2) {
+        this->totalRomBanks = 2;
+    }
+
+    this->rom = new u8[this->totalRomBanks * 0x4000];
 
     // Most MMM01 dumps have the initial banks at the end of the ROM rather than the beginning, so check if this is the case and compensate.
-    if(this->totalRomBanks > 2) {
+    bool initialized = false;
+    if(size > 0x8000) {
         // Check for the logo.
         static const u8 logo[] = {
                 0xCE, 0xED, 0x66, 0x66, 0xCC, 0x0D, 0x00, 0x0B, 0x03, 0x73, 0x00, 0x83, 0x00, 0x0C, 0x00, 0x0D,
@@ -52,37 +36,29 @@ RomFile::RomFile(Gameboy* gb, const std::string path) {
                 0xBB, 0xBB, 0x67, 0x63, 0x6E, 0x0E, 0xEC ,0xCC, 0xDD, 0xDC, 0x99, 0x9F, 0xBB, 0xB9, 0x33, 0x3E
         };
 
-        u8 romLogo[sizeof(logo)];
-        fseek(this->file, -0x8000 + 0x0104, SEEK_END);
-        fread(&romLogo, 1, sizeof(romLogo), this->file);
+        u8* banks = &rom[size - 0x8000];
 
-        if(memcmp(logo, romLogo, sizeof(logo)) == 0) {
+        if(memcmp(logo, &banks[0x0104], sizeof(logo)) == 0) {
             // Check for MMM01.
-            u8 mbcType;
-            fseek(this->file, -0x8000 + 0x0147, SEEK_END);
-            fread(&mbcType, 1, sizeof(mbcType), this->file);
+            u8 mbcType = banks[0x0147];
 
             if(mbcType >= 0x0B && mbcType <= 0x0D) {
-                this->firstBanksAtEnd = true;
+                memcpy(this->rom, banks, 0x8000);
+                memcpy(&this->rom[0x8000], rom, size - 0x8000);
+
+                initialized = true;
             }
         }
     }
 
-    u8* bank0 = this->getRomBank(0);
-    if(bank0 == NULL) {
-        this->loaded = false;
-        return;
+    if(!initialized) {
+        memcpy(this->rom, rom, size);
     }
 
-    this->romTitle = std::string(reinterpret_cast<char*>(&bank0[0x0134]), bank0[0x0143] == 0x80 || bank0[0x0143] == 0xC0 ? 15 : 16);
+    this->romTitle = std::string(reinterpret_cast<char*>(&this->rom[0x0134]), this->rom[0x0143] == 0x80 || this->rom[0x0143] == 0xC0 ? 15 : 16);
     this->romTitle.erase(std::find_if(this->romTitle.rbegin(), this->romTitle.rend(), [](int c) { return c != 0; }).base(), this->romTitle.end());
 
-    this->cgbSupported = bank0[0x0143] == 0x80 || bank0[0x0143] == 0xC0;
-    this->cgbRequired = bank0[0x0143] == 0xC0;
-    this->sgb = bank0[0x146] == 0x03 && bank0[0x014B] == 0x33;
-
-    this->rawMBC = bank0[0x0147];
-    switch(this->rawMBC) {
+    switch(this->getRawMBC()) {
         case 0x00:
         case 0x08:
         case 0x09:
@@ -139,74 +115,39 @@ RomFile::RomFile(Gameboy* gb, const std::string path) {
             this->mbcType = HUC1;
             break;
         default:
-            systemPrintDebug("Unsupported mapper value %02x\n", bank0[0x0147]);
+            systemPrintDebug("Unsupported mapper value %02x\n", this->rom[0x0147]);
             this->mbcType = MBC5;
             break;
     }
 
-    this->rawRomSize = bank0[0x0148];
-    this->rawRamSize = this->mbcType != MBC2 && this->mbcType != MBC7 && this->mbcType != TAMA5 ? bank0[0x0149] : (u8) 1;
-    switch(this->rawRamSize) {
-        case 0:
-            this->totalRamBanks = 0;
-            break;
-        case 1:
-        case 2:
-            this->totalRamBanks = 1;
-            break;
-        case 3:
-            this->totalRamBanks = 4;
-            break;
-        case 4:
-            this->totalRamBanks = 16;
-            break;
-        default:
-            systemPrintDebug("Invalid RAM bank number: %x\nDefaulting to 4 banks.\n", this->rawRamSize);
-            this->totalRamBanks = 4;
-            break;
+    if(this->mbcType == MBC2 || this->mbcType == MBC7 || this->mbcType == TAMA5) {
+        this->totalRamBanks = 1;
+    } else {
+        switch(this->getRawRamSize()) {
+            case 0:
+                this->totalRamBanks = 0;
+                break;
+            case 1:
+            case 2:
+                this->totalRamBanks = 1;
+                break;
+            case 3:
+                this->totalRamBanks = 4;
+                break;
+            case 4:
+                this->totalRamBanks = 16;
+                break;
+            default:
+                systemPrintDebug("Invalid RAM bank number: %x\nDefaulting to 4 banks.\n", this->getRawRamSize());
+                this->totalRamBanks = 4;
+                break;
+        }
     }
 }
 
 RomFile::~RomFile() {
-    if(this->banks != NULL) {
-        for(int i = 0; i < this->totalRomBanks; i++) {
-            if(this->banks[i] != NULL) {
-                delete this->banks[i];
-                this->banks[i] = NULL;
-            }
-        }
-
-        delete this->banks;
-        this->banks = NULL;
+    if(this->rom != NULL) {
+        delete this->rom;
+        this->rom = NULL;
     }
-
-    if(this->file != NULL) {
-        fclose(this->file);
-        this->file = NULL;
-    }
-}
-
-u8* RomFile::getRomBank(int bank) {
-    if(bank < 0 || bank >= this->totalRomBanks) {
-        return NULL;
-    }
-
-    if(this->banks[bank] == NULL) {
-        this->banks[bank] = new u8[0x4000]();
-
-        u32 baseAddress = 0;
-        if(this->firstBanksAtEnd) {
-            if(bank < 2) {
-                fseek(this->file, -((2 - bank) * 0x4000), SEEK_END);
-            } else {
-                fseek(this->file, (bank - 2) * 0x4000, SEEK_SET);
-            }
-        } else {
-            fseek(this->file, bank * 0x4000, SEEK_SET);
-        }
-
-        fread(this->banks[bank] + baseAddress, 1, (size_t) (0x4000 - baseAddress), this->file);
-    }
-
-    return this->banks[bank];
 }

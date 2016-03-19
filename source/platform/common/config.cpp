@@ -237,7 +237,7 @@ void writeConfigFile() {
     fclose(file);
 
     if(gameboy->isRomLoaded()) {
-        cheatEngine->saveCheats((gameboy->romFile->getFileName() + ".cht").c_str());
+        cheatEngine->saveCheats((mgrGetRomName() + ".cht").c_str());
     }
 }
 

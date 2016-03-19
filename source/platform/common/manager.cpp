@@ -29,20 +29,22 @@ bool gbBiosLoaded;
 u8 gbcBios[0x900];
 bool gbcBiosLoaded;
 
-int fps;
-time_t lastPrintTime;
-
 int fastForwardCounter;
 
-int autoFireCounterA;
-int autoFireCounterB;
+static std::string romName;
 
-time_t lastSaveTime;
+static int fps;
+static time_t lastPrintTime;
 
-bool emulationPaused;
+static int autoFireCounterA;
+static int autoFireCounterB;
 
-FileChooser romChooser("/", {"sgb", "gbc", "cgb", "gb"}, true);
-bool chooserInitialized = false;
+static time_t lastSaveTime;
+
+static bool emulationPaused;
+
+static FileChooser romChooser("/", {"sgb", "gbc", "cgb", "gb"}, true);
+static bool chooserInitialized = false;
 
 void mgrInit() {
     gameboy = new Gameboy();
@@ -53,10 +55,12 @@ void mgrInit() {
     memset(gbcBios, 0, sizeof(gbcBios));
     gbcBiosLoaded = false;
 
+    fastForwardCounter = 0;
+
+    romName = "";
+
     fps = 0;
     lastPrintTime = 0;
-
-    fastForwardCounter = 0;
 
     autoFireCounterA = 0;
     autoFireCounterB = 0;
@@ -80,12 +84,51 @@ void mgrExit() {
     }
 }
 
+std::string mgrGetRomName() {
+    return romName;
+}
+
 void mgrLoadRom(const char* filename) {
-    if(gameboy == NULL || !gameboy->loadRomFile(filename)) {
+    if(gameboy == NULL || filename == NULL) {
         return;
     }
 
-    cheatEngine->loadCheats((gameboy->romFile->getFileName() + ".cht").c_str());
+    FILE* fd = fopen(filename, "rb");
+    if(fd == NULL) {
+        return;
+    }
+
+    struct stat st;
+    if(fstat(fileno(fd), &st) < 0) {
+        fclose(fd);
+
+        return;
+    }
+
+    u8* rom = new u8[st.st_size];
+    if(fread(rom, 1, st.st_size, fd) < 0) {
+        delete rom;
+        fclose(fd);
+
+        return;
+    }
+
+    fclose(fd);
+
+    bool result = gameboy->loadRomFile(rom, (u32) st.st_size);
+    delete rom;
+
+    if(!result) {
+        return;
+    }
+
+    romName = filename;
+    std::string::size_type dot = romName.find_last_of('.');
+    if(dot != std::string::npos) {
+        romName = romName.substr(0, dot);
+    }
+
+    cheatEngine->loadCheats((romName + ".cht").c_str());
 
     mgrRefreshBorder();
 
@@ -123,15 +166,15 @@ void mgrLoadRom(const char* filename) {
 }
 
 void mgrUnloadRom() {
+    if(gameboy != NULL) {
+        gameboy->unloadRom();
+    }
+
+    romName = "";
+
     gfxClearScreenBuffer(0x0000);
     gfxLoadBorder(NULL, 0, 0);
     gfxDrawScreen();
-
-    if(gameboy == NULL || !gameboy->isRomLoaded()) {
-        return;
-    }
-
-    gameboy->unloadRom();
 }
 
 void mgrSelectRom() {
@@ -331,7 +374,7 @@ void mgrRefreshBorder() {
     // TODO: SGB?
 
     if(borderSetting == 1) {
-        if((gameboy->isRomLoaded() && mgrTryBorderName(gameboy->romFile->getFileName())) || mgrTryBorderFile(borderPath)) {
+        if((gameboy->isRomLoaded() && mgrTryBorderName(mgrGetRomName())) || mgrTryBorderFile(borderPath)) {
             return;
         }
     }
@@ -373,9 +416,9 @@ void mgrRefreshBios() {
 const std::string mgrGetStateName(int stateNum) {
     std::stringstream nameStream;
     if(stateNum == -1) {
-        nameStream << gameboy->romFile->getFileName() << ".yss";
+        nameStream << mgrGetRomName()<< ".yss";
     } else {
-        nameStream << gameboy->romFile->getFileName() << ".ys" << stateNum;
+        nameStream << mgrGetRomName() << ".ys" << stateNum;
     }
 
     return nameStream.str();

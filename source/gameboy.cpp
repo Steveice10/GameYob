@@ -1,3 +1,4 @@
+#include <sys/stat.h>
 #include <stdio.h>
 
 #include "platform/common/manager.h"
@@ -151,25 +152,15 @@ bool Gameboy::isRomLoaded() {
     return this->romFile != NULL;
 }
 
-bool Gameboy::loadRomFile(const char* filename) {
+bool Gameboy::loadRomFile(u8* rom, u32 size) {
     this->unloadRom();
 
-    if(filename == NULL) {
+    if(rom == NULL) {
         return true;
     }
 
-    this->romFile = new RomFile(this, filename);
-    if(this->romFile == NULL) {
-        return false;
-    }
-
-    if(!this->romFile->isLoaded()) {
-        delete this->romFile;
-        this->romFile = NULL;
-        return false;
-    }
-
-    return true;
+    this->romFile = new RomFile(rom, size);
+    return this->romFile != NULL;
 }
 
 void Gameboy::unloadRom() {
