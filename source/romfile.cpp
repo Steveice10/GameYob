@@ -96,6 +96,9 @@ RomFile::RomFile(u8* rom, u32 size) {
             this->mbcType = MBC5;
             this->rumble = true;
             break;
+        case 0x20:
+            this->mbcType = MBC6;
+            break;
         case 0x22:
             this->mbcType = MBC7;
             break;

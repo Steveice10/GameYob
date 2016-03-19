@@ -113,6 +113,12 @@ void MBC::reset() {
     this->HuC3Value = 0;
     this->HuC3Shift = 0;
 
+    // MBC6
+    this->romBank1ALatch = 2;
+    this->romBank1BLatch = 3;
+    this->romBank1A = 2;
+    this->romBank1B = 3;
+
     // MBC7
     this->mbc7WriteEnable = false;
     this->mbc7Cs = 0;
@@ -208,6 +214,12 @@ void MBC::loadState(FILE* file, int version) {
             fread(&this->HuC3Value, 1, sizeof(this->HuC3Value), file);
             fread(&this->HuC3Shift, 1, sizeof(this->HuC3Shift), file);
             break;
+        case MBC6:
+            fread(&this->romBank1ALatch, 1, sizeof(this->romBank1ALatch), file);
+            fread(&this->romBank1BLatch, 1, sizeof(this->romBank1BLatch), file);
+            fread(&this->romBank1A, 1, sizeof(this->romBank1A), file);
+            fread(&this->romBank1B, 1, sizeof(this->romBank1B), file);
+            break;
         case MBC7:
             fread(&this->mbc7WriteEnable, 1, sizeof(this->mbc7WriteEnable), file);
             fread(&this->mbc7Cs, 1, sizeof(this->mbc7Cs), file);
@@ -270,6 +282,12 @@ void MBC::saveState(FILE* file) {
             fwrite(&this->HuC3Mode, 1, sizeof(this->HuC3Mode), file);
             fwrite(&this->HuC3Value, 1, sizeof(this->HuC3Value), file);
             fwrite(&this->HuC3Shift, 1, sizeof(this->HuC3Shift), file);
+            break;
+        case MBC6:
+            fwrite(&this->romBank1ALatch, 1, sizeof(this->romBank1ALatch), file);
+            fwrite(&this->romBank1BLatch, 1, sizeof(this->romBank1BLatch), file);
+            fwrite(&this->romBank1A, 1, sizeof(this->romBank1A), file);
+            fwrite(&this->romBank1B, 1, sizeof(this->romBank1B), file);
             break;
         case MBC7:
             fwrite(&this->mbc7WriteEnable, 1, sizeof(this->mbc7WriteEnable), file);
@@ -341,17 +359,15 @@ void MBC::writeSram(u16 addr, u8 val) {
     }
 }
 
-void MBC::mapRomBank0(int bank) {
-    this->romBank0Num = bank;
-
-    u8* bankPtr = this->gameboy->romFile->getRomBank(bank);
+void MBC::mapRomBank0() {
+    u8* bankPtr = this->gameboy->romFile->getRomBank(this->romBank0Num);
     if(bankPtr != NULL) {
         this->gameboy->mmu->mapBank(0x0, bankPtr + 0x0000);
         this->gameboy->mmu->mapBank(0x1, bankPtr + 0x1000);
         this->gameboy->mmu->mapBank(0x2, bankPtr + 0x2000);
         this->gameboy->mmu->mapBank(0x3, bankPtr + 0x3000);
     } else {
-        systemPrintDebug("Attempted to access invalid ROM bank: %d\n", bank);
+        systemPrintDebug("Attempted to access invalid ROM bank: %d\n", this->romBank0Num);
 
         this->gameboy->mmu->mapBank(0x0, NULL);
         this->gameboy->mmu->mapBank(0x1, NULL);
@@ -375,36 +391,60 @@ void MBC::mapRomBank0(int bank) {
     }
 }
 
-void MBC::mapRomBank1(int bank) {
-    this->romBank1Num = bank;
+void MBC::mapRomBank1() {
+    if(this->mbcType == MBC6) {
+        u8* bankPtr1A = this->gameboy->romFile->getRomBank(this->romBank1A >> 1);
+        if(bankPtr1A != NULL) {
+            u8* subPtr = bankPtr1A + (this->romBank1A & 0x1) * 0x2000;
 
-    u8* bankPtr = this->gameboy->romFile->getRomBank(bank);
-    if(bankPtr != NULL) {
-        this->gameboy->mmu->mapBank(0x4, bankPtr + 0x0000);
-        this->gameboy->mmu->mapBank(0x5, bankPtr + 0x1000);
-        this->gameboy->mmu->mapBank(0x6, bankPtr + 0x2000);
-        this->gameboy->mmu->mapBank(0x7, bankPtr + 0x3000);
+            this->gameboy->mmu->mapBank(0x4, subPtr + 0x0000);
+            this->gameboy->mmu->mapBank(0x5, subPtr + 0x1000);
+        } else {
+            systemPrintDebug("Attempted to access invalid sub ROM bank: %d\n", this->romBank1A);
+
+            this->gameboy->mmu->mapBank(0x4, NULL);
+            this->gameboy->mmu->mapBank(0x5, NULL);
+        }
+
+        u8* bankPtr1B = this->gameboy->romFile->getRomBank(this->romBank1B >> 1);
+        if(bankPtr1B != NULL) {
+            u8* subPtr = bankPtr1B + (this->romBank1B & 0x1) * 0x2000;
+
+            this->gameboy->mmu->mapBank(0x6, subPtr + 0x0000);
+            this->gameboy->mmu->mapBank(0x7, subPtr + 0x1000);
+        } else {
+            systemPrintDebug("Attempted to access invalid sub ROM bank: %d\n", this->romBank1B);
+
+            this->gameboy->mmu->mapBank(0x6, NULL);
+            this->gameboy->mmu->mapBank(0x7, NULL);
+        }
     } else {
-        systemPrintDebug("Attempted to access invalid ROM bank: %d\n", bank);
+        u8* bankPtr = this->gameboy->romFile->getRomBank(this->romBank1Num);
+        if(bankPtr != NULL) {
+            this->gameboy->mmu->mapBank(0x4, bankPtr + 0x0000);
+            this->gameboy->mmu->mapBank(0x5, bankPtr + 0x1000);
+            this->gameboy->mmu->mapBank(0x6, bankPtr + 0x2000);
+            this->gameboy->mmu->mapBank(0x7, bankPtr + 0x3000);
+        } else {
+            systemPrintDebug("Attempted to access invalid ROM bank: %d\n", this->romBank1Num);
 
-        this->gameboy->mmu->mapBank(0x4, NULL);
-        this->gameboy->mmu->mapBank(0x5, NULL);
-        this->gameboy->mmu->mapBank(0x6, NULL);
-        this->gameboy->mmu->mapBank(0x7, NULL);
+            this->gameboy->mmu->mapBank(0x4, NULL);
+            this->gameboy->mmu->mapBank(0x5, NULL);
+            this->gameboy->mmu->mapBank(0x6, NULL);
+            this->gameboy->mmu->mapBank(0x7, NULL);
+        }
     }
 }
 
-void MBC::mapRamBank(int bank) {
-    this->ramBankNum = bank;
-
-    u8* bankPtr = this->getRamBank(bank);
+void MBC::mapRamBank() {
+    u8* bankPtr = this->getRamBank(this->ramBankNum);
     if(bankPtr != NULL) {
         this->gameboy->mmu->mapBank(0xA, bankPtr + 0x0000);
         this->gameboy->mmu->mapBank(0xB, bankPtr + 0x1000);
     } else {
         // Only report if there's no chance it's a special bank number.
         if(this->readFunc == NULL) {
-            systemPrintDebug("Attempted to access invalid RAM bank: %d\n", bank);
+            systemPrintDebug("Attempted to access invalid RAM bank: %d\n", this->ramBankNum);
         }
 
         this->gameboy->mmu->mapBank(0xA, NULL);
@@ -413,10 +453,10 @@ void MBC::mapRamBank(int bank) {
 }
 
 void MBC::mapBanks() {
-    this->mapRomBank0(this->romBank0Num);
-    this->mapRomBank1(this->romBank1Num);
+    this->mapRomBank0();
+    this->mapRomBank1();
     if(this->ramBanks > 0) {
-        this->mapRamBank(this->ramBankNum);
+        this->mapRamBank();
     }
 
     if(this->readFunc != NULL) {
@@ -566,16 +606,19 @@ void MBC::m1w(u16 addr, u8 val) {
                 newBank = (this->romBank1Num & 0xE0) | val;
             }
 
-            this->mapRomBank1(newBank ? newBank : 1);
+            this->romBank1Num = newBank ? newBank : 1;
+            this->mapRomBank1();
             break;
         case 0x4: /* 4000 - 5FFF */
         case 0x5:
             val &= 3;
             if(this->memoryModel == 0) { /* ROM mode */
                 newBank = (this->romBank1Num & 0x1F) | (val << 5);
-                this->mapRomBank1(newBank ? newBank : 1);
+                this->romBank1Num = newBank ? newBank : 1;
+                this->mapRomBank1();
             } else { /* RAM mode */
-                this->mapRamBank(val);
+                this->ramBankNum = val;
+                this->mapRamBank();
             }
 
             break;
@@ -604,7 +647,8 @@ void MBC::m2w(u16 addr, u8 val) {
             break;
         case 0x2: /* 2000 - 3FFF */
         case 0x3:
-            this->mapRomBank1(val ? val : 1);
+            this->romBank1Num = val ? val : 1;
+            this->mapRomBank1();
             break;
         case 0x4: /* 4000 - 5FFF */
         case 0x5:
@@ -634,13 +678,15 @@ void MBC::m3w(u16 addr, u8 val) {
         case 0x2: /* 2000 - 3FFF */
         case 0x3:
             val &= 0x7F;
-            this->mapRomBank1(val ? val : 1);
+            this->romBank1Num = val ? val : 1;
+            this->mapRomBank1();
             break;
         case 0x4: /* 4000 - 5FFF */
         case 0x5:
             /* The RTC register is selected by writing values 0x8-0xc, ram banks
              * are selected by values 0x0-0x3 */
-            this->mapRamBank(val);
+            this->ramBankNum = val;
+            this->mapRamBank();
             break;
         case 0x6: /* 6000 - 7FFF */
         case 0x7:
@@ -712,10 +758,12 @@ void MBC::m5w(u16 addr, u8 val) {
             this->ramEnabled = ((val & 0xF) == 0xA);
             break;
         case 0x2: /* 2000 - 3FFF */
-            this->mapRomBank1((this->romBank1Num & 0x100) | val);
+            this->romBank1Num = (this->romBank1Num & 0x100) | val;
+            this->mapRomBank1();
             break;
         case 0x3:
-            this->mapRomBank1((this->romBank1Num & 0xFF) | (val & 1) << 8);
+            this->romBank1Num = (this->romBank1Num & 0xFF) | (val & 1) << 8;
+            this->mapRomBank1();
             break;
         case 0x4: /* 4000 - 5FFF */
         case 0x5:
@@ -728,7 +776,51 @@ void MBC::m5w(u16 addr, u8 val) {
                 val &= 0xF;
             }
 
-            this->mapRamBank(val);
+            this->ramBankNum = val;
+            this->mapRamBank();
+            break;
+        case 0x6: /* 6000 - 7FFF */
+        case 0x7:
+            break;
+        case 0xA: /* A000 - BFFF */
+        case 0xB:
+            if(this->ramEnabled) {
+                this->writeSram((u16) (addr & 0x1FFF), val);
+            }
+
+            break;
+        default:
+            break;
+    }
+}
+
+/* MBC6 */
+void MBC::m6w(u16 addr, u8 val) {
+    switch(addr >> 12) {
+        case 0x0: /* 0000 - 1FFF */
+        case 0x1:
+            this->ramEnabled = ((val & 0xF) == 0xA);
+            break;
+        case 0x2: /* 2000 - 3FFF */
+            if(!(addr & 0x0800)) {
+                this->romBank1ALatch = val;
+            } else if(val == 0) {
+                this->romBank1A = this->romBank1ALatch;
+                this->mapRomBank1();
+            }
+
+            break;
+        case 0x3:
+            if(!(addr & 0x0800)) {
+                this->romBank1BLatch = val;
+            } else if(val == 0) {
+                this->romBank1B = this->romBank1BLatch;
+                this->mapRomBank1();
+            }
+
+            break;
+        case 0x4: /* 4000 - 5FFF */
+        case 0x5:
             break;
         case 0x6: /* 6000 - 7FFF */
         case 0x7:
@@ -766,14 +858,17 @@ void MBC::m7w(u16 addr, u8 val) {
             this->ramEnabled = ((val & 0xF) == 0xA);
             break;
         case 0x2: /* 2000 - 3FFF */
-            this->mapRomBank1((this->romBank1Num & 0x100) | val);
+            this->romBank1Num = (this->romBank1Num & 0x100) | val;
+            this->mapRomBank1();
             break;
         case 0x3:
-            this->mapRomBank1((this->romBank1Num & 0xFF) | (val & 1) << 8);
+            this->romBank1Num = (this->romBank1Num & 0xFF) | (val & 1) << 8;
+            this->mapRomBank1();
             break;
         case 0x4: /* 4000 - 5FFF */
         case 0x5:
-            this->mapRamBank(val & 0xF);
+            this->ramBankNum = val & 0xF;
+            this->mapRamBank();
             break;
         case 0x6: /* 6000 - 7FFF */
         case 0x7:
@@ -952,15 +1047,19 @@ void MBC::mmm01w(u16 addr, u8 val) {
             } else {
                 this->mmm01BankSelected = true;
 
-                this->mapRomBank0(this->mmm01RomBaseBank);
-                this->mapRomBank1(this->mmm01RomBaseBank + 1);
+                this->romBank0Num = this->mmm01RomBaseBank;
+                this->mapRomBank0();
+
+                this->romBank1Num = this->mmm01RomBaseBank + 1;
+                this->mapRomBank1();
             }
 
             break;
         case 0x2: /* 2000 - 3FFF */
         case 0x3:
             if(this->mmm01BankSelected) {
-                this->mapRomBank1(this->mmm01RomBaseBank + (val ? val : 1));
+                this->romBank1Num = this->mmm01RomBaseBank + (val ? val : 1);
+            this->mapRomBank1();
             } else {
                 this->mmm01RomBaseBank = (u8) (((val & 0x3F) % this->gameboy->romFile->getRomBanks()) + 2);
             }
@@ -969,7 +1068,8 @@ void MBC::mmm01w(u16 addr, u8 val) {
         case 0x4: /* 4000 - 5FFF */
         case 0x5:
             if(this->mmm01BankSelected) {
-                this->mapRamBank(val);
+                this->ramBankNum = val;
+                this->mapRamBank();
             }
 
             break;
@@ -997,15 +1097,18 @@ void MBC::h1w(u16 addr, u8 val) {
             break;
         case 0x2: /* 2000 - 3FFF */
         case 0x3:
-            this->mapRomBank1(val & 0x3F);
+            this->romBank1Num = val & 0x3F;
+            this->mapRomBank1();
             break;
         case 0x4: /* 4000 - 5FFF */
         case 0x5:
             val &= 3;
             if(this->memoryModel == 0) {
-                this->mapRomBank1(val);
+                this->romBank1Num = val;
+                this->mapRomBank1();
             } else {
-                this->mapRamBank(val);
+                this->ramBankNum = val;
+                this->mapRamBank();
             }
 
             break;
@@ -1035,11 +1138,13 @@ void MBC::h3w(u16 addr, u8 val) {
             break;
         case 0x2: /* 2000 - 3FFF */
         case 0x3:
-            this->mapRomBank1(val ? val : 1);
+            this->romBank1Num = val ? val : 1;
+            this->mapRomBank1();
             break;
         case 0x4: /* 4000 - 5FFF */
         case 0x5:
-            this->mapRamBank(val & 0xF);
+            this->ramBankNum = val & 0xF;
+            this->mapRamBank();
             break;
         case 0x6: /* 6000 - 7FFF */
         case 0x7:
@@ -1122,13 +1227,15 @@ void MBC::camw(u16 addr, u8 val) {
             break;
         case 0x2: /* 2000 - 3FFF */
         case 0x3:
-            this->mapRomBank1(val ? val : 1);
+            this->romBank1Num = val ? val : 1;
+            this->mapRomBank1();
             break;
         case 0x4: /* 4000 - 5FFF */
         case 0x5:
             this->cameraIO = val == 0x10;
             if(!this->cameraIO) {
-                this->mapRamBank(val & 0xF);
+                this->ramBankNum = val & 0xF;
+                this->mapRamBank();
             }
 
             break;
@@ -1168,7 +1275,9 @@ void MBC::t5w(u16 addr, u8 val) {
                 this->tama5Commands[this->tama5CommandNumber] = val;
                 this->writeSram(0, val);
                 if((this->tama5CommandNumber & 0xE) == 0) {
-                    this->mapRomBank1(this->tama5Commands[0] | (this->tama5Commands[1] << 4));
+                    this->romBank1Num = this->tama5Commands[0] | (this->tama5Commands[1] << 4);
+                    this->mapRomBank1();
+
                     this->tama5Commands[0x0F] = 0;
                 } else if((this->tama5CommandNumber & 0xE) == 4) {
                     this->tama5Commands[0x0F] = 1;

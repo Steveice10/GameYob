@@ -23,9 +23,9 @@ private:
     u8 readSram(u16 addr);
     void writeSram(u16 addr, u8 val);
 
-    void mapRomBank0(int bank);
-    void mapRomBank1(int bank);
-    void mapRamBank(int bank);
+    void mapRomBank0();
+    void mapRomBank1();
+    void mapRamBank();
     void mapBanks();
 
     u8 m3r(u16 addr);
@@ -38,6 +38,7 @@ private:
     void m2w(u16 addr, u8 val);
     void m3w(u16 addr, u8 val);
     void m5w(u16 addr, u8 val);
+    void m6w(u16 addr, u8 val);
     void m7w(u16 addr, u8 val);
     void mmm01w(u16 addr, u8 val);
     void h1w(u16 addr, u8 val);
@@ -61,6 +62,7 @@ private:
             NULL,
             &MBC::m3r,
             NULL,
+            NULL,
             &MBC::m7r,
             NULL,
             NULL,
@@ -75,6 +77,7 @@ private:
             &MBC::m2w,
             &MBC::m3w,
             &MBC::m5w,
+            &MBC::m6w,
             &MBC::m7w,
             &MBC::mmm01w,
             &MBC::h1w,
@@ -84,6 +87,7 @@ private:
     };
 
     const mbcUpdate mbcUpdates[MBC_MAX] = {
+            NULL,
             NULL,
             NULL,
             NULL,
@@ -146,6 +150,12 @@ private:
     u8 HuC3Mode;
     u8 HuC3Value;
     u8 HuC3Shift;
+
+    // MBC6
+    s32 romBank1ALatch;
+    s32 romBank1BLatch;
+    s32 romBank1A;
+    s32 romBank1B;
 
     // MBC7
     bool mbc7WriteEnable;
