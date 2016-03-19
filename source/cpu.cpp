@@ -131,7 +131,7 @@ void CPU::run() {
     }
 
     int triggered = this->gameboy->mmu->readIO(IF) & this->gameboy->mmu->readIO(IE);
-    if(this->ime && triggered != 0) {
+    if(triggered != 0) {
         this->haltState = false;
         if(this->ime) {
             this->ime = false;
