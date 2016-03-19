@@ -2,7 +2,6 @@
 
 #include <arpa/inet.h>
 #include <stdio.h>
-#include <stdlib.h>
 
 #include "platform/common/config.h"
 #include "platform/common/manager.h"
@@ -11,9 +10,9 @@
 #include "platform/input.h"
 #include "platform/gfx.h"
 #include "platform/system.h"
+#include "platform/ui.h"
 
 #include <SDL2/SDL.h>
-#include <platform/ui.h>
 
 extern void gfxSetWindowSize(int width, int height);
 
@@ -130,6 +129,10 @@ FILE* systemSocketConnect(const std::string ipAddress, u16 port) {
 }
 
 void systemSetRumble(bool rumble) {
+}
+
+u32* systemGetCameraImage() {
+    return NULL;
 }
 
 #endif

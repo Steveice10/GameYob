@@ -6,6 +6,7 @@
 
 #include "platform/input.h"
 #include "platform/system.h"
+#include "cpu.h"
 #include "gameboy.h"
 #include "mbc.h"
 #include "mmu.h"
@@ -65,8 +66,7 @@ void MBC::reset() {
 
             struct stat s;
             fstat(fileno(this->file), &s);
-            int fileSize = s.st_size;
-            if(fileSize < neededFileSize) {
+            if(s.st_size < neededFileSize) {
                 fseek(this->file, neededFileSize - 1, SEEK_SET);
                 fputc(0, this->file);
                 fflush(this->file);
@@ -93,6 +93,7 @@ void MBC::reset() {
 
     this->readFunc = this->mbcReads[this->mbcType];
     this->writeFunc = this->mbcWrites[this->mbcType];
+    this->updateFunc = this->mbcUpdates[this->mbcType];
 
     // Rockman8 by Yang Yang uses a silghtly different MBC1 variant
     this->rockmanMapper = this->gameboy->romFile->getRomTitle().compare("ROCKMAN 99") == 0;
@@ -129,6 +130,8 @@ void MBC::reset() {
 
     // CAMERA
     this->cameraIO = false;
+    this->cameraReadyCycle = 0;
+    memset(this->cameraRegs, 0, sizeof(this->cameraRegs));
 
     // TAMA5
     this->tama5CommandNumber = 0;
@@ -223,6 +226,8 @@ void MBC::loadState(FILE* file, int version) {
             break;
         case CAMERA:
             fread(&this->cameraIO, 1, sizeof(this->cameraIO), file);
+            fread(&this->cameraReadyCycle, 1, sizeof(this->cameraReadyCycle), file);
+            fread(this->cameraRegs, 1, sizeof(this->cameraRegs), file);
             break;
         case TAMA5:
             fread(&this->tama5CommandNumber, 1, sizeof(this->tama5CommandNumber), file);
@@ -284,6 +289,8 @@ void MBC::saveState(FILE* file) {
             break;
         case CAMERA:
             fwrite(&this->cameraIO, 1, sizeof(this->cameraIO), file);
+            fwrite(&this->cameraReadyCycle, 1, sizeof(this->cameraReadyCycle), file);
+            fwrite(this->cameraRegs, 1, sizeof(this->cameraRegs), file);
             break;
         case TAMA5:
             fwrite(&this->tama5CommandNumber, 1, sizeof(this->tama5CommandNumber), file);
@@ -292,6 +299,12 @@ void MBC::saveState(FILE* file) {
             fwrite(this->tama5RAM, 1, sizeof(this->tama5RAM), file);
         default:
             break;
+    }
+}
+
+void MBC::update() {
+    if(this->updateFunc != NULL) {
+        (this->*updateFunc)();
     }
 }
 
@@ -498,10 +511,14 @@ u8 MBC::h3r(u16 addr) {
 /* CAMERA */
 u8 MBC::camr(u16 addr) {
     if(this->cameraIO) {
-        // 0xA000: hardware ready, Others: write only
-        return (u8) (addr == 0xA000 ? 0x00 : 0xFF);
+        u8 reg = (u8) (addr & 0x7F);
+        if(reg == 0) {
+            return this->cameraRegs[reg];
+        }
+
+        return 0;
     } else {
-        return this->ramEnabled ? this->readSram((u16) (addr & 0x1FFF)) : (u8) 0xFF;
+        return this->readSram((u16) (addr & 0x1FFF));
     }
 }
 
@@ -1121,7 +1138,17 @@ void MBC::camw(u16 addr, u8 val) {
         case 0xA: /* A000 - BFFF */
         case 0xB:
             if(this->cameraIO) {
-                // TODO: Handle I/O registers?
+                u8 reg = (u8) (addr & 0x7F);
+                if(reg < 0x36) {
+                    this->cameraRegs[reg] = val;
+                    if(reg == 0) {
+                        this->cameraRegs[reg] &= 0x7;
+
+                        if(val & 0x1) {
+                            this->camTakePicture();
+                        }
+                    }
+                }
             } else if(this->ramEnabled) {
                 this->writeSram((u16) (addr & 0x1FFF), val);
             }
@@ -1279,6 +1306,179 @@ void MBC::t5w(u16 addr, u8 val) {
         this->writeSram((u16) (addr & 0x1FFF), val);
     }
 }
+
+void MBC::camu() {
+    if(this->cameraReadyCycle != 0 && this->gameboy->cpu->getCycle() >= this->cameraReadyCycle) {
+        this->cameraRegs[0] &= ~0x1;
+        this->cameraReadyCycle = 0;
+    }
+}
+
+#define CAMERA_SENSOR_EXTRA_LINES 8
+#define CAMERA_SENSOR_WIDTH 128
+#define CAMERA_SENSOR_HEIGHT (112 + CAMERA_SENSOR_EXTRA_LINES)
+#define CAMERA_EXPOSURE_REFERENCE 512
+
+#define CAMERA_PROCESSED_WIDTH 128
+#define CAMERA_PROCESSED_HEIGHT 112
+
+#define MIN(a, b) (((a) < (b)) ? (a) : (b))
+#define MAX(a, b) (((a) > (b)) ? (a) : (b))
+#define CLAMP(min, v, max) MIN(MAX((v), (min)), (max))
+
+static const float edgeRatioLUT[8] = {0.50, 0.75, 1.00, 1.25, 2.00, 3.00, 4.00, 5.00};
+
+void MBC::camTakePicture() {
+    u32 pBits = (u32) (((this->cameraRegs[0] >> 1) & 3) != 0);
+    u32 mBits = (u32) ((this->cameraRegs[0] >> 1) & 2);
+    u32 nBit = (u32) ((this->cameraRegs[1] & 0x80) >> 7);
+    u32 vhBits = (u32) ((this->cameraRegs[1] & 0x60) >> 5);
+    u32 exposureBits = this->cameraRegs[3] | (this->cameraRegs[2] << 8);
+    u32 iBit = (u32) ((this->cameraRegs[4] & 0x08) >> 3);
+    float edgeAlpha = edgeRatioLUT[(this->cameraRegs[4] & 0x70) >> 4];
+    u32 e3Bit = (u32) ((this->cameraRegs[4] & 0x80) >> 7);
+
+    this->cameraReadyCycle = this->gameboy->cpu->getCycle() + exposureBits * 64 + (nBit ? 0 : 2048) + 129784;
+    this->gameboy->cpu->setEventCycle(this->cameraReadyCycle);
+
+    u32* image = systemGetCameraImage();
+    if(image == NULL) {
+        return;
+    }
+
+    int filtered[CAMERA_SENSOR_WIDTH * CAMERA_SENSOR_HEIGHT];
+
+    for(int y = 0; y < CAMERA_SENSOR_HEIGHT; y++) {
+        u32* line = &image[y * CAMERA_SENSOR_WIDTH];
+        for(int x = 0; x < CAMERA_SENSOR_WIDTH; x++) {
+            int data = (2 * (line[x] & 0xFF) + 5 * ((line[x] >> 8) & 0xFF) + 1 * ((line[x] >> 16) & 0xFF)) >> 3;
+
+            int val = CLAMP(0, ((((data * exposureBits) / CAMERA_EXPOSURE_REFERENCE) - 128) / 8) + 128, 255);
+            if(iBit) {
+                val = 255 - val;
+            }
+
+            filtered[y * CAMERA_SENSOR_WIDTH + x] = val - 128;
+        }
+    }
+
+    int tempBuf[CAMERA_SENSOR_WIDTH * CAMERA_SENSOR_HEIGHT];
+
+    u32 filterMode = (nBit << 3) | (vhBits << 1) | e3Bit;
+    switch(filterMode) {
+        case 0x0:
+            memcpy(tempBuf, filtered, sizeof(tempBuf));
+
+            for(int y = 0; y < CAMERA_SENSOR_HEIGHT; y++) {
+                int* line = &filtered[y * CAMERA_SENSOR_WIDTH];
+                int* tempLine = &tempBuf[y * CAMERA_SENSOR_WIDTH];
+                int* tempLineS = &tempBuf[MIN(y + 1, CAMERA_SENSOR_HEIGHT - 1) * CAMERA_SENSOR_WIDTH];
+
+                for(int x = 0; x < CAMERA_SENSOR_WIDTH; x++) {
+                    int value = 0;
+                    if(pBits & 0x1) value += tempLine[x];
+                    if(pBits & 0x2) value += tempLineS[x];
+                    if(mBits & 0x1) value -= tempLine[x];
+                    if(mBits & 0x2) value -= tempLineS[x];
+                    line[x] = CLAMP(-128, value, 127);
+                }
+            }
+
+            break;
+        case 0x1:
+            memset(filtered, 0, sizeof(filtered));
+            break;
+        case 0x2:
+            for(int y = 0; y < CAMERA_SENSOR_HEIGHT; y++) {
+                int* line = &filtered[y * CAMERA_SENSOR_WIDTH];
+                int* tempLine = &tempBuf[y * CAMERA_SENSOR_WIDTH];
+
+                for(int x = 0; x < CAMERA_SENSOR_WIDTH; x++) {
+                    tempLine[x] = CLAMP(0, (int) (line[x] + ((2 * line[x] - line[MAX(0, x - 1)] - line[MIN(x + 1, CAMERA_SENSOR_WIDTH - 1)]) * edgeAlpha)), 255);
+                }
+            }
+
+            for(int y = 0; y < CAMERA_SENSOR_HEIGHT; y++) {
+                int* line = &filtered[y * CAMERA_SENSOR_WIDTH];
+                int* tempLine = &tempBuf[y * CAMERA_SENSOR_WIDTH];
+                int* tempLineS = &tempBuf[MIN(y + 1, CAMERA_SENSOR_HEIGHT - 1) * CAMERA_SENSOR_WIDTH];
+
+                for(int x = 0; x < CAMERA_SENSOR_WIDTH; x++) {
+                    int value = 0;
+                    if(pBits & 0x1) value += tempLine[x];
+                    if(pBits & 0x2) value += tempLineS[x];
+                    if(mBits & 0x1) value -= tempLine[x];
+                    if(mBits & 0x2) value -= tempLineS[x];
+                    line[x] = CLAMP(-128, value, 127);
+                }
+            }
+
+            break;
+        case 0xE:
+            for(int y = 0; y < CAMERA_SENSOR_HEIGHT; y++) {
+                int* line = &filtered[y * CAMERA_SENSOR_WIDTH];
+                int* lineS = &filtered[MIN(y + 1, CAMERA_SENSOR_HEIGHT - 1) * CAMERA_SENSOR_WIDTH];
+                int* lineN = &filtered[MAX(0, y - 1) * CAMERA_SENSOR_WIDTH];
+                int* tempLine = &tempBuf[y * CAMERA_SENSOR_WIDTH];
+
+                for(int x = 0; x < CAMERA_SENSOR_WIDTH; x++) {
+                    tempLine[x] = CLAMP(-128, (int) (line[x] + ((4 * line[x] - line[MAX(0, x - 1)] - line[MIN(x + 1, CAMERA_SENSOR_WIDTH - 1)] - lineN[x] - lineS[x]) * edgeAlpha)), 127);
+                }
+            }
+
+            memcpy(filtered, tempBuf, sizeof(filtered));
+            break;
+        default:
+            systemPrintDebug("Unsupported camera filter mode: 0x%x\n", filterMode);
+            break;
+    }
+
+    int processed[CAMERA_PROCESSED_WIDTH * CAMERA_PROCESSED_HEIGHT];
+
+    for(int y = 0; y < CAMERA_SENSOR_HEIGHT; y++) {
+        int* line = &filtered[(y + (CAMERA_SENSOR_EXTRA_LINES / 2)) * CAMERA_SENSOR_WIDTH];
+        int* processedLine = &processed[y * CAMERA_SENSOR_WIDTH];
+
+        for(int x = 0; x < CAMERA_SENSOR_WIDTH; x++) {
+            int base = 6 + ((y & 3) * 4 + (x & 3)) * 3;
+            u32 value = (u32) (line[x] + 128);
+            if(value < this->cameraRegs[base + 0]) {
+                processedLine[x] = 0x00;
+            } else if(value < this->cameraRegs[base + 1]) {
+                processedLine[x] = 0x40;
+            } else if(value < this->cameraRegs[base + 2]) {
+                processedLine[x] = 0x80;
+            } else {
+                processedLine[x] = 0xC0;
+            }
+        }
+    }
+
+    u8 tiled[14][16][16] = {0};
+
+    for(int y = 0; y < CAMERA_PROCESSED_HEIGHT; y++) {
+        int* line = &processed[y * CAMERA_PROCESSED_WIDTH];
+
+        for(int x = 0; x < CAMERA_PROCESSED_WIDTH; x++) {
+            u8 color = (u8) (3 - (line[x] >> 6));
+            u8* tileBase = &tiled[y >> 3][x >> 3][(y & 7) * 2];
+
+            if(color & 1) {
+                tileBase[0] |= 1 << (7 - (7 & x));
+            }
+
+            if(color & 2) {
+                tileBase[1] |= 1 << (7 - (7 & x));
+            }
+        }
+    }
+
+    memcpy(&this->getRamBank(0)[0x100], tiled, sizeof(tiled));
+}
+
+#undef MIN
+#undef MAX
+#undef CLAMP
 
 /* Increment y if x is greater than val */
 #define OVERFLOW(x, val, y) ({ \

@@ -15,6 +15,8 @@ public:
 
     void loadState(FILE* file, int version);
     void saveState(FILE* file);
+
+    void update();
 private:
     u8* getRamBank(int bank);
 
@@ -43,10 +45,15 @@ private:
     void camw(u16 addr, u8 val);
     void t5w(u16 addr, u8 val);
 
+    void camu();
+
+    void camTakePicture();
+
     void latchClock();
 
     typedef void (MBC::*mbcWrite)(u16, u8);
     typedef u8 (MBC::*mbcRead)(u16);
+    typedef void (MBC::*mbcUpdate)();
 
     const mbcRead mbcReads[MBC_MAX] = {
             NULL,
@@ -76,12 +83,27 @@ private:
             &MBC::t5w
     };
 
+    const mbcUpdate mbcUpdates[MBC_MAX] = {
+            NULL,
+            NULL,
+            NULL,
+            NULL,
+            NULL,
+            NULL,
+            NULL,
+            NULL,
+            NULL,
+            &MBC::camu,
+            NULL
+    };
+
     Gameboy* gameboy = NULL;
 
     FILE* file;
 
     mbcRead readFunc;
     mbcWrite writeFunc;
+    mbcUpdate updateFunc;
 
     int ramBanks;
     u8** banks;
@@ -142,6 +164,8 @@ private:
 
     // CAMERA
     bool cameraIO;
+    u64 cameraReadyCycle;
+    u8 cameraRegs[0x36];
 
     // TAMA5
     s32 tama5CommandNumber;

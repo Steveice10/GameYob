@@ -6,6 +6,7 @@
 #include "apu.h"
 #include "cpu.h"
 #include "gameboy.h"
+#include "mbc.h"
 #include "mmu.h"
 #include "ppu.h"
 #include "serial.h"
@@ -154,6 +155,7 @@ void CPU::advanceCycles(u64 cycles) {
     if(this->cycleCount >= this->eventCycle) {
         this->eventCycle = UINT64_MAX;
 
+        this->gameboy->mbc->update();
         this->gameboy->ppu->update();
         this->gameboy->apu->update();
         this->gameboy->sgb->update();

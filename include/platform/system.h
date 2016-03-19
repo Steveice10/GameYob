@@ -25,3 +25,5 @@ FILE* systemSocketAccept(int listeningSocket, std::string* acceptedIp);
 FILE* systemSocketConnect(const std::string ipAddress, u16 port);
 
 void systemSetRumble(bool rumble);
+
+u32* systemGetCameraImage();

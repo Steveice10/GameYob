@@ -238,7 +238,7 @@ int mgrReadBmp(u8** data, u32* width, u32* height, const char* filename) {
     fseek(fd, dataOffset, SEEK_SET);
     fread(srcPixels, 1, srcSize, fd);
 
-    u8* dstPixels = (u8*) malloc(w * h * sizeof(u32));
+    u8* dstPixels = new u8[w * h * sizeof(u32)];
 
     if(bits == 16) {
         u16* srcPixels16 = (u16*) srcPixels;
@@ -304,7 +304,7 @@ int mgrReadPng(u8** data, u32* width, u32* height, const char* filename) {
         return lodeRet;
     }
 
-    u8* dstPixels = (u8*) malloc(w * h * sizeof(u32));
+    u8* dstPixels = new u8[w * h * sizeof(u32)];
     for(u32 x = 0; x < w; x++) {
         for(u32 y = 0; y < h; y++) {
             u32 src = (y * w + x) * 4;
@@ -338,7 +338,7 @@ void mgrLoadBorderFile(const char* filename) {
     u32 imgHeight;
     if((strcasecmp(extension.c_str(), "png") == 0 && mgrReadPng(&imgData, &imgWidth, &imgHeight, filename) == 0) || (strcasecmp(extension.c_str(), "bmp") == 0 && mgrReadBmp(&imgData, &imgWidth, &imgHeight, filename) == 0)) {
         gfxLoadBorder(imgData, imgWidth, imgHeight);
-        free(imgData);
+        delete imgData;
     }
 }
 
