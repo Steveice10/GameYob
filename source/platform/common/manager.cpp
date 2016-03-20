@@ -39,8 +39,6 @@ static time_t lastPrintTime;
 static int autoFireCounterA;
 static int autoFireCounterB;
 
-static time_t lastSaveTime;
-
 static bool emulationPaused;
 
 static FileChooser romChooser("/", {"sgb", "gbc", "cgb", "gb"}, true);
@@ -65,14 +63,14 @@ void mgrInit() {
     autoFireCounterA = 0;
     autoFireCounterB = 0;
 
-    lastSaveTime = 0;
-
     emulationPaused = false;
 
     chooserInitialized = false;
 }
 
 void mgrExit() {
+    mgrUnloadRom();
+
     if(gameboy != NULL) {
         delete gameboy;
         gameboy = NULL;
@@ -84,6 +82,19 @@ void mgrExit() {
     }
 }
 
+void mgrReset(bool initial) {
+    if(gameboy == NULL || !gameboy->isRomLoaded()) {
+        return;
+    }
+
+    if(!initial) {
+        mgrWriteSave();
+    }
+
+    gameboy->reset();
+    mgrLoadSave();
+}
+
 std::string mgrGetRomName() {
     return romName;
 }
@@ -93,29 +104,34 @@ void mgrLoadRom(const char* filename) {
         return;
     }
 
+    mgrUnloadRom();
+
     FILE* fd = fopen(filename, "rb");
     if(fd == NULL) {
+        systemPrintDebug("Failed to open ROM file: %d\n", errno);
         return;
     }
 
     struct stat st;
     if(fstat(fileno(fd), &st) < 0) {
-        fclose(fd);
+        systemPrintDebug("Failed to stat ROM file: %d\n", errno);
 
+        fclose(fd);
         return;
     }
 
     u8* rom = new u8[st.st_size];
-    if(fread(rom, 1, st.st_size, fd) < 0) {
+    if(fread(rom, 1, (size_t) st.st_size, fd) < 0) {
+        systemPrintDebug("Failed to read ROM file: %d\n", errno);
+
         delete rom;
         fclose(fd);
-
         return;
     }
 
     fclose(fd);
 
-    bool result = gameboy->loadRomFile(rom, (u32) st.st_size);
+    bool result = gameboy->loadRom(rom, (u32) st.st_size);
     delete rom;
 
     if(!result) {
@@ -132,7 +148,7 @@ void mgrLoadRom(const char* filename) {
 
     mgrRefreshBorder();
 
-    gameboy->reset();
+    mgrReset(true);
     if(mgrStateExists(-1)) {
         mgrLoadState(-1);
         mgrDeleteState(-1);
@@ -152,21 +168,19 @@ void mgrLoadRom(const char* filename) {
 
     enableMenuOption("Manage Cheats");
 
-    if(gameboy->isRomLoaded() && gameboy->romFile->getMBCType() == MBC7) {
-        enableMenuOption("Accelerometer Pad");
-    } else {
-        disableMenuOption("Accelerometer Pad");
-    }
-
-    if(gameboy->isRomLoaded() && gameboy->romFile->getRamBanks() > 0 && !autoSaveEnabled) {
+    if(gameboy->isRomLoaded() && gameboy->romFile->getRamBanks() > 0) {
         enableMenuOption("Exit without saving");
     } else {
         disableMenuOption("Exit without saving");
     }
 }
 
-void mgrUnloadRom() {
-    if(gameboy != NULL) {
+void mgrUnloadRom(bool save) {
+    if(gameboy != NULL && gameboy->isRomLoaded()) {
+        if(save) {
+            mgrWriteSave();
+        }
+
         gameboy->unloadRom();
     }
 
@@ -198,6 +212,139 @@ void mgrSelectRom() {
 
     mgrLoadRom(filename);
     free(filename);
+}
+
+void mgrLoadSave() {
+    if(gameboy == NULL || !gameboy->isRomLoaded() || gameboy->romFile->getRamBanks() == 0) {
+        return;
+    }
+
+    FILE* fd = fopen((romName + ".sav").c_str(), "rb");
+    if(fd == NULL) {
+        systemPrintDebug("Failed to open save file: %d\n", errno);
+        return;
+    }
+
+    struct stat s;
+    if(fstat(fileno(fd), &s) < 0) {
+        systemPrintDebug("Failed to stat save file: %d\n", errno);
+
+        fclose(fd);
+        return;
+    }
+
+    u32 saveSize = gameboy->mbc->getSaveSize();
+    if(s.st_size < saveSize) {
+        fseek(fd, saveSize - 1, SEEK_SET);
+        fputc(0, fd);
+        fflush(fd);
+        fseek(fd, 0, SEEK_SET);
+    }
+
+    u8* data = new u8[saveSize];
+    if(fread(data, 1, saveSize, fd) < 0) {
+        systemPrintDebug("Failed to read save file: %d\n", errno);
+
+        delete data;
+        fclose(fd);
+        return;
+    }
+
+    fclose(fd);
+
+    gameboy->mbc->load(data, saveSize);
+    delete data;
+}
+
+void mgrWriteSave() {
+    if(gameboy == NULL || !gameboy->isRomLoaded() || gameboy->romFile->getRamBanks() == 0) {
+        return;
+    }
+
+    u32 saveSize = gameboy->mbc->getSaveSize();
+    u8* data = new u8[saveSize];
+    gameboy->mbc->save(data, saveSize);
+
+    FILE* fd = fopen((romName + ".sav").c_str(), "wb");
+    if(fd == NULL) {
+        systemPrintDebug("Failed to open save file: %d\n", errno);
+
+        delete data;
+        return;
+    }
+
+    if(fwrite(data, 1, saveSize, fd) < 0) {
+        systemPrintDebug("Failed to write save file: %d\n", errno);
+
+        fclose(fd);
+        delete data;
+        return;
+    }
+
+    fclose(fd);
+    delete data;
+}
+
+const std::string mgrGetStateName(int stateNum) {
+    std::stringstream nameStream;
+    if(stateNum == -1) {
+        nameStream << mgrGetRomName()<< ".yss";
+    } else {
+        nameStream << mgrGetRomName() << ".ys" << stateNum;
+    }
+
+    return nameStream.str();
+}
+
+bool mgrStateExists(int stateNum) {
+    if(!gameboy->isRomLoaded()) {
+        return false;
+    }
+
+    FILE* file = fopen(mgrGetStateName(stateNum).c_str(), "r");
+    if(file != NULL) {
+        fclose(file);
+    }
+
+    return file != NULL;
+}
+
+bool mgrLoadState(int stateNum) {
+    if(!gameboy->isRomLoaded()) {
+        return false;
+    }
+
+    FILE* file = fopen(mgrGetStateName(stateNum).c_str(), "r");
+    if(file == NULL) {
+        return false;
+    }
+
+    bool ret = gameboy->loadState(file);
+    fclose(file);
+    return ret;
+}
+
+bool mgrSaveState(int stateNum) {
+    if(!gameboy->isRomLoaded()) {
+        return false;
+    }
+
+    FILE* file = fopen(mgrGetStateName(stateNum).c_str(), "w");
+    if(file == NULL) {
+        return false;
+    }
+
+    bool ret = gameboy->saveState(file);
+    fclose(file);
+    return ret;
+}
+
+void mgrDeleteState(int stateNum) {
+    if(!gameboy->isRomLoaded()) {
+        return;
+    }
+
+    remove(mgrGetStateName(stateNum).c_str());
 }
 
 int mgrReadBmp(u8** data, u32* width, u32* height, const char* filename) {
@@ -413,76 +560,6 @@ void mgrRefreshBios() {
     }
 }
 
-const std::string mgrGetStateName(int stateNum) {
-    std::stringstream nameStream;
-    if(stateNum == -1) {
-        nameStream << mgrGetRomName()<< ".yss";
-    } else {
-        nameStream << mgrGetRomName() << ".ys" << stateNum;
-    }
-
-    return nameStream.str();
-}
-
-bool mgrStateExists(int stateNum) {
-    if(!gameboy->isRomLoaded()) {
-        return false;
-    }
-
-    FILE* file = fopen(mgrGetStateName(stateNum).c_str(), "r");
-    if(file != NULL) {
-        fclose(file);
-    }
-
-    return file != NULL;
-}
-
-bool mgrLoadState(int stateNum) {
-    if(!gameboy->isRomLoaded()) {
-        return false;
-    }
-
-    FILE* file = fopen(mgrGetStateName(stateNum).c_str(), "r");
-    if(file == NULL) {
-        return false;
-    }
-
-    bool ret = gameboy->loadState(file);
-    fclose(file);
-    return ret;
-}
-
-bool mgrSaveState(int stateNum) {
-    if(!gameboy->isRomLoaded()) {
-        return false;
-    }
-
-    FILE* file = fopen(mgrGetStateName(stateNum).c_str(), "w");
-    if(file == NULL) {
-        return false;
-    }
-
-    bool ret = gameboy->saveState(file);
-    fclose(file);
-    return ret;
-}
-
-void mgrDeleteState(int stateNum) {
-    if(!gameboy->isRomLoaded()) {
-        return;
-    }
-
-    remove(mgrGetStateName(stateNum).c_str());
-}
-
-void mgrSave() {
-    if(gameboy == NULL || !gameboy->isRomLoaded()) {
-        return;
-    }
-
-    gameboy->mbc->save();
-}
-
 void mgrPause() {
     emulationPaused = true;
 }
@@ -568,9 +645,7 @@ void mgrRun() {
         gameboy->sgb->setController(0, buttonsPressed);
 
         if(inputKeyPressed(FUNC_KEY_SAVE)) {
-            if(!autoSaveEnabled) {
-                mgrSave();
-            }
+            mgrWriteSave();
         }
 
         if(inputKeyPressed(FUNC_KEY_FAST_FORWARD_TOGGLE)) {
@@ -591,7 +666,7 @@ void mgrRun() {
         }
 
         if(inputKeyPressed(FUNC_KEY_RESET)) {
-            gameboy->reset();
+            mgrReset();
         }
     }
 
@@ -606,15 +681,11 @@ void mgrRun() {
         }
     }
 
+    fps++;
+
     time_t rawTime = 0;
     time(&rawTime);
 
-    if(autoSaveEnabled && rawTime > lastSaveTime + 60) {
-        mgrSave();
-        lastSaveTime = rawTime;
-    }
-
-    fps++;
     if(rawTime > lastPrintTime) {
         if(!isMenuOn() && !showConsoleDebug() && (fpsOutput || timeOutput)) {
             uiClear();

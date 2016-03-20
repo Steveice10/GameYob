@@ -52,7 +52,7 @@ public:
     int run();
 
     bool isRomLoaded();
-    bool loadRomFile(u8* rom, u32 size);
+    bool loadRom(u8* rom, u32 size);
     void unloadRom();
 
     RomFile* romFile;

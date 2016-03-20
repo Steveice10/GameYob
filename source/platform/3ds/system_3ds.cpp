@@ -6,7 +6,6 @@
 #include <fcntl.h>
 #include <poll.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 
 #include "platform/common/config.h"
@@ -36,18 +35,10 @@ bool systemInit(int argc, char* argv[]) {
     uiInit();
     inputInit();
 
-    mgrInit();
-
-    setMenuDefaults();
-    readConfigFile();
-
     return true;
 }
 
 void systemExit() {
-    mgrSave();
-    mgrExit();
-
     inputCleanup();
     uiCleanup();
     audioCleanup();

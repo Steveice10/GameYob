@@ -28,18 +28,10 @@ bool systemInit(int argc, char* argv[]) {
     uiInit();
     inputInit();
 
-    mgrInit();
-
-    setMenuDefaults();
-    readConfigFile();
-
     return true;
 }
 
 void systemExit() {
-    mgrSave();
-    mgrExit();
-
     inputCleanup();
     uiCleanup();
     audioCleanup();

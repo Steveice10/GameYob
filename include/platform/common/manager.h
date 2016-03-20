@@ -18,19 +18,24 @@ extern int fastForwardCounter;
 void mgrInit();
 void mgrExit();
 
+void mgrReset(bool initial = false);
+
 std::string mgrGetRomName();
 void mgrLoadRom(const char* filename);
+void mgrUnloadRom(bool save = true);
 void mgrSelectRom();
-void mgrSave();
 
-void mgrRefreshBorder();
-
-void mgrRefreshBios();
+void mgrLoadSave();
+void mgrWriteSave();
 
 bool mgrStateExists(int stateNum);
 bool mgrLoadState(int stateNum);
 bool mgrSaveState(int stateNum);
 void mgrDeleteState(int stateNum);
+
+void mgrRefreshBorder();
+
+void mgrRefreshBios();
 
 void mgrPause();
 void mgrUnpause();

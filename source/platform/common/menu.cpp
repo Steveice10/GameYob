@@ -501,8 +501,6 @@ void (*subMenuUpdateFunc)();
 bool fpsOutput = false;
 bool timeOutput = false;
 
-bool autoSaveEnabled = false;
-
 int gbColorizeMode = 0;
 u16 gbBgPalette[0x20];
 u16 gbSprPalette[0x20];
@@ -536,34 +534,22 @@ void subMenuGenericUpdateFunc() {
 // Functions corresponding to menu options
 
 void suspendFunc(int value) {
-    if(gameboy->isRomLoaded() && gameboy->romFile->getRamBanks() > 0) {
-        printMenuMessage("Saving SRAM...");
-        mgrSave();
-    }
-
     printMenuMessage("Saving state...");
     mgrSaveState(-1);
     printMessage[0] = '\0';
 
     closeMenu();
-    gameboy->unloadRom();
+    mgrUnloadRom();
 }
 
 void exitFunc(int value) {
-    if(gameboy->isRomLoaded() && gameboy->romFile->getRamBanks() > 0) {
-        printMenuMessage("Saving SRAM...");
-        mgrSave();
-    }
-
-    printMessage[0] = '\0';
-
     closeMenu();
-    gameboy->unloadRom();
+    mgrUnloadRom();
 }
 
 void exitNoSaveFunc(int value) {
     closeMenu();
-    gameboy->unloadRom();
+    mgrUnloadRom(false);
 }
 
 void consoleOutputFunc(int value) {
@@ -662,7 +648,8 @@ void stateDeleteFunc(int value) {
 
 void resetFunc(int value) {
     closeMenu();
-    gameboy->reset();
+
+    mgrReset();
 }
 
 void returnFunc(int value) {
@@ -872,18 +859,6 @@ void chan3Func(int value) {
 
 void chan4Func(int value) {
     setChanEnabled(3, value);
-}
-
-void setAutoSaveFunc(int value) {
-    autoSaveEnabled = (bool) value;
-
-    if(gameboy->isRomLoaded()) {
-        if(!autoSaveEnabled && gameboy->romFile->getRamBanks() > 0) {
-            enableMenuOption("Exit without saving");
-        } else {
-            disableMenuOption("Exit without saving");
-        }
-    }
 }
 
 int listenSocket = -1;
@@ -1140,11 +1115,10 @@ SubMenu menuList[] = {
         },
         {
                 "GameYob",
-                5,
+                4,
                 {
                         {"Button Mapping", keyConfigFunc, 0, {}, 0},
                         {"Console Output", consoleOutputFunc, 4, {"Off", "FPS", "Time", "FPS+Time", "Debug"}, 0},
-                        {"Autosaving", setAutoSaveFunc, 2, {"Off", "On"}, 0},
                         {"Pause on Menu", setPauseOnMenuFunc, 2, {"Off", "On"}, 0},
                         {"Save Settings", saveSettingsFunc, 0, {}, 0}
                 }

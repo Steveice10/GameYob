@@ -235,7 +235,7 @@ void Printer::update() {
                 this->status |= PRINTER_STATUS_REQUESTED;
                 this->status |= PRINTER_STATUS_PRINTING;
                 this->status &= ~PRINTER_STATUS_READY;
-                saveImage();
+                this->saveImage();
             }
         }
     }

@@ -13,7 +13,6 @@ extern int scaleFilter;
 extern int borderScaleMode;
 extern bool fpsOutput;
 extern bool timeOutput;
-extern bool autoSaveEnabled;
 extern int gbColorizeMode;
 extern u16 gbBgPalette[0x20];
 extern u16 gbSprPalette[0x20];

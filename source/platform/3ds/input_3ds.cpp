@@ -154,7 +154,7 @@ void inputUpdate() {
         }
     }
 
-    if(isMenuOn() || isFileChooserActive() || (gameboy->isRomLoaded() && gameboy->romFile->isGBS())) {
+    if(isMenuOn() || isFileChooserActive()) {
         for(int i = 0; i < NUM_BUTTONS; i++) {
             if(uiForceReleased[i]) {
                 continue;

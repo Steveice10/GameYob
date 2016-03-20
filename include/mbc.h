@@ -11,21 +11,22 @@ public:
     ~MBC();
 
     void reset();
-    void save();
 
     void loadState(FILE* file, int version);
     void saveState(FILE* file);
 
     void update();
-private:
-    u8* getRamBank(int bank);
 
+    u32 getSaveSize();
+    u32 load(u8* buffer, u32 size);
+    u32 save(u8* buffer, u32 size);
+private:
     u8 readSram(u16 addr);
     void writeSram(u16 addr, u8 val);
 
     void mapRomBank0();
     void mapRomBank1();
-    void mapRamBank();
+    void mapSramBank();
     void mapBanks();
 
     u8 m3r(u16 addr);
@@ -103,15 +104,11 @@ private:
 
     Gameboy* gameboy = NULL;
 
-    FILE* file;
-
     mbcRead readFunc;
     mbcWrite writeFunc;
     mbcUpdate updateFunc;
 
-    int ramBanks;
-    u8** banks;
-    bool dirtyBanks[16];
+    u8* sram;
 
     struct {
         union {
@@ -133,29 +130,24 @@ private:
 
         u32 last;
     } gbClock;
-    bool dirtyClock;
-
-    // Type
-    MBCType mbcType;
-    bool rockmanMapper;
 
     // General
-    s32 romBank0Num;
-    s32 romBank1Num;
-    s32 ramBankNum;
-    bool ramEnabled;
-    s32 memoryModel;
+    s32 romBank0;
+    s32 romBank1;
+    s32 sramBank;
+    bool sramEnabled;
 
-    // HuC3
-    u8 HuC3Mode;
-    u8 HuC3Value;
-    u8 HuC3Shift;
+    // MBC1
+    bool mbc1RockmanMapper;
+    bool mbc1RamMode;
 
     // MBC6
     s32 romBank1ALatch;
     s32 romBank1BLatch;
     s32 romBank1A;
     s32 romBank1B;
+    s32 romBank1C;
+    s32 romBank1D;
 
     // MBC7
     bool mbc7WriteEnable;
@@ -167,6 +159,14 @@ private:
     u8 mbc7State;
     u16 mbc7Buffer;
     u8 mbc7RA;
+
+    // HuC1
+    bool huc1RamMode;
+
+    // HuC3
+    u8 huc3Mode;
+    u8 huc3Value;
+    u8 huc3Shift;
 
     // MMM01
     bool mmm01BankSelected;

@@ -152,7 +152,7 @@ bool Gameboy::isRomLoaded() {
     return this->romFile != NULL;
 }
 
-bool Gameboy::loadRomFile(u8* rom, u32 size) {
+bool Gameboy::loadRom(u8* rom, u32 size) {
     this->unloadRom();
 
     if(rom == NULL) {

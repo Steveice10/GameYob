@@ -111,7 +111,7 @@ void MMU::reset() {
 
     this->gameboy->mmu->mapIOWriteFunc(BIOS, [this](u16 addr, u8 val) -> void {
         if(this->gameboy->biosOn) {
-            this->gameboy->reset(false);
+            mgrReset(true);
         }
     });
 
