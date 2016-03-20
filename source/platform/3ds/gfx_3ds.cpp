@@ -3,107 +3,182 @@
 #include <malloc.h>
 #include <math.h>
 #include <string.h>
+#include <time.h>
 
-#include <citrus/gpu.hpp>
-#include <citrus/gput.hpp>
+#include <sstream>
 
 #include <3ds.h>
+#include <citro3d.h>
 
+#include "platform/3ds/default_shbin.h"
 #include "platform/common/menu.h"
 #include "platform/gfx.h"
 #include "platform/input.h"
+#include "platform/system.h"
 
-namespace ctr {
-    namespace gpu {
-        bool init();
-        void exit();
-    }
+static bool c3dInitialized;
 
-    namespace gput {
-        bool init();
-        void exit();
-    }
-}
+static bool shaderInitialized;
+static DVLB_s* dvlb;
+static shaderProgram_s program;
 
-using namespace ctr;
+static C3D_RenderTarget* targetTop;
+static C3D_RenderTarget* targetBottom;
+static C3D_Mtx projectionTop;
+static C3D_Mtx projectionBottom;
+
+static bool screenInit;
+static C3D_Tex screenTexture;
+
+static bool borderInit;
+static int borderWidth;
+static int borderHeight;
+static int gpuBorderWidth;
+static int gpuBorderHeight;
+static C3D_Tex borderTexture;
 
 static u16* screenBuffer;
-
-static int prevScaleMode = -1;
-static int prevScaleFilter = -1;
-static int prevBorderScaleMode = -1;
-static int prevGameScreen = -1;
-static bool borderChanged = false;
-
+static u16* scale2xBuffer;
 static bool fastForward = false;
 
-static u32 texture = 0;
-static u32 vbo = 0;
-
-static u32 borderVbo = 0;
-static u32 borderTexture = 0;
-
-static u32 borderWidth = 0;
-static u32 borderHeight = 0;
-static u32 gpuBorderWidth = 0;
-static u32 gpuBorderHeight = 0;
-
 bool gfxInit() {
-    if(!gpu::init() || !gput::init()) {
+    gfxInitDefault();
+
+    if(!C3D_Init(C3D_DEFAULT_CMDBUF_SIZE)) {
         gfxCleanup();
         return false;
     }
 
+    c3dInitialized = true;
+
+    u32 displayFlags = GX_TRANSFER_FLIP_VERT(0) | GX_TRANSFER_OUT_TILED(0) | GX_TRANSFER_RAW_COPY(0) | GX_TRANSFER_IN_FORMAT(GX_TRANSFER_FMT_RGBA8) | GX_TRANSFER_OUT_FORMAT(GX_TRANSFER_FMT_RGB8) | GX_TRANSFER_SCALING(GX_TRANSFER_SCALE_NO);
+
+    targetTop = C3D_RenderTargetCreate(240, 400, GPU_RB_RGBA8, GPU_RB_DEPTH24_STENCIL8);
+    if(targetTop == NULL) {
+        gfxCleanup();
+        return false;
+    }
+
+    C3D_RenderTargetSetClear(targetTop, C3D_CLEAR_ALL, 0, 0);
+    C3D_RenderTargetSetOutput(targetTop, GFX_TOP, GFX_LEFT, displayFlags);
+
+    targetBottom = C3D_RenderTargetCreate(240, 320, GPU_RB_RGBA8, GPU_RB_DEPTH24_STENCIL8);
+    if(targetBottom == NULL) {
+        gfxCleanup();
+        return false;
+    }
+
+    C3D_RenderTargetSetClear(targetBottom, C3D_CLEAR_ALL, 0, 0);
+    C3D_RenderTargetSetOutput(targetBottom, GFX_BOTTOM, GFX_LEFT, displayFlags);
+
+    dvlb = DVLB_ParseFile((u32*) default_shbin, default_shbin_size);
+    if(dvlb == NULL) {
+        gfxCleanup();
+        return false;
+    }
+
+    Result progInitRes = shaderProgramInit(&program);
+    if(R_FAILED(progInitRes)) {
+        gfxCleanup();
+        return false;
+    }
+
+    shaderInitialized = true;
+
+    Result progSetVshRes = shaderProgramSetVsh(&program, &dvlb->DVLE[0]);
+    if(R_FAILED(progSetVshRes)) {
+        gfxCleanup();
+        return false;
+    }
+
+    C3D_BindProgram(&program);
+
+    C3D_AttrInfo* attrInfo = C3D_GetAttrInfo();
+    if(attrInfo == NULL) {
+        gfxCleanup();
+        return false;
+    }
+
+    AttrInfo_Init(attrInfo);
+    AttrInfo_AddLoader(attrInfo, 0, GPU_FLOAT, 3);
+    AttrInfo_AddLoader(attrInfo, 1, GPU_FLOAT, 2);
+
+    C3D_TexEnv* env = C3D_GetTexEnv(0);
+    if(env == NULL) {
+        gfxCleanup();
+        return false;
+    }
+
+    C3D_TexEnvSrc(env, C3D_Both, GPU_TEXTURE0, 0, 0);
+    C3D_TexEnvOp(env, C3D_Both, 0, 0, 0);
+    C3D_TexEnvFunc(env, C3D_Both, GPU_REPLACE);
+
+    C3D_DepthTest(true, GPU_GEQUAL, GPU_WRITE_ALL);
+
+    Mtx_OrthoTilt(&projectionTop, 0.0, 400.0, 240.0, 0.0, 0.0, 1.0);
+    Mtx_OrthoTilt(&projectionBottom, 0.0, 320.0, 240.0, 0.0, 0.0, 1.0);
+
+    screenInit = false;
+    borderInit = false;
+
     // Allocate and clear the screen buffer.
-    screenBuffer = (u16*) gpu::galloc(256 * 256 * sizeof(u16));
+    screenBuffer = (u16*) linearAlloc(256 * 256 * sizeof(u16));
     memset(screenBuffer, 0, 256 * 256 * sizeof(u16));
 
-    // Setup the GPU state.
-    gpu::setCullMode(gpu::CULL_BACK_CCW);
-
-    // Create the VBO.
-    gpu::createVbo(&vbo);
-    gpu::setVboAttributes(vbo, gpu::vboAttribute(0, 3, gpu::ATTR_FLOAT) | gpu::vboAttribute(1, 2, gpu::ATTR_FLOAT) | gpu::vboAttribute(2, 4, gpu::ATTR_FLOAT), 3);
-
-    // Create the texture.
-    gpu::createTexture(&texture);
+    // Allocate and clear the scale2x buffer.
+    scale2xBuffer = (u16*) linearAlloc(512 * 512 * sizeof(u16));
+    memset(scale2xBuffer, 0, 512 * 512 * sizeof(u16));
 
     return true;
 }
 
 void gfxCleanup() {
-    // Free texture.
-    if(texture != 0) {
-        gpu::freeTexture(texture);
-        texture = 0;
+    if(scale2xBuffer != NULL) {
+        linearFree(scale2xBuffer);
+        scale2xBuffer = NULL;
     }
 
-    // Free VBO.
-    if(vbo != 0) {
-        gpu::freeVbo(vbo);
-        vbo = 0;
-    }
-
-    // Free border texture.
-    if(borderTexture != 0) {
-        gpu::freeTexture(borderTexture);
-        borderTexture = 0;
-    }
-
-    // Free border VBO.
-    if(borderVbo != 0) {
-        gpu::freeVbo(borderVbo);
-        borderVbo = 0;
-    }
-
-    // Free screen buffer.
     if(screenBuffer != NULL) {
-        gpu::gfree(screenBuffer);
+        linearFree(screenBuffer);
         screenBuffer = NULL;
     }
 
-    gput::exit();
-    gpu::exit();
+    if(borderInit) {
+        C3D_TexDelete(&borderTexture);
+        borderInit = false;
+    }
+
+    if(screenInit) {
+        C3D_TexDelete(&screenTexture);
+        screenInit = false;
+    }
+
+    if(shaderInitialized) {
+        shaderProgramFree(&program);
+        shaderInitialized = false;
+    }
+
+    if(dvlb != NULL) {
+        DVLB_Free(dvlb);
+        dvlb = NULL;
+    }
+
+    if(targetTop != NULL) {
+        C3D_RenderTargetDelete(targetTop);
+        targetTop = NULL;
+    }
+
+    if(targetBottom != NULL) {
+        C3D_RenderTargetDelete(targetBottom);
+        targetBottom = NULL;
+    }
+
+    if(c3dInitialized) {
+        C3D_Fini();
+        c3dInitialized = false;
+    }
+
+    gfxExit();
 }
 
 bool gfxGetFastForward() {
@@ -118,16 +193,11 @@ void gfxToggleFastForward() {
     fastForward = !fastForward;
 }
 
-void gfxLoadBorder(u8* imgData, u32 imgWidth, u32 imgHeight) {
-    if(imgData == NULL) {
-        if(borderTexture != 0) {
-            gpu::freeTexture(borderTexture);
-            borderTexture = 0;
-        }
-
-        if(borderVbo != 0) {
-            gpu::freeVbo(borderVbo);
-            borderVbo = 0;
+void gfxLoadBorder(u8* imgData, int imgWidth, int imgHeight) {
+    if(imgData == NULL || (borderInit && (borderWidth != imgWidth || borderHeight != imgHeight))) {
+        if(borderInit) {
+            C3D_TexDelete(&borderTexture);
+            borderInit = false;
         }
 
         borderWidth = 0;
@@ -135,36 +205,43 @@ void gfxLoadBorder(u8* imgData, u32 imgWidth, u32 imgHeight) {
         gpuBorderWidth = 0;
         gpuBorderHeight = 0;
 
-        return;
+        if(imgData == NULL) {
+            return;
+        }
     }
 
     // Adjust the texture to power-of-two dimensions.
     borderWidth = imgWidth;
     borderHeight = imgHeight;
-    gpuBorderWidth = (u32) pow(2, ceil(log(borderWidth) / log(2)));
-    gpuBorderHeight = (u32) pow(2, ceil(log(borderHeight) / log(2)));
+    gpuBorderWidth = (int) pow(2, ceil(log(borderWidth) / log(2)));
+    gpuBorderHeight = (int) pow(2, ceil(log(borderHeight) / log(2)));
 
     // Create the texture.
-    if(borderTexture == 0) {
-        gpu::createTexture(&borderTexture);
+    if(!borderInit && !C3D_TexInit(&borderTexture, gpuBorderWidth, gpuBorderHeight, GPU_RGBA8)) {
+        return;
     }
 
-    // Update texture info.
-    gpu::setTextureInfo(borderTexture, gpuBorderWidth, gpuBorderHeight, gpu::PIXEL_RGBA8, gpu::textureMinFilter(gpu::FILTER_LINEAR) | gpu::textureMagFilter(gpu::FILTER_LINEAR));
+    C3D_TexSetFilter(&borderTexture, GPU_LINEAR, GPU_LINEAR);
 
-    // Get texture contents.
-    u32* borderBuffer;
-    gpu::getTextureData(borderTexture, (void**) &borderBuffer);
-
-    // Update texture contents.
+    // Copy the texture to a power-of-two sized buffer.
     u32* imgBuffer = (u32*) imgData;
-    for(u32 i = 0; i < borderWidth * borderHeight; i++) {
-        u32 x = i % borderWidth;
-        u32 y = i / borderWidth;
-        borderBuffer[gpu::textureIndex(x, y, gpuBorderWidth, gpuBorderHeight)] = imgBuffer[y * borderWidth + x];
+    u32* temp = (u32*) linearAlloc(gpuBorderWidth * gpuBorderHeight * sizeof(u32));
+    for(int x = 0; x < borderWidth; x++) {
+        for(int y = 0; y < borderHeight; y++) {
+            temp[y * gpuBorderWidth + x] = imgBuffer[y * borderWidth + x];
+        }
     }
 
-    borderChanged = true;
+    GSPGPU_FlushDataCache(temp, gpuBorderWidth * gpuBorderHeight * sizeof(u32));
+    if(R_SUCCEEDED(GX_DisplayTransfer(temp, (u32) GX_BUFFER_DIM(gpuBorderWidth, gpuBorderHeight), (u32*) borderTexture.data, (u32) GX_BUFFER_DIM(gpuBorderWidth, gpuBorderHeight), GX_TRANSFER_FLIP_VERT(1) | GX_TRANSFER_OUT_TILED(1) | GX_TRANSFER_RAW_COPY(0) | GX_TRANSFER_IN_FORMAT(GX_TRANSFER_FMT_RGBA8) | GX_TRANSFER_OUT_FORMAT(GX_TRANSFER_FMT_RGBA8) | GX_TRANSFER_SCALING(GX_TRANSFER_SCALE_NO)))) {
+        gspWaitForPPF();
+    }
+
+    linearFree(temp);
+
+    GSPGPU_InvalidateDataCache(borderTexture.data, borderTexture.size);
+
+    borderInit = true;
 }
 
 u16* gfxGetLineBuffer(u32 line) {
@@ -192,144 +269,224 @@ void gfxClearLineBuffer(u32 line, u16 rgba5551) {
     }
 }
 
-#define PIXEL_AT( PX, XX, YY) ((PX)+((((YY)*256)+(XX))))
-#define SCALE2XMACRO()       if (Bp!=Hp && Dp!=Fp) {        \
-                                if (Dp==Bp) *(E0++) = Dp;   \
-                                else *(E0++) = Ep;          \
-                                if (Bp==Fp) *(E0++) = Fp;   \
-                                else *(E0++) = Ep;          \
-                                if (Dp==Hp) *(E0++) = Dp;   \
-                                else *(E0++) = Ep;          \
-                                if (Hp==Fp) *E0 = Fp;       \
-                                else *E0 = Ep;              \
-                             } else {                       \
-                                *(E0++) = Ep;               \
-                                *(E0++) = Ep;               \
-                                *(E0++) = Ep;               \
-                                *E0 = Ep;                   \
-                             }
+void gfxTakeScreenshot() {
+    gfxScreen_t screen = gameScreen == 0 ? GFX_TOP : GFX_BOTTOM;
+    if(gfxGetScreenFormat(screen) != GSP_BGR8_OES) {
+        return;
+    }
 
-void gfxScale2x(u16* pixelBuffer) {
-    int x, y;
+    u16 width = 0;
+    u16 height = 0;
+    u8* fb = gfxGetFramebuffer(screen, GFX_LEFT, &height, &width);
+
+    if(fb == NULL) {
+        return;
+    }
+
+    u32 headerSize = 0x36;
+    u32 imageSize = (u32) (width * height * 3);
+
+    u8* header = new u8[headerSize]();
+
+    *(u16*) &header[0x0] = 0x4D42;
+    *(u32*) &header[0x2] = headerSize + imageSize;
+    *(u32*) &header[0xA] = headerSize;
+    *(u32*) &header[0xE] = 0x28;
+    *(u32*) &header[0x12] = width;
+    *(u32*) &header[0x16] = height;
+    *(u32*) &header[0x1A] = 0x00180001;
+    *(u32*) &header[0x22] = imageSize;
+
+    u8* image = new u8[imageSize]();
+
+    for(u32 x = 0; x < width; x++) {
+        for(u32 y = 0; y < height; y++) {
+            u8* src = &fb[(x * height + y) * 3];
+            u8* dst = &image[(y * width + x) * 3];
+
+            *(u16*) dst = *(u16*) src;
+            dst[2] = src[2];
+        }
+    }
+
+    std::stringstream fileStream;
+    fileStream << "/gameyob_" << time(NULL) << ".bmp";
+
+    FILE* fd = fopen(fileStream.str().c_str(), "wb");
+    if(fd != NULL) {
+        fwrite(header, 1, headerSize, fd);
+        fwrite(image, 1, imageSize, fd);
+        fclose(fd);
+    } else {
+        systemPrintDebug("Failed to open screenshot file: %d\n", errno);
+    }
+
+    delete[] header;
+    delete[] image;
+}
+
+#define SEEK_PIXEL(buf, x, y, pitch) ((buf) + ((((y) * (pitch)) + (x))))
+#define DO_SCALE2X() if(Bp != Hp && Dp != Fp) {                    \
+                         if(Dp == Bp) *(E0) = Dp;                  \
+                         else *(E0) = Ep;                          \
+                         if(Bp == Fp) *((E0) + 1) = Fp;            \
+                         else *((E0) + 1) = Ep;                    \
+                         if(Dp == Hp) *((E0) + dstPitch) = Dp;     \
+                         else *((E0) + dstPitch) = Ep;             \
+                         if(Hp == Fp) *((E0) + dstPitch + 1) = Fp; \
+                         else *((E0) + dstPitch + 1) = Ep;         \
+                     } else {                                      \
+                         *(E0) = Ep;                               \
+                         *((E0) + 1) = Ep;                         \
+                         *((E0) + dstPitch) = Ep;                  \
+                         *((E0) + dstPitch + 1) = Ep;              \
+                     }
+
+void gfxScale2xRGBA5551(u16* src, u32 srcPitch, u16* dst, u32 dstPitch, int width, int height) {
     u16* E, *E0;
     u32 Ep, Bp, Dp, Fp, Hp;
 
-    u16* buffer;
-    gpu::getTextureData(texture, (void**) &buffer);
-
     // Top line and top corners
-    E = PIXEL_AT(pixelBuffer, 0, 0);
-    E0 = buffer + gpu::textureIndex(0, 0, 512, 512);
+    E = SEEK_PIXEL(src, 0, 0, srcPitch);
+    E0 = SEEK_PIXEL(dst, 0, 0, dstPitch);
     Ep = E[0];
     Bp = Ep;
     Dp = Ep;
     Fp = E[1];
-    Hp = E[256];
-    SCALE2XMACRO();
-    for(x = 1; x < 159; x++) {
+    Hp = E[srcPitch];
+    DO_SCALE2X();
+
+    for(int x = 1; x < width - 1; x++) {
         E += 1;
+        E0 += 2;
         Dp = Ep;
         Ep = Fp;
         Fp = E[1];
         Bp = Ep;
-        Hp = E[256];
-        E0 = buffer + gpu::textureIndex((u32) (x * 2), 0, 512, 512);
-        SCALE2XMACRO();
+        Hp = E[srcPitch];
+        DO_SCALE2X();
     }
 
     E += 1;
+    E0 += 2;
     Dp = Ep;
     Ep = Fp;
     Bp = Ep;
-    Hp = E[256];
-    E0 = buffer + gpu::textureIndex(159 * 2, 0, 512, 512);
-    SCALE2XMACRO();
+    Hp = E[srcPitch];
+    DO_SCALE2X();
 
     // Middle Rows and sides
-    for(y = 1; y < 143; y++) {
-        E = PIXEL_AT(pixelBuffer, 0, y);
-        E0 = buffer + gpu::textureIndex(0, (u32) (y * 2), 512, 512);
+    for(int y = 1; y < height - 1; y++) {
+        E = SEEK_PIXEL(src, 0, y, srcPitch);
+        E0 = SEEK_PIXEL(dst, 0, y * 2, dstPitch);
         Ep = E[0];
-        Bp = E[-256];
+        Bp = E[-srcPitch];
         Dp = Ep;
         Fp = E[1];
-        Hp = E[256];
-        SCALE2XMACRO();
-        for(x = 1; x < 159; x++) {
+        Hp = E[srcPitch];
+        DO_SCALE2X();
+
+        for(int x = 1; x < width - 1; x++) {
             E += 1;
+            E0 += 2;
             Dp = Ep;
             Ep = Fp;
             Fp = E[1];
-            Bp = E[-256];
-            Hp = E[256];
-            E0 = buffer + gpu::textureIndex((u32) (x * 2), (u32) (y * 2), 512, 512);
-            SCALE2XMACRO();
+            Bp = E[-srcPitch];
+            Hp = E[srcPitch];
+            DO_SCALE2X();
         }
+
         E += 1;
+        E0 += 2;
         Dp = Ep;
         Ep = Fp;
-        Bp = E[-256];
-        Hp = E[256];
-        E0 = buffer + gpu::textureIndex(159 * 2, (u32) (y * 2), 512, 512);
-        SCALE2XMACRO();
+        Bp = E[-srcPitch];
+        Hp = E[srcPitch];
+        DO_SCALE2X();
     }
 
     // Bottom Row and Bottom Corners
-    E = PIXEL_AT(pixelBuffer, 0, 143);
-    E0 = buffer + gpu::textureIndex(0, 143 * 2, 512, 512);
+    E = SEEK_PIXEL(src, 0, height - 1, srcPitch);
+    E0 = SEEK_PIXEL(dst, 0, (height - 1) * 2, dstPitch);
     Ep = E[0];
-    Bp = E[-256];
+    Bp = E[-srcPitch];
     Dp = Ep;
     Fp = E[1];
     Hp = Ep;
-    SCALE2XMACRO();
-    for(x = 1; x < 159; x++) {
+    DO_SCALE2X();
+
+    for(int x = 1; x < width - 1; x++) {
         E += 1;
+        E0 += 2;
         Dp = Ep;
         Ep = Fp;
         Fp = E[1];
-        Bp = E[-256];
+        Bp = E[-srcPitch];
         Hp = Ep;
-        E0 = buffer + gpu::textureIndex((u32) (x * 2), 143 * 2, 512, 512);
-        SCALE2XMACRO();
+        DO_SCALE2X();
     }
 
     E += 1;
+    E0 += 2;
     Dp = Ep;
     Ep = Fp;
-    Bp = E[-256];
+    Bp = E[-srcPitch];
     Hp = Ep;
-    E0 = buffer + gpu::textureIndex(159 * 2, 143 * 2, 512, 512);
-    SCALE2XMACRO();
+    DO_SCALE2X();
 }
 
 void gfxDrawScreen() {
-    // Update the viewport.
-    if(prevGameScreen != gameScreen) {
-        gpu::Screen screen = gameScreen == 0 ? gpu::SCREEN_TOP : gpu::SCREEN_BOTTOM;
-        u32 width = gameScreen == 0 ? gpu::TOP_WIDTH : gpu::BOTTOM_WIDTH;
-        u32 height = gameScreen == 0 ? gpu::TOP_HEIGHT : gpu::BOTTOM_HEIGHT;
+    int screenTexSize = 256;
+    u16* transferBuffer = screenBuffer;
+    GPU_TEXTURE_FILTER_PARAM filter = GPU_NEAREST;
 
-        gpu::setViewport(screen, 0, 0, width, height);
-        gput::setOrtho(0, width, 0, height, -1, 1);
+    if(scaleMode != 0 && scaleFilter != 0) {
+        filter = GPU_LINEAR;
+
+        if(scaleFilter == 2) {
+            screenTexSize = 512;
+            transferBuffer = scale2xBuffer;
+
+            gfxScale2xRGBA5551(screenBuffer, 256, scale2xBuffer, 512, 160, 144);
+        }
     }
 
-    // Update the border VBO.
-    if(borderTexture != 0 && (borderVbo == 0 || borderChanged || prevGameScreen != gameScreen || prevBorderScaleMode != borderScaleMode || (borderScaleMode == 1 && prevScaleMode != scaleMode))) {
-        // Create the VBO.
-        if(borderVbo == 0) {
-            gpu::createVbo(&borderVbo);
-            gpu::setVboAttributes(borderVbo, gpu::vboAttribute(0, 3, gpu::ATTR_FLOAT) | gpu::vboAttribute(1, 2, gpu::ATTR_FLOAT) | gpu::vboAttribute(2, 4, gpu::ATTR_FLOAT), 3);
+    if(!screenInit || screenTexture.width != screenTexSize || screenTexture.height != screenTexSize) {
+        if(screenInit) {
+            C3D_TexDelete(&screenTexture);
+            screenInit = false;
         }
 
-        u32 viewportWidth;
-        u32 viewportHeight;
-        gpu::getViewportWidth(&viewportWidth);
-        gpu::getViewportHeight(&viewportHeight);
+        screenInit = C3D_TexInit(&screenTexture, screenTexSize, screenTexSize, GPU_RGBA5551);
+    }
 
+    C3D_TexSetFilter(&screenTexture, filter, filter);
+
+    GSPGPU_FlushDataCache(transferBuffer, screenTexSize * screenTexSize * sizeof(u16));
+    if(R_SUCCEEDED(GX_DisplayTransfer((u32*) transferBuffer, (u32) GX_BUFFER_DIM(screenTexSize, screenTexSize), (u32*) screenTexture.data, (u32) GX_BUFFER_DIM(screenTexSize, screenTexSize), GX_TRANSFER_FLIP_VERT(1) | GX_TRANSFER_OUT_TILED(1) | GX_TRANSFER_RAW_COPY(0) | GX_TRANSFER_IN_FORMAT(GX_TRANSFER_FMT_RGB5A1) | GX_TRANSFER_OUT_FORMAT(GX_TRANSFER_FMT_RGB5A1) | GX_TRANSFER_SCALING(GX_TRANSFER_SCALE_NO)))) {
+        gspWaitForPPF();
+    }
+
+    GSPGPU_InvalidateDataCache(screenTexture.data, screenTexture.size);
+
+    if(!C3D_FrameBegin(gfxGetFastForward() ? C3D_FRAME_NONBLOCK : C3D_FRAME_SYNCDRAW)) {
+        return;
+    }
+
+    C3D_RenderTarget* target = gameScreen == 0 ? targetTop : targetBottom;
+
+    C3D_FrameDrawOn(target);
+    C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER, shaderInstanceGetUniformLocation(program.vertexShader, "projection"), gameScreen == 0 ? &projectionTop : &projectionBottom);
+
+    u16 viewportWidth = target->renderBuf.colorBuf.height;
+    u16 viewportHeight = target->renderBuf.colorBuf.width;
+
+    // Draw the border.
+    if(borderInit && scaleMode != 4) {
         // Calculate VBO points.
-        u32 scaledBorderWidth = borderWidth;
-        u32 scaledBorderHeight = borderHeight;
+        int scaledBorderWidth = borderWidth;
+        int scaledBorderHeight = borderHeight;
         if(borderScaleMode == 1) {
             if(scaleMode == 1) {
                 scaledBorderWidth *= 1.25f;
@@ -346,126 +503,101 @@ void gfxDrawScreen() {
             }
         }
 
-        const float x1 = ((int) viewportWidth - (int) scaledBorderWidth) / 2.0f;
-        const float y1 = ((int) viewportHeight - (int) scaledBorderHeight) / 2.0f;
+        const float x1 = ((int) viewportWidth - scaledBorderWidth) / 2.0f;
+        const float y1 = ((int) viewportHeight - scaledBorderHeight) / 2.0f;
         const float x2 = x1 + scaledBorderWidth;
         const float y2 = y1 + scaledBorderHeight;
 
-        // Adjust for power-of-two textures.
-        const float leftHorizMod = 0;
-        const float rightHorizMod = (float) (gpuBorderWidth - borderWidth) / (float) gpuBorderWidth;
-        const float vertMod = (float) (gpuBorderHeight - borderHeight) / (float) gpuBorderHeight;
+        float tx2 = (float) borderWidth / (float) gpuBorderWidth;
+        float ty2 = (float) borderHeight / (float) gpuBorderHeight;
 
-        // Prepare new VBO data.
-        const float vboData[] = {
-                x1, y1, -0.1f, 0.0f + leftHorizMod, 0.0f + vertMod, 1.0f, 1.0f, 1.0f, 1.0f,
-                x2, y1, -0.1f, 1.0f - rightHorizMod, 0.0f + vertMod, 1.0f, 1.0f, 1.0f, 1.0f,
-                x2, y2, -0.1f, 1.0f - rightHorizMod, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
-                x2, y2, -0.1f, 1.0f - rightHorizMod, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
-                x1, y2, -0.1f, 0.0f + leftHorizMod, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
-                x1, y1, -0.1f, 0.0f + leftHorizMod, 0.0f + vertMod, 1.0f, 1.0f, 1.0f, 1.0f
-        };
+        C3D_TexBind(0, &borderTexture);
 
-        // Update the VBO with the new data.
-        gpu::setVboData(borderVbo, vboData, 6 * 9, gpu::PRIM_TRIANGLES);
+        C3D_ImmDrawBegin(GPU_TRIANGLES);
 
-        prevBorderScaleMode = borderScaleMode;
+        C3D_ImmSendAttrib(x1, y1, 0.5f, 0.0f);
+        C3D_ImmSendAttrib(0, 0, 0.0f, 0.0f);
+
+        C3D_ImmSendAttrib(x2, y2, 0.5f, 0.0f);
+        C3D_ImmSendAttrib(tx2, ty2, 0.0f, 0.0f);
+
+        C3D_ImmSendAttrib(x2, y1, 0.5f, 0.0f);
+        C3D_ImmSendAttrib(tx2, 0, 0.0f, 0.0f);
+
+        C3D_ImmSendAttrib(x1, y1, 0.5f, 0.0f);
+        C3D_ImmSendAttrib(0, 0, 0.0f, 0.0f);
+
+        C3D_ImmSendAttrib(x1, y2, 0.5f, 0.0f);
+        C3D_ImmSendAttrib(0, ty2, 0.0f, 0.0f);
+
+        C3D_ImmSendAttrib(x2, y2, 0.5f, 0.0f);
+        C3D_ImmSendAttrib(tx2, ty2, 0.0f, 0.0f);
+
+        C3D_ImmDrawEnd();
     }
 
-    // Update VBO data if the size has changed.
-    if(prevScaleMode != scaleMode || prevScaleFilter != scaleFilter || prevGameScreen != gameScreen) {
-        u32 viewportWidth;
-        u32 viewportHeight;
-        gpu::getViewportWidth(&viewportWidth);
-        gpu::getViewportHeight(&viewportHeight);
-
+    // Draw the screen.
+    if(screenInit) {
         // Calculate the VBO dimensions.
-        u32 vboWidth = 160;
-        u32 vboHeight = 144;
+        int screenWidth = 160;
+        int screenHeight = 144;
         if(scaleMode == 1) {
-            vboWidth = 200;
-            vboHeight = 180;
+            screenWidth *= 1.25f;
+            screenHeight *= 1.25f;
         } else if(scaleMode == 2) {
-            vboWidth = 240;
-            vboHeight = 216;
+            screenWidth *= 1.50f;
+            screenHeight *= 1.50f;
         } else if(scaleMode == 3) {
-            vboWidth *= viewportHeight / (float) 144;
-            vboHeight = (u32) viewportHeight;
+            screenWidth *= viewportHeight / (float) 144;
+            screenHeight *= viewportHeight / (float) 144;
         } else if(scaleMode == 4) {
-            vboWidth = (u32) viewportWidth;
-            vboHeight = (u32) viewportHeight;
+            screenWidth *= viewportWidth / (float) 160;
+            screenHeight *= viewportHeight / (float) 144;
         }
 
         // Calculate VBO points.
-        const float x1 = ((int) viewportWidth - (int) vboWidth) / 2.0f;
-        const float y1 = ((int) viewportHeight - (int) vboHeight) / 2.0f;
-        const float x2 = x1 + vboWidth;
-        const float y2 = y1 + vboHeight;
+        const float x1 = ((int) viewportWidth - screenWidth) / 2.0f;
+        const float y1 = ((int) viewportHeight - screenHeight) / 2.0f;
+        const float x2 = x1 + screenWidth;
+        const float y2 = y1 + screenHeight;
 
-        // Adjust for power-of-two textures.
-        static const float baseHorizMod = (256.0f - 160.0f) / 256.0f;
-        static const float baseVertMod = (256.0f - 144.0f) / 256.0f;
-        static const float filterMod = 0.25f / 256.0f;
+        static const float baseTX2 = 160.0f / 256.0f;
+        static const float baseTY2 = 144.0f / 256.0f;
+        static const float baseFilterMod = 0.25f / 256.0f;
 
-        float horizMod = baseHorizMod;
-        float vertMod = baseVertMod;
+        float tx2 = baseTX2;
+        float ty2 = baseTY2;
         if(scaleMode != 0 && scaleFilter == 1) {
-            horizMod += filterMod;
-            vertMod += filterMod;
+            tx2 -= baseFilterMod;
+            ty2 -= baseFilterMod;
         }
 
-        // Prepare new VBO data.
-        const float vboData[] = {
-                x1, y1, -0.1f, 0.0f, 0.0f + vertMod, 1.0f, 1.0f, 1.0f, 1.0f,
-                x2, y1, -0.1f, 1.0f - horizMod, 0.0f + vertMod, 1.0f, 1.0f, 1.0f, 1.0f,
-                x2, y2, -0.1f, 1.0f - horizMod, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
-                x2, y2, -0.1f, 1.0f - horizMod, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
-                x1, y2, -0.1f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
-                x1, y1, -0.1f, 0.0f, 0.0f + vertMod, 1.0f, 1.0f, 1.0f, 1.0f
-        };
+        C3D_TexBind(0, &screenTexture);
 
-        // Update the VBO with the new data.
-        gpu::setVboData(vbo, vboData, 6 * 9, gpu::PRIM_TRIANGLES);
+        C3D_ImmDrawBegin(GPU_TRIANGLES);
 
-        prevScaleMode = scaleMode;
-        prevScaleFilter = scaleFilter;
-        prevGameScreen = gameScreen;
+        C3D_ImmSendAttrib(x1, y1, 0.5f, 0.0f);
+        C3D_ImmSendAttrib(0, 0, 0.0f, 0.0f);
+
+        C3D_ImmSendAttrib(x2, y2, 0.5f, 0.0f);
+        C3D_ImmSendAttrib(tx2, ty2, 0.0f, 0.0f);
+
+        C3D_ImmSendAttrib(x2, y1, 0.5f, 0.0f);
+        C3D_ImmSendAttrib(tx2, 0, 0.0f, 0.0f);
+
+        C3D_ImmSendAttrib(x1, y1, 0.5f, 0.0f);
+        C3D_ImmSendAttrib(0, 0, 0.0f, 0.0f);
+
+        C3D_ImmSendAttrib(x1, y2, 0.5f, 0.0f);
+        C3D_ImmSendAttrib(0, ty2, 0.0f, 0.0f);
+
+        C3D_ImmSendAttrib(x2, y2, 0.5f, 0.0f);
+        C3D_ImmSendAttrib(tx2, ty2, 0.0f, 0.0f);
+
+        C3D_ImmDrawEnd();
     }
 
-    // Update the texture with the new frame.
-    gpu::TextureFilter filter = scaleFilter >= 1 ? gpu::FILTER_LINEAR : gpu::FILTER_NEAREST;
-    if(scaleMode == 0 || scaleFilter <= 1) {
-        gpu::setTextureData(texture, screenBuffer, 256, 256, gpu::PIXEL_RGBA5551, gpu::textureMinFilter(filter) | gpu::textureMagFilter(filter));
-    } else {
-        gpu::setTextureInfo(texture, 512, 512, gpu::PIXEL_RGBA5551, gpu::textureMinFilter(filter) | gpu::textureMagFilter(filter));
-        gfxScale2x(screenBuffer);
-    }
-
-    // Clear the screen.
-    gpu::clear();
-
-    // Draw the border.
-    if(borderTexture != 0 && borderVbo != 0 && scaleMode != 4) {
-        gpu::bindTexture(gpu::TEXUNIT0, borderTexture);
-        gpu::drawVbo(borderVbo);
-    }
-
-    // Draw the VBO.
-    gpu::bindTexture(gpu::TEXUNIT0, texture);
-    gpu::drawVbo(vbo);
-
-    // Flush GPU commands.
-    gpu::flushCommands();
-
-    // Flush GPU framebuffer.
-    gpu::flushBuffer();
-
-    if(inputKeyPressed(FUNC_KEY_SCREENSHOT) && !isMenuOn()) {
-        gput::takeScreenshot(gameScreen == 0, gameScreen != 0);
-    }
-
-    // Swap buffers and wait for VBlank.
-    gpu::swapBuffers(!gfxGetFastForward());
+    C3D_FrameEnd(0);
 }
 
 void gfxSync() {

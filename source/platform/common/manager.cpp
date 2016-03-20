@@ -484,7 +484,7 @@ void mgrLoadBorderFile(const char* filename) {
     u32 imgWidth;
     u32 imgHeight;
     if((strcasecmp(extension.c_str(), "png") == 0 && mgrReadPng(&imgData, &imgWidth, &imgHeight, filename) == 0) || (strcasecmp(extension.c_str(), "bmp") == 0 && mgrReadBmp(&imgData, &imgWidth, &imgHeight, filename) == 0)) {
-        gfxLoadBorder(imgData, imgWidth, imgHeight);
+        gfxLoadBorder(imgData, (int) imgWidth, (int) imgHeight);
         delete imgData;
     }
 }
@@ -667,6 +667,10 @@ void mgrRun() {
 
         if(inputKeyPressed(FUNC_KEY_RESET)) {
             mgrReset();
+        }
+
+        if(inputKeyPressed(FUNC_KEY_SCREENSHOT) && !isMenuOn()) {
+            gfxTakeScreenshot();
         }
     }
 

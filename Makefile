@@ -25,8 +25,8 @@ SOURCE_DIRS := source
 EXTRA_OUTPUT_FILES :=
 
 ifeq ($(TARGET),3DS)
-	LIBRARY_DIRS := $(DEVKITPRO)/citrus $(DEVKITPRO)/libctru
-	LIBRARIES := citrus ctru m
+	LIBRARY_DIRS := $(DEVKITPRO)/libctru
+	LIBRARIES := citro3d ctru m
 else
 	LIBRARY_DIRS :=
 	LIBRARIES := ncurses SDL2 m

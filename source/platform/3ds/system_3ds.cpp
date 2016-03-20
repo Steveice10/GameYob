@@ -22,6 +22,7 @@
 static bool requestedExit;
 
 static u32* iruBuffer;
+static u32* socBuffer;
 
 bool systemInit(int argc, char* argv[]) {
     if(!gfxInit()) {
@@ -40,12 +41,26 @@ bool systemInit(int argc, char* argv[]) {
         }
     }
 
+    socBuffer = (u32*) memalign(0x1000, 0x100000);
+    if(socBuffer != NULL) {
+        if(R_FAILED(socInit(socBuffer, 0x100000))) {
+            free(socBuffer);
+            socBuffer = NULL;
+        }
+    }
+
     requestedExit = false;
 
     return true;
 }
 
 void systemExit() {
+    if(socBuffer != NULL) {
+        socExit();
+        free(socBuffer);
+        socBuffer = NULL;
+    }
+
     if(iruBuffer != NULL) {
         iruExit();
         free(iruBuffer);
@@ -131,6 +146,10 @@ const std::string systemGetIP() {
 }
 
 int systemSocketListen(u16 port) {
+    if(socBuffer == NULL) {
+        return -1;
+    }
+
     int fd = socket(AF_INET, SOCK_STREAM, 0);
     if(fd < 0) {
         return -1;
@@ -167,6 +186,10 @@ int systemSocketListen(u16 port) {
 }
 
 FILE* systemSocketAccept(int listeningSocket, std::string* acceptedIp) {
+    if(socBuffer == NULL) {
+        return NULL;
+    }
+
     struct sockaddr_in addr;
     socklen_t addrSize = sizeof(addr);
     int afd = accept(listeningSocket, (struct sockaddr*) &addr, &addrSize);
@@ -193,6 +216,10 @@ FILE* systemSocketAccept(int listeningSocket, std::string* acceptedIp) {
 }
 
 FILE* systemSocketConnect(const std::string ipAddress, u16 port) {
+    if(socBuffer == NULL) {
+        return NULL;
+    }
+
     int fd = socket(AF_INET, SOCK_STREAM, 0);
     if(fd < 0) {
         return NULL;

@@ -1,6 +1,7 @@
 #ifdef BACKEND_SDL
 
 #include <malloc.h>
+#include <time.h>
 
 #include <sstream>
 
@@ -80,7 +81,7 @@ void gfxToggleFastForward() {
     fastForward = !fastForward;
 }
 
-void gfxLoadBorder(u8* imgData, u32 imgWidth, u32 imgHeight) {
+void gfxLoadBorder(u8* imgData, int imgWidth, int imgHeight) {
 }
 
 u16* gfxGetLineBuffer(u32 line) {
@@ -108,22 +109,22 @@ void gfxClearLineBuffer(u32 line, u16 rgba5551) {
     }
 }
 
+void gfxTakeScreenshot() {
+    std::stringstream fileStream;
+    fileStream << "gameyob_" << time(NULL) << ".bmp";
+
+    SDL_Surface *surface = SDL_CreateRGBSurface(0, windowRect.w, windowRect.h, 32, 0x00FF0000, 0x0000FF00, 0x000000FF, 0xFF000000);
+    SDL_RenderReadPixels(renderer, NULL, SDL_PIXELFORMAT_ARGB8888, surface->pixels, surface->pitch);
+    SDL_SaveBMP(surface, fileStream.str().c_str());
+    SDL_FreeSurface(surface);
+}
+
 void gfxDrawScreen() {
     SDL_GL_SetSwapInterval(!gfxGetFastForward());
 
     SDL_UpdateTexture(screenTexture, &screenRect, screenBuffer, 160 * 2);
     SDL_RenderCopy(renderer, screenTexture, &screenRect, &windowRect);
     SDL_RenderPresent(renderer);
-
-    if(inputKeyPressed(FUNC_KEY_SCREENSHOT)) {
-        std::stringstream fileStream;
-        fileStream << "screenshot_" << time(NULL) << ".bmp";
-
-        SDL_Surface* screenshot = SDL_CreateRGBSurface(0, 160, 144, 32, 0x00ff0000, 0x0000ff00, 0x000000ff, 0xff000000);
-        SDL_RenderReadPixels(renderer, NULL, SDL_PIXELFORMAT_ARGB8888, screenshot->pixels, screenshot->pitch);
-        SDL_SaveBMP(screenshot, fileStream.str().c_str());
-        SDL_FreeSurface(screenshot);
-    }
 }
 
 void gfxSync() {
