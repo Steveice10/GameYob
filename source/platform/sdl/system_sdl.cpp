@@ -19,8 +19,6 @@ extern void gfxSetWindowSize(int width, int height);
 static bool requestedExit;
 
 bool systemInit(int argc, char* argv[]) {
-    requestedExit = false;
-
     if(SDL_Init(SDL_INIT_AUDIO | SDL_INIT_VIDEO) != 0 || !gfxInit()) {
         return false;
     }
@@ -28,6 +26,8 @@ bool systemInit(int argc, char* argv[]) {
     audioInit();
     uiInit();
     inputInit();
+
+    requestedExit = false;
 
     return true;
 }

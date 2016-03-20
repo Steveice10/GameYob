@@ -13,6 +13,18 @@
 #include "platform/gfx.h"
 #include "platform/input.h"
 
+namespace ctr {
+    namespace gpu {
+        bool init();
+        void exit();
+    }
+
+    namespace gput {
+        bool init();
+        void exit();
+    }
+}
+
 using namespace ctr;
 
 static u16* screenBuffer;
@@ -37,6 +49,11 @@ static u32 gpuBorderWidth = 0;
 static u32 gpuBorderHeight = 0;
 
 bool gfxInit() {
+    if(!gpu::init() || !gput::init()) {
+        gfxCleanup();
+        return false;
+    }
+
     // Allocate and clear the screen buffer.
     screenBuffer = (u16*) gpu::galloc(256 * 256 * sizeof(u16));
     memset(screenBuffer, 0, 256 * 256 * sizeof(u16));
@@ -84,6 +101,9 @@ void gfxCleanup() {
         gpu::gfree(screenBuffer);
         screenBuffer = NULL;
     }
+
+    gput::exit();
+    gpu::exit();
 }
 
 bool gfxGetFastForward() {

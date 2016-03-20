@@ -8,8 +8,6 @@
 #include <stdio.h>
 #include <string.h>
 
-#include <citrus/core.hpp>
-
 #include <3ds.h>
 
 #include "platform/common/config.h"
@@ -21,17 +19,13 @@
 #include "platform/system.h"
 #include "platform/ui.h"
 
-using namespace ctr;
-
 static bool requestedExit;
 
 static u32* iruBuffer;
 
 bool systemInit(int argc, char* argv[]) {
-    requestedExit = false;
-
-    if(!core::init(argc) || !gfxInit()) {
-        return 0;
+    if(!gfxInit()) {
+        return false;
     }
 
     audioInit();
@@ -42,9 +36,11 @@ bool systemInit(int argc, char* argv[]) {
     if(iruBuffer != NULL) {
         if(R_FAILED(iruInit(iruBuffer, 0x1000))) {
             free(iruBuffer);
+            iruBuffer = NULL;
         }
     }
 
+    requestedExit = false;
 
     return true;
 }
@@ -60,8 +56,6 @@ void systemExit() {
     uiCleanup();
     audioCleanup();
     gfxCleanup();
-
-    core::exit();
 }
 
 void systemRun() {
@@ -69,7 +63,7 @@ void systemRun() {
 }
 
 bool systemIsRunning() {
-    return !requestedExit && core::running();
+    return !requestedExit && aptMainLoop();
 }
 
 void systemRequestExit() {

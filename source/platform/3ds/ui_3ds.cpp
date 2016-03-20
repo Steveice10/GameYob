@@ -39,8 +39,15 @@ void uiInit() {
 }
 
 void uiCleanup() {
-    free(topConsole);
-    free(bottomConsole);
+    if(topConsole != NULL) {
+        free(topConsole);
+        topConsole = NULL;
+    }
+
+    if(bottomConsole != NULL) {
+        free(bottomConsole);
+        bottomConsole = NULL;
+    }
 }
 
 void uiUpdateScreen() {
