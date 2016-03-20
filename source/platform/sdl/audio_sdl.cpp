@@ -9,9 +9,11 @@
 
 #include <SDL2/SDL.h>
 
+static bool initialized = false;
+
 static SDL_AudioDeviceID device;
 
-bool audioInit() {
+void audioInit() {
     SDL_AudioSpec as;
     as.freq = (int) audioGetSampleRate();
     as.format = AUDIO_S16SYS;
@@ -22,15 +24,17 @@ bool audioInit() {
     as.callback = NULL;
     as.userdata = NULL;
     if((device = SDL_OpenAudioDevice(NULL, 0, &as, &as, 0)) < 0) {
-        return false;
+        return;
     }
 
     SDL_PauseAudioDevice(device, false);
 
-    return true;
+    initialized = true;
 }
 
 void audioCleanup() {
+    initialized = false;
+
     if(device != 0) {
         SDL_PauseAudioDevice(device, true);
         SDL_CloseAudioDevice(device);
@@ -43,10 +47,18 @@ u16 audioGetSampleRate() {
 }
 
 void audioClear() {
+    if(!initialized) {
+        return;
+    }
+
     SDL_ClearQueuedAudio(device);
 }
 
 void audioPlay(u32* buffer, long samples) {
+    if(!initialized) {
+        return;
+    }
+
     // If we're fast-forwarding, clear the audio queue to prevent build-up.
     if(gfxGetFastForward()) {
         SDL_ClearQueuedAudio(device);

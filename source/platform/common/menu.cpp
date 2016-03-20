@@ -1118,7 +1118,7 @@ SubMenu menuList[] = {
                 4,
                 {
                         {"Button Mapping", keyConfigFunc, 0, {}, 0},
-                        {"Console Output", consoleOutputFunc, 4, {"Off", "FPS", "Time", "FPS+Time", "Debug"}, 0},
+                        {"Console Output", consoleOutputFunc, 5, {"Off", "FPS", "Time", "FPS+Time", "Debug"}, 0},
                         {"Pause on Menu", setPauseOnMenuFunc, 2, {"Off", "On"}, 0},
                         {"Save Settings", saveSettingsFunc, 0, {}, 0}
                 }

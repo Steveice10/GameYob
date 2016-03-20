@@ -234,7 +234,7 @@ void mgrLoadSave() {
     }
 
     u32 saveSize = gameboy->mbc->getSaveSize();
-    if(s.st_size < saveSize) {
+    if((u32) s.st_size < saveSize) {
         fseek(fd, saveSize - 1, SEEK_SET);
         fputc(0, fd);
         fflush(fd);

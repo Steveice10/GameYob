@@ -7,10 +7,10 @@
 
 #include <queue>
 
+#include <3ds.h>
+
 #include "platform/common/menu.h"
 #include "platform/ui.h"
-
-#include <3ds.h>
 
 static gfxScreen_t currConsole;
 

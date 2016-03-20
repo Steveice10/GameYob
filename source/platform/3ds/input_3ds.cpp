@@ -3,16 +3,13 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <3ds.h>
+
 #include "platform/common/config.h"
 #include "platform/common/filechooser.h"
-#include "platform/common/manager.h"
 #include "platform/common/menu.h"
 #include "platform/input.h"
 #include "platform/ui.h"
-#include "gameboy.h"
-#include "romfile.h"
-
-#include <3ds.h>
 
 static const char* dsKeyNames[NUM_BUTTONS] = {
         "A",         // 0

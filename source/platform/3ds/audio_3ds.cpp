@@ -3,13 +3,15 @@
 #include <sys/unistd.h>
 #include <string.h>
 
+#include <3ds.h>
+
 #include "platform/audio.h"
 #include "platform/gfx.h"
 
-#include <3ds.h>
-
 #define BUFFER_SAMPLES 2048
 #define NUM_BUFFERS 4
+
+static bool initialized = false;
 
 static ndspWaveBuf waveBuf[NUM_BUFFERS];
 static u32* audioBuffer;
@@ -17,16 +19,16 @@ static u32* audioBuffer;
 static u32 currBuffer;
 static u32 currPos;
 
-bool audioInit() {
+void audioInit() {
     if(R_FAILED(ndspInit())) {
-        return false;
+        return;
     }
 
     u32 bufSize = BUFFER_SAMPLES * NUM_BUFFERS * sizeof(u32);
     audioBuffer = (u32*) linearAlloc(bufSize);
     if(audioBuffer == NULL) {
         audioCleanup();
-        return false;
+        return;
     }
 
     memset(audioBuffer, 0, bufSize);
@@ -49,10 +51,12 @@ bool audioInit() {
         ndspChnWaveBufAdd(0, &waveBuf[i]);
     }
 
-    return true;
+    initialized = true;
 }
 
 void audioCleanup() {
+    initialized = false;
+
     ndspExit();
 
     if(audioBuffer != NULL) {
@@ -66,6 +70,10 @@ u16 audioGetSampleRate() {
 }
 
 void audioClear() {
+    if(!initialized) {
+        return;
+    }
+
     ndspChnWaveBufClear(0);
     for(int i = 0; i < NUM_BUFFERS; i++) {
         waveBuf[i].status = NDSP_WBUF_FREE;
@@ -73,6 +81,10 @@ void audioClear() {
 }
 
 void audioPlay(u32* buffer, long samples) {
+    if(!initialized) {
+        return;
+    }
+
     long remaining = samples;
     while(remaining > 0) {
         ndspWaveBuf* buf = &waveBuf[currBuffer];

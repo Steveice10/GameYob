@@ -2,7 +2,7 @@
 
 #include "types.h"
 
-bool audioInit();
+void audioInit();
 void audioCleanup();
 u16 audioGetSampleRate();
 void audioClear();

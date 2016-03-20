@@ -4,14 +4,14 @@
 #include <math.h>
 #include <string.h>
 
-#include "platform/common/menu.h"
-#include "platform/gfx.h"
-#include "platform/input.h"
+#include <citrus/gpu.hpp>
+#include <citrus/gput.hpp>
 
 #include <3ds.h>
 
-#include <citrus/gpu.hpp>
-#include <citrus/gput.hpp>
+#include "platform/common/menu.h"
+#include "platform/gfx.h"
+#include "platform/input.h"
 
 using namespace ctr;
 

@@ -1,12 +1,16 @@
 #ifdef BACKEND_3DS
 
 #include <arpa/inet.h>
-#include <sys/unistd.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <malloc.h>
 #include <poll.h>
 #include <stdio.h>
 #include <string.h>
+
+#include <citrus/core.hpp>
+
+#include <3ds.h>
 
 #include "platform/common/config.h"
 #include "platform/common/manager.h"
@@ -17,28 +21,41 @@
 #include "platform/system.h"
 #include "platform/ui.h"
 
-#include <citrus/core.hpp>
-#include <citrus/fs.hpp>
-#include <citrus/ir.hpp>
-
 using namespace ctr;
 
 static bool requestedExit;
 
+static u32* iruBuffer;
+
 bool systemInit(int argc, char* argv[]) {
     requestedExit = false;
 
-    if(!core::init(argc) || !gfxInit() || !audioInit()) {
+    if(!core::init(argc) || !gfxInit()) {
         return 0;
     }
 
+    audioInit();
     uiInit();
     inputInit();
+
+    iruBuffer = (u32*) memalign(0x1000, 0x1000);
+    if(iruBuffer != NULL) {
+        if(R_FAILED(iruInit(iruBuffer, 0x1000))) {
+            free(iruBuffer);
+        }
+    }
+
 
     return true;
 }
 
 void systemExit() {
+    if(iruBuffer != NULL) {
+        iruExit();
+        free(iruBuffer);
+        iruBuffer = NULL;
+    }
+
     inputCleanup();
     uiCleanup();
     audioCleanup();
@@ -91,13 +108,28 @@ void systemPrintDebug(const char* str, ...) {
 }
 
 bool systemGetIRState() {
-    bool state = false;
-    ir::read(&state, 1);
-    return state;
+    if(iruBuffer == NULL) {
+        return false;
+    }
+
+    u32 state = 0;
+    Result res = IRU_GetIRLEDRecvState(&state);
+    if(R_FAILED(res)) {
+        systemPrintDebug("IR receive failed: 0x%08lx\n", res);
+    }
+
+    return state == 1;
 }
 
 void systemSetIRState(bool state) {
-    ir::write(&state, 1, true);
+    if(iruBuffer == NULL) {
+        return;
+    }
+
+    Result res = IRU_SetIRLEDState(state ? 1 : 0);
+    if(R_FAILED(res)) {
+        systemPrintDebug("IR send failed: 0x%08lx\n", res);
+    }
 }
 
 const std::string systemGetIP() {

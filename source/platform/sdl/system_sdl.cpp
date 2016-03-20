@@ -21,10 +21,11 @@ static bool requestedExit;
 bool systemInit(int argc, char* argv[]) {
     requestedExit = false;
 
-    if(SDL_Init(SDL_INIT_AUDIO | SDL_INIT_VIDEO) != 0 || !gfxInit() || !audioInit()) {
+    if(SDL_Init(SDL_INIT_AUDIO | SDL_INIT_VIDEO) != 0 || !gfxInit()) {
         return false;
     }
 
+    audioInit();
     uiInit();
     inputInit();
 
