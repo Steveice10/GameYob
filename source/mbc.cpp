@@ -372,7 +372,9 @@ void MBC::mapSramBank() {
 void MBC::mapBanks() {
     this->mapRomBank0();
     this->mapRomBank1();
-    this->mapSramBank();
+    if(this->gameboy->romFile->getRamBanks() > 0) {
+        this->mapSramBank();
+    }
 
     if(this->readFunc != NULL) {
         auto read = [this](u16 addr) -> u8 {
