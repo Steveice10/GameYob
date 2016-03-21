@@ -1,5 +1,3 @@
-#include <stdio.h>
-
 #include "gb_apu/Gb_Apu.h"
 #include "gb_apu/Multi_Buffer.h"
 
@@ -46,23 +44,23 @@ void APU::reset() {
     }
 }
 
-void APU::loadState(FILE* file, int version) {
+void APU::loadState(std::istream& data, u8 version) {
     gb_apu_state_t apuState;
-    fread(&apuState, 1, sizeof(apuState), file);
-    fread(&this->lastSoundCycle, 1, sizeof(this->lastSoundCycle), file);
-    fread(&this->halfSpeed, 1, sizeof(this->halfSpeed), file);
+    data.read((char*) &apuState, sizeof(apuState));
+    data.read((char*) &this->lastSoundCycle, sizeof(this->lastSoundCycle));
+    data.read((char*) &this->halfSpeed, sizeof(this->halfSpeed));
 
     this->apu->load_state(apuState);
     audioClear();
 }
 
-void APU::saveState(FILE* file) {
+void APU::saveState(std::ostream& data) {
     gb_apu_state_t apuState;
     this->apu->save_state(&apuState);
 
-    fwrite(&apuState, 1, sizeof(apuState), file);
-    fwrite(&this->lastSoundCycle, 1, sizeof(this->lastSoundCycle), file);
-    fwrite(&this->halfSpeed, 1, sizeof(this->halfSpeed), file);
+    data.write((char*) &apuState, sizeof(apuState));
+    data.write((char*) &this->lastSoundCycle, sizeof(this->lastSoundCycle));
+    data.write((char*) &this->halfSpeed, sizeof(this->halfSpeed));
 }
 
 void APU::update() {

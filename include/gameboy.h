@@ -1,6 +1,7 @@
 #pragma once
 
-#include <stdio.h>
+#include <istream>
+#include <ostream>
 
 #include "types.h"
 
@@ -39,6 +40,20 @@ typedef enum {
     MODE_CGB
 } GBMode;
 
+inline std::istream& operator>>(std::istream& str, GBMode& v) {
+    u8 mode = 0;
+    if(str >> mode) {
+        v = static_cast<GBMode>(mode);
+    }
+
+    return str;
+}
+
+inline std::ostream& operator<<(std::ostream& str, GBMode v) {
+    str << (u8) v;
+    return str;
+}
+
 class Gameboy {
 public:
     Gameboy();
@@ -46,13 +61,13 @@ public:
 
     void reset(bool allowBios = true);
 
-    bool loadState(FILE* file);
-    bool saveState(FILE* file);
+    bool loadState(std::istream& data);
+    bool saveState(std::ostream& data);
 
     int run();
 
     bool isRomLoaded();
-    bool loadRom(u8* rom, u32 size);
+    bool loadRom(std::istream& data, int size);
     void unloadRom();
 
     RomFile* romFile;

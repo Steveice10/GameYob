@@ -1,4 +1,3 @@
-#include <sys/stat.h>
 #include <string.h>
 
 #include <string>
@@ -9,7 +8,7 @@
 #include "mmu.h"
 #include "romfile.h"
 
-RomFile::RomFile(u8* rom, u32 size) {
+RomFile::RomFile(std::istream& data, int size) {
     // Round number of banks to next power of two.
     this->totalRomBanks = (int) ((size + 0x3FFF) / 0x4000);
     this->totalRomBanks--;
@@ -24,10 +23,12 @@ RomFile::RomFile(u8* rom, u32 size) {
         this->totalRomBanks = 2;
     }
 
-    this->rom = new u8[this->totalRomBanks * 0x4000];
+    size_t roundedSize = (size_t) (this->totalRomBanks * 0x4000);
+
+    this->rom = new u8[roundedSize]();
+    data.read((char*) this->rom, size);
 
     // Most MMM01 dumps have the initial banks at the end of the ROM rather than the beginning, so check if this is the case and compensate.
-    bool initialized = false;
     if(size > 0x8000) {
         // Check for the logo.
         static const u8 logo[] = {
@@ -36,23 +37,22 @@ RomFile::RomFile(u8* rom, u32 size) {
                 0xBB, 0xBB, 0x67, 0x63, 0x6E, 0x0E, 0xEC ,0xCC, 0xDD, 0xDC, 0x99, 0x9F, 0xBB, 0xB9, 0x33, 0x3E
         };
 
-        u8* banks = &rom[size - 0x8000];
+        u8* checkBank = &this->rom[roundedSize - 0x8000];
 
-        if(memcmp(logo, &banks[0x0104], sizeof(logo)) == 0) {
+        if(memcmp(logo, &checkBank[0x0104], sizeof(logo)) == 0) {
             // Check for MMM01.
-            u8 mbcType = banks[0x0147];
+            u8 mbcType = checkBank[0x0147];
 
             if(mbcType >= 0x0B && mbcType <= 0x0D) {
-                memcpy(this->rom, banks, 0x8000);
-                memcpy(&this->rom[0x8000], rom, size - 0x8000);
+                u8* copy = new u8[roundedSize];
+                memcpy(copy, this->rom, roundedSize);
 
-                initialized = true;
+                memcpy(this->rom, &copy[roundedSize - 0x8000], 0x8000);
+                memcpy(&this->rom[0x8000], copy, roundedSize - 0x8000);
+
+                delete copy;
             }
         }
-    }
-
-    if(!initialized) {
-        memcpy(this->rom, rom, size);
     }
 
     this->romTitle = std::string(reinterpret_cast<char*>(&this->rom[0x0134]), this->rom[0x0143] == 0x80 || this->rom[0x0143] == 0xC0 ? 15 : 16);

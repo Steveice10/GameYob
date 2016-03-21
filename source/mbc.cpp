@@ -1,4 +1,3 @@
-#include <sys/stat.h>
 #include <errno.h>
 #include <string.h>
 #include <platform/common/manager.h>
@@ -89,60 +88,59 @@ void MBC::reset() {
     this->mapBanks();
 }
 
-void MBC::loadState(FILE* file, int version) {
-    fread(this->sram, 1, sizeof(this->sram), file);
-    fread(&this->gbClock, 1, sizeof(this->gbClock), file);
+void MBC::loadState(std::istream& data, u8 version) {
+    data.read((char*) this->sram, sizeof(this->sram));
+    data.read((char*) &this->gbClock, sizeof(this->gbClock));
 
-    fread(&this->romBank0, 1, sizeof(this->romBank0), file);
-    fread(&this->romBank1, 1, sizeof(this->romBank1), file);
-    fread(&this->sramBank, 1, sizeof(this->sramBank), file);
-    fread(&this->sramEnabled, 1, sizeof(this->sramEnabled), file);
+    data.read((char*) &this->romBank0, sizeof(this->romBank0));
+    data.read((char*) &this->romBank1, sizeof(this->romBank1));
+    data.read((char*) &this->sramBank, sizeof(this->sramBank));
+    data.read((char*) &this->sramEnabled, sizeof(this->sramEnabled));
 
     switch(this->gameboy->romFile->getMBCType()) {
         case MBC1:
-            fread(&this->mbc1RockmanMapper, 1, sizeof(this->mbc1RockmanMapper), file);
-            fread(&this->mbc1RamMode, 1, sizeof(this->mbc1RamMode), file);
+            data.read((char*) &this->mbc1RockmanMapper, sizeof(this->mbc1RockmanMapper));
+            data.read((char*) &this->mbc1RamMode, sizeof(this->mbc1RamMode));
             break;
         case MBC6:
-            fread(&this->romBank1ALatch, 1, sizeof(this->romBank1ALatch), file);
-            fread(&this->romBank1BLatch, 1, sizeof(this->romBank1BLatch), file);
-            fread(&this->romBank1A, 1, sizeof(this->romBank1A), file);
-            fread(&this->romBank1B, 1, sizeof(this->romBank1B), file);
+            data.read((char*) &this->romBank1ALatch, sizeof(this->romBank1ALatch));
+            data.read((char*) &this->romBank1BLatch, sizeof(this->romBank1BLatch));
+            data.read((char*) &this->romBank1A, sizeof(this->romBank1A));
+            data.read((char*) &this->romBank1B, sizeof(this->romBank1B));
             break;
         case MBC7:
-            fread(&this->mbc7WriteEnable, 1, sizeof(this->mbc7WriteEnable), file);
-            fread(&this->mbc7Cs, 1, sizeof(this->mbc7Cs), file);
-            fread(&this->mbc7Sk, 1, sizeof(this->mbc7Sk), file);
-            fread(&this->mbc7OpCode, 1, sizeof(this->mbc7OpCode), file);
-            fread(&this->mbc7Addr, 1, sizeof(this->mbc7Addr), file);
-            fread(&this->mbc7Cs, 1, sizeof(this->mbc7Cs), file);
-            fread(&this->mbc7Count, 1, sizeof(this->mbc7Count), file);
-            fread(&this->mbc7State, 1, sizeof(this->mbc7State), file);
-            fread(&this->mbc7Buffer, 1, sizeof(this->mbc7Buffer), file);
-            fread(&this->mbc7RA, 1, sizeof(this->mbc7RA), file);
+            data.read((char*) &this->mbc7WriteEnable, sizeof(this->mbc7WriteEnable));
+            data.read((char*) &this->mbc7Cs, sizeof(this->mbc7Cs));
+            data.read((char*) &this->mbc7Sk, sizeof(this->mbc7Sk));
+            data.read((char*) &this->mbc7OpCode, sizeof(this->mbc7OpCode));
+            data.read((char*) &this->mbc7Addr, sizeof(this->mbc7Addr));
+            data.read((char*) &this->mbc7Count, sizeof(this->mbc7Count));
+            data.read((char*) &this->mbc7State, sizeof(this->mbc7State));
+            data.read((char*) &this->mbc7Buffer, sizeof(this->mbc7Buffer));
+            data.read((char*) &this->mbc7RA, sizeof(this->mbc7RA));
             break;
         case HUC1:
-            fread(&this->huc1RamMode, 1, sizeof(this->huc1RamMode), file);
+            data.read((char*) &this->huc1RamMode, sizeof(this->huc1RamMode));
             break;
         case HUC3:
-            fread(&this->huc3Mode, 1, sizeof(this->huc3Mode), file);
-            fread(&this->huc3Value, 1, sizeof(this->huc3Value), file);
-            fread(&this->huc3Shift, 1, sizeof(this->huc3Shift), file);
+            data.read((char*) &this->huc3Mode, sizeof(this->huc3Mode));
+            data.read((char*) &this->huc3Value, sizeof(this->huc3Value));
+            data.read((char*) &this->huc3Shift, sizeof(this->huc3Shift));
             break;
         case MMM01:
-            fread(&this->mmm01BankSelected, 1, sizeof(this->mmm01BankSelected), file);
-            fread(&this->mmm01RomBaseBank, 1, sizeof(this->mmm01RomBaseBank), file);
+            data.read((char*) &this->mmm01BankSelected, sizeof(this->mmm01BankSelected));
+            data.read((char*) &this->mmm01RomBaseBank, sizeof(this->mmm01RomBaseBank));
             break;
         case CAMERA:
-            fread(&this->cameraIO, 1, sizeof(this->cameraIO), file);
-            fread(&this->cameraReadyCycle, 1, sizeof(this->cameraReadyCycle), file);
-            fread(this->cameraRegs, 1, sizeof(this->cameraRegs), file);
+            data.read((char*) &this->cameraIO, sizeof(this->cameraIO));
+            data.read((char*) &this->cameraReadyCycle, sizeof(this->cameraReadyCycle));
+            data.read((char*) this->cameraRegs, sizeof(this->cameraRegs));
             break;
         case TAMA5:
-            fread(&this->tama5CommandNumber, 1, sizeof(this->tama5CommandNumber), file);
-            fread(&this->tama5RamByteSelect, 1, sizeof(this->tama5RamByteSelect), file);
-            fread(this->tama5Commands, 1, sizeof(this->tama5Commands), file);
-            fread(this->tama5RAM, 1, sizeof(this->tama5RAM), file);
+            data.read((char*) &this->tama5CommandNumber, sizeof(this->tama5CommandNumber));
+            data.read((char*) &this->tama5RamByteSelect, sizeof(this->tama5RamByteSelect));
+            data.read((char*) this->tama5Commands, sizeof(this->tama5Commands));
+            data.read((char*) this->tama5RAM, sizeof(this->tama5RAM));
         default:
             break;
     }
@@ -150,60 +148,59 @@ void MBC::loadState(FILE* file, int version) {
     this->mapBanks();
 }
 
-void MBC::saveState(FILE* file) {
-    fwrite(this->sram, 1, sizeof(this->sram), file);
-    fwrite(&this->gbClock, 1, sizeof(this->gbClock), file);
+void MBC::saveState(std::ostream& data) {
+    data.write((char*) this->sram, sizeof(this->sram));
+    data.write((char*) &this->gbClock, sizeof(this->gbClock));
 
-    fwrite(&this->romBank0, 1, sizeof(this->romBank0), file);
-    fwrite(&this->romBank1, 1, sizeof(this->romBank1), file);
-    fwrite(&this->sramBank, 1, sizeof(this->sramBank), file);
-    fwrite(&this->sramEnabled, 1, sizeof(this->sramEnabled), file);
+    data.write((char*) &this->romBank0, sizeof(this->romBank0));
+    data.write((char*) &this->romBank1, sizeof(this->romBank1));
+    data.write((char*) &this->sramBank, sizeof(this->sramBank));
+    data.write((char*) &this->sramEnabled, sizeof(this->sramEnabled));
 
     switch(this->gameboy->romFile->getMBCType()) {
         case MBC1:
-            fwrite(&this->mbc1RockmanMapper, 1, sizeof(this->mbc1RockmanMapper), file);
-            fwrite(&this->mbc1RamMode, 1, sizeof(this->mbc1RamMode), file);
+            data.write((char*) &this->mbc1RockmanMapper, sizeof(this->mbc1RockmanMapper));
+            data.write((char*) &this->mbc1RamMode, sizeof(this->mbc1RamMode));
             break;
         case MBC6:
-            fwrite(&this->romBank1ALatch, 1, sizeof(this->romBank1ALatch), file);
-            fwrite(&this->romBank1BLatch, 1, sizeof(this->romBank1BLatch), file);
-            fwrite(&this->romBank1A, 1, sizeof(this->romBank1A), file);
-            fwrite(&this->romBank1B, 1, sizeof(this->romBank1B), file);
+            data.write((char*) &this->romBank1ALatch, sizeof(this->romBank1ALatch));
+            data.write((char*) &this->romBank1BLatch, sizeof(this->romBank1BLatch));
+            data.write((char*) &this->romBank1A, sizeof(this->romBank1A));
+            data.write((char*) &this->romBank1B, sizeof(this->romBank1B));
             break;
         case MBC7:
-            fwrite(&this->mbc7WriteEnable, 1, sizeof(this->mbc7WriteEnable), file);
-            fwrite(&this->mbc7Cs, 1, sizeof(this->mbc7Cs), file);
-            fwrite(&this->mbc7Sk, 1, sizeof(this->mbc7Sk), file);
-            fwrite(&this->mbc7OpCode, 1, sizeof(this->mbc7OpCode), file);
-            fwrite(&this->mbc7Addr, 1, sizeof(this->mbc7Addr), file);
-            fwrite(&this->mbc7Cs, 1, sizeof(this->mbc7Cs), file);
-            fwrite(&this->mbc7Count, 1, sizeof(this->mbc7Count), file);
-            fwrite(&this->mbc7State, 1, sizeof(this->mbc7State), file);
-            fwrite(&this->mbc7Buffer, 1, sizeof(this->mbc7Buffer), file);
-            fwrite(&this->mbc7RA, 1, sizeof(this->mbc7RA), file);
+            data.write((char*) &this->mbc7WriteEnable, sizeof(this->mbc7WriteEnable));
+            data.write((char*) &this->mbc7Cs, sizeof(this->mbc7Cs));
+            data.write((char*) &this->mbc7Sk, sizeof(this->mbc7Sk));
+            data.write((char*) &this->mbc7OpCode, sizeof(this->mbc7OpCode));
+            data.write((char*) &this->mbc7Addr, sizeof(this->mbc7Addr));
+            data.write((char*) &this->mbc7Count, sizeof(this->mbc7Count));
+            data.write((char*) &this->mbc7State, sizeof(this->mbc7State));
+            data.write((char*) &this->mbc7Buffer, sizeof(this->mbc7Buffer));
+            data.write((char*) &this->mbc7RA, sizeof(this->mbc7RA));
             break;
         case HUC1:
-            fwrite(&this->huc1RamMode, 1, sizeof(this->huc1RamMode), file);
+            data.write((char*) &this->huc1RamMode, sizeof(this->huc1RamMode));
             break;
         case HUC3:
-            fwrite(&this->huc3Mode, 1, sizeof(this->huc3Mode), file);
-            fwrite(&this->huc3Value, 1, sizeof(this->huc3Value), file);
-            fwrite(&this->huc3Shift, 1, sizeof(this->huc3Shift), file);
+            data.write((char*) &this->huc3Mode, sizeof(this->huc3Mode));
+            data.write((char*) &this->huc3Value, sizeof(this->huc3Value));
+            data.write((char*) &this->huc3Shift, sizeof(this->huc3Shift));
             break;
         case MMM01:
-            fwrite(&this->mmm01BankSelected, 1, sizeof(this->mmm01BankSelected), file);
-            fwrite(&this->mmm01RomBaseBank, 1, sizeof(this->mmm01RomBaseBank), file);
+            data.write((char*) &this->mmm01BankSelected, sizeof(this->mmm01BankSelected));
+            data.write((char*) &this->mmm01RomBaseBank, sizeof(this->mmm01RomBaseBank));
             break;
         case CAMERA:
-            fwrite(&this->cameraIO, 1, sizeof(this->cameraIO), file);
-            fwrite(&this->cameraReadyCycle, 1, sizeof(this->cameraReadyCycle), file);
-            fwrite(this->cameraRegs, 1, sizeof(this->cameraRegs), file);
+            data.write((char*) &this->cameraIO, sizeof(this->cameraIO));
+            data.write((char*) &this->cameraReadyCycle, sizeof(this->cameraReadyCycle));
+            data.write((char*) this->cameraRegs, sizeof(this->cameraRegs));
             break;
         case TAMA5:
-            fwrite(&this->tama5CommandNumber, 1, sizeof(this->tama5CommandNumber), file);
-            fwrite(&this->tama5RamByteSelect, 1, sizeof(this->tama5RamByteSelect), file);
-            fwrite(this->tama5Commands, 1, sizeof(this->tama5Commands), file);
-            fwrite(this->tama5RAM, 1, sizeof(this->tama5RAM), file);
+            data.write((char*) &this->tama5CommandNumber, sizeof(this->tama5CommandNumber));
+            data.write((char*) &this->tama5RamByteSelect, sizeof(this->tama5RamByteSelect));
+            data.write((char*) this->tama5Commands, sizeof(this->tama5Commands));
+            data.write((char*) this->tama5RAM, sizeof(this->tama5RAM));
         default:
             break;
     }
@@ -215,47 +212,20 @@ void MBC::update() {
     }
 }
 
-u32 MBC::getSaveSize() {
-    u32 size = (u32) (this->gameboy->romFile->getRamBanks() * 0x2000);
-    if(this->gameboy->romFile->getMBCType() == MBC3 || this->gameboy->romFile->getMBCType() == HUC3 || this->gameboy->romFile->getMBCType() == TAMA5) {
-        size += sizeof(this->gbClock);
-    }
+void MBC::load(std::istream& data) {
+    data.read((char*) this->sram, this->gameboy->romFile->getRamBanks() * 0x2000);
 
-    return size;
+    if(this->gameboy->romFile->getMBCType() == MBC3 || this->gameboy->romFile->getMBCType() == HUC3 || this->gameboy->romFile->getMBCType() == TAMA5) {
+        data.read((char*) &this->gbClock, sizeof(this->gbClock));
+    }
 }
 
-u32 MBC::load(u8* buffer, u32 size) {
-    u32 remaining = size;
-
-    u32 saveSize = (u32) (this->gameboy->romFile->getRamBanks() * 0x2000);
-    u32 sramSize = remaining < saveSize ? remaining : saveSize;
-    memcpy(this->sram, buffer, sramSize);
-    remaining -= sramSize;
+void MBC::save(std::ostream& data) {
+    data.write((char*) this->sram, this->gameboy->romFile->getRamBanks() * 0x2000);
 
     if(this->gameboy->romFile->getMBCType() == MBC3 || this->gameboy->romFile->getMBCType() == HUC3 || this->gameboy->romFile->getMBCType() == TAMA5) {
-        u32 gbClockSize = remaining < sizeof(this->gbClock) ? remaining : sizeof(this->gbClock);
-        memcpy(&this->gbClock, buffer + sramSize, gbClockSize);
-        remaining -= sramSize;
+        data.write((char*) &this->gbClock, sizeof(this->gbClock));
     }
-
-    return size - remaining;
-}
-
-u32 MBC::save(u8* buffer, u32 size) {
-    u32 remaining = size;
-
-    u32 saveSize = (u32) (this->gameboy->romFile->getRamBanks() * 0x2000);
-    u32 sramSize = remaining < saveSize ? remaining : saveSize;
-    memcpy(buffer, this->sram, sramSize);
-    remaining -= sramSize;
-
-    if(this->gameboy->romFile->getMBCType() == MBC3 || this->gameboy->romFile->getMBCType() == HUC3 || this->gameboy->romFile->getMBCType() == TAMA5) {
-        u32 gbClockSize = remaining < sizeof(this->gbClock) ? remaining : sizeof(this->gbClock);
-        memcpy(buffer + sramSize, &this->gbClock, gbClockSize);
-        remaining -= sramSize;
-    }
-
-    return size - remaining;
 }
 
 u8 MBC::readSram(u16 addr) {

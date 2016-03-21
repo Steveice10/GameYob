@@ -1,5 +1,3 @@
-#include <stdio.h>
-
 #include "platform/common/menu.h"
 #include "cpu.h"
 #include "gameboy.h"
@@ -45,18 +43,18 @@ void Serial::reset() {
     });
 }
 
-void Serial::loadState(FILE* file, int version) {
-    fread(&this->nextSerialInternalCycle, 1, sizeof(this->nextSerialInternalCycle), file);
-    fread(&this->nextSerialExternalCycle, 1, sizeof(this->nextSerialExternalCycle), file);
+void Serial::loadState(std::istream& data, u8 version) {
+    data.read((char*) &this->nextSerialInternalCycle, sizeof(this->nextSerialInternalCycle));
+    data.read((char*) &this->nextSerialExternalCycle, sizeof(this->nextSerialExternalCycle));
 
-    this->printer->loadState(file, version);
+    this->printer->loadState(data, version);
 }
 
-void Serial::saveState(FILE* file) {
-    fwrite(&this->nextSerialInternalCycle, 1, sizeof(this->nextSerialInternalCycle), file);
-    fwrite(&this->nextSerialExternalCycle, 1, sizeof(this->nextSerialExternalCycle), file);
+void Serial::saveState(std::ostream& data) {
+    data.write((char*) &this->nextSerialInternalCycle, sizeof(this->nextSerialInternalCycle));
+    data.write((char*) &this->nextSerialExternalCycle, sizeof(this->nextSerialExternalCycle));
 
-    this->printer->saveState(file);
+    this->printer->saveState(data);
 }
 
 void Serial::update() {

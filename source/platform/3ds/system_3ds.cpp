@@ -5,7 +5,6 @@
 #include <fcntl.h>
 #include <malloc.h>
 #include <poll.h>
-#include <stdio.h>
 #include <string.h>
 
 #include <3ds.h>

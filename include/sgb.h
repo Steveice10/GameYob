@@ -1,5 +1,8 @@
 #pragma once
 
+#include <istream>
+#include <ostream>
+
 #include "types.h"
 
 class SGB {
@@ -8,8 +11,8 @@ public:
 
     void reset();
 
-    void loadState(FILE* file, int version);
-    void saveState(FILE* file);
+    void loadState(std::istream& data, u8 version);
+    void saveState(std::ostream& data);
 
     void update();
 

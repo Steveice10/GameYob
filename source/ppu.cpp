@@ -225,28 +225,28 @@ void PPU::reset() {
     });
 }
 
-void PPU::loadState(FILE* file, int version) {
-    fread(&this->lastScanlineCycle, 1, sizeof(this->lastScanlineCycle), file);
-    fread(&this->lastPhaseCycle, 1, sizeof(this->lastPhaseCycle), file);
-    fread(&this->halfSpeed, 1, sizeof(this->halfSpeed), file);
-    fread(this->vram, 1, sizeof(this->vram), file);
-    fread(this->oam, 1, sizeof(this->oam), file);
-    fread(this->bgPaletteData, 1, sizeof(this->bgPaletteData), file);
-    fread(this->sprPaletteData, 1, sizeof(this->sprPaletteData), file);
-    fread(this->tiles, 1, sizeof(this->tiles), file);
+void PPU::loadState(std::istream& data, u8 version) {
+    data.read((char*) &this->lastScanlineCycle, sizeof(this->lastScanlineCycle));
+    data.read((char*) &this->lastPhaseCycle, sizeof(this->lastPhaseCycle));
+    data.read((char*) &this->halfSpeed, sizeof(this->halfSpeed));
+    data.read((char*) this->vram, sizeof(this->vram));
+    data.read((char*) this->oam, sizeof(this->oam));
+    data.read((char*) this->bgPaletteData, sizeof(this->bgPaletteData));
+    data.read((char*) this->sprPaletteData, sizeof(this->sprPaletteData));
+    data.read((char*) this->tiles, sizeof(this->tiles));
 
     this->mapBanks();
 }
 
-void PPU::saveState(FILE* file) {
-    fwrite(&this->lastScanlineCycle, 1, sizeof(this->lastScanlineCycle), file);
-    fwrite(&this->lastPhaseCycle, 1, sizeof(this->lastPhaseCycle), file);
-    fwrite(&this->halfSpeed, 1, sizeof(this->halfSpeed), file);
-    fwrite(this->vram, 1, sizeof(this->vram), file);
-    fwrite(this->oam, 1, sizeof(this->oam), file);
-    fwrite(this->bgPaletteData, 1, sizeof(this->bgPaletteData), file);
-    fwrite(this->sprPaletteData, 1, sizeof(this->sprPaletteData), file);
-    fwrite(this->tiles, 1, sizeof(this->tiles), file);
+void PPU::saveState(std::ostream& data) {
+    data.write((char*) &this->lastScanlineCycle, sizeof(this->lastScanlineCycle));
+    data.write((char*) &this->lastPhaseCycle, sizeof(this->lastPhaseCycle));
+    data.write((char*) &this->halfSpeed, sizeof(this->halfSpeed));
+    data.write((char*) this->vram, sizeof(this->vram));
+    data.write((char*) this->oam, sizeof(this->oam));
+    data.write((char*) this->bgPaletteData, sizeof(this->bgPaletteData));
+    data.write((char*) this->sprPaletteData, sizeof(this->sprPaletteData));
+    data.write((char*) this->tiles, sizeof(this->tiles));
 }
 
 void PPU::checkLYC() {

@@ -1,4 +1,3 @@
-#include <stdio.h>
 #include <string.h>
 
 #include "platform/common/manager.h"
@@ -130,16 +129,16 @@ void MMU::reset() {
     });
 }
 
-void MMU::loadState(FILE* file, int version) {
-    fread(this->wram, 1, sizeof(this->wram), file);
-    fread(this->hram, 1, sizeof(this->hram), file);
+void MMU::loadState(std::istream& data, u8 version) {
+    data.read((char*) this->wram, sizeof(this->wram));
+    data.read((char*) this->hram, sizeof(this->hram));
 
     this->mapBanks();
 }
 
-void MMU::saveState(FILE* file) {
-    fwrite(this->wram, 1, sizeof(this->wram), file);
-    fwrite(this->hram, 1, sizeof(this->hram), file);
+void MMU::saveState(std::ostream& data) {
+    data.write((char*) this->wram, sizeof(this->wram));
+    data.write((char*) this->hram, sizeof(this->hram));
 }
 
 u8 MMU::read(u16 addr) {

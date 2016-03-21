@@ -1,6 +1,6 @@
 #pragma once
 
-#include <stdio.h>
+#include <istream>
 
 #include "types.h"
 
@@ -27,7 +27,7 @@ class GBS;
 
 class RomFile {
 public:
-    RomFile(u8* rom, u32 size);
+    RomFile(std::istream& data, int size);
     ~RomFile();
 
     inline const std::string getRomTitle() {

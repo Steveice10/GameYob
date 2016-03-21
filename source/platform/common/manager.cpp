@@ -1,8 +1,8 @@
-#include <sys/stat.h>
 #include <dirent.h>
 #include <stdlib.h>
 #include <string.h>
 
+#include <fstream>
 #include <sstream>
 
 #include "platform/common/picopng.h"
@@ -106,33 +106,17 @@ void mgrLoadRom(const char* filename) {
 
     mgrUnloadRom();
 
-    FILE* fd = fopen(filename, "rb");
-    if(fd == NULL) {
-        systemPrintDebug("Failed to open ROM file: %d\n", errno);
+    std::ifstream stream(filename, std::ios::binary | std::ios::ate);
+    if(!stream.is_open()) {
+        systemPrintDebug("Failed to open ROM file: %s\n", strerror(errno));
         return;
     }
 
-    struct stat st;
-    if(fstat(fileno(fd), &st) < 0) {
-        systemPrintDebug("Failed to stat ROM file: %d\n", errno);
+    int size = (int) stream.tellg();
+    stream.seekg(0);
 
-        fclose(fd);
-        return;
-    }
-
-    u8* rom = new u8[st.st_size];
-    if(fread(rom, 1, (size_t) st.st_size, fd) < 0) {
-        systemPrintDebug("Failed to read ROM file: %d\n", errno);
-
-        delete rom;
-        fclose(fd);
-        return;
-    }
-
-    fclose(fd);
-
-    bool result = gameboy->loadRom(rom, (u32) st.st_size);
-    delete rom;
+    bool result = gameboy->loadRom(stream, size);
+    stream.close();
 
     if(!result) {
         return;
@@ -219,41 +203,14 @@ void mgrLoadSave() {
         return;
     }
 
-    FILE* fd = fopen((romName + ".sav").c_str(), "rb");
-    if(fd == NULL) {
-        systemPrintDebug("Failed to open save file: %d\n", errno);
+    std::ifstream stream(romName + ".sav", std::ios::binary);
+    if(!stream.is_open()) {
+        systemPrintDebug("Failed to open save file: %s\n", strerror(errno));
         return;
     }
 
-    struct stat s;
-    if(fstat(fileno(fd), &s) < 0) {
-        systemPrintDebug("Failed to stat save file: %d\n", errno);
-
-        fclose(fd);
-        return;
-    }
-
-    u32 saveSize = gameboy->mbc->getSaveSize();
-    if((u32) s.st_size < saveSize) {
-        fseek(fd, saveSize - 1, SEEK_SET);
-        fputc(0, fd);
-        fflush(fd);
-        fseek(fd, 0, SEEK_SET);
-    }
-
-    u8* data = new u8[saveSize];
-    if(fread(data, 1, saveSize, fd) < 0) {
-        systemPrintDebug("Failed to read save file: %d\n", errno);
-
-        delete data;
-        fclose(fd);
-        return;
-    }
-
-    fclose(fd);
-
-    gameboy->mbc->load(data, saveSize);
-    delete data;
+    gameboy->mbc->load(stream);
+    stream.close();
 }
 
 void mgrWriteSave() {
@@ -261,34 +218,20 @@ void mgrWriteSave() {
         return;
     }
 
-    u32 saveSize = gameboy->mbc->getSaveSize();
-    u8* data = new u8[saveSize];
-    gameboy->mbc->save(data, saveSize);
-
-    FILE* fd = fopen((romName + ".sav").c_str(), "wb");
-    if(fd == NULL) {
-        systemPrintDebug("Failed to open save file: %d\n", errno);
-
-        delete data;
+    std::ofstream stream(romName + ".sav", std::ios::binary);
+    if(!stream.is_open()) {
+        systemPrintDebug("Failed to open save file: %s\n", strerror(errno));
         return;
     }
 
-    if(fwrite(data, 1, saveSize, fd) < 0) {
-        systemPrintDebug("Failed to write save file: %d\n", errno);
-
-        fclose(fd);
-        delete data;
-        return;
-    }
-
-    fclose(fd);
-    delete data;
+    gameboy->mbc->save(stream);
+    stream.close();
 }
 
 const std::string mgrGetStateName(int stateNum) {
     std::stringstream nameStream;
     if(stateNum == -1) {
-        nameStream << mgrGetRomName()<< ".yss";
+        nameStream << mgrGetRomName() << ".yss";
     } else {
         nameStream << mgrGetRomName() << ".ys" << stateNum;
     }
@@ -301,12 +244,13 @@ bool mgrStateExists(int stateNum) {
         return false;
     }
 
-    FILE* file = fopen(mgrGetStateName(stateNum).c_str(), "r");
-    if(file != NULL) {
-        fclose(file);
+    std::ifstream stream(mgrGetStateName(stateNum), std::ios::binary);
+    if(stream.is_open()) {
+        stream.close();
+        return true;
     }
 
-    return file != NULL;
+    return false;
 }
 
 bool mgrLoadState(int stateNum) {
@@ -314,13 +258,14 @@ bool mgrLoadState(int stateNum) {
         return false;
     }
 
-    FILE* file = fopen(mgrGetStateName(stateNum).c_str(), "r");
-    if(file == NULL) {
+    std::ifstream stream(mgrGetStateName(stateNum), std::ios::binary);
+    if(!stream.is_open()) {
+        systemPrintDebug("Failed to open state file: %s\n", strerror(errno));
         return false;
     }
 
-    bool ret = gameboy->loadState(file);
-    fclose(file);
+    bool ret = gameboy->loadState(stream);
+    stream.close();
     return ret;
 }
 
@@ -329,13 +274,14 @@ bool mgrSaveState(int stateNum) {
         return false;
     }
 
-    FILE* file = fopen(mgrGetStateName(stateNum).c_str(), "w");
-    if(file == NULL) {
+    std::ofstream stream(mgrGetStateName(stateNum), std::ios::binary);
+    if(!stream.is_open()) {
+        systemPrintDebug("Failed to open state file: %s\n", strerror(errno));
         return false;
     }
 
-    bool ret = gameboy->saveState(file);
-    fclose(file);
+    bool ret = gameboy->saveState(stream);
+    stream.close();
     return ret;
 }
 
@@ -347,43 +293,48 @@ void mgrDeleteState(int stateNum) {
     remove(mgrGetStateName(stateNum).c_str());
 }
 
-int mgrReadBmp(u8** data, u32* width, u32* height, const char* filename) {
-    FILE* fd = fopen(filename, "rb");
-    if(!fd) {
-        return 1;
+bool mgrReadBmp(u8** data, u32* width, u32* height, const char* filename) {
+    std::ifstream stream(filename, std::ios::binary);
+    if(!stream.is_open()) {
+        systemPrintDebug("Failed to open BMP file: %s\n", strerror(errno));
+        return false;
     }
 
     char identifier[2];
-    fread(identifier, 2, 1, fd);
+    stream.read(identifier, sizeof(identifier));
+
     if(identifier[0] != 'B' || identifier[1] != 'M') {
-        return 1;
+        systemPrintDebug("Invalid BMP file.\n");
+        return false;
     }
 
     u16 dataOffset;
-    fseek(fd, 10, SEEK_SET);
-    fread(&dataOffset, 2, 1, fd);
+    stream.seekg(10);
+    stream.read((char*) &dataOffset, sizeof(dataOffset));
 
     u16 w;
-    fseek(fd, 18, SEEK_SET);
-    fread(&w, 2, 1, fd);
+    stream.seekg(18);
+    stream.read((char*) &w, sizeof(w));
 
     u16 h;
-    fseek(fd, 22, SEEK_SET);
-    fread(&h, 2, 1, fd);
+    stream.seekg(22);
+    stream.read((char*) &h, sizeof(h));
 
     u16 bits;
-    fseek(fd, 28, SEEK_SET);
-    fread(&bits, 2, 1, fd);
+    stream.seekg(28);
+    stream.read((char*) &bits, sizeof(bits));
     u32 bytes = (u32) (bits / 8);
 
     u16 compression;
-    fseek(fd, 30, SEEK_SET);
-    fread(&compression, 2, 1, fd);
+    stream.seekg(30);
+    stream.read((char*) &compression, sizeof(compression));
 
     size_t srcSize = (size_t) (w * h * bytes);
     u8* srcPixels = (u8*) malloc(srcSize);
-    fseek(fd, dataOffset, SEEK_SET);
-    fread(srcPixels, 1, srcSize, fd);
+    stream.seekg(dataOffset);
+    stream.read((char*) srcPixels, srcSize);
+
+    stream.close();
 
     u8* dstPixels = new u8[w * h * sizeof(u32)];
 
@@ -414,7 +365,10 @@ int mgrReadBmp(u8** data, u32* width, u32* height, const char* filename) {
             }
         }
     } else {
-        return 1;
+        systemPrintDebug("Unsupported BMP bit depth: %d\n", bits);
+
+        free(srcPixels);
+        return false;
     }
 
     free(srcPixels);
@@ -426,29 +380,29 @@ int mgrReadBmp(u8** data, u32* width, u32* height, const char* filename) {
     return 0;
 }
 
-int mgrReadPng(u8** data, u32* width, u32* height, const char* filename) {
-    FILE* fd = fopen(filename, "rb");
-    if(fd == NULL) {
-        return errno;
+bool mgrReadPng(u8** data, u32* width, u32* height, const char* filename) {
+    std::ifstream stream(filename, std::ios::binary | std::ios::ate);
+    if(!stream.is_open()) {
+        systemPrintDebug("Failed to open PNG file: %s\n", strerror(errno));
+        return false;
     }
 
-    struct stat st;
-    fstat(fileno(fd), &st);
+    size_t size = (size_t) stream.tellg();
+    stream.seekg(0);
 
-    u8* buf = new u8[st.st_size];
-    int readRes = fread(buf, 1, (size_t) st.st_size, fd);
-    fclose(fd);
-    if(readRes < 0) {
-        return errno;
-    }
+    u8* buf = new u8[size];
+    stream.read((char*) buf, size);
+    stream.close();
 
     std::vector<u8> srcPixels;
     u32 w;
     u32 h;
-    int lodeRet = decodePNG(srcPixels, w, h, buf, (size_t) st.st_size);
+    int decodeRet = decodePNG(srcPixels, w, h, buf, size);
     delete buf;
-    if(lodeRet != 0) {
-        return lodeRet;
+
+    if(decodeRet != 0) {
+        systemPrintDebug("Failed to decode PNG file: %d\n", decodeRet);
+        return false;
     }
 
     u8* dstPixels = new u8[w * h * sizeof(u32)];
@@ -466,7 +420,7 @@ int mgrReadPng(u8** data, u32* width, u32* height, const char* filename) {
     *width = w;
     *height = h;
 
-    return 0;
+    return true;
 }
 
 void mgrLoadBorderFile(const char* filename) {
@@ -483,16 +437,16 @@ void mgrLoadBorderFile(const char* filename) {
     u8* imgData;
     u32 imgWidth;
     u32 imgHeight;
-    if((strcasecmp(extension.c_str(), "png") == 0 && mgrReadPng(&imgData, &imgWidth, &imgHeight, filename) == 0) || (strcasecmp(extension.c_str(), "bmp") == 0 && mgrReadBmp(&imgData, &imgWidth, &imgHeight, filename) == 0)) {
+    if((strcasecmp(extension.c_str(), "png") == 0 && mgrReadPng(&imgData, &imgWidth, &imgHeight, filename)) || (strcasecmp(extension.c_str(), "bmp") == 0 && mgrReadBmp(&imgData, &imgWidth, &imgHeight, filename))) {
         gfxLoadBorder(imgData, (int) imgWidth, (int) imgHeight);
         delete imgData;
     }
 }
 
 bool mgrTryRawBorderFile(std::string border) {
-    FILE* file = fopen(border.c_str(), "r");
-    if(file != NULL) {
-        fclose(file);
+    std::ifstream stream(border, std::ios::binary);
+    if(stream.is_open()) {
+        stream.close();
         mgrLoadBorderFile(border.c_str());
         return true;
     }
@@ -533,30 +487,20 @@ void mgrRefreshBios() {
     gbBiosLoaded = false;
     gbcBiosLoaded = false;
 
-    FILE* gbFile = fopen(gbBiosPath.c_str(), "rb");
-    if(gbFile != NULL) {
-        struct stat st;
-        fstat(fileno(gbFile), &st);
+    std::ifstream gbStream(gbBiosPath, std::ios::binary);
+    if(gbStream.is_open()) {
+        gbStream.read((char*) gbBios, sizeof(gbBios));
+        gbStream.close();
 
-        if(st.st_size == 0x100) {
-            gbBiosLoaded = true;
-            fread(gbBios, 1, 0x100, gbFile);
-        }
-
-        fclose(gbFile);
+        gbBiosLoaded = true;
     }
 
-    FILE* gbcFile = fopen(gbcBiosPath.c_str(), "rb");
-    if(gbcFile != NULL) {
-        struct stat st;
-        fstat(fileno(gbcFile), &st);
+    std::ifstream gbcStream(gbcBiosPath, std::ios::binary);
+    if(gbcStream.is_open()) {
+        gbcStream.read((char*) gbcBios, sizeof(gbcBios));
+        gbcStream.close();
 
-        if(st.st_size == 0x900) {
-            gbcBiosLoaded = true;
-            fread(gbcBios, 1, 0x900, gbcFile);
-        }
-
-        fclose(gbFile);
+        gbcBiosLoaded = true;
     }
 }
 

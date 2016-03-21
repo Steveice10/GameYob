@@ -99,22 +99,22 @@ void CPU::reset() {
     });
 }
 
-void CPU::loadState(FILE* file, int version) {
-    fread(&this->cycleCount, 1, sizeof(this->cycleCount), file);
-    fread(&this->eventCycle, 1, sizeof(this->eventCycle), file);
-    fread(&this->registers, 1, sizeof(this->registers), file);
-    fread(&this->haltState, 1, sizeof(this->haltState), file);
-    fread(&this->haltBug, 1, sizeof(this->haltBug), file);
-    fread(&this->ime, 1, sizeof(this->ime), file);
+void CPU::loadState(std::istream& data, u8 version) {
+    data.read((char*) &this->cycleCount, sizeof(this->cycleCount));
+    data.read((char*) &this->eventCycle, sizeof(this->eventCycle));
+    data.read((char*) &this->registers, sizeof(this->registers));
+    data.read((char*) &this->haltState, sizeof(this->haltState));
+    data.read((char*) &this->haltBug, sizeof(this->haltBug));
+    data.read((char*) &this->ime, sizeof(this->ime));
 }
 
-void CPU::saveState(FILE* file) {
-    fwrite(&this->cycleCount, 1, sizeof(this->cycleCount), file);
-    fwrite(&this->eventCycle, 1, sizeof(this->eventCycle), file);
-    fwrite(&this->registers, 1, sizeof(this->registers), file);
-    fwrite(&this->haltState, 1, sizeof(this->haltState), file);
-    fwrite(&this->haltBug, 1, sizeof(this->haltBug), file);
-    fwrite(&this->ime, 1, sizeof(this->ime), file);
+void CPU::saveState(std::ostream& data) {
+    data.write((char*) &this->cycleCount, sizeof(this->cycleCount));
+    data.write((char*) &this->eventCycle, sizeof(this->eventCycle));
+    data.write((char*) &this->registers, sizeof(this->registers));
+    data.write((char*) &this->haltState, sizeof(this->haltState));
+    data.write((char*) &this->haltBug, sizeof(this->haltBug));
+    data.write((char*) &this->ime, sizeof(this->ime));
 }
 
 void CPU::run() {

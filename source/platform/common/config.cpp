@@ -1,8 +1,7 @@
-#include <sys/stat.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
+#include <fstream>
 #include <sstream>
 #include <vector>
 
@@ -170,44 +169,52 @@ bool readConfigFile() {
     borderPath = systemDefaultBorderPath();
     romPath = systemDefaultRomPath();
 
-    FILE* file = fopen(systemIniPath().c_str(), "r");
-    char line[100];
     void (*configParser)(char*) = generalParseConfig;
 
-    if(file == NULL) {
-        goto end;
+    std::ifstream stream(systemIniPath(), std::ios::ate);
+    if(!stream.is_open()) {
+        romPath = "/";
+        mgrRefreshBios();
+        controlsCheckConfig();
+
+        printMenuMessage("Error opening gameyob.ini.");
+        systemPrintDebug("Failed to open gameyob.ini: %s\n", strerror(errno));
+        stream.close();
+        return false;
     }
 
-    struct stat s;
-    fstat(fileno(file), &s);
-    while(ftell(file) < s.st_size) {
-        fgets(line, 100, file);
-        char c = 0;
-        while(*line != '\0' && ((c = line[strlen(line) - 1]) == ' ' || c == '\n' || c == '\r')) {
-            line[strlen(line) - 1] = '\0';
-        }
+    while(!stream.eof()) {
+        std::string strLine;
+        std::getline(stream, strLine);
 
-        if(line[0] == '[') {
-            char* endBrace;
-            if((endBrace = strrchr(line, ']')) != 0) {
-                *endBrace = '\0';
-                const char* section = line + 1;
-                if(strcasecmp(section, "general") == 0) {
-                    configParser = generalParseConfig;
-                } else if(strcasecmp(section, "console") == 0) {
-                    configParser = menuParseConfig;
-                } else if(strcasecmp(section, "controls") == 0) {
-                    configParser = controlsParseConfig;
-                }
+        if(strLine.length() > 0) {
+            char line[strLine.size() + 1];
+            strncpy(line, strLine.c_str(), sizeof(line));
+
+            char c = 0;
+            while(*line != '\0' && ((c = line[strlen(line) - 1]) == ' ' || c == '\n' || c == '\r')) {
+                line[strlen(line) - 1] = '\0';
             }
-        } else {
-            configParser(line);
+
+            if(line[0] == '[') {
+                char* endBrace;
+                if((endBrace = strrchr(line, ']')) != 0) {
+                    *endBrace = '\0';
+                    const char* section = line + 1;
+                    if(strcasecmp(section, "general") == 0) {
+                        configParser = generalParseConfig;
+                    } else if(strcasecmp(section, "console") == 0) {
+                        configParser = menuParseConfig;
+                    } else if(strcasecmp(section, "controls") == 0) {
+                        configParser = controlsParseConfig;
+                    }
+                }
+            } else {
+                configParser(line);
+            }
         }
     }
 
-    fclose(file);
-
-    end:
     size_t len = romPath.length();
     if(len == 0 || romPath[len - 1] != '/') {
         romPath += "/";
@@ -215,26 +222,24 @@ bool readConfigFile() {
 
     mgrRefreshBios();
     controlsCheckConfig();
-    return file != NULL;
+    return true;
 }
 
 void writeConfigFile() {
-    std::stringstream stream;
+    std::ofstream stream(systemIniPath());
+    if(!stream.is_open()) {
+        printMenuMessage("Error opening gameyob.ini.");
+        systemPrintDebug("Failed to open gameyob.ini: %s\n", strerror(errno));
+        return;
+    }
+
     stream << "[general]\n";
     stream << generalPrintConfig();
     stream << "[console]\n";
     stream << menuPrintConfig();
     stream << "[controls]\n";
     stream << controlsPrintConfig();
-
-    FILE* file = fopen(systemIniPath().c_str(), "w");
-    if(file == NULL) {
-        printMenuMessage("Error opening gameyob.ini.");
-        return;
-    }
-
-    fprintf(file, "%s", stream.str().c_str());
-    fclose(file);
+    stream.close();
 
     if(gameboy->isRomLoaded()) {
         cheatEngine->saveCheats((mgrGetRomName() + ".cht").c_str());

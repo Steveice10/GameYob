@@ -1,7 +1,6 @@
 #ifdef BACKEND_SDL
 
 #include <sys/ioctl.h>
-#include <stdio.h>
 #include <unistd.h>
 
 #include "platform/ui.h"

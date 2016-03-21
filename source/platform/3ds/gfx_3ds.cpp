@@ -5,6 +5,7 @@
 #include <string.h>
 #include <time.h>
 
+#include <fstream>
 #include <sstream>
 
 #include <3ds.h>
@@ -312,13 +313,13 @@ void gfxTakeScreenshot() {
     std::stringstream fileStream;
     fileStream << "/gameyob_" << time(NULL) << ".bmp";
 
-    FILE* fd = fopen(fileStream.str().c_str(), "wb");
-    if(fd != NULL) {
-        fwrite(header, 1, headerSize, fd);
-        fwrite(image, 1, imageSize, fd);
-        fclose(fd);
+    std::ofstream stream(fileStream.str(), std::ios::binary);
+    if(stream.is_open()) {
+        stream.write((char*) header, (size_t) headerSize);
+        stream.write((char*) image, (size_t) imageSize);
+        stream.close();
     } else {
-        systemPrintDebug("Failed to open screenshot file: %d\n", errno);
+        systemPrintDebug("Failed to open screenshot file: %s\n", strerror(errno));
     }
 
     delete[] header;

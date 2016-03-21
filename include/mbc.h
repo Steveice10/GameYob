@@ -1,9 +1,9 @@
 #pragma once
 
-#include <stdio.h>
+#include <istream>
+#include <ostream>
 
 #include "types.h"
-#include "romfile.h"
 
 class MBC {
 public:
@@ -12,14 +12,13 @@ public:
 
     void reset();
 
-    void loadState(FILE* file, int version);
-    void saveState(FILE* file);
+    void loadState(std::istream& data, u8 version);
+    void saveState(std::ostream &data);
 
     void update();
 
-    u32 getSaveSize();
-    u32 load(u8* buffer, u32 size);
-    u32 save(u8* buffer, u32 size);
+    void load(std::istream& data);
+    void save(std::ostream& data);
 private:
     u8 readSram(u16 addr);
     void writeSram(u16 addr, u8 val);
@@ -57,7 +56,7 @@ private:
     typedef u8 (MBC::*mbcRead)(u16);
     typedef void (MBC::*mbcUpdate)();
 
-    const mbcRead mbcReads[MBC_MAX] = {
+    const mbcRead mbcReads[12] = {
             NULL,
             NULL,
             NULL,
@@ -72,7 +71,7 @@ private:
             NULL
     };
 
-    const mbcWrite mbcWrites[MBC_MAX] = {
+    const mbcWrite mbcWrites[12] = {
             &MBC::m0w,
             &MBC::m1w,
             &MBC::m2w,
@@ -87,7 +86,7 @@ private:
             &MBC::t5w
     };
 
-    const mbcUpdate mbcUpdates[MBC_MAX] = {
+    const mbcUpdate mbcUpdates[12] = {
             NULL,
             NULL,
             NULL,

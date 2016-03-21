@@ -1,7 +1,7 @@
-#include <sys/stat.h>
 #include <string.h>
 
 #include <algorithm>
+#include <fstream>
 
 #include "platform/common/cheatengine.h"
 #include "platform/system.h"
@@ -137,20 +137,21 @@ void CheatEngine::loadCheats(const char* filename) {
     numCheats = 0;
 
     // Begin loading new cheat file
-    FILE* file = fopen(filename, "r");
-    if(file == NULL) {
+    std::ifstream stream(filename, std::ios::ate);
+    if(!stream.is_open()) {
         return;
     }
 
-    struct stat s;
-    fstat(fileno(file), &s);
-    while(ftell(file) < s.st_size) {
+    while(!stream.eof()) {
         int i = numCheats;
 
-        char line[100];
-        fgets(line, 100, file);
+        std::string strLine;
+        std::getline(stream, strLine);
 
-        if(*line != '\0') {
+        if(strLine.length() > 0) {
+            char line[strLine.size() + 1];
+            strncpy(line, strLine.c_str(), sizeof(line));
+
             char* spacePos = strchr(line, ' ');
             if(spacePos != NULL) {
                 *spacePos = '\0';
@@ -168,7 +169,7 @@ void CheatEngine::loadCheats(const char* filename) {
         }
     }
 
-    fclose(file);
+    stream.close();
 }
 
 void CheatEngine::saveCheats(const char* filename) {
@@ -176,10 +177,12 @@ void CheatEngine::saveCheats(const char* filename) {
         return;
     }
 
-    FILE* file = fopen(filename, "w");
-    for(int i = 0; i < numCheats; i++) {
-        fprintf(file, "%s %d%s\n", cheats[i].cheatString, (cheats[i].flags & CHEAT_FLAG_ENABLED) != 0, cheats[i].name);
-    }
+    std::ofstream stream(filename);
+    if(stream.is_open()) {
+        for(int i = 0; i < numCheats; i++) {
+            stream << cheats[i].cheatString << " " << ((cheats[i].flags & CHEAT_FLAG_ENABLED) != 0) << cheats[i].name << "\n";
+        }
 
-    fclose(file);
+        stream.close();
+    }
 }

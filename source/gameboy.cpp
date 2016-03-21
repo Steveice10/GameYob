@@ -1,6 +1,3 @@
-#include <sys/stat.h>
-#include <stdio.h>
-
 #include "platform/common/manager.h"
 #include "platform/common/menu.h"
 #include "apu.h"
@@ -15,7 +12,7 @@
 #include "serial.h"
 #include "timer.h"
 
-static const int STATE_VERSION = 11;
+static const u8 STATE_VERSION = 11;
 
 Gameboy::Gameboy() {
     this->romFile = NULL;
@@ -85,29 +82,29 @@ void Gameboy::reset(bool allowBios) {
     this->serial->reset();
 }
 
-bool Gameboy::loadState(FILE* file) {
-    if(!isRomLoaded() || file == NULL) {
+bool Gameboy::loadState(std::istream& data) {
+    if(!this->isRomLoaded()) {
         return false;
     }
 
-    int version;
-    fread(&version, 1, sizeof(version), file);
+    u8 version;
+    data.read((char*) &version, sizeof(version));
 
     if(version < 11 || version > STATE_VERSION) {
         return false;
     }
 
-    fread(&this->gbMode, 1, sizeof(this->gbMode), file);
-    fread(&this->biosOn, 1, sizeof(this->biosOn), file);
+    data.read((char*) &this->gbMode, sizeof(this->gbMode));
+    data.read((char*) &this->biosOn, sizeof(this->biosOn));
 
-    this->mmu->loadState(file, version);
-    this->cpu->loadState(file, version);
-    this->ppu->loadState(file, version);
-    this->apu->loadState(file, version);
-    this->mbc->loadState(file, version);
-    this->sgb->loadState(file, version);
-    this->timer->loadState(file, version);
-    this->serial->loadState(file, version);
+    this->mmu->loadState(data, version);
+    this->cpu->loadState(data, version);
+    this->ppu->loadState(data, version);
+    this->apu->loadState(data, version);
+    this->mbc->loadState(data, version);
+    this->sgb->loadState(data, version);
+    this->timer->loadState(data, version);
+    this->serial->loadState(data, version);
 
     if(this->biosOn && ((this->gbMode == MODE_GB && !gbBiosLoaded) || (this->gbMode == MODE_CGB && !gbcBiosLoaded))) {
         this->biosOn = false;
@@ -116,24 +113,23 @@ bool Gameboy::loadState(FILE* file) {
     return true;
 }
 
-bool Gameboy::saveState(FILE* file) {
-    if(!isRomLoaded() || file == NULL) {
+bool Gameboy::saveState(std::ostream& data) {
+    if(!this->isRomLoaded()) {
         return false;
     }
 
-    fwrite(&STATE_VERSION, 1, sizeof(int), file);
+    data.write((char*) &STATE_VERSION, sizeof(STATE_VERSION));
+    data.write((char*) &this->gbMode, sizeof(this->gbMode));
+    data.write((char*) &this->biosOn, sizeof(this->biosOn));
 
-    fwrite(&this->gbMode, 1, sizeof(this->gbMode), file);
-    fwrite(&this->biosOn, 1, sizeof(this->biosOn), file);
-
-    this->mmu->saveState(file);
-    this->cpu->saveState(file);
-    this->ppu->saveState(file);
-    this->apu->saveState(file);
-    this->mbc->saveState(file);
-    this->sgb->saveState(file);
-    this->timer->saveState(file);
-    this->serial->saveState(file);
+    this->mmu->saveState(data);
+    this->cpu->saveState(data);
+    this->ppu->saveState(data);
+    this->apu->saveState(data);
+    this->mbc->saveState(data);
+    this->sgb->saveState(data);
+    this->timer->saveState(data);
+    this->serial->saveState(data);
 
     return true;
 }
@@ -152,14 +148,10 @@ bool Gameboy::isRomLoaded() {
     return this->romFile != NULL;
 }
 
-bool Gameboy::loadRom(u8* rom, u32 size) {
+bool Gameboy::loadRom(std::istream& data, int size) {
     this->unloadRom();
 
-    if(rom == NULL) {
-        return true;
-    }
-
-    this->romFile = new RomFile(rom, size);
+    this->romFile = new RomFile(data, size);
     return this->romFile != NULL;
 }
 

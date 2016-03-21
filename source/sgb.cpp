@@ -134,44 +134,44 @@ void SGB::reset() {
     });
 }
 
-void SGB::loadState(FILE* file, int version) {
-    fread(&this->packetLength, 1, sizeof(this->packetLength), file);
-    fread(&this->packetsTransferred, 1, sizeof(this->packetsTransferred), file);
-    fread(&this->packetBit, 1, sizeof(this->packetBit), file);
-    fread(this->packet, 1, sizeof(this->packet), file);
-    fread(&this->command, 1, sizeof(this->command), file);
-    fread(&this->cmdData, 1, sizeof(this->cmdData), file);
+void SGB::loadState(std::istream& data, u8 version) {
+    data.read((char*) &this->packetLength, sizeof(this->packetLength));
+    data.read((char*) &this->packetsTransferred, sizeof(this->packetsTransferred));
+    data.read((char*) &this->packetBit, sizeof(this->packetBit));
+    data.read((char*) this->packet, sizeof(this->packet));
+    data.read((char*) &this->command, sizeof(this->command));
+    data.read((char*) &this->cmdData, sizeof(this->cmdData));
 
-    fread(&this->controllers, 1, sizeof(this->controllers), file);
-    fread(&this->numControllers, 1, sizeof(this->numControllers), file);
-    fread(&this->selectedController, 1, sizeof(this->selectedController), file);
-    fread(&this->buttonsChecked, 1, sizeof(this->buttonsChecked), file);
+    data.read((char*) &this->controllers, sizeof(this->controllers));
+    data.read((char*) &this->numControllers, sizeof(this->numControllers));
+    data.read((char*) &this->selectedController, sizeof(this->selectedController));
+    data.read((char*) &this->buttonsChecked, sizeof(this->buttonsChecked));
 
-    fread(this->palettes, 1, sizeof(this->palettes), file);
-    fread(this->attrFiles, 1, sizeof(this->attrFiles), file);
+    data.read((char*) this->palettes, sizeof(this->palettes));
+    data.read((char*) this->attrFiles, sizeof(this->attrFiles));
 
-    fread(&this->mask, 1, sizeof(this->mask), file);
-    fread(this->map, 1, sizeof(this->map), file);
+    data.read((char*) &this->mask, sizeof(this->mask));
+    data.read((char*) this->map, sizeof(this->map));
 }
 
-void SGB::saveState(FILE* file) {
-    fwrite(&this->packetLength, 1, sizeof(this->packetLength), file);
-    fwrite(&this->packetsTransferred, 1, sizeof(this->packetsTransferred), file);
-    fwrite(&this->packetBit, 1, sizeof(this->packetBit), file);
-    fwrite(this->packet, 1, sizeof(this->packet), file);
-    fwrite(&this->command, 1, sizeof(this->command), file);
-    fwrite(&this->cmdData, 1, sizeof(this->cmdData), file);
+void SGB::saveState(std::ostream& data) {
+    data.write((char*) &this->packetLength, sizeof(this->packetLength));
+    data.write((char*) &this->packetsTransferred, sizeof(this->packetsTransferred));
+    data.write((char*) &this->packetBit, sizeof(this->packetBit));
+    data.write((char*) this->packet, sizeof(this->packet));
+    data.write((char*) &this->command, sizeof(this->command));
+    data.write((char*) &this->cmdData, sizeof(this->cmdData));
 
-    fwrite(&this->controllers, 1, sizeof(this->controllers), file);
-    fwrite(&this->numControllers, 1, sizeof(this->numControllers), file);
-    fwrite(&this->selectedController, 1, sizeof(this->selectedController), file);
-    fwrite(&this->buttonsChecked, 1, sizeof(this->buttonsChecked), file);
+    data.write((char*) &this->controllers, sizeof(this->controllers));
+    data.write((char*) &this->numControllers, sizeof(this->numControllers));
+    data.write((char*) &this->selectedController, sizeof(this->selectedController));
+    data.write((char*) &this->buttonsChecked, sizeof(this->buttonsChecked));
 
-    fwrite(this->palettes, 1, sizeof(this->palettes), file);
-    fwrite(this->attrFiles, 1, sizeof(this->attrFiles), file);
+    data.write((char*) this->palettes, sizeof(this->palettes));
+    data.write((char*) this->attrFiles, sizeof(this->attrFiles));
 
-    fwrite(&this->mask, 1, sizeof(this->mask), file);
-    fwrite(this->map, 1, sizeof(this->map), file);
+    data.write((char*) &this->mask, sizeof(this->mask));
+    data.write((char*) this->map, sizeof(this->map));
 }
 
 void SGB::update() {

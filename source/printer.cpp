@@ -1,7 +1,8 @@
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+
+#include <fstream>
 
 #include "platform/common/manager.h"
 #include "platform/system.h"
@@ -45,46 +46,46 @@ void Printer::reset() {
     this->counter = 0;
 }
 
-void Printer::loadState(FILE* file, int version) {
-    fread(this->gfx, 1, sizeof(this->gfx), file);
-    fread(&this->gfxIndex, 1, sizeof(this->gfxIndex), file);
-    fread(&this->packetByte, 1, sizeof(this->packetByte), file);
-    fread(&this->status, 1, sizeof(this->status), file);
-    fread(&this->cmd, 1, sizeof(this->cmd), file);
-    fread(&this->cmdLength, 1, sizeof(this->cmdLength), file);
-    fread(&this->packetCompressed, 1, sizeof(this->packetCompressed), file);
-    fread(&this->compressionByte, 1, sizeof(this->compressionByte), file);
-    fread(&this->compressionLen, 1, sizeof(this->compressionLen), file);
-    fread(&this->expectedChecksum, 1, sizeof(this->expectedChecksum), file);
-    fread(&this->checksum, 1, sizeof(this->checksum), file);
-    fread(&this->margins, 1, sizeof(this->margins), file);
-    fread(&this->lastMargins, 1, sizeof(this->lastMargins), file);
-    fread(&this->cmd2Index, 1, sizeof(this->cmd2Index), file);
-    fread(&this->palette, 1, sizeof(this->palette), file);
-    fread(&this->exposure, 1, sizeof(this->exposure), file);
-    fread(&this->numPrinted, 1, sizeof(this->numPrinted), file);
-    fread(&this->counter, 1, sizeof(this->counter), file);
+void Printer::loadState(std::istream& data, u8 version) {
+    data.read((char*) this->gfx, sizeof(this->gfx));
+    data.read((char*) &this->gfxIndex, sizeof(this->gfxIndex));
+    data.read((char*) &this->packetByte, sizeof(this->packetByte));
+    data.read((char*) &this->status, sizeof(this->status));
+    data.read((char*) &this->cmd, sizeof(this->cmd));
+    data.read((char*) &this->cmdLength, sizeof(this->cmdLength));
+    data.read((char*) &this->packetCompressed, sizeof(this->packetCompressed));
+    data.read((char*) &this->compressionByte, sizeof(this->compressionByte));
+    data.read((char*) &this->compressionLen, sizeof(this->compressionLen));
+    data.read((char*) &this->expectedChecksum, sizeof(this->expectedChecksum));
+    data.read((char*) &this->checksum, sizeof(this->checksum));
+    data.read((char*) &this->margins, sizeof(this->margins));
+    data.read((char*) &this->lastMargins, sizeof(this->lastMargins));
+    data.read((char*) &this->cmd2Index, sizeof(this->cmd2Index));
+    data.read((char*) &this->palette, sizeof(this->palette));
+    data.read((char*) &this->exposure, sizeof(this->exposure));
+    data.read((char*) &this->numPrinted, sizeof(this->numPrinted));
+    data.read((char*) &this->counter, sizeof(this->counter));
 }
 
-void Printer::saveState(FILE* file) {
-    fwrite(this->gfx, 1, sizeof(this->gfx), file);
-    fwrite(&this->gfxIndex, 1, sizeof(this->gfxIndex), file);
-    fwrite(&this->packetByte, 1, sizeof(this->packetByte), file);
-    fwrite(&this->status, 1, sizeof(this->status), file);
-    fwrite(&this->cmd, 1, sizeof(this->cmd), file);
-    fwrite(&this->cmdLength, 1, sizeof(this->cmdLength), file);
-    fwrite(&this->packetCompressed, 1, sizeof(this->packetCompressed), file);
-    fwrite(&this->compressionByte, 1, sizeof(this->compressionByte), file);
-    fwrite(&this->compressionLen, 1, sizeof(this->compressionLen), file);
-    fwrite(&this->expectedChecksum, 1, sizeof(this->expectedChecksum), file);
-    fwrite(&this->checksum, 1, sizeof(this->checksum), file);
-    fwrite(&this->margins, 1, sizeof(this->margins), file);
-    fwrite(&this->lastMargins, 1, sizeof(this->lastMargins), file);
-    fwrite(&this->cmd2Index, 1, sizeof(this->cmd2Index), file);
-    fwrite(&this->palette, 1, sizeof(this->palette), file);
-    fwrite(&this->exposure, 1, sizeof(this->exposure), file);
-    fwrite(&this->numPrinted, 1, sizeof(this->numPrinted), file);
-    fwrite(&this->counter, 1, sizeof(this->counter), file);
+void Printer::saveState(std::ostream& data) {
+    data.write((char*) this->gfx, sizeof(this->gfx));
+    data.write((char*) &this->gfxIndex, sizeof(this->gfxIndex));
+    data.write((char*) &this->packetByte, sizeof(this->packetByte));
+    data.write((char*) &this->status, sizeof(this->status));
+    data.write((char*) &this->cmd, sizeof(this->cmd));
+    data.write((char*) &this->cmdLength, sizeof(this->cmdLength));
+    data.write((char*) &this->packetCompressed, sizeof(this->packetCompressed));
+    data.write((char*) &this->compressionByte, sizeof(this->compressionByte));
+    data.write((char*) &this->compressionLen, sizeof(this->compressionLen));
+    data.write((char*) &this->expectedChecksum, sizeof(this->expectedChecksum));
+    data.write((char*) &this->checksum, sizeof(this->checksum));
+    data.write((char*) &this->margins, sizeof(this->margins));
+    data.write((char*) &this->lastMargins, sizeof(this->lastMargins));
+    data.write((char*) &this->cmd2Index, sizeof(this->cmd2Index));
+    data.write((char*) &this->palette, sizeof(this->palette));
+    data.write((char*) &this->exposure, sizeof(this->exposure));
+    data.write((char*) &this->numPrinted, sizeof(this->numPrinted));
+    data.write((char*) &this->counter, sizeof(this->counter));
 }
 
 u8 Printer::link(u8 val) {
@@ -373,45 +374,39 @@ void Printer::saveImage() {
         }
     }
 
-    FILE* file;
+    std::fstream stream(filename);
     if(appending) {
-        file = fopen(filename, "r+b");
         int temp;
 
         // Update height
-        fseek(file, 0x16, SEEK_SET);
-        fread(&temp, 4, 1, file);
+        stream.seekg(0x16);
+        stream.read((char*) &temp, sizeof(temp));
         temp = -(height + (-temp));
-        fseek(file, 0x16, SEEK_SET);
-        fwrite(&temp, 4, 1, file);
+        stream.seekg(0x16);
+        stream.write((char*) &temp, sizeof(temp));
 
         // Update pixelArraySize
-        fseek(file, 0x22, SEEK_SET);
-        fread(&temp, 4, 1, file);
+        stream.seekg(0x22);
+        stream.read((char*) &temp, sizeof(temp));
         temp += pixelArraySize;
-        fseek(file, 0x22, SEEK_SET);
-        fwrite(&temp, 4, 1, file);
+        stream.seekg(0x22);
+        stream.write((char*) &temp, sizeof(temp));
 
         // Update file size
         temp += sizeof(bmpHeader);
-        fseek(file, 0x2, SEEK_SET);
-        fwrite(&temp, 4, 1, file);
-
-        fclose(file);
-        file = fopen(filename, "ab");
+        stream.seekg(0x2);
+        stream.write((char*) &temp, sizeof(temp));
     } else { // Not appending; making a file from scratch
-        file = fopen(filename, "ab");
-
         *(u32*) (bmpHeader + 0x02) = sizeof(bmpHeader) + pixelArraySize;
         *(u32*) (bmpHeader + 0x22) = (u32) pixelArraySize;
         *(u32*) (bmpHeader + 0x12) = (u32) width;
         *(u32*) (bmpHeader + 0x16) = (u32) -height;
-        fwrite(bmpHeader, 1, sizeof(bmpHeader), file);
+
+        stream.write((char*) bmpHeader, sizeof(bmpHeader));
     }
 
-    fwrite(pixelData, 1, (size_t) pixelArraySize, file);
-
-    fclose(file);
+    stream.write((char*) pixelData, pixelArraySize);
+    stream.close();
 
     free(pixelData);
     this->gfxIndex = 0;

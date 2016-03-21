@@ -1,8 +1,8 @@
 #pragma once
 
-#include <stdio.h>
-
 #include <functional>
+#include <istream>
+#include <ostream>
 
 #include "types.h"
 
@@ -95,8 +95,8 @@ public:
 
     void reset();
 
-    void loadState(FILE* file, int version);
-    void saveState(FILE* file);
+    void loadState(std::istream& data, u8 version);
+    void saveState(std::ostream& data);
 
     u8 read(u16 addr);
     void write(u16 addr, u8 val);

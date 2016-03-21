@@ -4,7 +4,6 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <poll.h>
-#include <stdio.h>
 #include <unistd.h>
 
 #include "platform/common/config.h"

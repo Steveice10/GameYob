@@ -1,5 +1,3 @@
-#include <stdio.h>
-
 #include "platform/system.h"
 #include "cpu.h"
 #include "gameboy.h"
@@ -58,14 +56,14 @@ void Timer::reset() {
     });
 }
 
-void Timer::loadState(FILE* file, int version) {
-    fread(&this->lastDividerCycle, 1, sizeof(this->lastDividerCycle), file);
-    fread(&this->lastTimerCycle, 1, sizeof(this->lastTimerCycle), file);
+void Timer::loadState(std::istream& data, u8 version) {
+    data.read((char*) &this->lastDividerCycle, sizeof(this->lastDividerCycle));
+    data.read((char*) &this->lastTimerCycle, sizeof(this->lastTimerCycle));
 }
 
-void Timer::saveState(FILE* file) {
-    fwrite(&this->lastDividerCycle, 1, sizeof(this->lastDividerCycle), file);
-    fwrite(&this->lastTimerCycle, 1, sizeof(this->lastTimerCycle), file);
+void Timer::saveState(std::ostream& data) {
+    data.write((char*) &this->lastDividerCycle, sizeof(this->lastDividerCycle));
+    data.write((char*) &this->lastTimerCycle, sizeof(this->lastTimerCycle));
 }
 
 void Timer::update() {
