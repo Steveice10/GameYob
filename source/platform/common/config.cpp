@@ -171,7 +171,7 @@ bool readConfigFile() {
 
     void (*configParser)(char*) = generalParseConfig;
 
-    std::ifstream stream(systemIniPath(), std::ios::ate);
+    std::ifstream stream(systemIniPath());
     if(!stream.is_open()) {
         romPath = "/";
         mgrRefreshBios();

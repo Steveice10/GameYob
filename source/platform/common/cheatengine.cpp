@@ -137,7 +137,7 @@ void CheatEngine::loadCheats(const char* filename) {
     numCheats = 0;
 
     // Begin loading new cheat file
-    std::ifstream stream(filename, std::ios::ate);
+    std::ifstream stream(filename);
     if(!stream.is_open()) {
         return;
     }
