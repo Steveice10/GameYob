@@ -1,8 +1,9 @@
 #include <errno.h>
 #include <string.h>
-#include <platform/common/manager.h>
-#include <platform/common/menu.h>
+#include <time.h>
 
+#include "platform/common/manager.h"
+#include "platform/common/menu.h"
 #include "platform/input.h"
 #include "platform/system.h"
 #include "cpu.h"

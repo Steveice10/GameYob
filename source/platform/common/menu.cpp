@@ -516,7 +516,7 @@ int biosMode = 0;
 
 int fastForwardFrameSkip = 0;
 
-FileChooser borderChooser("/", {"png", "bmp"}, true);
+FileChooser borderChooser("/", {"jpg", "png", "tga", "bmp", "psd", "gif", "hdr", "pic"}, true);
 FileChooser biosChooser("/", {"bin"}, true);
 
 // Private function used for simple submenus

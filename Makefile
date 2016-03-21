@@ -32,7 +32,7 @@ else
 	LIBRARIES := ncurses SDL2 m
 endif
 
-BUILD_FLAGS := -O3 -Wno-unused-result -DVERSION_STRING="\"`git describe --tags --abbrev=0` (`git describe --always --abbrev=10`)\""
+BUILD_FLAGS := -O3 -Wno-unused-function -Wno-unused-result -DVERSION_STRING="\"`git describe --tags --abbrev=0` (`git describe --always --abbrev=10`)\""
 ifeq ($(TARGET),3DS)
 	BUILD_FLAGS += -DBACKEND_3DS
 else

@@ -5,12 +5,12 @@
 #include <fstream>
 #include <sstream>
 
-#include "platform/common/picopng.h"
 #include "platform/common/cheatengine.h"
 #include "platform/common/config.h"
 #include "platform/common/filechooser.h"
 #include "platform/common/manager.h"
 #include "platform/common/menu.h"
+#include "platform/common/stb_image.h"
 #include "platform/gfx.h"
 #include "platform/input.h"
 #include "platform/system.h"
@@ -293,161 +293,40 @@ void mgrDeleteState(int stateNum) {
     remove(mgrGetStateName(stateNum).c_str());
 }
 
-bool mgrReadBmp(u8** data, u32* width, u32* height, const char* filename) {
-    std::ifstream stream(filename, std::ios::binary);
-    if(!stream.is_open()) {
-        systemPrintDebug("Failed to open BMP file: %s\n", strerror(errno));
-        return false;
-    }
-
-    char identifier[2];
-    stream.read(identifier, sizeof(identifier));
-
-    if(identifier[0] != 'B' || identifier[1] != 'M') {
-        systemPrintDebug("Invalid BMP file.\n");
-        return false;
-    }
-
-    u16 dataOffset;
-    stream.seekg(10);
-    stream.read((char*) &dataOffset, sizeof(dataOffset));
-
-    u16 w;
-    stream.seekg(18);
-    stream.read((char*) &w, sizeof(w));
-
-    u16 h;
-    stream.seekg(22);
-    stream.read((char*) &h, sizeof(h));
-
-    u16 bits;
-    stream.seekg(28);
-    stream.read((char*) &bits, sizeof(bits));
-    u32 bytes = (u32) (bits / 8);
-
-    u16 compression;
-    stream.seekg(30);
-    stream.read((char*) &compression, sizeof(compression));
-
-    size_t srcSize = (size_t) (w * h * bytes);
-    u8* srcPixels = (u8*) malloc(srcSize);
-    stream.seekg(dataOffset);
-    stream.read((char*) srcPixels, srcSize);
-
-    stream.close();
-
-    u8* dstPixels = new u8[w * h * sizeof(u32)];
-
-    if(bits == 16) {
-        u16* srcPixels16 = (u16*) srcPixels;
-        for(u32 x = 0; x < w; x++) {
-            for(u32 y = 0; y < h; y++) {
-                u32 srcPos = (h - y - 1) * w + x;
-                u32 dstPos = (u32) ((y * w + x) * sizeof(u32));
-
-                u16 src = srcPixels16[srcPos];
-                dstPixels[dstPos + 0] = 0xFF;
-                dstPixels[dstPos + 1] = (u8) ((src & 0x1F) << 3);
-                dstPixels[dstPos + 2] = (u8) (((src >> 5) & 0x1F) << 3);
-                dstPixels[dstPos + 3] = (u8) (((src >> 10) & 0x1F) << 3);
-            }
-        }
-    } else if(bits == 24 || bits == 32) {
-        for(u32 x = 0; x < w; x++) {
-            for(u32 y = 0; y < h; y++) {
-                u32 srcPos = ((h - y - 1) * w + x) * bytes;
-                u32 dstPos = (u32) ((y * w + x) * sizeof(u32));
-
-                dstPixels[dstPos + 0] = 0xFF;
-                dstPixels[dstPos + 1] = srcPixels[srcPos + bytes - 3];
-                dstPixels[dstPos + 2] = srcPixels[srcPos + bytes - 2];
-                dstPixels[dstPos + 3] = srcPixels[srcPos + bytes - 1];
-            }
-        }
-    } else {
-        systemPrintDebug("Unsupported BMP bit depth: %d\n", bits);
-
-        free(srcPixels);
-        return false;
-    }
-
-    free(srcPixels);
-
-    *data = dstPixels;
-    *width = w;
-    *height = h;
-
-    return 0;
-}
-
-bool mgrReadPng(u8** data, u32* width, u32* height, const char* filename) {
-    std::ifstream stream(filename, std::ios::binary | std::ios::ate);
-    if(!stream.is_open()) {
-        systemPrintDebug("Failed to open PNG file: %s\n", strerror(errno));
-        return false;
-    }
-
-    size_t size = (size_t) stream.tellg();
-    stream.seekg(0);
-
-    u8* buf = new u8[size];
-    stream.read((char*) buf, size);
-    stream.close();
-
-    std::vector<u8> srcPixels;
-    u32 w;
-    u32 h;
-    int decodeRet = decodePNG(srcPixels, w, h, buf, size);
-    delete buf;
-
-    if(decodeRet != 0) {
-        systemPrintDebug("Failed to decode PNG file: %d\n", decodeRet);
-        return false;
-    }
-
-    u8* dstPixels = new u8[w * h * sizeof(u32)];
-    for(u32 x = 0; x < w; x++) {
-        for(u32 y = 0; y < h; y++) {
-            u32 src = (y * w + x) * 4;
-            dstPixels[src + 0] = srcPixels[src + 3];
-            dstPixels[src + 1] = srcPixels[src + 2];
-            dstPixels[src + 2] = srcPixels[src + 1];
-            dstPixels[src + 3] = srcPixels[src + 0];
-        }
-    }
-
-    *data = dstPixels;
-    *width = w;
-    *height = h;
-
-    return true;
-}
-
-void mgrLoadBorderFile(const char* filename) {
-    // Determine the file extension.
-    const std::string path = filename;
-    std::string::size_type dotPos = path.rfind('.');
-    if(dotPos == std::string::npos) {
-        return;
-    }
-
-    const std::string extension = path.substr(dotPos + 1);
-
-    // Load the image.
-    u8* imgData;
-    u32 imgWidth;
-    u32 imgHeight;
-    if((strcasecmp(extension.c_str(), "png") == 0 && mgrReadPng(&imgData, &imgWidth, &imgHeight, filename)) || (strcasecmp(extension.c_str(), "bmp") == 0 && mgrReadBmp(&imgData, &imgWidth, &imgHeight, filename))) {
-        gfxLoadBorder(imgData, (int) imgWidth, (int) imgHeight);
-        delete imgData;
-    }
-}
-
 bool mgrTryRawBorderFile(std::string border) {
     std::ifstream stream(border, std::ios::binary);
     if(stream.is_open()) {
         stream.close();
-        mgrLoadBorderFile(border.c_str());
+
+        int imgWidth;
+        int imgHeight;
+        int imgDepth;
+        u8* image = stbi_load(border.c_str(), &imgWidth, &imgHeight, &imgDepth, STBI_rgb_alpha);
+        if(image == NULL || imgDepth != STBI_rgb_alpha) {
+            if(image != NULL) {
+                stbi_image_free(image);
+            }
+
+            systemPrintDebug("Failed to decode image file.\n");
+            return false;
+        }
+
+        u8* imgData = new u8[imgWidth * imgHeight * sizeof(u32)];
+        for(int x = 0; x < imgWidth; x++) {
+            for(int y = 0; y < imgHeight; y++) {
+                int offset = (y * imgWidth + x) * 4;
+                imgData[offset + 0] = image[offset + 3];
+                imgData[offset + 1] = image[offset + 2];
+                imgData[offset + 2] = image[offset + 1];
+                imgData[offset + 3] = image[offset + 0];
+            }
+        }
+
+        stbi_image_free(image);
+
+        gfxLoadBorder(imgData, imgWidth, imgHeight);
+        delete imgData;
+
         return true;
     }
 
