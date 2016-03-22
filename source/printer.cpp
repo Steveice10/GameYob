@@ -6,6 +6,7 @@
 
 #include "platform/common/manager.h"
 #include "platform/system.h"
+#include "cpu.h"
 #include "gameboy.h"
 #include "printer.h"
 #include "romfile.h"
@@ -43,7 +44,7 @@ void Printer::reset() {
 
     this->numPrinted = 0;
 
-    this->counter = 0;
+    this->nextUpdateCycle = 0;
 }
 
 void Printer::loadState(std::istream& data, u8 version) {
@@ -58,13 +59,13 @@ void Printer::loadState(std::istream& data, u8 version) {
     data.read((char*) &this->compressionLen, sizeof(this->compressionLen));
     data.read((char*) &this->expectedChecksum, sizeof(this->expectedChecksum));
     data.read((char*) &this->checksum, sizeof(this->checksum));
+    data.read((char*) &this->cmd2Index, sizeof(this->cmd2Index));
     data.read((char*) &this->margins, sizeof(this->margins));
     data.read((char*) &this->lastMargins, sizeof(this->lastMargins));
-    data.read((char*) &this->cmd2Index, sizeof(this->cmd2Index));
     data.read((char*) &this->palette, sizeof(this->palette));
     data.read((char*) &this->exposure, sizeof(this->exposure));
     data.read((char*) &this->numPrinted, sizeof(this->numPrinted));
-    data.read((char*) &this->counter, sizeof(this->counter));
+    data.read((char*) &this->nextUpdateCycle, sizeof(this->nextUpdateCycle));
 }
 
 void Printer::saveState(std::ostream& data) {
@@ -79,18 +80,16 @@ void Printer::saveState(std::ostream& data) {
     data.write((char*) &this->compressionLen, sizeof(this->compressionLen));
     data.write((char*) &this->expectedChecksum, sizeof(this->expectedChecksum));
     data.write((char*) &this->checksum, sizeof(this->checksum));
+    data.write((char*) &this->cmd2Index, sizeof(this->cmd2Index));
     data.write((char*) &this->margins, sizeof(this->margins));
     data.write((char*) &this->lastMargins, sizeof(this->lastMargins));
-    data.write((char*) &this->cmd2Index, sizeof(this->cmd2Index));
     data.write((char*) &this->palette, sizeof(this->palette));
     data.write((char*) &this->exposure, sizeof(this->exposure));
     data.write((char*) &this->numPrinted, sizeof(this->numPrinted));
-    data.write((char*) &this->counter, sizeof(this->counter));
+    data.write((char*) &this->nextUpdateCycle, sizeof(this->nextUpdateCycle));
 }
 
 u8 Printer::link(u8 val) {
-    u8 linkReceivedData = 0x00;
-
     // "Byte" 6 is actually a number of bytes. The counter stays at 6 until the
     // required number of bytes have been read.
     if(this->packetByte == 6 && this->cmdLength == 0) {
@@ -102,52 +101,42 @@ u8 Printer::link(u8 val) {
         this->checksum += val;
     }
 
-    switch(this->packetByte) {
+    switch(this->packetByte++) {
         case 0: // Magic byte
-            linkReceivedData = 0x00;
             if(val != 0x88) {
                 this->packetByte = 0;
                 this->checksum = 0;
                 this->cmd2Index = 0;
-                return linkReceivedData;
             }
 
-            break;
+            return 0;
         case 1: // Magic byte
-            linkReceivedData = 0x00;
             if(val != 0x33) {
                 this->packetByte = 0;
                 this->checksum = 0;
                 this->cmd2Index = 0;
-                return linkReceivedData;
             }
 
-            break;
+            return 0;
         case 2: // Command
-            linkReceivedData = 0x00;
             this->cmd = val;
-            break;
+            return 0;
         case 3: // Compression flag
-            linkReceivedData = 0x00;
             this->packetCompressed = val;
             if(this->packetCompressed) {
                 this->compressionLen = 0;
             }
 
-            break;
+            return 0;
         case 4: // Length (LSB)
-            linkReceivedData = 0x00;
-            this->cmdLength = val;
-            break;
+            this->cmdLength = (u16) ((this->cmdLength & 0xFF00) | val);
+            return 0;
         case 5: // Length (MSB)
-            linkReceivedData = 0x00;
-            this->cmdLength |= val << 8;
-            break;
+            this->cmdLength = (u16) ((this->cmdLength & 0xFF) | (val << 8));
+            return 0;
         case 6: // variable-length data
-            linkReceivedData = 0x00;
-
             if(!this->packetCompressed) {
-                this->sendVariableLenData(val);
+                this->processBodyData(val);
             } else {
                 // Handle RLE compression
                 if(this->compressionLen == 0) {
@@ -159,46 +148,45 @@ u8 Printer::link(u8 val) {
                 } else {
                     if(this->compressionByte & 0x80) {
                         while(this->compressionLen != 0) {
-                            this->sendVariableLenData(val);
+                            this->processBodyData(val);
                             this->compressionLen--;
                         }
                     } else {
-                        this->sendVariableLenData(val);
+                        this->processBodyData(val);
                         this->compressionLen--;
                     }
                 }
             }
 
             this->cmdLength--;
-            return linkReceivedData; // packetByte won't be incremented
+            this->packetByte--; // Remain on 6 until we've received everything.
+            return 0;
         case 7: // Checksum (LSB)
-            linkReceivedData = 0x00;
-            this->expectedChecksum = val;
-            break;
+            this->expectedChecksum = (u16) ((this->expectedChecksum & 0xFF00) | val);
+            return 0;
         case 8: // Checksum (MSB)
-            linkReceivedData = 0x00;
-            this->expectedChecksum |= val << 8;
-            break;
+            this->expectedChecksum = (u16) ((this->expectedChecksum & 0xFF) | (val << 8));
+            return 0;
         case 9: // Alive indicator
-            linkReceivedData = 0x81;
-            break;
-        case 10: // Status
+            return 0x81;
+        case 10: { // Status
             if(this->checksum != this->expectedChecksum) {
                 this->status |= PRINTER_STATUS_CHECKSUM;
-                systemPrintDebug("Checksum %.4x, expected %.4x\n", this->checksum, this->expectedChecksum);
+                systemPrintDebug("Printer Error: Checksum %.4x, Expected %.4x\n", this->checksum, this->expectedChecksum);
             } else {
                 this->status &= ~PRINTER_STATUS_CHECKSUM;
             }
 
             switch(this->cmd) {
                 case 1: // Initialize
-                    this->counter = 0;
+                    this->nextUpdateCycle = 0;
                     this->status = 0;
                     this->gfxIndex = 0;
                     memset(this->gfx, 0, sizeof(this->gfx));
                     break;
                 case 2: // Start printing (after a short delay)
-                    this->counter = 1;
+                    this->nextUpdateCycle = this->gameboy->cpu->getCycle() + CYCLES_PER_FRAME;
+                    this->gameboy->cpu->setEventCycle(this->nextUpdateCycle);
                     break;
                 case 4: // Fill buffer
                     // Data has been read, nothing more to do
@@ -207,7 +195,7 @@ u8 Printer::link(u8 val) {
                     break;
             }
 
-            linkReceivedData = this->status;
+            u8 reply = this->status;
 
             // The received value apparently shouldn't contain this until next packet.
             if(this->gfxIndex >= 0x280) {
@@ -217,19 +205,20 @@ u8 Printer::link(u8 val) {
             this->packetByte = 0;
             this->checksum = 0;
             this->cmd2Index = 0;
-            return linkReceivedData;
+            return reply;
+        }
         default:
             break;
     }
 
-    this->packetByte++;
-    return linkReceivedData;
+    return 0;
 }
 
 void Printer::update() {
-    if(this->counter != 0) {
-        this->counter--;
-        if(this->counter == 0) {
+    if(this->nextUpdateCycle != 0) {
+        if(this->gameboy->cpu->getCycle() >= this->nextUpdateCycle) {
+            this->nextUpdateCycle = 0;
+
             if(this->status & PRINTER_STATUS_PRINTING) {
                 this->status &= ~PRINTER_STATUS_PRINTING;
             } else {
@@ -238,11 +227,13 @@ void Printer::update() {
                 this->status &= ~PRINTER_STATUS_READY;
                 this->saveImage();
             }
+        } else {
+            this->gameboy->cpu->setEventCycle(this->nextUpdateCycle);
         }
     }
 }
 
-void Printer::sendVariableLenData(u8 dat) {
+void Printer::processBodyData(u8 dat) {
     switch(this->cmd) {
         case 0x2: // Print
             switch(this->cmd2Index) {
@@ -374,9 +365,11 @@ void Printer::saveImage() {
         }
     }
 
-    std::fstream stream(filename);
     if(appending) {
-        int temp;
+        std::fstream stream(filename, std::fstream::in | std::fstream::out | std::fstream::binary | std::fstream::ate);
+        s64 end = stream.tellg();
+
+        int temp = 0;
 
         // Update height
         stream.seekg(0x16);
@@ -396,23 +389,29 @@ void Printer::saveImage() {
         temp += sizeof(bmpHeader);
         stream.seekg(0x2);
         stream.write((char*) &temp, sizeof(temp));
+
+        // Append pixel data
+        stream.seekg(end);
+        stream.write((char*) pixelData, pixelArraySize);
+
+        stream.close();
     } else { // Not appending; making a file from scratch
+        std::fstream stream(filename, std::fstream::out | std::fstream::binary);
+
         *(u32*) (bmpHeader + 0x02) = sizeof(bmpHeader) + pixelArraySize;
         *(u32*) (bmpHeader + 0x22) = (u32) pixelArraySize;
         *(u32*) (bmpHeader + 0x12) = (u32) width;
         *(u32*) (bmpHeader + 0x16) = (u32) -height;
 
         stream.write((char*) bmpHeader, sizeof(bmpHeader));
+        stream.write((char*) pixelData, pixelArraySize);
+        stream.close();
     }
-
-    stream.write((char*) pixelData, pixelArraySize);
-    stream.close();
 
     free(pixelData);
     this->gfxIndex = 0;
 
-    this->counter = height; // PRINTER_STATUS_PRINTING will be unset after this many frames
-    if(this->counter == 0) {
-        this->counter = 1;
-    }
+    // PRINTER_STATUS_PRINTING will be unset after this many frames
+    this->nextUpdateCycle = this->gameboy->cpu->getCycle() + ((height != 0 ? height : 1) * CYCLES_PER_FRAME);
+    this->gameboy->cpu->setEventCycle(this->nextUpdateCycle);
 }

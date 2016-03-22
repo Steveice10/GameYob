@@ -23,7 +23,7 @@ public:
 
     u8 link(u8 val);
 private:
-    void sendVariableLenData(u8 dat);
+    void processBodyData(u8 dat);
     void saveImage();
 
     Gameboy* gameboy;
@@ -43,13 +43,13 @@ private:
     u16 expectedChecksum;
     u16 checksum;
 
+    u8 cmd2Index;
     int margins;
     int lastMargins; // it's an int so that it can have a "nonexistant" value ("never set").
-    u8 cmd2Index;
     u8 palette;
     u8 exposure; // Ignored
 
     int numPrinted; // Corresponds to the number after the filename
 
-    int counter = 0; // Timer until the printer "stops printing".
+    u64 nextUpdateCycle;
 };

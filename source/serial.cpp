@@ -6,8 +6,6 @@
 #include "romfile.h"
 #include "serial.h"
 
-// TODO: Needs work.
-
 Serial::Serial(Gameboy* gameboy) {
     this->gameboy = gameboy;
 
@@ -58,20 +56,29 @@ void Serial::saveState(std::ostream& data) {
 }
 
 void Serial::update() {
+    if(printerEnabled) {
+        this->printer->update();
+    }
+
     // For external clock
     if(this->nextSerialExternalCycle > 0) {
         if(this->gameboy->cpu->getCycle() >= this->nextSerialExternalCycle) {
             u8 sc = this->gameboy->mmu->readIO(SC);
 
-            this->nextSerialExternalCycle = 0;
+            u8 received = 0xFF;
             if((sc & 0x81) == 0x80) {
-                this->gameboy->frontendEvents |= RET_LINK;
+                // TODO: Receive/Send
             }
 
+            this->gameboy->mmu->writeIO(SB, received);
+
             if(sc & 0x80) {
-                this->gameboy->cpu->requestInterrupt(INT_SERIAL);
                 this->gameboy->mmu->writeIO(SC, (u8) (sc & ~0x80));
+
+                this->gameboy->cpu->requestInterrupt(INT_SERIAL);
             }
+
+            this->nextSerialExternalCycle = 0;
         } else {
             this->gameboy->cpu->setEventCycle(this->nextSerialExternalCycle);
         }
@@ -80,20 +87,24 @@ void Serial::update() {
     // For internal clock
     if(this->nextSerialInternalCycle > 0) {
         if(this->gameboy->cpu->getCycle() >= this->nextSerialInternalCycle) {
-            this->nextSerialInternalCycle = 0;
+            u8 sc = this->gameboy->mmu->readIO(SC);
+            u8 sb = this->gameboy->mmu->readIO(SB);
+
+            u8 received = 0xFF;
             if(printerEnabled && this->gameboy->romFile->getRomTitle().compare("ALLEY WAY") != 0) { // Alleyway breaks when the printer is enabled, so force disable it.
-                this->gameboy->mmu->writeIO(SB, this->printer->link(this->gameboy->mmu->readIO(SB)));
+                received = this->printer->link(sb);
             } else {
-                this->gameboy->mmu->writeIO(SB, 0xFF);
+                // TODO: Send/Receive
             }
 
+            this->gameboy->mmu->writeIO(SB, received);
+            this->gameboy->mmu->writeIO(SC, (u8) (sc & ~0x80));
+
             this->gameboy->cpu->requestInterrupt(INT_SERIAL);
+
+            this->nextSerialInternalCycle = 0;
         } else {
             this->gameboy->cpu->setEventCycle(this->nextSerialInternalCycle);
         }
-    }
-
-    if(printerEnabled) {
-        this->printer->update();
     }
 }
