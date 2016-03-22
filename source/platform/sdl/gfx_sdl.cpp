@@ -136,6 +136,8 @@ void gfxLoadBorder(u8* imgData, int imgWidth, int imgHeight) {
             return;
         }
 
+        SDL_SetTextureBlendMode(borderTexture, SDL_BLENDMODE_BLEND);
+
         borderRect.w = imgWidth;
         borderRect.h = imgHeight;
 
@@ -187,12 +189,14 @@ void gfxTakeScreenshot() {
 void gfxDrawScreen() {
     SDL_GL_SetSwapInterval(!gfxGetFastForward());
 
-    if(borderTexture != NULL) {
-        SDL_RenderCopy(renderer, borderTexture, &borderRect, &windowBorderRect);
-    }
+    SDL_RenderClear(renderer);
 
     SDL_UpdateTexture(screenTexture, &screenRect, screenBuffer, 160 * 2);
     SDL_RenderCopy(renderer, screenTexture, &screenRect, &windowScreenRect);
+
+    if(borderTexture != NULL) {
+        SDL_RenderCopy(renderer, borderTexture, &borderRect, &windowBorderRect);
+    }
 
     SDL_RenderPresent(renderer);
 }

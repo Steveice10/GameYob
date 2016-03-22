@@ -480,6 +480,8 @@ static const unsigned short* findPalette(const char* title) {
 
 void subMenuGenericUpdateFunc(); // Private function here
 
+std::vector<std::string> supportedImages = {"jpg", "png", "tga", "bmp", "psd", "gif", "hdr", "pic"};
+
 bool consoleDebugOutput = false;
 bool menuOn = false;
 int menu = 0;
@@ -516,7 +518,7 @@ int biosMode = 0;
 
 int fastForwardFrameSkip = 0;
 
-FileChooser borderChooser("/", {"jpg", "png", "tga", "bmp", "psd", "gif", "hdr", "pic"}, true);
+FileChooser borderChooser("/", supportedImages, true);
 FileChooser biosChooser("/", {"bin"}, true);
 
 // Private function used for simple submenus
@@ -803,7 +805,7 @@ void selectBorderFunc(int value) {
 
 void borderFunc(int value) {
     borderSetting = value;
-    if(borderSetting == 1) {
+    if(borderSetting >= 2) {
         enableMenuOption("Select Border");
     } else {
         disableMenuOption("Select Border");
@@ -1144,7 +1146,7 @@ SubMenu menuList[] = {
                         {"Scale Filter", setScaleFilterFunc, 3, {"Nearest", "Linear", "Scale2x"}, 1},
                         {"FF Frame Skip", setFastForwardFrameSkipFunc, 4, {"0", "1", "2", "3"}, 3},
                         {"Colorize GB", gbColorizeFunc, 14, {"Off", "Auto", "Inverted", "Pastel Mix", "Red", "Orange", "Yellow", "Green", "Blue", "Brown", "Dark Green", "Dark Blue", "Dark Brown", "Classic Green"}, 1},
-                        {"Borders", borderFunc, 3, {"Off", "Custom", "SGB"}, 1},
+                        {"Borders", borderFunc, 5, {"Off", "SGB Only", "Custom Only", "Prefer SGB", "Prefer Custom"}, 1},
                         {"Border Scaling", setBorderScaleModeFunc, 2, {"Pre-Scaled", "Scale Base"}, 0},
                         {"Select Border", selectBorderFunc, 0, {}, 0}
                 }

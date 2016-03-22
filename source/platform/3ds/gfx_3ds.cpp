@@ -483,60 +483,6 @@ void gfxDrawScreen() {
     u16 viewportWidth = target->renderBuf.colorBuf.height;
     u16 viewportHeight = target->renderBuf.colorBuf.width;
 
-    // Draw the border.
-    if(borderInit && scaleMode != 4) {
-        // Calculate VBO points.
-        int scaledBorderWidth = borderWidth;
-        int scaledBorderHeight = borderHeight;
-        if(borderScaleMode == 1) {
-            if(scaleMode == 1) {
-                scaledBorderWidth *= 1.25f;
-                scaledBorderHeight *= 1.25f;
-            } else if(scaleMode == 2) {
-                scaledBorderWidth *= 1.50f;
-                scaledBorderHeight *= 1.50f;
-            } else if(scaleMode == 3) {
-                scaledBorderWidth *= viewportHeight / (float) 144;
-                scaledBorderHeight *= viewportHeight / (float) 144;
-            } else if(scaleMode == 4) {
-                scaledBorderWidth *= viewportWidth / (float) 160;
-                scaledBorderHeight *= viewportHeight / (float) 144;
-            }
-        }
-
-        const float x1 = ((int) viewportWidth - scaledBorderWidth) / 2.0f;
-        const float y1 = ((int) viewportHeight - scaledBorderHeight) / 2.0f;
-        const float x2 = x1 + scaledBorderWidth;
-        const float y2 = y1 + scaledBorderHeight;
-
-        float tx2 = (float) borderWidth / (float) gpuBorderWidth;
-        float ty2 = (float) borderHeight / (float) gpuBorderHeight;
-
-        C3D_TexBind(0, &borderTexture);
-
-        C3D_ImmDrawBegin(GPU_TRIANGLES);
-
-        C3D_ImmSendAttrib(x1, y1, 0.5f, 0.0f);
-        C3D_ImmSendAttrib(0, 0, 0.0f, 0.0f);
-
-        C3D_ImmSendAttrib(x2, y2, 0.5f, 0.0f);
-        C3D_ImmSendAttrib(tx2, ty2, 0.0f, 0.0f);
-
-        C3D_ImmSendAttrib(x2, y1, 0.5f, 0.0f);
-        C3D_ImmSendAttrib(tx2, 0, 0.0f, 0.0f);
-
-        C3D_ImmSendAttrib(x1, y1, 0.5f, 0.0f);
-        C3D_ImmSendAttrib(0, 0, 0.0f, 0.0f);
-
-        C3D_ImmSendAttrib(x1, y2, 0.5f, 0.0f);
-        C3D_ImmSendAttrib(0, ty2, 0.0f, 0.0f);
-
-        C3D_ImmSendAttrib(x2, y2, 0.5f, 0.0f);
-        C3D_ImmSendAttrib(tx2, ty2, 0.0f, 0.0f);
-
-        C3D_ImmDrawEnd();
-    }
-
     // Draw the screen.
     if(screenInit) {
         // Calculate the VBO dimensions.
@@ -574,6 +520,60 @@ void gfxDrawScreen() {
         }
 
         C3D_TexBind(0, &screenTexture);
+
+        C3D_ImmDrawBegin(GPU_TRIANGLES);
+
+        C3D_ImmSendAttrib(x1, y1, 0.5f, 0.0f);
+        C3D_ImmSendAttrib(0, 0, 0.0f, 0.0f);
+
+        C3D_ImmSendAttrib(x2, y2, 0.5f, 0.0f);
+        C3D_ImmSendAttrib(tx2, ty2, 0.0f, 0.0f);
+
+        C3D_ImmSendAttrib(x2, y1, 0.5f, 0.0f);
+        C3D_ImmSendAttrib(tx2, 0, 0.0f, 0.0f);
+
+        C3D_ImmSendAttrib(x1, y1, 0.5f, 0.0f);
+        C3D_ImmSendAttrib(0, 0, 0.0f, 0.0f);
+
+        C3D_ImmSendAttrib(x1, y2, 0.5f, 0.0f);
+        C3D_ImmSendAttrib(0, ty2, 0.0f, 0.0f);
+
+        C3D_ImmSendAttrib(x2, y2, 0.5f, 0.0f);
+        C3D_ImmSendAttrib(tx2, ty2, 0.0f, 0.0f);
+
+        C3D_ImmDrawEnd();
+    }
+
+    // Draw the border.
+    if(borderInit && scaleMode != 4) {
+        // Calculate VBO points.
+        int scaledBorderWidth = borderWidth;
+        int scaledBorderHeight = borderHeight;
+        if(borderScaleMode == 1) {
+            if(scaleMode == 1) {
+                scaledBorderWidth *= 1.25f;
+                scaledBorderHeight *= 1.25f;
+            } else if(scaleMode == 2) {
+                scaledBorderWidth *= 1.50f;
+                scaledBorderHeight *= 1.50f;
+            } else if(scaleMode == 3) {
+                scaledBorderWidth *= viewportHeight / (float) 144;
+                scaledBorderHeight *= viewportHeight / (float) 144;
+            } else if(scaleMode == 4) {
+                scaledBorderWidth *= viewportWidth / (float) 160;
+                scaledBorderHeight *= viewportHeight / (float) 144;
+            }
+        }
+
+        const float x1 = ((int) viewportWidth - scaledBorderWidth) / 2.0f;
+        const float y1 = ((int) viewportHeight - scaledBorderHeight) / 2.0f;
+        const float x2 = x1 + scaledBorderWidth;
+        const float y2 = y1 + scaledBorderHeight;
+
+        float tx2 = (float) borderWidth / (float) gpuBorderWidth;
+        float ty2 = (float) borderHeight / (float) gpuBorderHeight;
+
+        C3D_TexBind(0, &borderTexture);
 
         C3D_ImmDrawBegin(GPU_TRIANGLES);
 

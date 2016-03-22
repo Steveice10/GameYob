@@ -2,7 +2,11 @@
 
 #include <stdio.h>
 
+#include <vector>
+
 #include "types.h"
+
+extern std::vector<std::string> supportedImages;
 
 extern int borderSetting;
 extern int pauseOnMenu;

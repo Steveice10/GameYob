@@ -16,6 +16,10 @@ public:
 
     void update();
 
+    inline u32* getBg() {
+        return this->hasBg ? this->bg : NULL;
+    }
+
     inline u8 getGfxMask() {
         return this->mask;
     }
@@ -32,6 +36,8 @@ public:
         this->controllers[controller] = val;
     }
 private:
+    void refreshBg();
+
     void loadAttrFile(int index);
 
     // Begin commands
@@ -101,6 +107,11 @@ private:
 
     u8 palettes[0x1000];
     u8 attrFiles[0x1000];
+
+    bool hasBg;
+    u8 bgTiles[0x2000];
+    u8 bgMap[0x1000];
+    u32 bg[256 * 224];
 
     u8 mask;
     u8 map[20 * 18];

@@ -1,6 +1,8 @@
 #include <stdlib.h>
 #include <string.h>
+#include <platform/system.h>
 
+#include "platform/common/manager.h"
 #include "cpu.h"
 #include "gameboy.h"
 #include "mmu.h"
@@ -26,6 +28,11 @@ void SGB::reset() {
 
     memset(this->palettes, 0, sizeof(this->palettes));
     memset(this->attrFiles, 0, sizeof(this->attrFiles));
+
+    this->hasBg = false;
+    memset(this->bgTiles, 0, sizeof(this->bgTiles));
+    memset(this->bgMap, 0, sizeof(this->bgMap));
+    memset(this->bg, 0, sizeof(this->bg));
 
     this->mask = 0;
     memset(this->map, 0, sizeof(this->map));
@@ -150,8 +157,14 @@ void SGB::loadState(std::istream& data, u8 version) {
     data.read((char*) this->palettes, sizeof(this->palettes));
     data.read((char*) this->attrFiles, sizeof(this->attrFiles));
 
+    data.read((char*) &this->hasBg, sizeof(this->hasBg));
+    data.read((char*) this->bgTiles, sizeof(this->bgTiles));
+    data.read((char*) this->bgMap, sizeof(this->bgMap));
+
     data.read((char*) &this->mask, sizeof(this->mask));
     data.read((char*) this->map, sizeof(this->map));
+
+    this->refreshBg();
 }
 
 void SGB::saveState(std::ostream& data) {
@@ -170,6 +183,10 @@ void SGB::saveState(std::ostream& data) {
     data.write((char*) this->palettes, sizeof(this->palettes));
     data.write((char*) this->attrFiles, sizeof(this->attrFiles));
 
+    data.write((char*) &this->hasBg, sizeof(this->hasBg));
+    data.write((char*) this->bgTiles, sizeof(this->bgTiles));
+    data.write((char*) this->bgMap, sizeof(this->bgMap));
+
     data.write((char*) &this->mask, sizeof(this->mask));
     data.write((char*) this->map, sizeof(this->map));
 }
@@ -184,6 +201,50 @@ void SGB::update() {
         if((this->controllers[0] & 0x0f) != 0x0f) {
             this->gameboy->cpu->requestInterrupt(INT_JOYPAD);
         }
+    }
+}
+
+void SGB::refreshBg() {
+    if(this->hasBg) {
+        for(int tileY = 0; tileY < 28; tileY++) {
+            u16* lineMap = (u16*) &this->bgMap[tileY * 32 * sizeof(u16)];
+            for(int tileX = 0; tileX < 32; tileX++) {
+                u16 mapEntry = lineMap[tileX];
+                u8* tile = &this->bgTiles[(mapEntry & 0xFF) * 0x20];
+                u16* palette = (u16*) &this->bgMap[0x800 + ((mapEntry >> 10) & 3) * 0x20];
+                bool flipX = (mapEntry & 0x4000) != 0;
+                bool flipY = (mapEntry & 0x8000) != 0;
+
+                for(int y = 0; y < 8; y++) {
+                    for(int x = 0; x < 8; x++) {
+                        int pixelX = tileX * 8 + x;
+                        int pixelY = tileY * 8 + y;
+
+                        int dataX = flipX ? 7 - x : x;
+                        int dataY = flipY ? 7 - y : y;
+                        u8 colorId = (u8) (((tile[dataY * 2] >> (7 - dataX)) & 1) | (((tile[dataY * 2 + 1] >> (7 - dataX)) & 1) << 1) | (((tile[0x10 + dataY * 2] >> (7 - dataX)) & 1) << 2) | (((tile[0x10 + dataY * 2 + 1] >> (7 - dataX)) & 1) << 3));
+
+                        u16 color = 0;
+                        if(colorId != 0) {
+                            color = (u16) (palette[colorId] | 0x8000);
+                        } else if(pixelX < 48 || pixelX >= 208 || pixelY < 40 || pixelY >= 184) {
+                            color = (u16) (this->activePalette[0] | 0x8000);
+                        }
+
+                        u8 r = (u8) ((color & 0x1F) << 3);
+                        u8 g = (u8) (((color >> 5) & 0x1F) << 3);
+                        u8 b = (u8) (((color >> 10) & 0x1F) << 3);
+                        u8 a = (u8) (((color >> 15) & 0x01) * 0xFF);
+
+                        this->bg[pixelY * 256 + pixelX] = (r << 24) | (g << 16) | (b << 8) | a;
+                    }
+                }
+            }
+        }
+
+        mgrRefreshBorder();
+    } else {
+        memset(this->bg, 0, sizeof(this->bg));
     }
 }
 
@@ -495,17 +556,17 @@ void SGB::jump(int block) {
 }
 
 void SGB::chrTrn(int block) {
-    u8* data = new u8[0x1000];
-    this->gameboy->ppu->transferTiles(data);
-    // TODO: SGB Border Tiles
-    delete data;
+    this->gameboy->ppu->transferTiles(&this->bgTiles[(this->packet[1] & 1) * 0x1000]);
+
+    this->hasBg = true;
+    this->refreshBg();
 }
 
 void SGB::pctTrn(int block) {
-    u8* data = new u8[0x1000];
-    this->gameboy->ppu->transferTiles(data);
-    // TODO: SGB Border Map
-    delete data;
+    this->gameboy->ppu->transferTiles(this->bgMap);
+
+    this->hasBg = true;
+    this->refreshBg();
 }
 
 void SGB::attrTrn(int block) {

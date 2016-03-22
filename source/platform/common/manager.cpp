@@ -130,13 +130,13 @@ void mgrLoadRom(const char* filename) {
 
     cheatEngine->loadCheats((romName + ".cht").c_str());
 
-    mgrRefreshBorder();
-
     mgrReset(true);
     if(mgrStateExists(-1)) {
         mgrLoadState(-1);
         mgrDeleteState(-1);
     }
+
+    mgrRefreshBorder();
 
     enableMenuOption("Suspend");
     enableMenuOption("ROM Info");
@@ -170,8 +170,9 @@ void mgrUnloadRom(bool save) {
 
     romName = "";
 
+    mgrRefreshBorder();
+
     gfxClearScreenBuffer(0x0000);
-    gfxLoadBorder(NULL, 0, 0);
     gfxDrawScreen();
 }
 
@@ -347,16 +348,56 @@ bool mgrTryBorderFile(std::string border) {
 }
 
 bool mgrTryBorderName(std::string border) {
-    return mgrTryBorderFile(border + ".png") || mgrTryBorderFile(border + ".bmp");
+    for(std::string extension : supportedImages) {
+        if(mgrTryBorderFile(border + "." + extension)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool mgrTryCustomBorder() {
+    return gameboy->isRomLoaded() && (mgrTryBorderName(mgrGetRomName()) || mgrTryBorderFile(borderPath));
+}
+
+bool mgrTrySgbBorder() {
+    if(gameboy->isRomLoaded() && gameboy->gbMode == MODE_SGB && gameboy->sgb->getBg() != NULL) {
+        gfxLoadBorder((u8*) gameboy->sgb->getBg(), 256, 224);
+        return true;
+    }
+
+    return false;
 }
 
 void mgrRefreshBorder() {
-    // TODO: SGB?
+    switch(borderSetting) {
+        case 1:
+            if(mgrTrySgbBorder()) {
+                return;
+            }
 
-    if(borderSetting == 1) {
-        if((gameboy->isRomLoaded() && mgrTryBorderName(mgrGetRomName())) || mgrTryBorderFile(borderPath)) {
-            return;
-        }
+            break;
+        case 2:
+            if(mgrTryCustomBorder()) {
+                return;
+            }
+
+            break;
+        case 3:
+            if(mgrTrySgbBorder() || mgrTryCustomBorder()) {
+                return;
+            }
+
+            break;
+        case 4:
+            if(mgrTryCustomBorder() || mgrTrySgbBorder()) {
+                return;
+            }
+
+            break;
+        default:
+            break;
     }
 
     gfxLoadBorder(NULL, 0, 0);
