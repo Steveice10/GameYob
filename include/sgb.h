@@ -24,7 +24,7 @@ public:
         return this->mask;
     }
 
-    u8* getGfxMap() {
+    u8* getPaletteMap() {
         return this->map;
     }
 

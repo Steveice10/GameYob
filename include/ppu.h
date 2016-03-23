@@ -48,6 +48,9 @@ private:
     u8 vram[2][0x2000];
     u8 oam[0xA0];
 
+    u8 expandedBgp[4];
+    u8 expandedObp[8];
+
     u16 bgPaletteData[0x20];
     u16 sprPaletteData[0x20];
 
