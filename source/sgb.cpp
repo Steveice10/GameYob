@@ -35,7 +35,7 @@ void SGB::reset() {
     memset(this->bg, 0, sizeof(this->bg));
 
     this->mask = 0;
-    memset(this->map, 0, sizeof(this->map));
+    memset(this->paletteMap, 0, sizeof(this->paletteMap));
 
     for(int i = 0; i < 4; i++) {
         this->activePalette[i * 4 + 0] = 0x1F | (0x1F << 5) | (0x1F << 10) | (0x1 << 15);
@@ -162,7 +162,7 @@ void SGB::loadState(std::istream& data, u8 version) {
     data.read((char*) this->bgMap, sizeof(this->bgMap));
 
     data.read((char*) &this->mask, sizeof(this->mask));
-    data.read((char*) this->map, sizeof(this->map));
+    data.read((char*) this->paletteMap, sizeof(this->paletteMap));
 
     this->refreshBg();
 }
@@ -188,7 +188,7 @@ void SGB::saveState(std::ostream& data) {
     data.write((char*) this->bgMap, sizeof(this->bgMap));
 
     data.write((char*) &this->mask, sizeof(this->mask));
-    data.write((char*) this->map, sizeof(this->map));
+    data.write((char*) this->paletteMap, sizeof(this->paletteMap));
 }
 
 void SGB::update() {
@@ -256,10 +256,10 @@ void SGB::loadAttrFile(int index) {
     int src = index * 0x5A;
     int dest = 0;
     for(int i = 0; i < 20 * 18 / 4; i++) {
-        this->map[dest++] = (u8) ((this->attrFiles[src] >> 6) & 3);
-        this->map[dest++] = (u8) ((this->attrFiles[src] >> 4) & 3);
-        this->map[dest++] = (u8) ((this->attrFiles[src] >> 2) & 3);
-        this->map[dest++] = (u8) ((this->attrFiles[src] >> 0) & 3);
+        this->paletteMap[dest++] = (u8) ((this->attrFiles[src] >> 6) & 3);
+        this->paletteMap[dest++] = (u8) ((this->attrFiles[src] >> 4) & 3);
+        this->paletteMap[dest++] = (u8) ((this->attrFiles[src] >> 2) & 3);
+        this->paletteMap[dest++] = (u8) ((this->attrFiles[src] >> 0) & 3);
         src++;
     }
 }
@@ -344,7 +344,7 @@ void SGB::attrBlock(int block) {
             if(data[0] & 1) { // Inside block
                 for(int x = x1 + 1; x < x2; x++) {
                     for(int y = y1 + 1; y < y2; y++) {
-                        this->map[y * 20 + x] = pIn;
+                        this->paletteMap[y * 20 + x] = pIn;
                     }
                 }
             }
@@ -354,7 +354,7 @@ void SGB::attrBlock(int block) {
                     if(x < x1 || x > x2) {
                         for(int y = 0; y < 18; y++) {
                             if(y < y1 || y > y2) {
-                                this->map[y * 20 + x] = pOut;
+                                this->paletteMap[y * 20 + x] = pOut;
                             }
                         }
                     }
@@ -363,13 +363,13 @@ void SGB::attrBlock(int block) {
 
             if(changeLine) { // Line surrounding block
                 for(int x = x1; x <= x2; x++) {
-                    this->map[y1 * 20 + x] = pLine;
-                    this->map[y2 * 20 + x] = pLine;
+                    this->paletteMap[y1 * 20 + x] = pLine;
+                    this->paletteMap[y2 * 20 + x] = pLine;
                 }
 
                 for(int y = y1; y <= y2; y++) {
-                    this->map[y * 20 + x1] = pLine;
-                    this->map[y * 20 + x2] = pLine;
+                    this->paletteMap[y * 20 + x1] = pLine;
+                    this->paletteMap[y * 20 + x2] = pLine;
                 }
             }
 
@@ -395,11 +395,11 @@ void SGB::attrLin(int block) {
 
         if(dat & 0x80) { // Horizontal
             for(int i = 0; i < 20; i++) {
-                this->map[line * 20 + i] = pal;
+                this->paletteMap[line * 20 + i] = pal;
             }
         } else { // Vertical
             for(int i = 0; i < 18; i++) {
-                this->map[i * 20 + line] = pal;
+                this->paletteMap[i * 20 + line] = pal;
             }
         }
     }
@@ -413,36 +413,36 @@ void SGB::attrDiv(int block) {
     if(this->packet[1] & 0x40) {
         for(int y = 0; y < this->packet[2] && y < 18; y++) {
             for(int x = 0; x < 20; x++) {
-                this->map[y * 20 + x] = p0;
+                this->paletteMap[y * 20 + x] = p0;
             }
         }
 
         if(this->packet[2] < 18) {
             for(int x = 0; x < 20; x++) {
-                this->map[this->packet[2] * 20 + x] = p1;
+                this->paletteMap[this->packet[2] * 20 + x] = p1;
             }
 
             for(int y = this->packet[2] + 1; y < 18; y++) {
                 for(int x = 0; x < 20; x++) {
-                    this->map[y * 20 + x] = p2;
+                    this->paletteMap[y * 20 + x] = p2;
                 }
             }
         }
     } else {
         for(int x = 0; x < this->packet[2] && x < 20; x++) {
             for(int y = 0; y < 18; y++) {
-                this->map[y * 20 + x] = p0;
+                this->paletteMap[y * 20 + x] = p0;
             }
         }
 
         if(this->packet[2] < 20) {
             for(int y = 0; y < 18; y++) {
-                this->map[y * 20 + this->packet[2]] = p1;
+                this->paletteMap[y * 20 + this->packet[2]] = p1;
             }
 
             for(int x = packet[2] + 1; x < 20; x++) {
                 for(int y = 0; y < 18; y++) {
-                    this->map[y * 20 + x] = p2;
+                    this->paletteMap[y * 20 + x] = p2;
                 }
             }
         }
@@ -464,7 +464,7 @@ void SGB::attrChr(int block) {
     }
 
     while(this->cmdData.numDataSets != 0 && index < 16 * 4) {
-        this->map[x + y * 20] = (u8) ((packet[index / 4] >> (6 - (index & 3) * 2)) & 3);
+        this->paletteMap[x + y * 20] = (u8) ((packet[index / 4] >> (6 - (index & 3) * 2)) & 3);
         if(this->cmdData.attrChr.writeStyle == 0) {
             x++;
             if(x == 20) {

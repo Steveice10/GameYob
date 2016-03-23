@@ -25,7 +25,7 @@ public:
     }
 
     u8* getPaletteMap() {
-        return this->map;
+        return this->paletteMap;
     }
 
     u16* getActivePalette() {
@@ -114,6 +114,6 @@ private:
     u32 bg[256 * 224];
 
     u8 mask;
-    u8 map[20 * 18];
+    u8 paletteMap[20 * 18];
     u16 activePalette[0x20];
 };
