@@ -53,6 +53,4 @@ private:
 
     u16 bgPaletteData[0x20];
     u16 sprPaletteData[0x20];
-
-    u8 tiles[2][384][8 * 8];
 };

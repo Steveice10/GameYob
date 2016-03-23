@@ -100,8 +100,6 @@ void PPU::reset() {
     memset(this->bgPaletteData, 0xFF, sizeof(this->bgPaletteData));
     memset(this->sprPaletteData, 0x00, sizeof(this->sprPaletteData));
 
-    memset(this->tiles, 0, sizeof(this->tiles));
-
     this->gameboy->mmu->writeIO(LCDC, 0x91);
     this->gameboy->mmu->writeIO(BGP, 0xFC);
     this->gameboy->mmu->writeIO(OBP0, 0xFF);
@@ -242,12 +240,13 @@ void PPU::reset() {
                 }
             } else {
                 if(((val >> 7) & 1) == 0) {
+                    u8 bank = (u8) (this->gameboy->gbMode == MODE_CGB && (this->gameboy->mmu->readIO(VBK) & 0x1) != 0);
                     u16 src = (u16) ((this->gameboy->mmu->readIO(HDMA2) | (this->gameboy->mmu->readIO(HDMA1) << 8)) & 0xFFF0);
                     u16 dst = (u16) ((this->gameboy->mmu->readIO(HDMA4) | (this->gameboy->mmu->readIO(HDMA3) << 8)) & 0x1FF0);
                     u8 length = (u8) ((val & 0x7F) + 1);
                     for(u8 i = 0; i < length; i++) {
                         for(u8 j = 0; j < 0x10; j++) {
-                            this->gameboy->mmu->write((u16) (0x8000 + dst++), this->gameboy->mmu->read(src++));
+                            this->vram[bank][dst++] = this->gameboy->mmu->read(src++);
                         }
 
                         dst &= 0x1FF0;
@@ -278,7 +277,6 @@ void PPU::loadState(std::istream& data, u8 version) {
     data.read((char*) this->expandedObp, sizeof(this->expandedObp));
     data.read((char*) this->bgPaletteData, sizeof(this->bgPaletteData));
     data.read((char*) this->sprPaletteData, sizeof(this->sprPaletteData));
-    data.read((char*) this->tiles, sizeof(this->tiles));
 
     this->mapBanks();
 }
@@ -293,7 +291,6 @@ void PPU::saveState(std::ostream& data) {
     data.write((char*) this->expandedObp, sizeof(this->expandedObp));
     data.write((char*) this->bgPaletteData, sizeof(this->bgPaletteData));
     data.write((char*) this->sprPaletteData, sizeof(this->sprPaletteData));
-    data.write((char*) this->tiles, sizeof(this->tiles));
 }
 
 void PPU::checkLYC() {
@@ -392,10 +389,11 @@ void PPU::update() {
                     }
 
                     if(this->gameboy->gbMode == MODE_CGB && (hdma5 & 0x80) == 0) {
+                        u8 bank = (u8) (this->gameboy->gbMode == MODE_CGB && (this->gameboy->mmu->readIO(VBK) & 0x1) != 0);
                         u16 src = (u16) ((this->gameboy->mmu->readIO(HDMA2) | (this->gameboy->mmu->readIO(HDMA1) << 8)) & 0xFFF0);
                         u16 dst = (u16) ((this->gameboy->mmu->readIO(HDMA4) | (this->gameboy->mmu->readIO(HDMA3) << 8)) & 0x1FF0);
                         for(u8 i = 0; i < 0x10; i++) {
-                            this->gameboy->mmu->write((u16) (0x8000 + dst++), this->gameboy->mmu->read(src++));
+                            this->vram[bank][dst++] = this->gameboy->mmu->read(src++);
                         }
 
                         dst &= 0x1FF0;
@@ -423,31 +421,6 @@ void PPU::mapBanks() {
     u8 bank = (u8) (this->gameboy->gbMode == MODE_CGB && (this->gameboy->mmu->readIO(VBK) & 0x1) != 0);
     this->gameboy->mmu->mapBank(0x8, this->vram[bank] + 0x0000);
     this->gameboy->mmu->mapBank(0x9, this->vram[bank] + 0x1000);
-
-    auto write = [this](u16 addr, u8 val) -> void {
-        u8 currBank = (u8) (this->gameboy->gbMode == MODE_CGB && (this->gameboy->mmu->readIO(VBK) & 0x1) != 0);
-        u16 offset = (u16) (addr & 0x1FFF);
-        if(this->vram[currBank][offset] != val) {
-            this->vram[currBank][offset] = val;
-
-            if(addr >= 0x8000 && addr < 0x9800) {
-                u16 lineBase = (u16) (offset & ~0x1);
-                u16 tile = (u16) ((offset >> 4) & 0x1FF);
-                u8 y = (u8) ((offset >> 1) & 0x7);
-
-                u32 pxData = BitStretchTable256[this->vram[currBank][lineBase]] | (BitStretchTable256[this->vram[currBank][lineBase + 1]] << 1);
-
-                u8* base = &this->tiles[currBank][tile][y * 8];
-                u8 shift = 14;
-                for(u8 x = 0; x < 8; x++, shift -= 2) {
-                    base[x] = (u8) ((pxData >> shift) & 0x3);
-                }
-            }
-        }
-    };
-
-    this->gameboy->mmu->mapBankWriteFunc(0x8, write);
-    this->gameboy->mmu->mapBankWriteFunc(0x9, write);
 }
 
 void PPU::setHalfSpeed(bool halfSpeed) {
@@ -543,14 +516,16 @@ void PPU::drawBackground(u16* lineBuffer, u8* depthBuffer, u32 scanline) {
                 memset(paletteIds, paletteId, sizeof(paletteIds));
             }
 
-            u8* tile = &this->tiles[bank][tileId][(flipY ? 7 - subTileY : subTileY) * 8];
+            u16 offset = (u16) ((tileId * 0x10) + ((flipY ? 7 - subTileY : subTileY) * 2));
+            u16 pxData = (u16) (BitStretchTable256[this->vram[bank][offset]] | (BitStretchTable256[this->vram[bank][offset + 1]] << 1));
+
             for(u8 x = 0; x < 8; x++) {
                 s16 pixelX = (s16) (tileX * 8 + x - baseSubTileX);
                 if(pixelX < 0 || pixelX >= 160) {
                     continue;
                 }
 
-                u8 colorId = tile[flipX ? 7 - x : x];
+                u8 colorId = (u8) ((pxData >> (flipX ? x * 2 : 14 - x * 2)) & 3);
                 lineBuffer[pixelX] = RGBA5551ReverseTable[basePalette[paletteIds[(pixelX >> 3) - tileX + 1] * 4 + this->expandedBgp[colorId]]];
                 depthBuffer[pixelX] = depth - depthOffset[colorId];
             }
@@ -599,14 +574,16 @@ void PPU::drawWindow(u16* lineBuffer, u8* depthBuffer, u32 scanline) {
                 memset(paletteIds, paletteId, sizeof(paletteIds));
             }
 
-            u8* tile = &this->tiles[bank][tileId][(flipY ? 7 - subTileY : subTileY) * 8];
+            u16 offset = (u16) ((tileId * 0x10) + ((flipY ? 7 - subTileY : subTileY) * 2));
+            u16 pxData = (u16) (BitStretchTable256[this->vram[bank][offset]] | (BitStretchTable256[this->vram[bank][offset + 1]] << 1));
+
             for(u8 x = 0; x < 8; x++) {
                 s16 pixelX = (s16) (tileX * 8 + x + basePixelX);
                 if(pixelX < 0 || pixelX >= 160) {
                     continue;
                 }
 
-                u8 colorId = tile[flipX ? 7 - x : x];
+                u8 colorId = (u8) ((pxData >> (flipX ? x * 2 : 14 - x * 2)) & 3);
                 lineBuffer[pixelX] = RGBA5551ReverseTable[basePalette[paletteIds[(pixelX >> 3) - tileX + 1] * 4 + this->expandedBgp[colorId]]];
                 depthBuffer[pixelX] = depth - depthOffset[colorId];
             }
@@ -668,14 +645,16 @@ void PPU::drawSprites(u16* lineBuffer, u8* depthBuffer, u32 scanline) {
                 memset(paletteIds, paletteId, sizeof(paletteIds));
             }
 
-            u8* tile = &this->tiles[bank][tileId][(flipY ? 7 - subTileY : subTileY) * 8];
+            u16 offset = (u16) ((tileId * 0x10) + ((flipY ? 7 - subTileY : subTileY) * 2));
+            u16 pxData = (u16) (BitStretchTable256[this->vram[bank][offset]] | (BitStretchTable256[this->vram[bank][offset + 1]] << 1));
+
             for(u8 x = 0; x < 8; x++) {
                 s16 pixelX = (s16) (basePixelX + x);
                 if(pixelX < 0 || pixelX >= 160) {
                     continue;
                 }
 
-                u8 colorId = tile[flipX ? 7 - x : x];
+                u8 colorId = (u8) ((pxData >> (flipX ? x * 2 : 14 - x * 2)) & 3);
                 if(colorId != 0 && depth >= depthBuffer[pixelX]) {
                     lineBuffer[pixelX] = RGBA5551ReverseTable[basePalette[paletteIds[(pixelX >> 3) - baseTileX] * 4 + this->expandedObp[obpId * 4 + colorId]]];
                     depthBuffer[pixelX] = depth;
