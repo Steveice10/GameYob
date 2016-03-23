@@ -461,12 +461,192 @@ void PPU::transferTiles(u8* dest) {
 void PPU::drawScanline(u32 scanline) {
     switch(this->gameboy->sgb->getGfxMask()) {
         case 0: {
-            u16* lineBuffer = gfxGetLineBuffer(scanline);
-            u8 depthBuffer[160];
+            u8 lcdc = this->gameboy->mmu->readIO(LCDC);
+            if((lcdc & 0x80) != 0) {
+                u16* lineBuffer = gfxGetLineBuffer(scanline);
+                u8 depthBuffer[160];
 
-            this->drawBackground(lineBuffer, depthBuffer, scanline);
-            this->drawWindow(lineBuffer, depthBuffer, scanline);
-            this->drawSprites(lineBuffer, depthBuffer, scanline);
+                // Background
+                if(this->gameboy->gbMode == MODE_CGB || (lcdc & 0x01) != 0) {
+                    u8* subSgbMap = &this->gameboy->sgb->getPaletteMap()[(scanline >> 3) * 20];
+                    u16* basePalette = this->gameboy->gbMode == MODE_CGB ? (u16*) this->bgPaletteData : this->gameboy->gbMode == MODE_SGB ? this->gameboy->sgb->getActivePalette() : gbBgPalette;
+
+                    u8 basePixelX = this->gameboy->mmu->readIO(SCX);
+                    u8 baseTileX = basePixelX >> 3;
+                    u8 baseSubTileX = (u8) (basePixelX & 7);
+
+                    u8 pixelY = (u8) (scanline + this->gameboy->mmu->readIO(SCY));
+                    u8 tileY = pixelY >> 3;
+                    u8 subTileY = (u8) (pixelY & 7);
+
+                    u16 lineMapOffset = (u16) (0x1800 + ((lcdc >> 3) & 1) * 0x400 + (tileY * 32));
+                    u8* lineTileMap = &this->vram[0][lineMapOffset];
+                    u8* lineFlagMap = &this->vram[1][lineMapOffset];
+
+                    for(u8 tileX = 0; tileX < 21; tileX++) {
+                        u8 mapTileX = (u8) ((baseTileX + tileX) & 31);
+                        u16 tileId = (u16) ((lcdc & 0x10) != 0 ? lineTileMap[mapTileX] : (s8) lineTileMap[mapTileX] + 0x100);
+                        u8 flags = (u8) (this->gameboy->gbMode == MODE_CGB ? lineFlagMap[mapTileX] : 0);
+
+                        u8 paletteId = (u8) (flags & 7);
+                        u8 bank = (u8) ((flags >> 3) & 1);
+                        bool flipX = (bool) ((flags >> 5) & 1);
+                        bool flipY = (bool) ((flags >> 6) & 1);
+                        u8 depth = (u8) (1 + ((flags >> 6) & 2));
+
+                        u8 paletteIds[3];
+                        if(this->gameboy->gbMode == MODE_SGB) {
+                            memcpy(paletteIds, &subSgbMap[tileX - 1], sizeof(paletteIds));
+                        } else {
+                            memset(paletteIds, paletteId, sizeof(paletteIds));
+                        }
+
+                        u16 offset = (u16) ((tileId * 0x10) + ((flipY ? 7 - subTileY : subTileY) * 2));
+                        u16 pxData = (u16) (BitStretchTable256[this->vram[bank][offset]] | (BitStretchTable256[this->vram[bank][offset + 1]] << 1));
+
+                        for(u8 x = 0; x < 8; x++) {
+                            s16 pixelX = (s16) (tileX * 8 + x - baseSubTileX);
+                            if(pixelX < 0 || pixelX >= 160) {
+                                continue;
+                            }
+
+                            u8 colorId = (u8) ((pxData >> (flipX ? x * 2 : 14 - x * 2)) & 3);
+                            lineBuffer[pixelX] = RGBA5551ReverseTable[basePalette[paletteIds[(pixelX >> 3) - tileX + 1] * 4 + this->expandedBgp[colorId]]];
+                            depthBuffer[pixelX] = depth - depthOffset[colorId];
+                        }
+                    }
+
+                    if(this->gameboy->gbMode == MODE_CGB && (lcdc & 0x01) == 0) {
+                        memset(depthBuffer, 0, 160);
+                    }
+                }
+
+                // Window
+                if((lcdc & 0x20) != 0) {
+                    u8 wx = this->gameboy->mmu->readIO(WX);
+                    u8 wy = this->gameboy->mmu->readIO(WY);
+                    if(wy <= scanline && wy < 144 && wx >= 0 && wx < 167) {
+                        u8* subSgbMap = &this->gameboy->sgb->getPaletteMap()[(scanline >> 3) * 20];
+                        u16* basePalette = this->gameboy->gbMode == MODE_CGB ? (u16*) this->bgPaletteData : this->gameboy->gbMode == MODE_SGB ? this->gameboy->sgb->getActivePalette() : gbBgPalette;
+
+                        s16 basePixelX = (s16) (wx - 7);
+                        s16 baseTileX = (s16) (basePixelX >> 3);
+
+                        u8 pixelY = (u8) (scanline - wy);
+                        u8 tileY = pixelY >> 3;
+                        u8 subTileY = (u8) (pixelY & 7);
+
+                        u16 lineMapOffset = (u16) (0x1800 + ((lcdc >> 6) & 1) * 0x400 + (tileY * 32));
+                        u8* lineTileMap = &this->vram[0][lineMapOffset];
+                        u8* lineFlagMap = &this->vram[1][lineMapOffset];
+
+                        u8 tileCount = (u8) (20 - baseTileX);
+                        for(u8 tileX = 0; tileX < tileCount; tileX++) {
+                            u16 tileId = (u16) ((lcdc & 0x10) != 0 ? lineTileMap[tileX] : (s8) lineTileMap[tileX] + 0x100);
+                            u8 flags = (u8) (this->gameboy->gbMode == MODE_CGB ? lineFlagMap[tileX] : 0);
+
+                            u8 paletteId = (u8) (flags & 7);
+                            u8 bank = (u8) ((flags >> 3) & 1);
+                            bool flipX = (bool) ((flags >> 5) & 1);
+                            bool flipY = (bool) ((flags >> 6) & 1);
+                            u8 depth = (u8) (1 + ((flags >> 6) & 2));
+
+                            u8 paletteIds[3];
+                            if(this->gameboy->gbMode == MODE_SGB) {
+                                memcpy(paletteIds, &subSgbMap[tileX - 1], sizeof(paletteIds));
+                            } else {
+                                memset(paletteIds, paletteId, sizeof(paletteIds));
+                            }
+
+                            u16 offset = (u16) ((tileId * 0x10) + ((flipY ? 7 - subTileY : subTileY) * 2));
+                            u16 pxData = (u16) (BitStretchTable256[this->vram[bank][offset]] | (BitStretchTable256[this->vram[bank][offset + 1]] << 1));
+
+                            for(u8 x = 0; x < 8; x++) {
+                                s16 pixelX = (s16) (tileX * 8 + x + basePixelX);
+                                if(pixelX < 0 || pixelX >= 160) {
+                                    continue;
+                                }
+
+                                u8 colorId = (u8) ((pxData >> (flipX ? x * 2 : 14 - x * 2)) & 3);
+                                lineBuffer[pixelX] = RGBA5551ReverseTable[basePalette[paletteIds[(pixelX >> 3) - tileX + 1] * 4 + this->expandedBgp[colorId]]];
+                                depthBuffer[pixelX] = depth - depthOffset[colorId];
+                            }
+                        }
+
+                        if(this->gameboy->gbMode == MODE_CGB && (lcdc & 0x01) == 0) {
+                            memset(depthBuffer, 0, 160);
+                        }
+                    }
+                }
+
+                // Sprites
+                if((lcdc & 0x02) != 0) {
+                    u8* subSgbMap = &this->gameboy->sgb->getPaletteMap()[(scanline >> 3) * 20];
+                    u16* basePalette = this->gameboy->gbMode == MODE_CGB ? (u16*) this->sprPaletteData : this->gameboy->gbMode == MODE_SGB ? this->gameboy->sgb->getActivePalette() : gbSprPalette;
+
+                    u32 spriteHeight = (lcdc & 0x04) != 0 ? 16 : 8;
+
+                    for(s8 sprite = 39; sprite >= 0; sprite--) {
+                        u32 spriteY = this->oam[sprite * 4 + 0];
+
+                        if(scanline + 16 < spriteY || scanline + 16 >= spriteY + spriteHeight) {
+                            continue;
+                        }
+
+                        u32 spriteX = this->oam[sprite * 4 + 1];
+                        u32 tileId = this->oam[sprite * 4 + 2];
+                        u32 flags = this->oam[sprite * 4 + 3];
+
+                        s16 basePixelX = (s16) (spriteX - 8);
+                        s8 baseTileX = (s8) (basePixelX >> 3);
+
+                        u8 pixelY = (u8) (scanline - spriteY + 16);
+                        u8 subTileY = (u8) (pixelY & 7);
+
+                        u8 paletteId = (u8) (flags & 7);
+                        u8 bank = (u8) ((flags >> 3) & 1);
+                        u8 obpId = (u8) ((flags >> 4) & 1);
+                        bool flipX = (bool) ((flags >> 5) & 1);
+                        bool flipY = (bool) ((flags >> 6) & 1);
+                        u8 depth = (u8) (2 - ((flags >> 6) & 2));
+
+                        if(spriteHeight == 16) {
+                            tileId &= ~1;
+                            if(pixelY >= 8) {
+                                tileId++;
+                            }
+
+                            if(flipY) {
+                                tileId = tileId ^ 1;
+                            }
+                        }
+
+                        u8 paletteIds[2];
+                        if(this->gameboy->gbMode == MODE_SGB) {
+                            memcpy(paletteIds, &subSgbMap[baseTileX], sizeof(paletteIds));
+                        } else {
+                            memset(paletteIds, paletteId, sizeof(paletteIds));
+                        }
+
+                        u16 offset = (u16) ((tileId * 0x10) + ((flipY ? 7 - subTileY : subTileY) * 2));
+                        u16 pxData = (u16) (BitStretchTable256[this->vram[bank][offset]] | (BitStretchTable256[this->vram[bank][offset + 1]] << 1));
+
+                        for(u8 x = 0; x < 8; x++) {
+                            s16 pixelX = (s16) (basePixelX + x);
+                            if(pixelX < 0 || pixelX >= 160) {
+                                continue;
+                            }
+
+                            u8 colorId = (u8) ((pxData >> (flipX ? x * 2 : 14 - x * 2)) & 3);
+                            if(colorId != 0 && depth >= depthBuffer[pixelX]) {
+                                lineBuffer[pixelX] = RGBA5551ReverseTable[basePalette[paletteIds[(pixelX >> 3) - baseTileX] * 4 + this->expandedObp[obpId * 4 + colorId]]];
+                                depthBuffer[pixelX] = depth;
+                            }
+                        }
+                    }
+                }
+            }
+
             break;
         }
         case 2:
@@ -477,189 +657,5 @@ void PPU::drawScanline(u32 scanline) {
             break;
         default:
             break;
-    }
-}
-
-void PPU::drawBackground(u16* lineBuffer, u8* depthBuffer, u32 scanline) {
-    u8 lcdc = this->gameboy->mmu->readIO(LCDC);
-    if(this->gameboy->gbMode == MODE_CGB || (lcdc & 0x01) != 0) {
-        u8* subSgbMap = &this->gameboy->sgb->getPaletteMap()[(scanline >> 3) * 20];
-        u16* basePalette = this->gameboy->gbMode == MODE_CGB ? (u16*) this->bgPaletteData : this->gameboy->gbMode == MODE_SGB ? this->gameboy->sgb->getActivePalette() : gbBgPalette;
-
-        u8 basePixelX = this->gameboy->mmu->readIO(SCX);
-        u8 baseTileX = basePixelX >> 3;
-        u8 baseSubTileX = (u8) (basePixelX & 7);
-
-        u8 pixelY = (u8) (scanline + this->gameboy->mmu->readIO(SCY));
-        u8 tileY = pixelY >> 3;
-        u8 subTileY = (u8) (pixelY & 7);
-
-        u16 lineMapOffset = (u16) (0x1800 + ((lcdc >> 3) & 1) * 0x400 + (tileY * 32));
-        u8* lineTileMap = &this->vram[0][lineMapOffset];
-        u8* lineFlagMap = &this->vram[1][lineMapOffset];
-
-        for(u8 tileX = 0; tileX < 21; tileX++) {
-            u8 mapTileX = (u8) ((baseTileX + tileX) & 31);
-            u16 tileId = (u16) ((lcdc & 0x10) != 0 ? lineTileMap[mapTileX] : (s8) lineTileMap[mapTileX] + 0x100);
-            u8 flags = (u8) (this->gameboy->gbMode == MODE_CGB ? lineFlagMap[mapTileX] : 0);
-
-            u8 paletteId = (u8) (flags & 7);
-            u8 bank = (u8) ((flags >> 3) & 1);
-            bool flipX = (bool) ((flags >> 5) & 1);
-            bool flipY = (bool) ((flags >> 6) & 1);
-            u8 depth = (u8) (1 + ((flags >> 6) & 2));
-
-            u8 paletteIds[3];
-            if(this->gameboy->gbMode == MODE_SGB) {
-                memcpy(paletteIds, &subSgbMap[tileX - 1], sizeof(paletteIds));
-            } else {
-                memset(paletteIds, paletteId, sizeof(paletteIds));
-            }
-
-            u16 offset = (u16) ((tileId * 0x10) + ((flipY ? 7 - subTileY : subTileY) * 2));
-            u16 pxData = (u16) (BitStretchTable256[this->vram[bank][offset]] | (BitStretchTable256[this->vram[bank][offset + 1]] << 1));
-
-            for(u8 x = 0; x < 8; x++) {
-                s16 pixelX = (s16) (tileX * 8 + x - baseSubTileX);
-                if(pixelX < 0 || pixelX >= 160) {
-                    continue;
-                }
-
-                u8 colorId = (u8) ((pxData >> (flipX ? x * 2 : 14 - x * 2)) & 3);
-                lineBuffer[pixelX] = RGBA5551ReverseTable[basePalette[paletteIds[(pixelX >> 3) - tileX + 1] * 4 + this->expandedBgp[colorId]]];
-                depthBuffer[pixelX] = depth - depthOffset[colorId];
-            }
-        }
-
-        if(this->gameboy->gbMode == MODE_CGB && (lcdc & 0x01) == 0) {
-            memset(depthBuffer, 0, 160);
-        }
-    }
-}
-
-void PPU::drawWindow(u16* lineBuffer, u8* depthBuffer, u32 scanline) {
-    u8 lcdc = this->gameboy->mmu->readIO(LCDC);
-    u8 wx = this->gameboy->mmu->readIO(WX);
-    u8 wy = this->gameboy->mmu->readIO(WY);
-    if((lcdc & 0x20) != 0 && wy <= scanline && wy < 144 && wx >= 0 && wx < 167) {
-        u8* subSgbMap = &this->gameboy->sgb->getPaletteMap()[(scanline >> 3) * 20];
-        u16* basePalette = this->gameboy->gbMode == MODE_CGB ? (u16*) this->bgPaletteData : this->gameboy->gbMode == MODE_SGB ? this->gameboy->sgb->getActivePalette() : gbBgPalette;
-
-        s16 basePixelX = (s16) (wx - 7);
-        s16 baseTileX = (s16) (basePixelX >> 3);
-
-        u8 pixelY = (u8) (scanline - wy);
-        u8 tileY = pixelY >> 3;
-        u8 subTileY = (u8) (pixelY & 7);
-
-        u16 lineMapOffset = (u16) (0x1800 + ((lcdc >> 6) & 1) * 0x400 + (tileY * 32));
-        u8* lineTileMap = &this->vram[0][lineMapOffset];
-        u8* lineFlagMap = &this->vram[1][lineMapOffset];
-
-        u8 tileCount = (u8) (20 - baseTileX);
-        for(u8 tileX = 0; tileX < tileCount; tileX++) {
-            u16 tileId = (u16) ((lcdc & 0x10) != 0 ? lineTileMap[tileX] : (s8) lineTileMap[tileX] + 0x100);
-            u8 flags = (u8) (this->gameboy->gbMode == MODE_CGB ? lineFlagMap[tileX] : 0);
-
-            u8 paletteId = (u8) (flags & 7);
-            u8 bank = (u8) ((flags >> 3) & 1);
-            bool flipX = (bool) ((flags >> 5) & 1);
-            bool flipY = (bool) ((flags >> 6) & 1);
-            u8 depth = (u8) (1 + ((flags >> 6) & 2));
-
-            u8 paletteIds[3];
-            if(this->gameboy->gbMode == MODE_SGB) {
-                memcpy(paletteIds, &subSgbMap[tileX - 1], sizeof(paletteIds));
-            } else {
-                memset(paletteIds, paletteId, sizeof(paletteIds));
-            }
-
-            u16 offset = (u16) ((tileId * 0x10) + ((flipY ? 7 - subTileY : subTileY) * 2));
-            u16 pxData = (u16) (BitStretchTable256[this->vram[bank][offset]] | (BitStretchTable256[this->vram[bank][offset + 1]] << 1));
-
-            for(u8 x = 0; x < 8; x++) {
-                s16 pixelX = (s16) (tileX * 8 + x + basePixelX);
-                if(pixelX < 0 || pixelX >= 160) {
-                    continue;
-                }
-
-                u8 colorId = (u8) ((pxData >> (flipX ? x * 2 : 14 - x * 2)) & 3);
-                lineBuffer[pixelX] = RGBA5551ReverseTable[basePalette[paletteIds[(pixelX >> 3) - tileX + 1] * 4 + this->expandedBgp[colorId]]];
-                depthBuffer[pixelX] = depth - depthOffset[colorId];
-            }
-        }
-
-        if(this->gameboy->gbMode == MODE_CGB && (lcdc & 0x01) == 0) {
-            memset(depthBuffer, 0, 160);
-        }
-    }
-}
-
-void PPU::drawSprites(u16* lineBuffer, u8* depthBuffer, u32 scanline) {
-    u8 lcdc = this->gameboy->mmu->readIO(LCDC);
-    if((lcdc & 0x02) != 0) {
-        u8* subSgbMap = &this->gameboy->sgb->getPaletteMap()[(scanline >> 3) * 20];
-        u16* basePalette = this->gameboy->gbMode == MODE_CGB ? (u16*) this->sprPaletteData : this->gameboy->gbMode == MODE_SGB ? this->gameboy->sgb->getActivePalette() : gbSprPalette;
-
-        u32 spriteHeight = (lcdc & 0x04) != 0 ? 16 : 8;
-
-        for(s8 sprite = 39; sprite >= 0; sprite--) {
-            u32 spriteY = this->oam[sprite * 4 + 0];
-
-            if(scanline + 16 < spriteY || scanline + 16 >= spriteY + spriteHeight) {
-                continue;
-            }
-
-            u32 spriteX = this->oam[sprite * 4 + 1];
-            u32 tileId = this->oam[sprite * 4 + 2];
-            u32 flags = this->oam[sprite * 4 + 3];
-
-            s16 basePixelX = (s16) (spriteX - 8);
-            s8 baseTileX = (s8) (basePixelX >> 3);
-
-            u8 pixelY = (u8) (scanline - spriteY + 16);
-            u8 subTileY = (u8) (pixelY & 7);
-
-            u8 paletteId = (u8) (flags & 7);
-            u8 bank = (u8) ((flags >> 3) & 1);
-            u8 obpId = (u8) ((flags >> 4) & 1);
-            bool flipX = (bool) ((flags >> 5) & 1);
-            bool flipY = (bool) ((flags >> 6) & 1);
-            u8 depth = (u8) (2 - ((flags >> 6) & 2));
-
-            if(spriteHeight == 16) {
-                tileId &= ~1;
-                if(pixelY >= 8) {
-                    tileId++;
-                }
-
-                if(flipY) {
-                    tileId = tileId ^ 1;
-                }
-            }
-
-            u8 paletteIds[2];
-            if(this->gameboy->gbMode == MODE_SGB) {
-                memcpy(paletteIds, &subSgbMap[baseTileX], sizeof(paletteIds));
-            } else {
-                memset(paletteIds, paletteId, sizeof(paletteIds));
-            }
-
-            u16 offset = (u16) ((tileId * 0x10) + ((flipY ? 7 - subTileY : subTileY) * 2));
-            u16 pxData = (u16) (BitStretchTable256[this->vram[bank][offset]] | (BitStretchTable256[this->vram[bank][offset + 1]] << 1));
-
-            for(u8 x = 0; x < 8; x++) {
-                s16 pixelX = (s16) (basePixelX + x);
-                if(pixelX < 0 || pixelX >= 160) {
-                    continue;
-                }
-
-                u8 colorId = (u8) ((pxData >> (flipX ? x * 2 : 14 - x * 2)) & 3);
-                if(colorId != 0 && depth >= depthBuffer[pixelX]) {
-                    lineBuffer[pixelX] = RGBA5551ReverseTable[basePalette[paletteIds[(pixelX >> 3) - baseTileX] * 4 + this->expandedObp[obpId * 4 + colorId]]];
-                    depthBuffer[pixelX] = depth;
-                }
-            }
-        }
     }
 }

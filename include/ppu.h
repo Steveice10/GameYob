@@ -35,10 +35,6 @@ private:
 
     void mapBanks();
 
-    void drawBackground(u16* lineBuffer, u8* depthBuffer, u32 scanline);
-    void drawWindow(u16* lineBuffer, u8* depthBuffer, u32 scanline);
-    void drawSprites(u16* lineBuffer, u8* depthBuffer, u32 scanline);
-
     Gameboy* gameboy;
 
     u64 lastScanlineCycle;
