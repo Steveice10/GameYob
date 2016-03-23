@@ -33,14 +33,31 @@ void APU::reset() {
     this->apu->reset(this->gameboy->gbMode == MODE_CGB ? Gb_Apu::mode_cgb : Gb_Apu::mode_dmg);
     this->buffer->clear();
 
-    for(u16 regAddr = NR10; regAddr <= WAVEF; regAddr++) {
-        this->gameboy->mmu->mapIOReadFunc(regAddr, [this](u16 addr) -> u8 {
-            return (u8) this->apu->read_register((u32) (this->gameboy->cpu->getCycle() - this->lastSoundCycle) >> this->halfSpeed, addr);
-        });
+    if(!this->gameboy->biosOn) {
+        this->apu->write_register(0, NR52, 0x80);
+        this->apu->write_register(0, NR51, 0xF3);
+        this->apu->write_register(0, NR50, 0x77);
+        this->apu->write_register(0, NR12, 0xF3);
+        this->apu->write_register(0, NR11, 0xBF);
+        this->apu->write_register(0, NR14, 0x80);
+    }
 
-        this->gameboy->mmu->mapIOWriteFunc(regAddr, [this](u16 addr, u8 val) -> void {
-            this->apu->write_register((u32) (this->gameboy->cpu->getCycle() - this->lastSoundCycle) >> this->halfSpeed, addr, val);
-        });
+    auto read = [this](u16 addr) -> u8 {
+        return (u8) this->apu->read_register((u32) (this->gameboy->cpu->getCycle() - this->lastSoundCycle) >> this->halfSpeed, addr);
+    };
+
+    auto write = [this](u16 addr, u8 val) -> void {
+        this->apu->write_register((u32) (this->gameboy->cpu->getCycle() - this->lastSoundCycle) >> this->halfSpeed, addr, val);
+    };
+
+    for(u16 regAddr = NR10; regAddr <= WAVEF; regAddr++) {
+        this->gameboy->mmu->mapIOReadFunc(regAddr, read);
+        this->gameboy->mmu->mapIOWriteFunc(regAddr, write);
+    }
+
+    for(u16 regAddr = PCM12; regAddr <= PCM34; regAddr++) {
+        this->gameboy->mmu->mapIOReadFunc(regAddr, read);
+        this->gameboy->mmu->mapIOWriteFunc(regAddr, write);
     }
 }
 
@@ -99,6 +116,6 @@ void APU::setHalfSpeed(bool halfSpeed) {
 }
 
 void APU::setChannelEnabled(int channel, bool enabled) {
-    this->apu->set_osc_enabled(channel, enabled);
+    this->apu->set_osc_output_enabled(channel, enabled);
 }
 

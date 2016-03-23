@@ -85,8 +85,8 @@
 #define UNK4 0xFF73
 #define UNK5 0xFF74
 #define UNK6 0xFF75
-#define UNK7 0xFF76
-#define UNK8 0xFF77
+#define PCM12 0xFF76
+#define PCM34 0xFF77
 #define IE 0xFFFF
 
 class MMU {

@@ -30,12 +30,25 @@ void Gb_Osc::reset()
 
 inline void Gb_Osc::update_amp( s32 time, int new_amp )
 {
-	output->set_modified();
+	if(output_enabled)
+	{
+		output->set_modified();
+	}
+
 	int delta = new_amp - last_amp;
 	if ( delta )
 	{
 		last_amp = new_amp;
-		med_synth->offset( time, delta, output );
+		push_sample(med_synth, time, delta, output);
+	}
+}
+
+template<int quality,int range>
+inline void Gb_Osc::push_sample( const Blip_Synth<quality, range>* synth, s32 time, int delta, Blip_Buffer* out )
+{
+	if(output_enabled)
+	{
+		synth->offset_inline( time, delta, out );
 	}
 }
 
@@ -385,7 +398,7 @@ void Gb_Square::run( s32 time, s32 end_time )
 				ph = (ph + 1) & 7;
 				if ( ph == 0 || ph == duty )
 				{
-					good_synth->offset_inline( time, delta, out );
+					push_sample(good_synth, time, delta, out);
 					delta = -delta;
 				}
 				time += per;
@@ -553,7 +566,7 @@ void Gb_Noise::run( s32 time, s32 end_time )
 				{
 					bits |= ~mask;
 					delta = -delta;
-					med_synth->offset_inline( time, delta, out );
+					push_sample(med_synth, time, delta, out);
 				}
 				time += per;
 			}
@@ -646,7 +659,7 @@ void Gb_Wave::run( s32 time, s32 end_time )
 				if ( delta )
 				{
 					lamp = amp;
-					med_synth->offset_inline( time, delta, out );
+					push_sample(med_synth, time, delta, out);
 				}
 				time += per;
 			}

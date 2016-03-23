@@ -48,7 +48,7 @@ public:
 	// starts a new frame at time 0.
 	void end_frame( s32 frame_length );
 
-    void set_osc_enabled(int osc, bool enabled);
+    void set_osc_output_enabled(int osc, bool enabled);
 	
 // Sound adjustments
 	
@@ -95,7 +95,6 @@ private:
 	Gb_Apu( const Gb_Apu& );
 	Gb_Apu& operator = ( const Gb_Apu& );
 
-    bool        oscs_enabled [osc_count] = {true};
 	Gb_Osc*     oscs [osc_count];
 	s32 last_time;          // time sound emulator has been run to
 	s32 frame_period;       // clocks between each frame sequencer step

@@ -20,6 +20,8 @@ unsigned const vol_reg    = 0xFF24;
 unsigned const stereo_reg = 0xFF25;
 unsigned const status_reg = 0xFF26;
 unsigned const wave_ram   = 0xFF30;
+unsigned const pcm12   = 0xFF76;
+unsigned const pcm34   = 0xFF77;
 
 int const power_mask = 0x80;
 
@@ -59,8 +61,8 @@ void Gb_Apu::set_output( Blip_Buffer* center, Blip_Buffer* left, Blip_Buffer* ri
 	while ( ++i < osc );
 }
 
-void Gb_Apu::set_osc_enabled(int osc, bool enabled) {
-    oscs_enabled[osc] = enabled;
+void Gb_Apu::set_osc_output_enabled(int osc, bool enabled) {
+    oscs[osc]->output_enabled = enabled;
 }
 
 void Gb_Apu::synth_volume( int iv )
@@ -206,21 +208,10 @@ void Gb_Apu::run_until_( s32 end_time )
 		if ( time > frame_time )
 			time = frame_time;
 
-        if(oscs_enabled[0]) {
-            square1.run(last_time, time);
-        }
-
-        if(oscs_enabled[1]) {
-            square2.run(last_time, time);
-        }
-
-        if(oscs_enabled[2]) {
-            wave.run(last_time, time);
-        }
-
-        if(oscs_enabled[3]) {
-            noise.run(last_time, time);
-        }
+		square1.run(last_time, time);
+		square2.run(last_time, time);
+		wave.run(last_time, time);
+		noise.run(last_time, time);
 
 		last_time = time;
 		
@@ -279,7 +270,7 @@ void Gb_Apu::silence_osc( Gb_Osc& o )
 	if ( delta )
 	{
 		o.last_amp = 0;
-		if ( o.output )
+		if ( o.output && o.output_enabled )
 		{
 			o.output->set_modified();
 			med_synth.offset( last_time, delta, o.output );
@@ -304,14 +295,13 @@ void Gb_Apu::apply_stereo()
 void Gb_Apu::write_register( s32 time, unsigned addr, int data )
 {
 	assert( (unsigned) data < 0x100 );
-	
-	int reg = addr - start_addr;
-	if ( (unsigned) reg >= register_count )
-	{
-		assert( false );
+
+	if (addr == pcm12 || addr == pcm34)
 		return;
-	}
-	
+
+	int reg = addr - start_addr;
+	assert( (unsigned) reg < register_count );
+
 	if ( addr < status_reg && !(regs [status_reg - start_addr] & power_mask) )
 	{
 		// Power is off
@@ -372,7 +362,13 @@ void Gb_Apu::write_register( s32 time, unsigned addr, int data )
 int Gb_Apu::read_register( s32 time, unsigned addr )
 {
 	run_until( time );
-	
+
+	if (addr == pcm12)
+		return ((square1.last_amp >> 4) & 0xF) | (square2.last_amp & 0xF0);
+
+	if (addr == pcm34)
+		return ((wave.last_amp >> 4) & 0xF) | (noise.last_amp & 0xF0);
+
 	int reg = addr - start_addr;
 	assert( (unsigned) reg < register_count );
 	

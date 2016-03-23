@@ -13,12 +13,15 @@ protected:
 	// 11-bit frequency in NRx3 and NRx4
 	int frequency() const { return (regs [4] & 7) * 0x100 + regs [3]; }
 	
-	void update_amp( s32, int new_amp );
+	void update_amp( s32 time, int new_amp );
+	template<int quality,int range>
+	void push_sample( const Blip_Synth<quality, range>* synth, s32 time, int delta, Blip_Buffer* out );
 	int write_trig( int frame_phase, int max_len, int old_data );
 public:
 
 	enum { dac_bias = 7 };
-	
+
+	bool            output_enabled = true;
 	Blip_Buffer*    outputs [4];// NULL, right, left, center
 	Blip_Buffer*    output;     // where to output sound
 	u8* regs;       // osc's 5 registers
