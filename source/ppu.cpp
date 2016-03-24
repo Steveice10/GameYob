@@ -332,14 +332,17 @@ void PPU::update() {
 
             switch(stat & 3) {
                 case LCD_HBLANK:
-                    this->gameboy->mmu->writeIO(LY, (u8) (ly + 1));
+                    ly++;
+                    this->gameboy->mmu->writeIO(LY, ly);
                     this->checkLYC();
 
-                    if(ly + 1 >= 144) {
+                    if(ly >= 144) {
                         this->gameboy->mmu->writeIO(STAT, (u8) ((stat & ~3) | LCD_VBLANK));
 
                         this->gameboy->cpu->requestInterrupt(INT_VBLANK);
                         if(stat & 0x10) {
+                            this->gameboy->cpu->requestInterrupt(INT_LCD);
+                        } else if(stat & 0x20) {
                             this->gameboy->cpu->requestInterrupt(INT_LCD);
                         }
 
@@ -361,14 +364,16 @@ void PPU::update() {
                             this->gameboy->cpu->requestInterrupt(INT_LCD);
                         }
                     } else {
-                        this->gameboy->mmu->writeIO(LY, (u8) (ly + 1));
+                        ly++;
+                        this->gameboy->mmu->writeIO(LY, ly);
                         this->checkLYC();
 
                         if(ly >= 153) {
                             // Don't change the mode. Scanline 0 is twice as
                             // long as normal - half of it identifies as being
                             // in the vblank period.
-                            this->gameboy->mmu->writeIO(LY, 0);
+                            ly = 0;
+                            this->gameboy->mmu->writeIO(LY, ly);
                             this->checkLYC();
                         }
                     }
