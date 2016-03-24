@@ -363,14 +363,11 @@ int Gb_Apu::read_register( s32 time, unsigned addr )
 {
 	run_until( time );
 
-	if(oscs[0]->mode != mode_dmg)
-	{
-		if(addr == pcm12)
-			return ((square1.last_amp >> 4) & 0xF) | (square2.last_amp & 0xF0);
+	if(addr == pcm12)
+		return oscs[0]->mode != mode_dmg ? ((square1.last_amp >> 4) & 0xF) | (square2.last_amp & 0xF0) : 0xFF;
 
-		if(addr == pcm34)
-			return ((wave.last_amp >> 4) & 0xF) | (noise.last_amp & 0xF0);
-	}
+	if(addr == pcm34)
+		return oscs[0]->mode != mode_dmg ? ((wave.last_amp >> 4) & 0xF) | (noise.last_amp & 0xF0) : 0xFF;
 
 	int reg = addr - start_addr;
 	assert( (unsigned) reg < register_count );
