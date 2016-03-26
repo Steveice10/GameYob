@@ -27,6 +27,8 @@ extern int gbcModeOption;
 extern bool gbaModeOption;
 extern int biosMode;
 extern int fastForwardFrameSkip;
+extern bool perPixelRendering;
+extern bool emulateBlur;
 extern FILE* linkSocket;
 
 void setMenuDefaults();

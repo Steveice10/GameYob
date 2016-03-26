@@ -518,6 +518,9 @@ int biosMode = 0;
 
 int fastForwardFrameSkip = 0;
 
+bool perPixelRendering = false;
+bool emulateBlur = false;
+
 FileChooser borderChooser("/", supportedImages, true);
 FileChooser biosChooser("/", {"bin"}, true);
 
@@ -727,6 +730,14 @@ void setBorderScaleModeFunc(int value) {
 
 void setFastForwardFrameSkipFunc(int value) {
     fastForwardFrameSkip = value;
+}
+
+void setPerPixelRenderingFunc(int value) {
+    perPixelRendering = value == 1;
+}
+
+void setEmulateBlurFunc(int value) {
+    emulateBlur = value == 1;
 }
 
 void gbColorizeFunc(int value) {
@@ -1139,12 +1150,14 @@ SubMenu menuList[] = {
         },
         {
                 "Display",
-                8,
+                10,
                 {
                         {"Game Screen", setScreenFunc, 2, {"Top", "Bottom"}, 0},
                         {"Scaling", setScaleModeFunc, 5, {"Off", "125%", "150%", "Aspect", "Full"}, 0},
                         {"Scale Filter", setScaleFilterFunc, 3, {"Nearest", "Linear", "Scale2x"}, 1},
                         {"FF Frame Skip", setFastForwardFrameSkipFunc, 4, {"0", "1", "2", "3"}, 3},
+                        {"Per Pixel Rendering", setPerPixelRenderingFunc, 2, {"Off", "On"}, 0},
+                        {"Emulate Blur", setEmulateBlurFunc, 2, {"Off", "On"}, 0},
                         {"Colorize GB", gbColorizeFunc, 14, {"Off", "Auto", "Inverted", "Pastel Mix", "Red", "Orange", "Yellow", "Green", "Blue", "Brown", "Dark Green", "Dark Blue", "Dark Brown", "Classic Green"}, 1},
                         {"Borders", borderFunc, 5, {"Off", "SGB Only", "Custom Only", "Prefer SGB", "Prefer Custom"}, 1},
                         {"Border Scaling", setBorderScaleModeFunc, 2, {"Pre-Scaled", "Scale Base"}, 0},

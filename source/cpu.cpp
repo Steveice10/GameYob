@@ -29,15 +29,25 @@
     this->registers.pc.w = (val); \
     this->advanceCycles(4);
 
-#define MEMREAD(addr) ({                   \
-    u8 b = this->gameboy->mmu->read(addr); \
-    this->advanceCycles(4);                \
-    b;                                     \
+#define MEMREAD(addr) ({                                          \
+    u16 readAddr = (addr);                                        \
+    u8 mode = (u8) (this->gameboy->mmu->readIO(STAT) & 3);        \
+    u8 b = 0xFF;                                                  \
+    if(readAddr >= 0xFF80 || (!this->gameboy->ppu->isInOamDma() && (readAddr <= 0x7FFF || ((readAddr < 0x8000 || readAddr > 0x9FFF || mode != 3) && (readAddr < 0xFE00 || readAddr > 0xFE9F || mode < 2))))) { \
+        b = this->gameboy->mmu->read(readAddr);                   \
+    }                                                             \
+    this->advanceCycles(4);                                       \
+    b;                                                            \
 })
 
-#define MEMWRITE(addr, val)               \
-    this->gameboy->mmu->write(addr, val); \
-    this->advanceCycles(4);
+#define MEMWRITE(addr, val) ({                                     \
+    u16 writeAddr = (addr);                                        \
+    u8 mode = (u8) (this->gameboy->mmu->readIO(STAT) & 3);         \
+    if(writeAddr >= 0xFF80 || (!this->gameboy->ppu->isInOamDma() && (writeAddr <= 0x7FFF || ((writeAddr < 0x8000 || writeAddr > 0x9FFF || mode != 3) && (writeAddr < 0xFE00 || writeAddr > 0xFE9F || mode < 2))))) { \
+        this->gameboy->mmu->write(writeAddr, val);                 \
+    }                                                              \
+    this->advanceCycles(4);                                        \
+})
 
 #define READPC8() MEMREAD(this->registers.pc.w++)
 
@@ -182,7 +192,7 @@ void CPU::requestInterrupt(int id) {
 }
 
 void CPU::undefined() {
-    systemPrintDebug("Undefined instruction 0x%x at 0x%x\n", this->gameboy->mmu->read((u16) (this->registers.pc.w - 1)), this->registers.pc.w - 1);
+    systemPrintDebug("Undefined instruction 0x%x at 0x%x.\n", this->gameboy->mmu->read((u16) (this->registers.pc.w - 1)), this->registers.pc.w - 1);
 }
 
 void CPU::nop() {

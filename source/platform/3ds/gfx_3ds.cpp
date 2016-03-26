@@ -38,8 +38,8 @@ static int gpuBorderWidth;
 static int gpuBorderHeight;
 static C3D_Tex borderTexture;
 
-static u16* screenBuffer;
-static u16* scale2xBuffer;
+static u32* screenBuffer;
+static u32* scale2xBuffer;
 static bool fastForward = false;
 
 bool gfxInit() {
@@ -123,12 +123,12 @@ bool gfxInit() {
     borderInit = false;
 
     // Allocate and clear the screen buffer.
-    screenBuffer = (u16*) linearAlloc(256 * 256 * sizeof(u16));
-    memset(screenBuffer, 0, 256 * 256 * sizeof(u16));
+    screenBuffer = (u32*) linearAlloc(256 * 256 * sizeof(u32));
+    memset(screenBuffer, 0, 256 * 256 * sizeof(u32));
 
     // Allocate and clear the scale2x buffer.
-    scale2xBuffer = (u16*) linearAlloc(512 * 512 * sizeof(u16));
-    memset(scale2xBuffer, 0, 512 * 512 * sizeof(u16));
+    scale2xBuffer = (u32*) linearAlloc(512 * 512 * sizeof(u32));
+    memset(scale2xBuffer, 0, 512 * 512 * sizeof(u32));
 
     return true;
 }
@@ -245,28 +245,20 @@ void gfxLoadBorder(u8* imgData, int imgWidth, int imgHeight) {
     borderInit = true;
 }
 
-u16* gfxGetLineBuffer(u32 line) {
+u32* gfxGetLineBuffer(u32 line) {
     return screenBuffer + line * 256;
 }
 
-void gfxClearScreenBuffer(u16 rgba5551) {
-    if(((rgba5551 >> 8) & 0xFF) == (rgba5551 & 0xFF)) {
-        memset(screenBuffer, rgba5551 & 0xFF, 256 * 256 * sizeof(u16));
-    } else {
-        for(int i = 0; i < 256 * 256; i++) {
-            screenBuffer[i] = rgba5551;
-        }
+void gfxClearScreenBuffer(u32 rgba) {
+    for(int i = 0; i < 256 * 256; i++) {
+        screenBuffer[i] = rgba;
     }
 }
 
-void gfxClearLineBuffer(u32 line, u16 rgba5551) {
-    u16* lineBuffer = gfxGetLineBuffer(line);
-    if(((rgba5551 >> 8) & 0xFF) == (rgba5551 & 0xFF)) {
-        memset(lineBuffer, rgba5551 & 0xFF, 256 * sizeof(u16));
-    } else {
-        for(int i = 0; i < 256; i++) {
-            lineBuffer[i] = rgba5551;
-        }
+void gfxClearLineBuffer(u32 line, u32 rgba) {
+    u32* lineBuffer = gfxGetLineBuffer(line);
+    for(int i = 0; i < 256; i++) {
+        lineBuffer[i] = rgba;
     }
 }
 
@@ -343,8 +335,8 @@ void gfxTakeScreenshot() {
                          *((E0) + dstPitch + 1) = Ep;              \
                      }
 
-void gfxScale2xRGBA5551(u16* src, u32 srcPitch, u16* dst, u32 dstPitch, int width, int height) {
-    u16* E, *E0;
+void gfxScale2xRGBA8888(u32* src, u32 srcPitch, u32* dst, u32 dstPitch, int width, int height) {
+    u32* E, *E0;
     u32 Ep, Bp, Dp, Fp, Hp;
 
     // Top line and top corners
@@ -439,7 +431,7 @@ void gfxScale2xRGBA5551(u16* src, u32 srcPitch, u16* dst, u32 dstPitch, int widt
 
 void gfxDrawScreen() {
     int screenTexSize = 256;
-    u16* transferBuffer = screenBuffer;
+    u32* transferBuffer = screenBuffer;
     GPU_TEXTURE_FILTER_PARAM filter = GPU_NEAREST;
 
     if(scaleMode != 0 && scaleFilter != 0) {
@@ -449,7 +441,7 @@ void gfxDrawScreen() {
             screenTexSize = 512;
             transferBuffer = scale2xBuffer;
 
-            gfxScale2xRGBA5551(screenBuffer, 256, scale2xBuffer, 512, 160, 144);
+            gfxScale2xRGBA8888(screenBuffer, 256, scale2xBuffer, 512, 160, 144);
         }
     }
 
@@ -459,12 +451,12 @@ void gfxDrawScreen() {
             screenInit = false;
         }
 
-        screenInit = C3D_TexInit(&screenTexture, screenTexSize, screenTexSize, GPU_RGBA5551);
+        screenInit = C3D_TexInit(&screenTexture, screenTexSize, screenTexSize, GPU_RGBA8);
     }
 
     C3D_TexSetFilter(&screenTexture, filter, filter);
 
-    GSPGPU_FlushDataCache(transferBuffer, screenTexSize * screenTexSize * sizeof(u16));
+    GSPGPU_FlushDataCache(transferBuffer, screenTexSize * screenTexSize * sizeof(u32));
     if(R_SUCCEEDED(GX_DisplayTransfer((u32*) transferBuffer, (u32) GX_BUFFER_DIM(screenTexSize, screenTexSize), (u32*) screenTexture.data, (u32) GX_BUFFER_DIM(screenTexSize, screenTexSize), GX_TRANSFER_FLIP_VERT(1) | GX_TRANSFER_OUT_TILED(1) | GX_TRANSFER_RAW_COPY(0) | GX_TRANSFER_IN_FORMAT(GX_TRANSFER_FMT_RGB5A1) | GX_TRANSFER_OUT_FORMAT(GX_TRANSFER_FMT_RGB5A1) | GX_TRANSFER_SCALING(GX_TRANSFER_SCALE_NO)))) {
         gspWaitForPPF();
     }

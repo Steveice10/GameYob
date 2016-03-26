@@ -93,6 +93,7 @@ void mgrReset(bool initial) {
 
     gameboy->reset();
     mgrLoadSave();
+    mgrRefreshBorder();
 }
 
 std::string mgrGetRomName() {
@@ -135,8 +136,6 @@ void mgrLoadRom(const char* filename) {
         mgrLoadState(-1);
         mgrDeleteState(-1);
     }
-
-    mgrRefreshBorder();
 
     enableMenuOption("Suspend");
     enableMenuOption("ROM Info");

@@ -21,7 +21,7 @@ static SDL_Renderer* renderer = NULL;
 static SDL_Texture* screenTexture = NULL;
 static SDL_Texture* borderTexture = NULL;
 
-static u16* screenBuffer;
+static u32* screenBuffer;
 
 static bool fastForward = false;
 
@@ -36,12 +36,12 @@ bool gfxInit() {
         return false;
     }
 
-    screenTexture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA5551, SDL_TEXTUREACCESS_STREAMING, 160, 144);
+    screenTexture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_STREAMING, 160, 144);
     if(screenTexture == NULL) {
         return false;
     }
 
-    screenBuffer = (u16*) malloc(160 * 144 * sizeof(u16));
+    screenBuffer = (u32*) malloc(160 * 144 * sizeof(u32));
 
     return true;
 }
@@ -147,28 +147,20 @@ void gfxLoadBorder(u8* imgData, int imgWidth, int imgHeight) {
     gfxUpdateWindow();
 }
 
-u16* gfxGetLineBuffer(u32 line) {
+u32* gfxGetLineBuffer(u32 line) {
     return screenBuffer + line * 160;
 }
 
-void gfxClearScreenBuffer(u16 rgba5551) {
-    if(((rgba5551 >> 8) & 0xFF) == (rgba5551 & 0xFF)) {
-        memset(screenBuffer, rgba5551 & 0xFF, 160 * 144 * sizeof(u16));
-    } else {
-        for(int i = 0; i < 160 * 144; i++) {
-            screenBuffer[i] = rgba5551;
-        }
+void gfxClearScreenBuffer(u32 rgba) {
+    for(int i = 0; i < 160 * 144; i++) {
+        screenBuffer[i] = rgba;
     }
 }
 
-void gfxClearLineBuffer(u32 line, u16 rgba5551) {
-    u16* lineBuffer = gfxGetLineBuffer(line);
-    if(((rgba5551 >> 8) & 0xFF) == (rgba5551 & 0xFF)) {
-        memset(lineBuffer, rgba5551 & 0xFF, 160 * sizeof(u16));
-    } else {
-        for(int i = 0; i < 160; i++) {
-            lineBuffer[i] = rgba5551;
-        }
+void gfxClearLineBuffer(u32 line, u32 rgba) {
+    u32* lineBuffer = gfxGetLineBuffer(line);
+    for(int i = 0; i < 160; i++) {
+        lineBuffer[i] = rgba;
     }
 }
 
@@ -191,7 +183,7 @@ void gfxDrawScreen() {
 
     SDL_RenderClear(renderer);
 
-    SDL_UpdateTexture(screenTexture, &screenRect, screenBuffer, 160 * 2);
+    SDL_UpdateTexture(screenTexture, &screenRect, screenBuffer, 160 * sizeof(u32));
     SDL_RenderCopy(renderer, screenTexture, &screenRect, &windowScreenRect);
 
     if(borderTexture != NULL) {

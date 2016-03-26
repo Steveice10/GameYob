@@ -21,31 +21,64 @@ public:
     void setHalfSpeed(bool halfSpeed);
 
     void transferTiles(u8* dest);
-    void drawScanline(u32 scanline);
 
-    inline u8 readOAM(u16 addr) {
+    inline bool isInOamDma() {
+        return this->lastOamDmaBeginCycle != 0;
+    }
+
+    inline u8 readOam(u16 addr) {
         return this->oam[addr & 0xFF];
     }
 
-    inline void writeOAM(u16 addr, u8 val) {
+    inline void writeOam(u16 addr, u8 val) {
         this->oam[addr & 0xFF] = val;
     }
 private:
-    void checkLYC();
+    typedef struct {
+        u8 color[8];
+        u8 depth[8];
+        u8 palette;
+    } TileLine;
+
+    typedef struct {
+        u8 color[8];
+        u8 depth[8];
+        u8 x;
+        u8 palette;
+        u8 obp;
+    } SpriteLine;
 
     void mapBanks();
+
+    void checkLYC();
+
+    void updateLineTile(u8 map, u8 x, u8 y);
+    void updateLineSprites();
+
+    void updateScanline();
+    void drawPixel(u8 x, u8 y);
+    void drawScanline(u8 scanline);
 
     Gameboy* gameboy;
 
     u64 lastScanlineCycle;
     u64 lastPhaseCycle;
+    u64 lastOamDmaBeginCycle;
     bool halfSpeed;
 
-    u8 vram[2][0x2000];
-    u8 oam[0xA0];
+    u8 scanlineX;
+
+    u16 oamDmaSrc;
+
+    TileLine currTileLines[2];
+    SpriteLine currSpriteLines[10];
+    u8 currSprites;
 
     u8 expandedBgp[4];
     u8 expandedObp[8];
+
+    u8 vram[2][0x2000];
+    u8 oam[0xA0];
 
     u16 bgPaletteData[0x20];
     u16 sprPaletteData[0x20];

@@ -37,9 +37,6 @@ void APU::reset() {
         this->apu->write_register(0, NR52, 0x80);
         this->apu->write_register(0, NR51, 0xF3);
         this->apu->write_register(0, NR50, 0x77);
-        this->apu->write_register(0, NR12, 0xF3);
-        this->apu->write_register(0, NR11, 0xBF);
-        this->apu->write_register(0, NR14, 0x80);
     }
 
     auto read = [this](u16 addr) -> u8 {

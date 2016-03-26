@@ -142,7 +142,7 @@ void MMU::saveState(std::ostream& data) {
 }
 
 u8 MMU::read(u16 addr) {
-    int area = addr >> 12;
+    u8 area = (u8) (addr >> 12);
     if(this->bankReadFuncs[area] != NULL) {
         return this->bankReadFuncs[area](addr);
     } else if(this->banks[area] != NULL) {
@@ -154,7 +154,7 @@ u8 MMU::read(u16 addr) {
 }
 
 void MMU::write(u16 addr, u8 val) {
-    int area = addr >> 12;
+    u8 area = (u8) (addr >> 12);
     if(this->bankWriteFuncs[area] != NULL) {
         this->bankWriteFuncs[area](addr, val);
     } else if(this->banks[area] != NULL) {
@@ -198,7 +198,7 @@ void MMU::mapBanks() {
                 return this->hram[reg];
             }
         } else if(addr >= 0xFE00 && addr < 0xFEA0) {
-            return this->gameboy->ppu->readOAM(addr);
+            return this->gameboy->ppu->readOam(addr);
         } else if(addr < 0xFE00) {
             u8 currWramBank = (u8) (this->readIO(SVBK) & 0x7);
             return this->wram[currWramBank != 0 ? currWramBank : 1][addr & 0xFFF];
@@ -216,7 +216,7 @@ void MMU::mapBanks() {
                 this->hram[reg] = val;
             }
         } else if(addr >= 0xFE00 && addr < 0xFEA0) {
-            this->gameboy->ppu->writeOAM(addr, val);
+            this->gameboy->ppu->writeOam(addr, val);
         } else if(addr < 0xFE00) {
             u8 currWramBank = (u8) (this->readIO(SVBK) & 0x7);
             this->wram[currWramBank != 0 ? currWramBank : 1][addr & 0xFFF] = val;

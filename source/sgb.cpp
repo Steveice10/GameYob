@@ -83,12 +83,12 @@ void SGB::reset() {
                 this->packet[byte] = 0;
             }
 
-            int bit;
             if((oldJoyp & 0x30) == 0 && (val & 0x30) != 0x30) { // A bit of speculation here. Fixes Castlevania.
                 this->packetBit = -1;
                 return;
             }
 
+            int bit;
             if(!(val & 0x10)) {
                 bit = 0;
             } else if(!(val & 0x20)) {
@@ -105,7 +105,7 @@ void SGB::reset() {
                     this->packetLength = this->packet[0] & 7;
                 }
 
-                if(this->sgbCommands[this->command] != 0) {
+                if(this->sgbCommands[this->command] != NULL) {
                     (this->*sgbCommands[this->command])(this->packetsTransferred);
                 }
 
