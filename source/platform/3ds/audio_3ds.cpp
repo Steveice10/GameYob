@@ -5,8 +5,8 @@
 
 #include <3ds.h>
 
+#include "platform/common/manager.h"
 #include "platform/audio.h"
-#include "platform/gfx.h"
 
 #define BUFFER_SAMPLES 2048
 #define NUM_BUFFERS 4
@@ -90,7 +90,7 @@ void audioPlay(u32* buffer, long samples) {
         ndspWaveBuf* buf = &waveBuf[currBuffer];
 
         if(buf->status != NDSP_WBUF_DONE && buf->status != NDSP_WBUF_FREE) {
-            if(gfxGetFastForward()) {
+            if(mgrGetFastForward()) {
                 audioClear();
                 ndspChnWaveBufAdd(0, buf->next);
             } else {

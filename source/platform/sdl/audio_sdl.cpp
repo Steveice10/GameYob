@@ -1,11 +1,8 @@
 #ifdef BACKEND_SDL
 
-#include <assert.h>
-#include <string.h>
-
+#include "platform/common/manager.h"
 #include "platform/audio.h"
 #include "platform/gfx.h"
-#include "gameboy.h"
 
 #include <SDL2/SDL.h>
 
@@ -60,7 +57,7 @@ void audioPlay(u32* buffer, long samples) {
     }
 
     // If we're fast-forwarding or not going fast enough, clear the audio queue to prevent build-up.
-    if(gfxGetFastForward() || SDL_GetQueuedAudioSize(device) >= (u32) ((audioGetSampleRate() / 59.7) * 10) * sizeof(u32)) {
+    if(mgrGetFastForward() || SDL_GetQueuedAudioSize(device) >= (u32) ((audioGetSampleRate() / 59.7) * 10) * sizeof(u32)) {
         SDL_ClearQueuedAudio(device);
     }
 

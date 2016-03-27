@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <chrono>
 #include <fstream>
 #include <sstream>
 
@@ -476,6 +477,8 @@ static const unsigned short* findPalette(const char* title) {
     return NULL;
 }
 
+#define US_PER_FRAME ((s64) (1000000.0 / ((double) CYCLES_PER_SECOND / (double) CYCLES_PER_FRAME)))
+
 Gameboy* gameboy = NULL;
 CheatEngine* cheatEngine = NULL;
 
@@ -489,10 +492,13 @@ u16 gbSprPalette[0x20];
 
 int fastForwardCounter;
 
+static std::chrono::time_point<std::chrono::high_resolution_clock, std::chrono::nanoseconds> lastFrameTime;
+static bool fastForward;
+
 static std::string romName;
 
 static int fps;
-static time_t lastPrintTime;
+static std::chrono::time_point<std::chrono::high_resolution_clock, std::chrono::nanoseconds> lastPrintTime;
 
 static int autoFireCounterA;
 static int autoFireCounterB;
@@ -513,10 +519,13 @@ void mgrInit() {
 
     fastForwardCounter = 0;
 
+    lastFrameTime = std::chrono::high_resolution_clock::now();
+    fastForward = false;
+
     romName = "";
 
     fps = 0;
-    lastPrintTime = 0;
+    lastPrintTime = std::chrono::high_resolution_clock::now();
 
     autoFireCounterA = 0;
     autoFireCounterB = 0;
@@ -944,6 +953,18 @@ void mgrRefreshBios() {
     }
 }
 
+bool mgrGetFastForward() {
+    return fastForward || (!isMenuOn() && inputKeyHeld(FUNC_KEY_FAST_FORWARD));
+}
+
+void mgrSetFastForward(bool ff) {
+    fastForward = ff;
+}
+
+void mgrToggleFastForward() {
+    fastForward = !fastForward;
+}
+
 void mgrPause() {
     emulationPaused = true;
 }
@@ -969,148 +990,152 @@ void mgrRun() {
         mgrSelectRom();
     }
 
-    inputUpdate();
+    auto time = std::chrono::high_resolution_clock::now();
+    if(mgrGetFastForward() || std::chrono::duration_cast<std::chrono::microseconds>(time - lastFrameTime).count() >= US_PER_FRAME) {
+        lastFrameTime = time;
 
-    if(isMenuOn()) {
-        updateMenu();
-    } else if(gameboy->isPoweredOn()) {
-        u8 buttonsPressed = 0xFF;
+        inputUpdate();
 
-        if(inputKeyHeld(FUNC_KEY_UP)) {
-            buttonsPressed &= ~GB_UP;
-        }
+        if(isMenuOn()) {
+            updateMenu();
+        } else if(gameboy->isPoweredOn()) {
+            u8 buttonsPressed = 0xFF;
 
-        if(inputKeyHeld(FUNC_KEY_DOWN)) {
-            buttonsPressed &= ~GB_DOWN;
-        }
+            if(inputKeyHeld(FUNC_KEY_UP)) {
+                buttonsPressed &= ~GB_UP;
+            }
 
-        if(inputKeyHeld(FUNC_KEY_LEFT)) {
-            buttonsPressed &= ~GB_LEFT;
-        }
+            if(inputKeyHeld(FUNC_KEY_DOWN)) {
+                buttonsPressed &= ~GB_DOWN;
+            }
 
-        if(inputKeyHeld(FUNC_KEY_RIGHT)) {
-            buttonsPressed &= ~GB_RIGHT;
-        }
+            if(inputKeyHeld(FUNC_KEY_LEFT)) {
+                buttonsPressed &= ~GB_LEFT;
+            }
 
-        if(inputKeyHeld(FUNC_KEY_A)) {
-            buttonsPressed &= ~GB_A;
-        }
+            if(inputKeyHeld(FUNC_KEY_RIGHT)) {
+                buttonsPressed &= ~GB_RIGHT;
+            }
 
-        if(inputKeyHeld(FUNC_KEY_B)) {
-            buttonsPressed &= ~GB_B;
-        }
-
-        if(inputKeyHeld(FUNC_KEY_START)) {
-            buttonsPressed &= ~GB_START;
-        }
-
-        if(inputKeyHeld(FUNC_KEY_SELECT)) {
-            buttonsPressed &= ~GB_SELECT;
-        }
-
-        if(inputKeyHeld(FUNC_KEY_AUTO_A)) {
-            if(autoFireCounterA <= 0) {
+            if(inputKeyHeld(FUNC_KEY_A)) {
                 buttonsPressed &= ~GB_A;
-                autoFireCounterA = 2;
             }
 
-            autoFireCounterA--;
-        }
-
-        if(inputKeyHeld(FUNC_KEY_AUTO_B)) {
-            if(autoFireCounterB <= 0) {
+            if(inputKeyHeld(FUNC_KEY_B)) {
                 buttonsPressed &= ~GB_B;
-                autoFireCounterB = 2;
             }
 
-            autoFireCounterB--;
-        }
-
-        gameboy->sgb->setController(0, buttonsPressed);
-
-        if(inputKeyPressed(FUNC_KEY_SAVE)) {
-            mgrWriteSave();
-        }
-
-        if(inputKeyPressed(FUNC_KEY_FAST_FORWARD_TOGGLE)) {
-            gfxToggleFastForward();
-        }
-
-        if((inputKeyPressed(FUNC_KEY_MENU) || inputKeyPressed(FUNC_KEY_MENU_PAUSE))) {
-            if(pauseOnMenu || inputKeyPressed(FUNC_KEY_MENU_PAUSE)) {
-                mgrPause();
+            if(inputKeyHeld(FUNC_KEY_START)) {
+                buttonsPressed &= ~GB_START;
             }
 
-            gfxSetFastForward(false);
-            displayMenu();
-        }
-
-        if(inputKeyPressed(FUNC_KEY_SCALE)) {
-            setMenuOption("Scaling", (getMenuOption("Scaling") + 1) % 5);
-        }
-
-        if(inputKeyPressed(FUNC_KEY_RESET)) {
-            mgrReset();
-        }
-
-        if(inputKeyPressed(FUNC_KEY_SCREENSHOT) && !isMenuOn()) {
-            gfxTakeScreenshot();
-        }
-    }
-
-    if(gameboy->isPoweredOn() && !emulationPaused) {
-        while(!(gameboy->run() & RET_VBLANK));
-
-        cheatEngine->applyGSCheats();
-
-        if(!gfxGetFastForward() || fastForwardCounter++ >= fastForwardFrameSkip) {
-            fastForwardCounter = 0;
-            gfxDrawScreen();
-        }
-    }
-
-    fps++;
-
-    time_t rawTime = 0;
-    time(&rawTime);
-
-    if(rawTime > lastPrintTime) {
-        if(!isMenuOn() && !showConsoleDebug() && (fpsOutput || timeOutput)) {
-            uiClear();
-            int fpsLength = 0;
-            if(fpsOutput) {
-                char buffer[16];
-                snprintf(buffer, 16, "FPS: %d", fps);
-                uiPrint("%s", buffer);
-                fpsLength = (int) strlen(buffer);
+            if(inputKeyHeld(FUNC_KEY_SELECT)) {
+                buttonsPressed &= ~GB_SELECT;
             }
 
-            if(timeOutput) {
-                char *timeString = ctime(&rawTime);
-                for(int i = 0; ; i++) {
-                    if(timeString[i] == ':') {
-                        timeString += i - 2;
-                        break;
+            if(inputKeyHeld(FUNC_KEY_AUTO_A)) {
+                if(autoFireCounterA <= 0) {
+                    buttonsPressed &= ~GB_A;
+                    autoFireCounterA = 2;
+                }
+
+                autoFireCounterA--;
+            }
+
+            if(inputKeyHeld(FUNC_KEY_AUTO_B)) {
+                if(autoFireCounterB <= 0) {
+                    buttonsPressed &= ~GB_B;
+                    autoFireCounterB = 2;
+                }
+
+                autoFireCounterB--;
+            }
+
+            gameboy->sgb->setController(0, buttonsPressed);
+
+            if(inputKeyPressed(FUNC_KEY_SAVE)) {
+                mgrWriteSave();
+            }
+
+            if(inputKeyPressed(FUNC_KEY_FAST_FORWARD_TOGGLE)) {
+                mgrToggleFastForward();
+            }
+
+            if((inputKeyPressed(FUNC_KEY_MENU) || inputKeyPressed(FUNC_KEY_MENU_PAUSE))) {
+                if(pauseOnMenu || inputKeyPressed(FUNC_KEY_MENU_PAUSE)) {
+                    mgrPause();
+                }
+
+                mgrSetFastForward(false);
+                displayMenu();
+            }
+
+            if(inputKeyPressed(FUNC_KEY_SCALE)) {
+                setMenuOption("Scaling", (getMenuOption("Scaling") + 1) % 5);
+            }
+
+            if(inputKeyPressed(FUNC_KEY_RESET)) {
+                mgrReset();
+            }
+
+            if(inputKeyPressed(FUNC_KEY_SCREENSHOT) && !isMenuOn()) {
+                gfxTakeScreenshot();
+            }
+        }
+
+        if(gameboy->isPoweredOn() && !emulationPaused) {
+            while(!(gameboy->run() & RET_VBLANK));
+
+            cheatEngine->applyGSCheats();
+
+            if(!mgrGetFastForward() || fastForwardCounter++ >= fastForwardFrameSkip) {
+                fastForwardCounter = 0;
+                gfxDrawScreen();
+            }
+        }
+
+        fps++;
+
+        time = std::chrono::high_resolution_clock::now();
+        if(std::chrono::duration_cast<std::chrono::seconds>(time - lastPrintTime).count() > 0) {
+            if(!isMenuOn() && !showConsoleDebug() && (fpsOutput || timeOutput)) {
+                uiClear();
+                int fpsLength = 0;
+                if(fpsOutput) {
+                    char buffer[16];
+                    snprintf(buffer, 16, "FPS: %d", fps);
+                    uiPrint("%s", buffer);
+                    fpsLength = (int) strlen(buffer);
+                }
+
+                if(timeOutput) {
+                    time_t timet = (time_t) std::chrono::duration_cast<std::chrono::seconds>(time.time_since_epoch()).count();
+                    char *timeString = ctime(&timet);
+                    for(int i = 0; ; i++) {
+                        if(timeString[i] == ':') {
+                            timeString += i - 2;
+                            break;
+                        }
                     }
+
+                    char timeDisplay[6] = {0};
+                    strncpy(timeDisplay, timeString, 5);
+
+                    int spaces = uiGetWidth() - (int) strlen(timeDisplay) - fpsLength;
+                    for(int i = 0; i < spaces; i++) {
+                        uiPrint(" ");
+                    }
+
+                    uiPrint("%s", timeDisplay);
                 }
 
-                char timeDisplay[6] = {0};
-                strncpy(timeDisplay, timeString, 5);
+                uiPrint("\n");
 
-                int spaces = uiGetWidth() - (int) strlen(timeDisplay) - fpsLength;
-                for(int i = 0; i < spaces; i++) {
-                    uiPrint(" ");
-                }
-
-                uiPrint("%s", timeDisplay);
+                uiFlush();
             }
 
-            uiPrint("\n");
-
-            uiFlush();
+            fps = 0;
+            lastPrintTime = time;
         }
-
-        fps = 0;
-        lastPrintTime = rawTime;
     }
 }

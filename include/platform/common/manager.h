@@ -39,6 +39,10 @@ void mgrRefreshPalette();
 void mgrRefreshBorder();
 void mgrRefreshBios();
 
+bool mgrGetFastForward();
+void mgrSetFastForward(bool ff);
+void mgrToggleFastForward();
+
 void mgrPause();
 void mgrUnpause();
 bool mgrIsPaused();

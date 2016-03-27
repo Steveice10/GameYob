@@ -6,7 +6,6 @@
 #include <sstream>
 
 #include "platform/gfx.h"
-#include "platform/input.h"
 
 #include <SDL2/SDL.h>
 
@@ -22,8 +21,6 @@ static SDL_Texture* screenTexture = NULL;
 static SDL_Texture* borderTexture = NULL;
 
 static u32* screenBuffer;
-
-static bool fastForward = false;
 
 bool gfxInit() {
     window = SDL_CreateWindow("GameYob", 0, 0, 160, 144, SDL_WINDOW_RESIZABLE | SDL_WINDOW_OPENGL);
@@ -112,18 +109,6 @@ void gfxSetWindowSize(int width, int height) {
     gfxUpdateWindow();
 }
 
-bool gfxGetFastForward() {
-    return fastForward || inputKeyHeld(FUNC_KEY_FAST_FORWARD);
-}
-
-void gfxSetFastForward(bool fastforward) {
-    fastForward = fastforward;
-}
-
-void gfxToggleFastForward() {
-    fastForward = !fastForward;
-}
-
 void gfxLoadBorder(u8* imgData, int imgWidth, int imgHeight) {
     if(borderTexture != NULL) {
         SDL_DestroyTexture(borderTexture);
@@ -179,8 +164,6 @@ void gfxTakeScreenshot() {
 }
 
 void gfxDrawScreen() {
-    SDL_GL_SetSwapInterval(!gfxGetFastForward());
-
     SDL_RenderClear(renderer);
 
     SDL_UpdateTexture(screenTexture, &screenRect, screenBuffer, 160 * sizeof(u32));
@@ -190,11 +173,6 @@ void gfxDrawScreen() {
         SDL_RenderCopy(renderer, borderTexture, &borderRect, &windowBorderRect);
     }
 
-    SDL_RenderPresent(renderer);
-}
-
-void gfxSync() {
-    SDL_GL_SetSwapInterval(true);
     SDL_RenderPresent(renderer);
 }
 

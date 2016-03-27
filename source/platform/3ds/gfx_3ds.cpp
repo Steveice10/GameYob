@@ -14,7 +14,6 @@
 #include "platform/3ds/default_shbin.h"
 #include "platform/common/menu.h"
 #include "platform/gfx.h"
-#include "platform/input.h"
 #include "platform/system.h"
 
 static bool c3dInitialized;
@@ -40,7 +39,6 @@ static C3D_Tex borderTexture;
 
 static u32* screenBuffer;
 static u32* scale2xBuffer;
-static bool fastForward = false;
 
 bool gfxInit() {
     gfxInitDefault();
@@ -180,18 +178,6 @@ void gfxCleanup() {
     }
 
     gfxExit();
-}
-
-bool gfxGetFastForward() {
-    return fastForward || (!isMenuOn() && inputKeyHeld(FUNC_KEY_FAST_FORWARD));
-}
-
-void gfxSetFastForward(bool fastforward) {
-    fastForward = fastforward;
-}
-
-void gfxToggleFastForward() {
-    fastForward = !fastForward;
 }
 
 void gfxLoadBorder(u8* imgData, int imgWidth, int imgHeight) {
@@ -463,7 +449,7 @@ void gfxDrawScreen() {
 
     GSPGPU_InvalidateDataCache(screenTexture.data, screenTexture.size);
 
-    if(!C3D_FrameBegin(gfxGetFastForward() ? C3D_FRAME_NONBLOCK : C3D_FRAME_SYNCDRAW)) {
+    if(!C3D_FrameBegin(0)) {
         return;
     }
 
@@ -591,10 +577,6 @@ void gfxDrawScreen() {
     }
 
     C3D_FrameEnd(0);
-}
-
-void gfxSync() {
-    gspWaitForVBlank();
 }
 
 #endif

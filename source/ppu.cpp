@@ -439,7 +439,7 @@ void PPU::update() {
                     this->gameboy->mmu->writeIO(STAT, (u8) ((stat & ~3) | LCD_ACCESS_OAM_VRAM));
                     break;
                 case LCD_ACCESS_OAM_VRAM:
-                    if(!perPixelRendering && (!gfxGetFastForward() || fastForwardCounter >= fastForwardFrameSkip)) {
+                    if(!perPixelRendering && (!mgrGetFastForward() || fastForwardCounter >= fastForwardFrameSkip)) {
                         this->drawScanline(ly);
                     }
 
@@ -610,7 +610,7 @@ inline void PPU::updateLineSprites() {
 }
 
 inline void PPU::updateScanline() {
-    bool drawing = perPixelRendering && (this->gameboy->mmu->readIO(STAT) & 3) == LCD_ACCESS_OAM_VRAM && (!gfxGetFastForward() || fastForwardCounter >= fastForwardFrameSkip);
+    bool drawing = perPixelRendering && (this->gameboy->mmu->readIO(STAT) & 3) == LCD_ACCESS_OAM_VRAM && (!mgrGetFastForward() || fastForwardCounter >= fastForwardFrameSkip);
     if(drawing && this->scanlineX < 160) {
         while(this->scanlineX < 160 && this->gameboy->cpu->getCycle() >= this->lastScanlineCycle + ((this->scanlineX + 7) << this->halfSpeed)) {
             this->drawPixel(this->scanlineX, this->gameboy->mmu->readIO(LY));
