@@ -573,7 +573,13 @@ void mgrPowerOn(const char* romFile) {
         int romSize = (int) romStream.tellg();
         romStream.seekg(0);
 
-        std::ifstream saveStream((std::string) romFile + ".sav", std::ios::binary | std::ios::ate);
+        romName = romFile;
+        std::string::size_type dot = romName.find_last_of('.');
+        if(dot != std::string::npos) {
+            romName = romName.substr(0, dot);
+        }
+
+        std::ifstream saveStream(romName + ".sav", std::ios::binary | std::ios::ate);
         if(!saveStream.is_open()) {
             systemPrintDebug("Failed to open save file: %s\n", strerror(errno));
         }
@@ -585,13 +591,6 @@ void mgrPowerOn(const char* romFile) {
 
         romStream.close();
         saveStream.close();
-
-        romName = romFile;
-
-        std::string::size_type dot = romName.find_last_of('.');
-        if(dot != std::string::npos) {
-            romName = romName.substr(0, dot);
-        }
 
         cheatEngine->loadCheats((romName + ".cht").c_str());
 

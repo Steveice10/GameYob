@@ -184,24 +184,14 @@ private:
     mbcUpdate updateFunc;
 
     struct {
-        union {
-            struct {
-                s32 s, m, h, d, ctrl;
-                s32 u[1]; /* Unused */
-            } mbc3;
-            struct {
-                s32 m, d, y;
-                s32 u[3]; /* Unused */
-            } huc3;
-            struct {
-                s32 s, m, h, d, mon, y;
-            } tama5;
-        };
+        u32 seconds;
+        u32 minutes;
+        u32 hours;
+        u32 days;
+        u32 months;
+        u32 years;
 
-        /* Unused */
-        s32 u[4];
-
-        u32 last;
+        u64 last;
     } gbClock;
 
     // General
@@ -213,13 +203,14 @@ private:
     // MBC1
     bool mbc1RamMode;
 
+    // MBC3
+    u8 mbc3Ctrl;
+
     // MBC6
     s32 romBank1ALatch;
     s32 romBank1BLatch;
     s32 romBank1A;
     s32 romBank1B;
-    s32 romBank1C;
-    s32 romBank1D;
 
     // MBC7
     bool mbc7WriteEnable;

@@ -176,7 +176,7 @@ void MMU::mapBanks() {
 
     if(this->gameboy->biosOn) {
         this->mapBankReadFunc(0x0, [this](u16 addr) -> u8 {
-            if(addr < 0x100 || addr >= 0x200) {
+            if(addr < 0x100 || (addr >= 0x200 && addr <= 0x8FF)) {
                 return this->bios[addr & 0xFFF];
             } else if(this->banks[0x0] != NULL) {
                 return this->banks[0x0][addr & 0xFFF];

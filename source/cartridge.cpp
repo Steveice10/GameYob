@@ -220,6 +220,9 @@ void Cartridge::reset(Gameboy* gameboy) {
     // MBC1
     this->mbc1RamMode = false;
 
+    // MBC3
+    this->mbc3Ctrl = 0;
+
     // MBC6
     this->romBank1ALatch = 2;
     this->romBank1BLatch = 3;
@@ -272,6 +275,9 @@ void Cartridge::loadState(std::istream& data, u8 version) {
     switch(this->mbcType) {
         case MBC1:
             data.read((char*) &this->mbc1RamMode, sizeof(this->mbc1RamMode));
+            break;
+        case MBC3:
+            data.read((char*) &this->mbc3Ctrl, sizeof(this->mbc3Ctrl));
             break;
         case MBC6:
             data.read((char*) &this->romBank1ALatch, sizeof(this->romBank1ALatch));
@@ -328,6 +334,9 @@ void Cartridge::saveState(std::ostream& data) {
     switch(this->mbcType) {
         case MBC1:
             data.write((char*) &this->mbc1RamMode, sizeof(this->mbc1RamMode));
+            break;
+        case MBC3:
+            data.write((char*) &this->mbc3Ctrl, sizeof(this->mbc3Ctrl));
             break;
         case MBC6:
             data.write((char*) &this->romBank1ALatch, sizeof(this->romBank1ALatch));
@@ -526,15 +535,15 @@ u8 Cartridge::m3r(u16 addr) {
     if(this->sramEnabled) {
         switch(this->sramBank) { // Check for RTC register
             case 0x8:
-                return (u8) this->gbClock.mbc3.s;
+                return (u8) this->gbClock.seconds;
             case 0x9:
-                return (u8) this->gbClock.mbc3.m;
+                return (u8) this->gbClock.minutes;
             case 0xA:
-                return (u8) this->gbClock.mbc3.h;
+                return (u8) this->gbClock.hours;
             case 0xB:
-                return (u8) (this->gbClock.mbc3.d & 0xFF);
+                return (u8) (this->gbClock.days & 0xFF);
             case 0xC:
-                return (u8) this->gbClock.mbc3.ctrl;
+                return this->mbc3Ctrl;
             default: // Not an RTC register
                 return this->readSram((u16) (addr & 0x1FFF));
         }
@@ -729,6 +738,13 @@ void Cartridge::m3w(u16 addr, u8 val) {
         case 0x7:
             if(val) {
                 this->latchClock();
+
+                if(this->gbClock.days > 0x1FF) {
+                    this->mbc3Ctrl |= 0x80;
+                    this->gbClock.days &= 0x1FF;
+                }
+
+                this->mbc3Ctrl = (u8) ((this->mbc3Ctrl & ~1) | ((this->gbClock.days >> 8) & 1));
             }
 
             break;
@@ -740,35 +756,35 @@ void Cartridge::m3w(u16 addr, u8 val) {
 
             switch(this->sramBank) { // Check for RTC register
                 case 0x8:
-                    if(this->gbClock.mbc3.s != val) {
-                        this->gbClock.mbc3.s = val;
+                    if(this->gbClock.seconds != val) {
+                        this->gbClock.seconds = val;
                     }
 
                     return;
                 case 0x9:
-                    if(this->gbClock.mbc3.m != val) {
-                        this->gbClock.mbc3.m = val;
+                    if(this->gbClock.minutes != val) {
+                        this->gbClock.minutes = val;
                     }
 
                     return;
                 case 0xA:
-                    if(this->gbClock.mbc3.h != val) {
-                        this->gbClock.mbc3.h = val;
+                    if(this->gbClock.hours != val) {
+                        this->gbClock.hours = val;
                     }
 
                     return;
                 case 0xB:
-                    if((this->gbClock.mbc3.d & 0xff) != val) {
-                        this->gbClock.mbc3.d &= 0x100;
-                        this->gbClock.mbc3.d |= val;
+                    if((this->gbClock.days & 0xff) != val) {
+                        this->gbClock.days &= 0x100;
+                        this->gbClock.days |= val;
                     }
 
                     return;
                 case 0xC:
-                    if(this->gbClock.mbc3.ctrl != val) {
-                        this->gbClock.mbc3.d &= 0xFF;
-                        this->gbClock.mbc3.d |= (val & 1) << 8;
-                        this->gbClock.mbc3.ctrl = val;
+                    if(this->mbc3Ctrl != val) {
+                        this->gbClock.days &= 0xFF;
+                        this->gbClock.days |= (val & 1) << 8;
+                        this->mbc3Ctrl = val;
                     }
 
                     return;
@@ -1193,16 +1209,16 @@ void Cartridge::h3w(u16 addr, u8 val) {
                             switch(this->huc3Shift) {
                                 case 0:
                                 case 4:
-                                case 8:     /* Minutes */
-                                    this->huc3Value = (u8) ((this->gbClock.huc3.m >> this->huc3Shift) & 0xF);
+                                case 8: /* Minutes */
+                                    this->huc3Value = (u8) ((this->gbClock.minutes >> this->huc3Shift) & 0xF);
                                     break;
                                 case 12:
                                 case 16:
-                                case 20:  /* Days */
-                                    this->huc3Value = (u8) ((this->gbClock.huc3.d >> (this->huc3Shift - 12)) & 0xF);
+                                case 20: /* Days */
+                                    this->huc3Value = (u8) ((this->gbClock.days >> (this->huc3Shift - 12)) & 0xF);
                                     break;
-                                case 24:                    /* Year */
-                                    this->huc3Value = (u8) (this->gbClock.huc3.y & 0xF);
+                                case 24: /* Year */
+                                    this->huc3Value = (u8) (this->gbClock.years & 0xF);
                                     break;
                                 default:
                                     break;
@@ -1317,26 +1333,26 @@ void Cartridge::t5w(u16 addr, u8 val) {
                 } else if((this->tama5CommandNumber & 0xE) == 6) {
                     this->tama5RamByteSelect = (this->tama5Commands[7] << 4) | (this->tama5Commands[6] & 0x0F);
                     if(this->tama5Commands[0x0F] && this->tama5CommandNumber == 7) {
-                        int data = (this->tama5Commands[0x04] & 0x0F) | (this->tama5Commands[0x05] << 4);
+                        u8 data = (u8) ((this->tama5Commands[0x04] & 0xF) | ((this->tama5Commands[0x05] & 0xF) << 4));
                         if(this->tama5RamByteSelect == 0x8) {
                             switch (data & 0xF) {
                                 case 0x7:
-                                    this->gbClock.tama5.d = (this->gbClock.tama5.d / 10) * 10 + (data >> 4);
+                                    this->gbClock.days = (this->gbClock.days / 10) * 10 + (data >> 4);
                                     break;
                                 case 0x8:
-                                    this->gbClock.tama5.d = (this->gbClock.tama5.d % 10) + (data >> 4) * 10;
+                                    this->gbClock.days = (this->gbClock.days % 10) + (data >> 4) * 10;
                                     break;
                                 case 0x9:
-                                    this->gbClock.tama5.mon = (this->gbClock.tama5.mon / 10) * 10 + (data >> 4);
+                                    this->gbClock.months = (this->gbClock.months / 10) * 10 + (data >> 4);
                                     break;
                                 case 0xa:
-                                    this->gbClock.tama5.mon = (this->gbClock.tama5.mon % 10) + (data >> 4) * 10;
+                                    this->gbClock.months = (this->gbClock.months % 10) + (data >> 4) * 10;
                                     break;
                                 case 0xb:
-                                    this->gbClock.tama5.y = (this->gbClock.tama5.y % 1000) + (data >> 4) * 1000;
+                                    this->gbClock.years = (this->gbClock.years % 1000) + (data >> 4) * 1000;
                                     break;
                                 case 0xc:
-                                    gbClock.tama5.y = (gbClock.tama5.y % 100) + (gbClock.tama5.y / 1000) * 1000 + (data >> 4) * 100;
+                                    this->gbClock.years = (this->gbClock.years % 100) + (this->gbClock.years / 1000) * 1000 + (data >> 4) * 100;
                                     break;
                                 default:
                                     break;
@@ -1344,17 +1360,17 @@ void Cartridge::t5w(u16 addr, u8 val) {
                         } else if(this->tama5RamByteSelect == 0x18) {
                             this->latchClock();
 
-                            int seconds = (this->gbClock.tama5.s / 10) * 16 + this->gbClock.tama5.s % 10;
-                            int secondsL = (this->gbClock.tama5.s % 10);
-                            int secondsH = (this->gbClock.tama5.s / 10);
-                            int minutes = (this->gbClock.tama5.m / 10) * 16 + this->gbClock.tama5.m % 10;
-                            int hours = (this->gbClock.tama5.h / 10) * 16 + this->gbClock.tama5.h % 10;
-                            int daysL = this->gbClock.tama5.d % 10;
-                            int daysH = this->gbClock.tama5.d / 10;
-                            int monthsL = this->gbClock.tama5.mon % 10;
-                            int monthsH = this->gbClock.tama5.mon / 10;
-                            int years3 = (this->gbClock.tama5.y / 100) % 10;
-                            int years4 = (this->gbClock.tama5.y / 1000);
+                            u32 seconds = (this->gbClock.seconds / 10) * 16 + this->gbClock.seconds % 10;
+                            u32 secondsL = (this->gbClock.seconds % 10);
+                            u32 secondsH = (this->gbClock.seconds / 10);
+                            u32 minutes = (this->gbClock.minutes / 10) * 16 + this->gbClock.minutes % 10;
+                            u32 hours = (this->gbClock.hours / 10) * 16 + this->gbClock.hours % 10;
+                            u32 daysL = this->gbClock.days % 10;
+                            u32 daysH = this->gbClock.days / 10;
+                            u32 monthsL = this->gbClock.months % 10;
+                            u32 monthsH = this->gbClock.months / 10;
+                            u32 years3 = (this->gbClock.years / 100) % 10;
+                            u32 years4 = (this->gbClock.years / 1000);
 
                             switch(data & 0xF) {
                                 case 0x0:
@@ -1394,14 +1410,14 @@ void Cartridge::t5w(u16 addr, u8 val) {
                             this->writeSram(0, 1);
                         } else if(this->tama5RamByteSelect == 0x28) {
                             if((data & 0xF) == 0xB) {
-                                this->gbClock.tama5.y = ((this->gbClock.tama5.y >> 2) << 2) + (data & 3);
+                                this->gbClock.years = ((this->gbClock.years >> 2) << 2) + (data & 3);
                             }
                         } else if(this->tama5RamByteSelect == 0x44) {
-                            this->gbClock.tama5.m = (data / 16) * 10 + data % 16;
+                            this->gbClock.minutes = (u32) ((data >> 4) * 10 + (data & 0xF));
                         } else if(this->tama5RamByteSelect == 0x54) {
-                            this->gbClock.tama5.h = (data / 16) * 10 + data % 16;
+                            this->gbClock.hours = (u32) ((data >> 4) * 10 + (data & 0xF));
                         } else {
-                            this->tama5RAM[this->tama5RamByteSelect] = (u8) data;
+                            this->tama5RAM[this->tama5RamByteSelect] = data;
                         }
                     }
                 }
@@ -1616,11 +1632,11 @@ void Cartridge::camTakePicture() {
     }                              \
 })
 
-static int daysInMonth[12] = {
+static u32 daysInMonth[12] = {
         31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31
 };
 
-static int daysInLeapMonth[12] = {
+static u32 daysInLeapMonth[12] = {
         31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31
 };
 
@@ -1628,52 +1644,20 @@ void Cartridge::latchClock() {
     time_t now;
     time(&now);
 
-    time_t difference = now - this->gbClock.last;
+    time_t difference = (time_t) (now - this->gbClock.last);
     struct tm* lt = gmtime((const time_t*) &difference);
 
-    switch(this->mbcType) {
-        case MBC3:
-            this->gbClock.mbc3.s += lt->tm_sec;
-            OVERFLOW_VAL(this->gbClock.mbc3.s, 60, this->gbClock.mbc3.m);
-            this->gbClock.mbc3.m += lt->tm_min;
-            OVERFLOW_VAL(this->gbClock.mbc3.m, 60, this->gbClock.mbc3.h);
-            this->gbClock.mbc3.h += lt->tm_hour;
-            OVERFLOW_VAL(this->gbClock.mbc3.h, 24, this->gbClock.mbc3.d);
-            this->gbClock.mbc3.d += lt->tm_yday;
-            /* Overflow! */
-            if(this->gbClock.mbc3.d > 0x1FF) {
-                /* Set the carry bit */
-                this->gbClock.mbc3.ctrl |= 0x80;
-                this->gbClock.mbc3.d &= 0x1FF;
-            }
+    this->gbClock.seconds += lt->tm_sec;
+    OVERFLOW_VAL(this->gbClock.seconds, 60, this->gbClock.minutes);
+    this->gbClock.minutes += lt->tm_min;
+    OVERFLOW_VAL(this->gbClock.minutes, 60, this->gbClock.hours);
+    this->gbClock.hours += lt->tm_hour;
+    OVERFLOW_VAL(this->gbClock.hours, 24, this->gbClock.days);
+    this->gbClock.days += lt->tm_mday - 1;
+    OVERFLOW_VAL(this->gbClock.days, (this->gbClock.years & 3) == 0 ? daysInLeapMonth[this->gbClock.months] : daysInMonth[this->gbClock.months], this->gbClock.months);
+    this->gbClock.months += lt->tm_mon;
+    OVERFLOW_VAL(this->gbClock.months, 12, this->gbClock.years);
+    this->gbClock.years += lt->tm_year - 70;
 
-            /* The 9th bit of the day register is in the control register */
-            this->gbClock.mbc3.ctrl &= ~1;
-            this->gbClock.mbc3.ctrl |= (this->gbClock.mbc3.d > 0xff);
-            break;
-        case HUC3:
-            this->gbClock.huc3.m += lt->tm_min;
-            OVERFLOW_VAL(this->gbClock.huc3.m, 60 * 24, this->gbClock.huc3.d);
-            this->gbClock.huc3.d += lt->tm_yday;
-            OVERFLOW_VAL(this->gbClock.huc3.d, 365, this->gbClock.huc3.y);
-            this->gbClock.huc3.y += lt->tm_year - 70;
-            break;
-        case TAMA5:
-            this->gbClock.tama5.s += lt->tm_sec;
-            OVERFLOW_VAL(this->gbClock.tama5.s, 60, this->gbClock.tama5.m);
-            this->gbClock.tama5.m += lt->tm_min;
-            OVERFLOW_VAL(this->gbClock.tama5.m, 60, this->gbClock.tama5.h);
-            this->gbClock.tama5.h += lt->tm_hour;
-            OVERFLOW_VAL(this->gbClock.tama5.h, 24, this->gbClock.tama5.d);
-            this->gbClock.tama5.d += lt->tm_mday;
-            OVERFLOW_VAL(this->gbClock.tama5.d, (this->gbClock.tama5.y & 3) == 0 ? daysInLeapMonth[this->gbClock.tama5.mon] : daysInMonth[this->gbClock.tama5.mon], this->gbClock.tama5.mon);
-            this->gbClock.tama5.mon += lt->tm_mon;
-            OVERFLOW_VAL(this->gbClock.tama5.mon, 12, this->gbClock.tama5.y);
-            this->gbClock.tama5.y += lt->tm_year - 70;
-            break;
-        default:
-            break;
-    }
-
-    this->gbClock.last = (u32) now;
+    this->gbClock.last = (u64) now;
 }
