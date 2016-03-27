@@ -43,8 +43,6 @@ public:
 
     void advanceCycles(u64 cycles);
 
-    void setDoubleSpeed(bool doubleSpeed);
-
     void requestInterrupt(int id);
 
     inline u64 getCycle() {

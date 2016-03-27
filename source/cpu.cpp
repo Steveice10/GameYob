@@ -4,68 +4,39 @@
 #include "platform/system.h"
 #include "types.h"
 #include "apu.h"
+#include "cartridge.h"
 #include "cpu.h"
 #include "gameboy.h"
-#include "mbc.h"
 #include "mmu.h"
 #include "ppu.h"
 #include "serial.h"
 #include "sgb.h"
 #include "timer.h"
 
+static u8 temp1 = 0;
+static u8 temp2 = 0;
+
 #define FLAG_ZERO 0x80
 #define FLAG_NEGATIVE 0x40
 #define FLAG_HALFCARRY 0x20
 #define FLAG_CARRY 0x10
 
-#define FLAG_ISZERO ((this->registers.af.b.l & FLAG_ZERO) == FLAG_ZERO)
-#define FLAG_ISNEGATIVE ((this->registers.af.b.l & FLAG_NEGATIVE) == FLAG_NEGATIVE)
-#define FLAG_ISCARRY ((this->registers.af.b.l & FLAG_CARRY) == FLAG_CARRY)
-#define FLAG_ISHALFCARRY ((this->registers.af.b.l & FLAG_HALFCARRY) == FLAG_HALFCARRY)
-
+#define FLAG_GET(f) ((this->registers.af.b.l & (f)) == (f))
 #define FLAG_SET(f, x) (this->registers.af.b.l ^= (-(x) ^ this->registers.af.b.l) & (f))
 
-#define SETPC(val)                \
-    this->registers.pc.w = (val); \
-    this->advanceCycles(4);
+#define SETPC(val) (this->registers.pc.w = (val), this->advanceCycles(4))
 
-#define MEMREAD(addr) ({                                          \
-    u16 readAddr = (addr);                                        \
-    u8 mode = (u8) (this->gameboy->mmu->readIO(STAT) & 3);        \
-    u8 b = 0xFF;                                                  \
-    if(readAddr >= 0xFF80 || (!this->gameboy->ppu->isInOamDma() && (readAddr <= 0x7FFF || ((readAddr < 0x8000 || readAddr > 0x9FFF || mode != 3) && (readAddr < 0xFE00 || readAddr > 0xFE9F || mode < 2))))) { \
-        b = this->gameboy->mmu->read(readAddr);                   \
-    }                                                             \
-    this->advanceCycles(4);                                       \
-    b;                                                            \
-})
-
-#define MEMWRITE(addr, val) ({                                     \
-    u16 writeAddr = (addr);                                        \
-    u8 mode = (u8) (this->gameboy->mmu->readIO(STAT) & 3);         \
-    if(writeAddr >= 0xFF80 || (!this->gameboy->ppu->isInOamDma() && (writeAddr <= 0x7FFF || ((writeAddr < 0x8000 || writeAddr > 0x9FFF || mode != 3) && (writeAddr < 0xFE00 || writeAddr > 0xFE9F || mode < 2))))) { \
-        this->gameboy->mmu->write(writeAddr, val);                 \
-    }                                                              \
-    this->advanceCycles(4);                                        \
-})
+#define MEMREAD(addr) (temp1 = this->gameboy->mmu->read(addr), this->advanceCycles(4), temp1)
+#define MEMWRITE(addr, val) (this->gameboy->mmu->write(addr, val), this->advanceCycles(4))
 
 #define READPC8() MEMREAD(this->registers.pc.w++)
+#define READPC16() (temp2 = READPC8(), temp2 | (READPC8() << 8))
 
-#define READPC16() ({  \
-    u8 lo = READPC8(); \
-    u8 hi = READPC8(); \
-    lo | (hi << 8);    \
-})
+#define PUSH8(val) MEMWRITE(--this->registers.sp.w, (val))
+#define PUSH16(val) (PUSH8((u8) (((val) >> 8) & 0xFF)), PUSH8((u8) ((val) & 0xFF)))
 
-#define PUSH(d)                                          \
-    MEMWRITE(--this->registers.sp.w, ((d) >> 8) & 0xFF); \
-    MEMWRITE(--this->registers.sp.w, (d) & 0xFF);
-
-#define POP() ({                             \
-    u8 lo = MEMREAD(this->registers.sp.w++); \
-    u8 hi = MEMREAD(this->registers.sp.w++); \
-    lo | (hi << 8);                          \
-})
+#define POP8() MEMREAD(this->registers.sp.w++)
+#define POP16() (temp2 = POP8(), temp2 | (POP8() << 8))
 
 CPU::CPU(Gameboy* gameboy) {
     this->gameboy = gameboy;
@@ -165,25 +136,15 @@ void CPU::advanceCycles(u64 cycles) {
     if(this->cycleCount >= this->eventCycle) {
         this->eventCycle = UINT64_MAX;
 
-        this->gameboy->mbc->update();
+        if(this->gameboy->cartridge != NULL) {
+            this->gameboy->cartridge->update();
+        }
+
         this->gameboy->ppu->update();
         this->gameboy->apu->update();
         this->gameboy->sgb->update();
         this->gameboy->timer->update();
         this->gameboy->serial->update();
-    }
-}
-
-void CPU::setDoubleSpeed(bool doubleSpeed) {
-    if(this->gameboy->gbMode == MODE_CGB) {
-        if(doubleSpeed) {
-            this->gameboy->mmu->writeIO(KEY1, (u8) (this->gameboy->mmu->readIO(KEY1) | 0x80));
-        } else {
-            this->gameboy->mmu->writeIO(KEY1, (u8) (this->gameboy->mmu->readIO(KEY1) & ~0x80));
-        }
-
-        this->gameboy->apu->setHalfSpeed(doubleSpeed);
-        this->gameboy->ppu->setHalfSpeed(doubleSpeed);
     }
 }
 
@@ -296,10 +257,14 @@ void CPU::rrca() {
 }
 
 void CPU::stop() {
-    if(this->gameboy->gbMode == MODE_CGB && (this->gameboy->mmu->readIO(KEY1) & 1)) {
-        this->setDoubleSpeed(!(this->gameboy->mmu->readIO(KEY1) & 0x80));
+    u8 key1 = this->gameboy->mmu->readIO(KEY1);
+    if(this->gameboy->gbMode == MODE_CGB && (key1 & 0x01) != 0) {
+        bool doubleSpeed = (key1 & 0x80) == 0;
 
-        this->gameboy->mmu->writeIO(KEY1, (u8) (this->gameboy->mmu->readIO(KEY1) & ~1));
+        this->gameboy->apu->setHalfSpeed(doubleSpeed);
+        this->gameboy->ppu->setHalfSpeed(doubleSpeed);
+
+        this->gameboy->mmu->writeIO(KEY1, (u8) (key1 ^ 0x81));
         this->registers.pc.w++;
     } else {
         this->haltState = true;
@@ -340,7 +305,7 @@ void CPU::ld_d_n() {
 }
 
 void CPU::rla() {
-    u8 result = (this->registers.af.b.h << 1) | (u8) FLAG_ISCARRY;
+    u8 result = (this->registers.af.b.h << 1) | (u8) FLAG_GET(FLAG_CARRY);
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 0);
     FLAG_SET(FLAG_CARRY, (this->registers.af.b.h & 0x80) != 0);
@@ -392,7 +357,7 @@ void CPU::ld_e_n() {
 }
 
 void CPU::rra() {
-    u8 result = (this->registers.af.b.h >> 1) | (u8) (FLAG_ISCARRY << 7);
+    u8 result = (this->registers.af.b.h >> 1) | (u8) (FLAG_GET(FLAG_CARRY) << 7);
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 0);
     FLAG_SET(FLAG_CARRY, (this->registers.af.b.h & 0x01) != 0);
@@ -402,7 +367,7 @@ void CPU::rra() {
 
 void CPU::jr_nz_n() {
     s8 offset = READPC8();
-    if(!FLAG_ISZERO) {
+    if(!FLAG_GET(FLAG_ZERO)) {
         SETPC(this->registers.pc.w + offset);
     }
 }
@@ -442,20 +407,20 @@ void CPU::ld_h_n() {
 
 void CPU::daa() {
     int result = this->registers.af.b.h;
-    if(FLAG_ISNEGATIVE) {
-        if(FLAG_ISHALFCARRY) {
+    if(FLAG_GET(FLAG_NEGATIVE)) {
+        if(FLAG_GET(FLAG_HALFCARRY)) {
             result += 0xFA;
         }
 
-        if(FLAG_ISCARRY) {
+        if(FLAG_GET(FLAG_CARRY)) {
             result += 0xA0;
         }
     } else {
-        if(FLAG_ISHALFCARRY || (result & 0xF) > 9) {
+        if(FLAG_GET(FLAG_HALFCARRY) || (result & 0xF) > 9) {
             result += 0x06;
         }
 
-        if(FLAG_ISCARRY || (result & 0x1F0) > 0x90) {
+        if(FLAG_GET(FLAG_CARRY) || (result & 0x1F0) > 0x90) {
             result += 0x60;
             FLAG_SET(FLAG_CARRY, 1);
         } else {
@@ -470,7 +435,7 @@ void CPU::daa() {
 
 void CPU::jr_z_n() {
     s8 offset = READPC8();
-    if(FLAG_ISZERO) {
+    if(FLAG_GET(FLAG_ZERO)) {
         SETPC(this->registers.pc.w + offset);
     }
 }
@@ -521,7 +486,7 @@ void CPU::cpl() {
 
 void CPU::jr_nc_n() {
     s8 offset = READPC8();
-    if(!FLAG_ISCARRY) {
+    if(!FLAG_GET(FLAG_CARRY)) {
         SETPC(this->registers.pc.w + offset);
     }
 }
@@ -570,7 +535,7 @@ void CPU::scf() {
 
 void CPU::jr_c_n() {
     s8 offset = READPC8();
-    if(FLAG_ISCARRY) {
+    if(FLAG_GET(FLAG_CARRY)) {
         SETPC(this->registers.pc.w + offset);
     }
 }
@@ -614,7 +579,7 @@ void CPU::ld_a_n() {
 }
 
 void CPU::ccf() {
-    FLAG_SET(FLAG_CARRY, !FLAG_ISCARRY);
+    FLAG_SET(FLAG_CARRY, !FLAG_GET(FLAG_CARRY));
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 0);
 }
@@ -927,54 +892,54 @@ void CPU::add_a_a() {
 }
 
 void CPU::adc_b() {
-    u16 result = this->registers.af.b.h + this->registers.bc.b.h + (u16) FLAG_ISCARRY;
+    u16 result = this->registers.af.b.h + this->registers.bc.b.h + (u16) FLAG_GET(FLAG_CARRY);
     FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) + (this->registers.bc.b.h & 0xF) + FLAG_ISCARRY >= 0x10);
+    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) + (this->registers.bc.b.h & 0xF) + FLAG_GET(FLAG_CARRY) >= 0x10);
     FLAG_SET(FLAG_CARRY, result >= 0x100);
     FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
     this->registers.af.b.h = (u8) (result & 0xFF);
 }
 
 void CPU::adc_c() {
-    u16 result = this->registers.af.b.h + this->registers.bc.b.l + (u16) FLAG_ISCARRY;
+    u16 result = this->registers.af.b.h + this->registers.bc.b.l + (u16) FLAG_GET(FLAG_CARRY);
     FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) + (this->registers.bc.b.l & 0xF) + FLAG_ISCARRY >= 0x10);
+    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) + (this->registers.bc.b.l & 0xF) + FLAG_GET(FLAG_CARRY) >= 0x10);
     FLAG_SET(FLAG_CARRY, result >= 0x100);
     FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
     this->registers.af.b.h = (u8) (result & 0xFF);
 }
 
 void CPU::adc_d() {
-    u16 result = this->registers.af.b.h + this->registers.de.b.h + (u16) FLAG_ISCARRY;
+    u16 result = this->registers.af.b.h + this->registers.de.b.h + (u16) FLAG_GET(FLAG_CARRY);
     FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) + (this->registers.de.b.h & 0xF) + FLAG_ISCARRY >= 0x10);
+    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) + (this->registers.de.b.h & 0xF) + FLAG_GET(FLAG_CARRY) >= 0x10);
     FLAG_SET(FLAG_CARRY, result >= 0x100);
     FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
     this->registers.af.b.h = (u8) (result & 0xFF);
 }
 
 void CPU::adc_e() {
-    u16 result = this->registers.af.b.h + this->registers.de.b.l + (u16) FLAG_ISCARRY;
+    u16 result = this->registers.af.b.h + this->registers.de.b.l + (u16) FLAG_GET(FLAG_CARRY);
     FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) + (this->registers.de.b.l & 0xF) + FLAG_ISCARRY >= 0x10);
+    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) + (this->registers.de.b.l & 0xF) + FLAG_GET(FLAG_CARRY) >= 0x10);
     FLAG_SET(FLAG_CARRY, result >= 0x100);
     FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
     this->registers.af.b.h = (u8) (result & 0xFF);
 }
 
 void CPU::adc_h() {
-    u16 result = this->registers.af.b.h + this->registers.hl.b.h + (u16) FLAG_ISCARRY;
+    u16 result = this->registers.af.b.h + this->registers.hl.b.h + (u16) FLAG_GET(FLAG_CARRY);
     FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) + (this->registers.hl.b.h & 0xF) + FLAG_ISCARRY >= 0x10);
+    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) + (this->registers.hl.b.h & 0xF) + FLAG_GET(FLAG_CARRY) >= 0x10);
     FLAG_SET(FLAG_CARRY, result >= 0x100);
     FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
     this->registers.af.b.h = (u8) (result & 0xFF);
 }
 
 void CPU::adc_l() {
-    u16 result = this->registers.af.b.h + this->registers.hl.b.l + (u16) FLAG_ISCARRY;
+    u16 result = this->registers.af.b.h + this->registers.hl.b.l + (u16) FLAG_GET(FLAG_CARRY);
     FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) + (this->registers.hl.b.l & 0xF) + FLAG_ISCARRY >= 0x10);
+    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) + (this->registers.hl.b.l & 0xF) + FLAG_GET(FLAG_CARRY) >= 0x10);
     FLAG_SET(FLAG_CARRY, result >= 0x100);
     FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
     this->registers.af.b.h = (u8) (result & 0xFF);
@@ -982,18 +947,18 @@ void CPU::adc_l() {
 
 void CPU::adc_hlp() {
     u8 val = MEMREAD(this->registers.hl.w);
-    u16 result = this->registers.af.b.h + val + (u16) FLAG_ISCARRY;
+    u16 result = this->registers.af.b.h + val + (u16) FLAG_GET(FLAG_CARRY);
     FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) + (val & 0xF) + FLAG_ISCARRY >= 0x10);
+    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) + (val & 0xF) + FLAG_GET(FLAG_CARRY) >= 0x10);
     FLAG_SET(FLAG_CARRY, result >= 0x100);
     FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
     this->registers.af.b.h = (u8) (result & 0xFF);
 }
 
 void CPU::adc_a() {
-    u16 result = this->registers.af.b.h + this->registers.af.b.h + (u16) FLAG_ISCARRY;
+    u16 result = this->registers.af.b.h + this->registers.af.b.h + (u16) FLAG_GET(FLAG_CARRY);
     FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) + (this->registers.af.b.h & 0xF) + FLAG_ISCARRY >= 0x10);
+    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) + (this->registers.af.b.h & 0xF) + FLAG_GET(FLAG_CARRY) >= 0x10);
     FLAG_SET(FLAG_CARRY, result >= 0x100);
     FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
     this->registers.af.b.h = (u8) (result & 0xFF);
@@ -1073,54 +1038,54 @@ void CPU::sub_a() {
 }
 
 void CPU::sbc_b() {
-    int result = this->registers.af.b.h - this->registers.bc.b.h - FLAG_ISCARRY;
+    int result = this->registers.af.b.h - this->registers.bc.b.h - FLAG_GET(FLAG_CARRY);
     FLAG_SET(FLAG_NEGATIVE, 1);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) - (this->registers.bc.b.h & 0xF) - FLAG_ISCARRY < 0);
+    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) - (this->registers.bc.b.h & 0xF) - FLAG_GET(FLAG_CARRY) < 0);
     FLAG_SET(FLAG_CARRY, result < 0);
     FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
     this->registers.af.b.h = (u8) (result & 0xFF);
 }
 
 void CPU::sbc_c() {
-    int result = this->registers.af.b.h - this->registers.bc.b.l - FLAG_ISCARRY;
+    int result = this->registers.af.b.h - this->registers.bc.b.l - FLAG_GET(FLAG_CARRY);
     FLAG_SET(FLAG_NEGATIVE, 1);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) - (this->registers.bc.b.l & 0xF) - FLAG_ISCARRY < 0);
+    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) - (this->registers.bc.b.l & 0xF) - FLAG_GET(FLAG_CARRY) < 0);
     FLAG_SET(FLAG_CARRY, result < 0);
     FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
     this->registers.af.b.h = (u8) (result & 0xFF);
 }
 
 void CPU::sbc_d() {
-    int result = this->registers.af.b.h - this->registers.de.b.h - FLAG_ISCARRY;
+    int result = this->registers.af.b.h - this->registers.de.b.h - FLAG_GET(FLAG_CARRY);
     FLAG_SET(FLAG_NEGATIVE, 1);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) - (this->registers.de.b.h & 0xF) - FLAG_ISCARRY < 0);
+    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) - (this->registers.de.b.h & 0xF) - FLAG_GET(FLAG_CARRY) < 0);
     FLAG_SET(FLAG_CARRY, result < 0);
     FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
     this->registers.af.b.h = (u8) (result & 0xFF);
 }
 
 void CPU::sbc_e() {
-    int result = this->registers.af.b.h - this->registers.de.b.l - FLAG_ISCARRY;
+    int result = this->registers.af.b.h - this->registers.de.b.l - FLAG_GET(FLAG_CARRY);
     FLAG_SET(FLAG_NEGATIVE, 1);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) - (this->registers.de.b.l & 0xF) - FLAG_ISCARRY < 0);
+    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) - (this->registers.de.b.l & 0xF) - FLAG_GET(FLAG_CARRY) < 0);
     FLAG_SET(FLAG_CARRY, result < 0);
     FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
     this->registers.af.b.h = (u8) (result & 0xFF);
 }
 
 void CPU::sbc_h() {
-    int result = this->registers.af.b.h - this->registers.hl.b.h - FLAG_ISCARRY;
+    int result = this->registers.af.b.h - this->registers.hl.b.h - FLAG_GET(FLAG_CARRY);
     FLAG_SET(FLAG_NEGATIVE, 1);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) - (this->registers.hl.b.h & 0xF) - FLAG_ISCARRY < 0);
+    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) - (this->registers.hl.b.h & 0xF) - FLAG_GET(FLAG_CARRY) < 0);
     FLAG_SET(FLAG_CARRY, result < 0);
     FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
     this->registers.af.b.h = (u8) (result & 0xFF);
 }
 
 void CPU::sbc_l() {
-    int result = this->registers.af.b.h - this->registers.hl.b.l - FLAG_ISCARRY;
+    int result = this->registers.af.b.h - this->registers.hl.b.l - FLAG_GET(FLAG_CARRY);
     FLAG_SET(FLAG_NEGATIVE, 1);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) - (this->registers.hl.b.l & 0xF) - FLAG_ISCARRY < 0);
+    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) - (this->registers.hl.b.l & 0xF) - FLAG_GET(FLAG_CARRY) < 0);
     FLAG_SET(FLAG_CARRY, result < 0);
     FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
     this->registers.af.b.h = (u8) (result & 0xFF);
@@ -1128,18 +1093,18 @@ void CPU::sbc_l() {
 
 void CPU::sbc_hlp() {
     u8 val = MEMREAD(this->registers.hl.w);
-    int result = this->registers.af.b.h - val - FLAG_ISCARRY;
+    int result = this->registers.af.b.h - val - FLAG_GET(FLAG_CARRY);
     FLAG_SET(FLAG_NEGATIVE, 1);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) - (val & 0xF) - FLAG_ISCARRY < 0);
+    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) - (val & 0xF) - FLAG_GET(FLAG_CARRY) < 0);
     FLAG_SET(FLAG_CARRY, result < 0);
     FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
     this->registers.af.b.h = (u8) (result & 0xFF);
 }
 
 void CPU::sbc_a() {
-    int result = this->registers.af.b.h - this->registers.af.b.h - FLAG_ISCARRY;
+    int result = this->registers.af.b.h - this->registers.af.b.h - FLAG_GET(FLAG_CARRY);
     FLAG_SET(FLAG_NEGATIVE, 1);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) - (this->registers.af.b.h & 0xF) - FLAG_ISCARRY < 0);
+    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) - (this->registers.af.b.h & 0xF) - FLAG_GET(FLAG_CARRY) < 0);
     FLAG_SET(FLAG_CARRY, result < 0);
     FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
     this->registers.af.b.h = (u8) (result & 0xFF);
@@ -1426,19 +1391,19 @@ void CPU::cp_a() {
 
 void CPU::ret_nz() {
     this->advanceCycles(4);
-    if(!FLAG_ISZERO) {
-        u16 addr = POP();
+    if(!FLAG_GET(FLAG_ZERO)) {
+        u16 addr = POP16();
         SETPC(addr);
     }
 }
 
 void CPU::pop_bc() {
-    this->registers.bc.w = POP();
+    this->registers.bc.w = POP16();
 }
 
 void CPU::jp_nz_nn() {
     u16 addr = READPC16();
-    if(!FLAG_ISZERO) {
+    if(!FLAG_GET(FLAG_ZERO)) {
         SETPC(addr);
     }
 }
@@ -1450,14 +1415,14 @@ void CPU::jp_nn() {
 
 void CPU::call_nz_nn() {
     u16 addr = READPC16();
-    if(!FLAG_ISZERO) {
-        PUSH(this->registers.pc.w);
+    if(!FLAG_GET(FLAG_ZERO)) {
+        PUSH16(this->registers.pc.w);
         SETPC(addr);
     }
 }
 
 void CPU::push_bc() {
-    PUSH(this->registers.bc.w);
+    PUSH16(this->registers.bc.w);
     this->advanceCycles(4);
 }
 
@@ -1472,26 +1437,26 @@ void CPU::add_a_n() {
 }
 
 void CPU::rst_0() {
-    PUSH(this->registers.pc.w);
+    PUSH16(this->registers.pc.w);
     SETPC(0x0000);
 }
 
 void CPU::ret_z() {
     this->advanceCycles(4);
-    if(FLAG_ISZERO) {
-        u16 addr = POP();
+    if(FLAG_GET(FLAG_ZERO)) {
+        u16 addr = POP16();
         SETPC(addr);
     }
 }
 
 void CPU::ret() {
-    u16 addr = POP();
+    u16 addr = POP16();
     SETPC(addr);
 }
 
 void CPU::jp_z_nn() {
     u16 addr = READPC16();
-    if(FLAG_ISZERO) {
+    if(FLAG_GET(FLAG_ZERO)) {
         SETPC(addr);
     }
 }
@@ -1503,62 +1468,62 @@ void CPU::cb_n() {
 
 void CPU::call_z_nn() {
     u16 addr = READPC16();
-    if(FLAG_ISZERO) {
-        PUSH(this->registers.pc.w);
+    if(FLAG_GET(FLAG_ZERO)) {
+        PUSH16(this->registers.pc.w);
         SETPC(addr);
     }
 }
 
 void CPU::call_nn() {
     u16 addr = READPC16();
-    PUSH(this->registers.pc.w);
+    PUSH16(this->registers.pc.w);
     SETPC(addr);
 }
 
 void CPU::adc_n() {
     u8 val = READPC8();
-    u16 result = this->registers.af.b.h + val + (u16) FLAG_ISCARRY;
+    u16 result = this->registers.af.b.h + val + (u16) FLAG_GET(FLAG_CARRY);
     FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) + (val & 0xF) + FLAG_ISCARRY >= 0x10);
+    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) + (val & 0xF) + FLAG_GET(FLAG_CARRY) >= 0x10);
     FLAG_SET(FLAG_CARRY, result >= 0x100);
     FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
     this->registers.af.b.h = (u8) (result & 0xFF);
 }
 
 void CPU::rst_08() {
-    PUSH(this->registers.pc.w);
+    PUSH16(this->registers.pc.w);
     SETPC(0x0008);
 }
 
 void CPU::ret_nc() {
     this->advanceCycles(4);
-    if(!FLAG_ISCARRY) {
-        u16 addr = POP();
+    if(!FLAG_GET(FLAG_CARRY)) {
+        u16 addr = POP16();
         SETPC(addr);
     }
 }
 
 void CPU::pop_de() {
-    this->registers.de.w = POP();
+    this->registers.de.w = POP16();
 }
 
 void CPU::jp_nc_nn() {
     u16 addr = READPC16();
-    if(!FLAG_ISCARRY) {
+    if(!FLAG_GET(FLAG_CARRY)) {
         SETPC(addr);
     }
 }
 
 void CPU::call_nc_nn() {
     u16 addr = READPC16();
-    if(!FLAG_ISCARRY) {
-        PUSH(this->registers.pc.w);
+    if(!FLAG_GET(FLAG_CARRY)) {
+        PUSH16(this->registers.pc.w);
         SETPC(addr);
     }
 }
 
 void CPU::push_de() {
-    PUSH(this->registers.de.w);
+    PUSH16(this->registers.de.w);
     this->advanceCycles(4);
 }
 
@@ -1573,51 +1538,51 @@ void CPU::sub_n() {
 }
 
 void CPU::rst_10() {
-    PUSH(this->registers.pc.w);
+    PUSH16(this->registers.pc.w);
     SETPC(0x0010);
 }
 
 void CPU::ret_c() {
     this->advanceCycles(4);
-    if(FLAG_ISCARRY) {
-        u16 addr = POP();
+    if(FLAG_GET(FLAG_CARRY)) {
+        u16 addr = POP16();
         SETPC(addr);
     }
 }
 
 void CPU::reti() {
-    u16 addr = POP();
+    u16 addr = POP16();
     this->ime = true;
     SETPC(addr);
 }
 
 void CPU::jp_c_nn() {
     u16 addr = READPC16();
-    if(FLAG_ISCARRY) {
+    if(FLAG_GET(FLAG_CARRY)) {
         SETPC(addr);
     }
 }
 
 void CPU::call_c_nn() {
     u16 addr = READPC16();
-    if(FLAG_ISCARRY) {
-        PUSH(this->registers.pc.w);
+    if(FLAG_GET(FLAG_CARRY)) {
+        PUSH16(this->registers.pc.w);
         SETPC(addr);
     }
 }
 
 void CPU::sbc_n() {
     u8 val = READPC8();
-    int result = this->registers.af.b.h - val - FLAG_ISCARRY;
+    int result = this->registers.af.b.h - val - FLAG_GET(FLAG_CARRY);
     FLAG_SET(FLAG_NEGATIVE, 1);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) - (val & 0xF) - FLAG_ISCARRY < 0);
+    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) - (val & 0xF) - FLAG_GET(FLAG_CARRY) < 0);
     FLAG_SET(FLAG_CARRY, result < 0);
     FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
     this->registers.af.b.h = (u8) (result & 0xFF);
 }
 
 void CPU::rst_18() {
-    PUSH(this->registers.pc.w);
+    PUSH16(this->registers.pc.w);
     SETPC(0x0018);
 }
 
@@ -1627,7 +1592,7 @@ void CPU::ld_ff_n_a() {
 }
 
 void CPU::pop_hl() {
-    this->registers.hl.w = POP();
+    this->registers.hl.w = POP16();
 }
 
 void CPU::ld_ff_c_a() {
@@ -1635,7 +1600,7 @@ void CPU::ld_ff_c_a() {
 }
 
 void CPU::push_hl() {
-    PUSH(this->registers.hl.w);
+    PUSH16(this->registers.hl.w);
     this->advanceCycles(4);
 }
 
@@ -1650,7 +1615,7 @@ void CPU::and_n() {
 }
 
 void CPU::rst_20() {
-    PUSH(this->registers.pc.w);
+    PUSH16(this->registers.pc.w);
     SETPC(0x0020);
 }
 
@@ -1685,7 +1650,7 @@ void CPU::xor_n() {
 }
 
 void CPU::rst_28() {
-    PUSH(this->registers.pc.w);
+    PUSH16(this->registers.pc.w);
     SETPC(0x0028);
 }
 
@@ -1696,7 +1661,7 @@ void CPU::ld_a_ff_n() {
 
 void CPU::pop_af() {
     u8 oldFLow = (u8) (this->registers.af.b.l & 0xF);
-    this->registers.af.w = POP();
+    this->registers.af.w = POP16();
     this->registers.af.b.l = (u8) ((this->registers.af.b.l & 0xF0) | oldFLow);
 }
 
@@ -1709,7 +1674,7 @@ void CPU::di_inst() {
 }
 
 void CPU::push_af() {
-    PUSH(this->registers.af.w);
+    PUSH16(this->registers.af.w);
     this->advanceCycles(4);
 }
 
@@ -1724,7 +1689,7 @@ void CPU::or_n() {
 }
 
 void CPU::rst_30() {
-    PUSH(this->registers.pc.w);
+    PUSH16(this->registers.pc.w);
     SETPC(0x0030);
 }
 
@@ -1763,7 +1728,7 @@ void CPU::cp_n() {
 }
 
 void CPU::rst_38() {
-    PUSH(this->registers.pc.w);
+    PUSH16(this->registers.pc.w);
     SETPC(0x0038);
 }
 
@@ -1930,7 +1895,7 @@ void CPU::rrc_a() {
 }
 
 void CPU::rl_b() {
-    u8 result = (this->registers.bc.b.h << 1) | (u8) FLAG_ISCARRY;
+    u8 result = (this->registers.bc.b.h << 1) | (u8) FLAG_GET(FLAG_CARRY);
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 0);
     FLAG_SET(FLAG_CARRY, (this->registers.bc.b.h & 0x80) != 0);
@@ -1939,7 +1904,7 @@ void CPU::rl_b() {
 }
 
 void CPU::rl_c() {
-    u8 result = (this->registers.bc.b.l << 1) | (u8) FLAG_ISCARRY;
+    u8 result = (this->registers.bc.b.l << 1) | (u8) FLAG_GET(FLAG_CARRY);
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 0);
     FLAG_SET(FLAG_CARRY, (this->registers.bc.b.l & 0x80) != 0);
@@ -1948,7 +1913,7 @@ void CPU::rl_c() {
 }
 
 void CPU::rl_d() {
-    u8 result = (this->registers.de.b.h << 1) | (u8) FLAG_ISCARRY;
+    u8 result = (this->registers.de.b.h << 1) | (u8) FLAG_GET(FLAG_CARRY);
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 0);
     FLAG_SET(FLAG_CARRY, (this->registers.de.b.h & 0x80) != 0);
@@ -1957,7 +1922,7 @@ void CPU::rl_d() {
 }
 
 void CPU::rl_e() {
-    u8 result = (this->registers.de.b.l << 1) | (u8) FLAG_ISCARRY;
+    u8 result = (this->registers.de.b.l << 1) | (u8) FLAG_GET(FLAG_CARRY);
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 0);
     FLAG_SET(FLAG_CARRY, (this->registers.de.b.l & 0x80) != 0);
@@ -1966,7 +1931,7 @@ void CPU::rl_e() {
 }
 
 void CPU::rl_h() {
-    u8 result = (this->registers.hl.b.h << 1) | (u8) FLAG_ISCARRY;
+    u8 result = (this->registers.hl.b.h << 1) | (u8) FLAG_GET(FLAG_CARRY);
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 0);
     FLAG_SET(FLAG_CARRY, (this->registers.hl.b.h & 0x80) != 0);
@@ -1975,7 +1940,7 @@ void CPU::rl_h() {
 }
 
 void CPU::rl_l() {
-    u8 result = (this->registers.hl.b.l << 1) | (u8) FLAG_ISCARRY;
+    u8 result = (this->registers.hl.b.l << 1) | (u8) FLAG_GET(FLAG_CARRY);
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 0);
     FLAG_SET(FLAG_CARRY, (this->registers.hl.b.l & 0x80) != 0);
@@ -1985,7 +1950,7 @@ void CPU::rl_l() {
 
 void CPU::rl_hlp() {
     u8 val = MEMREAD(this->registers.hl.w);
-    u8 result = (val << 1) | (u8) FLAG_ISCARRY;
+    u8 result = (val << 1) | (u8) FLAG_GET(FLAG_CARRY);
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 0);
     FLAG_SET(FLAG_CARRY, (val & 0x80) != 0);
@@ -1994,7 +1959,7 @@ void CPU::rl_hlp() {
 }
 
 void CPU::rl_a() {
-    u8 result = (this->registers.af.b.h << 1) | (u8) FLAG_ISCARRY;
+    u8 result = (this->registers.af.b.h << 1) | (u8) FLAG_GET(FLAG_CARRY);
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 0);
     FLAG_SET(FLAG_CARRY, (this->registers.af.b.h & 0x80) != 0);
@@ -2003,7 +1968,7 @@ void CPU::rl_a() {
 }
 
 void CPU::rr_b() {
-    u8 result = (this->registers.bc.b.h >> 1) | (u8) (FLAG_ISCARRY << 7);
+    u8 result = (this->registers.bc.b.h >> 1) | (u8) (FLAG_GET(FLAG_CARRY) << 7);
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 0);
     FLAG_SET(FLAG_CARRY, (this->registers.bc.b.h & 0x01) != 0);
@@ -2012,7 +1977,7 @@ void CPU::rr_b() {
 }
 
 void CPU::rr_c() {
-    u8 result = (this->registers.bc.b.l >> 1) | (u8) (FLAG_ISCARRY << 7);
+    u8 result = (this->registers.bc.b.l >> 1) | (u8) (FLAG_GET(FLAG_CARRY) << 7);
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 0);
     FLAG_SET(FLAG_CARRY, (this->registers.bc.b.l & 0x01) != 0);
@@ -2021,7 +1986,7 @@ void CPU::rr_c() {
 }
 
 void CPU::rr_d() {
-    u8 result = (this->registers.de.b.h >> 1) | (u8) (FLAG_ISCARRY << 7);
+    u8 result = (this->registers.de.b.h >> 1) | (u8) (FLAG_GET(FLAG_CARRY) << 7);
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 0);
     FLAG_SET(FLAG_CARRY, (this->registers.de.b.h & 0x01) != 0);
@@ -2030,7 +1995,7 @@ void CPU::rr_d() {
 }
 
 void CPU::rr_e() {
-    u8 result = (this->registers.de.b.l >> 1) | (u8) (FLAG_ISCARRY << 7);
+    u8 result = (this->registers.de.b.l >> 1) | (u8) (FLAG_GET(FLAG_CARRY) << 7);
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 0);
     FLAG_SET(FLAG_CARRY, (this->registers.de.b.l & 0x01) != 0);
@@ -2039,7 +2004,7 @@ void CPU::rr_e() {
 }
 
 void CPU::rr_h() {
-    u8 result = (this->registers.hl.b.h >> 1) | (u8) (FLAG_ISCARRY << 7);
+    u8 result = (this->registers.hl.b.h >> 1) | (u8) (FLAG_GET(FLAG_CARRY) << 7);
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 0);
     FLAG_SET(FLAG_CARRY, (this->registers.hl.b.h & 0x01) != 0);
@@ -2048,7 +2013,7 @@ void CPU::rr_h() {
 }
 
 void CPU::rr_l() {
-    u8 result = (this->registers.hl.b.l >> 1) | (u8) (FLAG_ISCARRY << 7);
+    u8 result = (this->registers.hl.b.l >> 1) | (u8) (FLAG_GET(FLAG_CARRY) << 7);
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 0);
     FLAG_SET(FLAG_CARRY, (this->registers.hl.b.l & 0x01) != 0);
@@ -2058,7 +2023,7 @@ void CPU::rr_l() {
 
 void CPU::rr_hlp() {
     u8 val = MEMREAD(this->registers.hl.w);
-    u8 result = (val >> 1) | (u8) (FLAG_ISCARRY << 7);
+    u8 result = (val >> 1) | (u8) (FLAG_GET(FLAG_CARRY) << 7);
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 0);
     FLAG_SET(FLAG_CARRY, (val & 0x01) != 0);
@@ -2067,7 +2032,7 @@ void CPU::rr_hlp() {
 }
 
 void CPU::rr_a() {
-    u8 result = (this->registers.af.b.h >> 1) | (u8) (FLAG_ISCARRY << 7);
+    u8 result = (this->registers.af.b.h >> 1) | (u8) (FLAG_GET(FLAG_CARRY) << 7);
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, 0);
     FLAG_SET(FLAG_CARRY, (this->registers.af.b.h & 0x01) != 0);

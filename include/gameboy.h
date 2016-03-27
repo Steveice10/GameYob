@@ -7,11 +7,10 @@
 
 class APU;
 class CPU;
-class MBC;
+class Cartridge;
 class MMU;
 class PPU;
 class Printer;
-class RomFile;
 class Serial;
 class SGB;
 class Timer;
@@ -22,7 +21,6 @@ class Timer;
 
 // Return Codes
 #define RET_VBLANK 1
-#define RET_LINK 2
 
 // Buttons
 #define GB_A 0x01
@@ -59,24 +57,24 @@ public:
     Gameboy();
     ~Gameboy();
 
-    void reset(bool allowBios = true);
+    void powerOn(bool bios = true);
+    void powerOff();
 
     bool loadState(std::istream& data);
     bool saveState(std::ostream& data);
 
     int run();
 
-    bool isRomLoaded();
-    bool loadRom(std::istream& data, int size);
-    void unloadRom();
+    inline bool isPoweredOn() {
+        return this->poweredOn;
+    }
 
-    RomFile* romFile;
+    Cartridge* cartridge;
 
     MMU* mmu;
     CPU* cpu;
     PPU* ppu;
     APU* apu;
-    MBC* mbc;
     SGB* sgb;
     Timer* timer;
     Serial* serial;
@@ -84,5 +82,9 @@ public:
     int frontendEvents;
 
     GBMode gbMode;
+
     bool biosOn;
+    GBMode biosType;
+private:
+    bool poweredOn = false;
 };

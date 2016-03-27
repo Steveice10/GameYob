@@ -21,7 +21,7 @@ void SGB::reset() {
     this->command = 0;
     memset(&this->cmdData, 0, sizeof(this->cmdData));
 
-    memset(this->controllers, 0, sizeof(this->controllers));
+    memset(this->controllers, 0xFF, sizeof(this->controllers));
     this->numControllers = 1;
     this->selectedController = 0;
     this->buttonsChecked = 0;

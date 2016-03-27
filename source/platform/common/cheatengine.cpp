@@ -5,9 +5,9 @@
 
 #include "platform/common/cheatengine.h"
 #include "platform/system.h"
+#include "cartridge.h"
 #include "gameboy.h"
 #include "mmu.h"
-#include "romfile.h"
 
 #define TO_INT(a) ( (a) >= 'a' ? (a) - 'a' + 10 : (a) >= 'A' ? (a) - 'A' + 10 : (a) - '0')
 
@@ -69,23 +69,25 @@ bool CheatEngine::addCheat(const char* str) {
 }
 
 void CheatEngine::toggleCheat(int i, bool enabled) {
-    if(enabled) {
-        cheats[i].flags |= CHEAT_FLAG_ENABLED;
-        if((cheats[i].flags & CHEAT_FLAG_TYPE_MASK) != CHEAT_FLAG_GAMESHARK) {
-            for(int j = 0; j < gameboy->romFile->getRomBanks(); j++) {
-                applyGGCheatsToBank(j);
+    if(gameboy->cartridge != NULL) {
+        if(enabled) {
+            cheats[i].flags |= CHEAT_FLAG_ENABLED;
+            if((cheats[i].flags & CHEAT_FLAG_TYPE_MASK) != CHEAT_FLAG_GAMESHARK) {
+                for(int j = 0; j < gameboy->cartridge->getRomBanks(); j++) {
+                    applyGGCheatsToBank(j);
+                }
             }
+        } else {
+            unapplyGGCheat(i);
+            cheats[i].flags &= ~CHEAT_FLAG_ENABLED;
         }
-    } else {
-        unapplyGGCheat(i);
-        cheats[i].flags &= ~CHEAT_FLAG_ENABLED;
     }
 }
 
 void CheatEngine::unapplyGGCheat(int cheat) {
-    if((cheats[cheat].flags & CHEAT_FLAG_TYPE_MASK) != CHEAT_FLAG_GAMESHARK) {
+    if(gameboy->cartridge != NULL && (cheats[cheat].flags & CHEAT_FLAG_TYPE_MASK) != CHEAT_FLAG_GAMESHARK) {
         for(unsigned int i = 0; i < cheats[cheat].patchedBanks.size(); i++) {
-            u8* bank = gameboy->romFile->getRomBank(cheats[cheat].patchedBanks[i]);
+            u8* bank = gameboy->cartridge->getRomBank(cheats[cheat].patchedBanks[i]);
             bank[cheats[cheat].address & 0x3fff] = (u8) cheats[cheat].patchedValues[i];
         }
 
@@ -95,16 +97,18 @@ void CheatEngine::unapplyGGCheat(int cheat) {
 }
 
 void CheatEngine::applyGGCheatsToBank(int bank) {
-    u8* bankPtr = gameboy->romFile->getRomBank(bank);
-    for(int i = 0; i < numCheats; i++) {
-        if(cheats[i].flags & CHEAT_FLAG_ENABLED && ((cheats[i].flags & CHEAT_FLAG_TYPE_MASK) != CHEAT_FLAG_GAMESHARK)) {
-            int bankSlot = cheats[i].address / 0x4000;
-            if((bankSlot == 0 && bank == 0) || (bankSlot == 1 && bank != 0)) {
-                int address = cheats[i].address & 0x3fff;
-                if(((cheats[i].flags & CHEAT_FLAG_TYPE_MASK) == CHEAT_FLAG_GAMEGENIE1 || bankPtr[address] == cheats[i].compare) && std::find(cheats[i].patchedBanks.begin(), cheats[i].patchedBanks.end(), bank) == cheats[i].patchedBanks.end()) {
-                    cheats[i].patchedBanks.push_back(bank);
-                    cheats[i].patchedValues.push_back(bankPtr[address]);
-                    bankPtr[address] = cheats[i].data;
+    if(gameboy->cartridge != NULL) {
+        u8* bankPtr = gameboy->cartridge->getRomBank(bank);
+        for(int i = 0; i < numCheats; i++) {
+            if(cheats[i].flags & CHEAT_FLAG_ENABLED && ((cheats[i].flags & CHEAT_FLAG_TYPE_MASK) != CHEAT_FLAG_GAMESHARK)) {
+                int bankSlot = cheats[i].address / 0x4000;
+                if((bankSlot == 0 && bank == 0) || (bankSlot == 1 && bank != 0)) {
+                    int address = cheats[i].address & 0x3fff;
+                    if(((cheats[i].flags & CHEAT_FLAG_TYPE_MASK) == CHEAT_FLAG_GAMEGENIE1 || bankPtr[address] == cheats[i].compare) && std::find(cheats[i].patchedBanks.begin(), cheats[i].patchedBanks.end(), bank) == cheats[i].patchedBanks.end()) {
+                        cheats[i].patchedBanks.push_back(bank);
+                        cheats[i].patchedValues.push_back(bankPtr[address]);
+                        bankPtr[address] = cheats[i].data;
+                    }
                 }
             }
         }

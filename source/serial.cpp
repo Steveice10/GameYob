@@ -1,9 +1,9 @@
 #include "platform/common/menu.h"
+#include "cartridge.h"
 #include "cpu.h"
 #include "gameboy.h"
 #include "mmu.h"
 #include "printer.h"
-#include "romfile.h"
 #include "serial.h"
 
 Serial::Serial(Gameboy* gameboy) {
@@ -91,7 +91,7 @@ void Serial::update() {
             u8 sb = this->gameboy->mmu->readIO(SB);
 
             u8 received = 0xFF;
-            if(printerEnabled && this->gameboy->romFile->getRomTitle().compare("ALLEY WAY") != 0) { // Alleyway breaks when the printer is enabled, so force disable it.
+            if(printerEnabled && (this->gameboy->cartridge == NULL || this->gameboy->cartridge->getRomTitle().compare("ALLEY WAY") != 0)) { // Alleyway breaks when the printer is enabled, so force disable it.
                 received = this->printer->link(sb);
             } else {
                 // TODO: Send/Receive

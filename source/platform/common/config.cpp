@@ -13,7 +13,6 @@
 #include "platform/system.h"
 #include "platform/ui.h"
 #include "gameboy.h"
-#include "romfile.h"
 
 std::string gbBiosPath = "";
 std::string gbcBiosPath = "";
@@ -241,7 +240,7 @@ void writeConfigFile() {
     stream << controlsPrintConfig();
     stream.close();
 
-    if(gameboy->isRomLoaded()) {
+    if(gameboy->cartridge != NULL) {
         cheatEngine->saveCheats((mgrGetRomName() + ".cht").c_str());
     }
 }

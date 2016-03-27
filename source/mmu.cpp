@@ -1,11 +1,12 @@
 #include <string.h>
 
 #include "platform/common/manager.h"
+#include "platform/common/menu.h"
 #include "platform/system.h"
 #include "apu.h"
+#include "cartridge.h"
 #include "cpu.h"
 #include "gameboy.h"
-#include "mbc.h"
 #include "mmu.h"
 #include "ppu.h"
 
@@ -97,6 +98,8 @@ void MMU::reset() {
 
     memcpy(this->hram, this->gameboy->gbMode == MODE_CGB ? (const u8*) initialHramCGB : initialHramGB, sizeof(this->hram));
 
+    this->bios = this->gameboy->biosType == MODE_CGB ? (u8*) gbcBios : (u8*) gbBios;
+
     this->mapBanks();
 
     this->gameboy->mmu->mapIOReadFunc(RP, [this](u16 addr) -> u8 {
@@ -110,7 +113,7 @@ void MMU::reset() {
 
     this->gameboy->mmu->mapIOWriteFunc(BIOS, [this](u16 addr, u8 val) -> void {
         if(this->gameboy->biosOn) {
-            mgrReset(true);
+            mgrReset(false);
         }
     });
 
@@ -164,30 +167,26 @@ void MMU::write(u16 addr, u8 val) {
     }
 }
 
-void MMU::mapBank(u8 bank, u8* block) {
-    this->banks[bank & 0xF] = block;
-}
-
-void MMU::mapBankReadFunc(u8 bank, std::function<u8(u16 addr)> readFunc) {
-    this->bankReadFuncs[bank & 0xF] = readFunc;
-}
-
-void MMU::mapBankWriteFunc(u8 bank, std::function<void(u16 addr, u8 val)> writeFunc) {
-    this->bankWriteFuncs[bank & 0xF] = writeFunc;
-}
-
-void MMU::unmapBank(u8 bank) {
-    this->banks[bank & 0xF] = NULL;
-    this->bankReadFuncs[bank & 0xF] = NULL;
-    this->bankWriteFuncs[bank & 0xF] = NULL;
-}
-
 void MMU::mapBanks() {
     u8 wramBank = (u8) (this->readIO(SVBK) & 0x7);
 
-    this->mapBank(0xC, this->wram[0]);
-    this->mapBank(0xD, this->wram[wramBank != 0 ? wramBank : 1]);
-    this->mapBank(0xE, this->wram[0]);
+    this->mapBankBlock(0xC, this->wram[0]);
+    this->mapBankBlock(0xD, this->wram[wramBank != 0 ? wramBank : 1]);
+    this->mapBankBlock(0xE, this->wram[0]);
+
+    if(this->gameboy->biosOn) {
+        this->mapBankReadFunc(0x0, [this](u16 addr) -> u8 {
+            if(addr < 0x100 || addr >= 0x200) {
+                return this->bios[addr & 0xFFF];
+            } else if(this->banks[0x0] != NULL) {
+                return this->banks[0x0][addr & 0xFFF];
+            }
+
+            return 0xFF;
+        });
+    } else {
+        this->mapBankReadFunc(0x0, NULL);
+    }
 
     this->mapBankReadFunc(0xF, [this](u16 addr) -> u8 {
         if(addr >= 0xFF00) {
@@ -222,17 +221,4 @@ void MMU::mapBanks() {
             this->wram[currWramBank != 0 ? currWramBank : 1][addr & 0xFFF] = val;
         }
     });
-}
-
-void MMU::mapIOReadFunc(u16 addr, std::function<u8(u16 addr)> readFunc) {
-    this->ioReadFuncs[addr & 0xFF] = readFunc;
-}
-
-void MMU::mapIOWriteFunc(u16 addr, std::function<void(u16 addr, u8 val)> writeFunc) {
-    this->ioWriteFuncs[addr & 0xFF] = writeFunc;
-}
-
-void MMU::unmapIO(u16 addr) {
-    this->ioReadFuncs[addr & 0xFF] = NULL;
-    this->ioWriteFuncs[addr & 0xFF] = NULL;
 }

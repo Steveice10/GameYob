@@ -5,20 +5,86 @@
 
 #include "types.h"
 
-class MBC {
-public:
-    MBC(Gameboy* gameboy);
-    ~MBC();
+class Gameboy;
 
-    void reset();
+typedef enum : u8 {
+    MBC0 = 0,
+    MBC1,
+    MBC2,
+    MBC3,
+    MBC5,
+    MBC6,
+    MBC7,
+    MMM01,
+    HUC1,
+    HUC3,
+    CAMERA,
+    TAMA5,
+
+    MBC_MAX
+} MBCType;
+
+class Cartridge {
+public:
+    Cartridge(std::istream& romData, int romSize, std::istream& saveData, int saveSize);
+    ~Cartridge();
+
+    void reset(Gameboy* gameboy);
 
     void loadState(std::istream& data, u8 version);
     void saveState(std::ostream &data);
 
     void update();
 
-    void load(std::istream& data);
     void save(std::ostream& data);
+
+    inline const std::string getRomTitle() {
+        return this->romTitle;
+    }
+
+    inline bool isCgbSupported() {
+        return this->rom[0x0143] == 0x80 || this->isCgbRequired();
+    }
+
+    inline bool isCgbRequired() {
+        return this->rom[0x0143] == 0xC0;
+    }
+
+    inline u8 getRawRomSize() {
+        return this->rom[0x0148];
+    }
+
+    inline int getRomBanks() {
+        return this->totalRomBanks;
+    }
+
+    inline u8 getRawRamSize() {
+        return this->rom[0x0149];
+    }
+
+    inline int getRamBanks() {
+        return this->totalRamBanks;
+    }
+
+    inline bool isSgbEnhanced() {
+        return this->rom[0x146] == 0x03 && this->rom[0x014B] == 0x33;
+    }
+
+    inline u8 getRawMBC() {
+        return this->rom[0x0147];
+    }
+
+    inline MBCType getMBCType() {
+        return this->mbcType;
+    }
+
+    inline u8* getRomBank(int bank) {
+        if(bank < 0 || bank >= this->totalRomBanks) {
+            return NULL;
+        }
+
+        return &this->rom[bank * 0x4000];
+    }
 private:
     u8 readSram(u16 addr);
     void writeSram(u16 addr, u8 val);
@@ -52,41 +118,41 @@ private:
 
     void latchClock();
 
-    typedef void (MBC::*mbcWrite)(u16, u8);
-    typedef u8 (MBC::*mbcRead)(u16);
-    typedef void (MBC::*mbcUpdate)();
+    typedef void (Cartridge::*mbcWrite)(u16, u8);
+    typedef u8 (Cartridge::*mbcRead)(u16);
+    typedef void (Cartridge::*mbcUpdate)();
 
-    const mbcRead mbcReads[12] = {
+    const mbcRead mbcReads[MBC_MAX] = {
             NULL,
             NULL,
             NULL,
-            &MBC::m3r,
+            &Cartridge::m3r,
             NULL,
             NULL,
-            &MBC::m7r,
+            &Cartridge::m7r,
             NULL,
             NULL,
-            &MBC::h3r,
-            &MBC::camr,
+            &Cartridge::h3r,
+            &Cartridge::camr,
             NULL
     };
 
-    const mbcWrite mbcWrites[12] = {
-            &MBC::m0w,
-            &MBC::m1w,
-            &MBC::m2w,
-            &MBC::m3w,
-            &MBC::m5w,
-            &MBC::m6w,
-            &MBC::m7w,
-            &MBC::mmm01w,
-            &MBC::h1w,
-            &MBC::h3w,
-            &MBC::camw,
-            &MBC::t5w
+    const mbcWrite mbcWrites[MBC_MAX] = {
+            &Cartridge::m0w,
+            &Cartridge::m1w,
+            &Cartridge::m2w,
+            &Cartridge::m3w,
+            &Cartridge::m5w,
+            &Cartridge::m6w,
+            &Cartridge::m7w,
+            &Cartridge::mmm01w,
+            &Cartridge::h1w,
+            &Cartridge::h3w,
+            &Cartridge::camw,
+            &Cartridge::t5w
     };
 
-    const mbcUpdate mbcUpdates[12] = {
+    const mbcUpdate mbcUpdates[MBC_MAX] = {
             NULL,
             NULL,
             NULL,
@@ -97,17 +163,25 @@ private:
             NULL,
             NULL,
             NULL,
-            &MBC::camu,
+            &Cartridge::camu,
             NULL
     };
 
-    Gameboy* gameboy = NULL;
+    Gameboy* gameboy;
+
+    u8* rom;
+    u8* sram;
+
+    std::string romTitle;
+    int totalRomBanks;
+    int totalRamBanks;
+    MBCType mbcType;
+    bool rockmanMapper;
+    bool rumble;
 
     mbcRead readFunc;
     mbcWrite writeFunc;
     mbcUpdate updateFunc;
-
-    u8* sram;
 
     struct {
         union {
@@ -137,7 +211,6 @@ private:
     bool sramEnabled;
 
     // MBC1
-    bool mbc1RockmanMapper;
     bool mbc1RamMode;
 
     // MBC6

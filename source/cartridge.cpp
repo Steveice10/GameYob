@@ -2,39 +2,214 @@
 #include <string.h>
 #include <time.h>
 
+#include <algorithm>
+#include <string>
+
 #include "platform/common/manager.h"
-#include "platform/common/menu.h"
 #include "platform/input.h"
 #include "platform/system.h"
 #include "cpu.h"
 #include "gameboy.h"
-#include "mbc.h"
+#include "cartridge.h"
 #include "mmu.h"
-#include "romfile.h"
 
-MBC::MBC(Gameboy* gameboy) {
+Cartridge::Cartridge(std::istream& romData, int romSize, std::istream& saveData, int saveSize) {
+    // Round number of banks to next power of two.
+    this->totalRomBanks = (romSize + 0x3FFF) / 0x4000;
+    this->totalRomBanks--;
+    this->totalRomBanks |= this->totalRomBanks >> 1;
+    this->totalRomBanks |= this->totalRomBanks >> 2;
+    this->totalRomBanks |= this->totalRomBanks >> 4;
+    this->totalRomBanks |= this->totalRomBanks >> 8;
+    this->totalRomBanks |= this->totalRomBanks >> 16;
+    this->totalRomBanks++;
+
+    if(this->totalRomBanks < 2) {
+        this->totalRomBanks = 2;
+    }
+
+    size_t roundedSize = (size_t) (this->totalRomBanks * 0x4000);
+
+    this->rom = new u8[roundedSize]();
+    romData.read((char*) this->rom, romSize);
+
+    // Most MMM01 dumps have the initial banks at the end of the ROM rather than the beginning, so check if this is the case and compensate.
+    if(romSize > 0x8000) {
+        // Check for the logo.
+        static const u8 logo[] = {
+                0xCE, 0xED, 0x66, 0x66, 0xCC, 0x0D, 0x00, 0x0B, 0x03, 0x73, 0x00, 0x83, 0x00, 0x0C, 0x00, 0x0D,
+                0x00, 0x08, 0x11, 0x1F, 0x88, 0x89, 0x00, 0x0E, 0xDC, 0xCC, 0x6E, 0xE6, 0xDD, 0xDD, 0xD9, 0x99,
+                0xBB, 0xBB, 0x67, 0x63, 0x6E, 0x0E, 0xEC ,0xCC, 0xDD, 0xDC, 0x99, 0x9F, 0xBB, 0xB9, 0x33, 0x3E
+        };
+
+        u8* checkBank = &this->rom[roundedSize - 0x8000];
+
+        if(memcmp(logo, &checkBank[0x0104], sizeof(logo)) == 0) {
+            // Check for MMM01.
+            u8 mbcType = checkBank[0x0147];
+
+            if(mbcType >= 0x0B && mbcType <= 0x0D) {
+                u8* copy = new u8[roundedSize];
+                memcpy(copy, this->rom, roundedSize);
+
+                memcpy(this->rom, &copy[roundedSize - 0x8000], 0x8000);
+                memcpy(&this->rom[0x8000], copy, roundedSize - 0x8000);
+
+                delete copy;
+            }
+        }
+    }
+
+    this->romTitle = std::string(reinterpret_cast<char*>(&this->rom[0x0134]), this->rom[0x0143] == 0x80 || this->rom[0x0143] == 0xC0 ? 15 : 16);
+    this->romTitle.erase(std::find_if(this->romTitle.rbegin(), this->romTitle.rend(), [](int c) { return c != 0; }).base(), this->romTitle.end());
+
+    switch(this->getRawMBC()) {
+        case 0x00:
+        case 0x08:
+        case 0x09:
+            this->mbcType = MBC0;
+            break;
+        case 0x01:
+        case 0x02:
+        case 0x03:
+            this->mbcType = MBC1;
+            this->rockmanMapper = this->romTitle.compare("ROCKMAN 99") == 0;
+            break;
+        case 0x05:
+        case 0x06:
+            this->mbcType = MBC2;
+            break;
+        case 0x0B:
+        case 0x0C:
+        case 0x0D:
+            this->mbcType = MMM01;
+            break;
+        case 0x0F:
+        case 0x10:
+        case 0x11:
+        case 0x12:
+        case 0x13:
+            this->mbcType = MBC3;
+            break;
+        case 0x19:
+        case 0x1A:
+        case 0x1B:
+            this->mbcType = MBC5;
+            break;
+        case 0x1C:
+        case 0x1D:
+        case 0x1E:
+            this->mbcType = MBC5;
+            this->rumble = true;
+            break;
+        case 0x20:
+            this->mbcType = MBC6;
+            break;
+        case 0x22:
+            this->mbcType = MBC7;
+            break;
+        case 0xEA: // Hack for SONIC5
+            this->mbcType = MBC1;
+            break;
+        case 0xFC:
+            this->mbcType = CAMERA;
+            break;
+        case 0xFD:
+            this->mbcType = TAMA5;
+            break;
+        case 0xFE:
+            this->mbcType = HUC3;
+            break;
+        case 0xFF:
+            this->mbcType = HUC1;
+            break;
+        default:
+            systemPrintDebug("Unsupported mapper value %02x\n", this->rom[0x0147]);
+            this->mbcType = MBC5;
+            break;
+    }
+
+    this->readFunc = this->mbcReads[this->mbcType];
+    this->writeFunc = this->mbcWrites[this->mbcType];
+    this->updateFunc = this->mbcUpdates[this->mbcType];
+
+    if(this->mbcType == MBC2 || this->mbcType == MBC7 || this->mbcType == TAMA5) {
+        this->totalRamBanks = 1;
+    } else {
+        switch(this->getRawRamSize()) {
+            case 0:
+                this->totalRamBanks = 0;
+                break;
+            case 1:
+            case 2:
+                this->totalRamBanks = 1;
+                break;
+            case 3:
+                this->totalRamBanks = 4;
+                break;
+            case 4:
+                this->totalRamBanks = 16;
+                break;
+            default:
+                systemPrintDebug("Invalid RAM bank number: %x\nDefaulting to 4 banks.\n", this->getRawRamSize());
+                this->totalRamBanks = 4;
+                break;
+        }
+    }
+
+    this->sram = new u8[this->totalRamBanks * 0x2000]();
+    saveData.read((char*) this->sram, this->totalRamBanks * 0x2000);
+
+    if(this->mbcType == MBC3 || this->mbcType == HUC3 || this->mbcType == TAMA5) {
+        saveData.read((char*) &this->gbClock, sizeof(this->gbClock));
+    } else {
+        memset(&this->gbClock, 0, sizeof(this->gbClock));
+    }
+}
+
+Cartridge::~Cartridge() {
+    if(this->gameboy != NULL) {
+        this->gameboy->mmu->mapBankBlock(0x0, NULL);
+        this->gameboy->mmu->mapBankBlock(0x1, NULL);
+        this->gameboy->mmu->mapBankBlock(0x2, NULL);
+        this->gameboy->mmu->mapBankBlock(0x3, NULL);
+        this->gameboy->mmu->mapBankBlock(0x4, NULL);
+        this->gameboy->mmu->mapBankBlock(0x5, NULL);
+        this->gameboy->mmu->mapBankBlock(0x6, NULL);
+        this->gameboy->mmu->mapBankBlock(0x7, NULL);
+        this->gameboy->mmu->mapBankBlock(0xA, NULL);
+        this->gameboy->mmu->mapBankBlock(0xB, NULL);
+
+        this->gameboy->mmu->mapBankReadFunc(0xA, NULL);
+        this->gameboy->mmu->mapBankReadFunc(0xB, NULL);
+
+        this->gameboy->mmu->mapBankWriteFunc(0x0, NULL);
+        this->gameboy->mmu->mapBankWriteFunc(0x1, NULL);
+        this->gameboy->mmu->mapBankWriteFunc(0x2, NULL);
+        this->gameboy->mmu->mapBankWriteFunc(0x3, NULL);
+        this->gameboy->mmu->mapBankWriteFunc(0x4, NULL);
+        this->gameboy->mmu->mapBankWriteFunc(0x5, NULL);
+        this->gameboy->mmu->mapBankWriteFunc(0x6, NULL);
+        this->gameboy->mmu->mapBankWriteFunc(0x7, NULL);
+        this->gameboy->mmu->mapBankWriteFunc(0xA, NULL);
+        this->gameboy->mmu->mapBankWriteFunc(0xB, NULL);
+
+        this->gameboy = NULL;
+    }
+
+    if(this->rom != NULL) {
+        delete this->rom;
+        this->rom = NULL;
+    }
+
+    if(this->sram != NULL) {
+        delete this->sram;
+        this->sram = NULL;
+    }
+}
+
+void Cartridge::reset(Gameboy* gameboy) {
     this->gameboy = gameboy;
-}
-
-MBC::~MBC() {
-    if(this->sram != NULL) {
-        delete this->sram;
-        this->sram = NULL;
-    }
-}
-
-void MBC::reset() {
-    if(this->sram != NULL) {
-        delete this->sram;
-        this->sram = NULL;
-    }
-
-    this->readFunc = this->mbcReads[this->gameboy->romFile->getMBCType()];
-    this->writeFunc = this->mbcWrites[this->gameboy->romFile->getMBCType()];
-    this->updateFunc = this->mbcUpdates[this->gameboy->romFile->getMBCType()];
-
-    this->sram = new u8[this->gameboy->romFile->getRamBanks() * 0x2000]();
-    memset(&this->gbClock, 0, sizeof(this->gbClock));
 
     // General
     this->romBank0 = 0;
@@ -43,7 +218,6 @@ void MBC::reset() {
     this->sramEnabled = false;
 
     // MBC1
-    this->mbc1RockmanMapper = this->gameboy->romFile->getRomTitle().compare("ROCKMAN 99") == 0;
     this->mbc1RamMode = false;
 
     // MBC6
@@ -89,18 +263,14 @@ void MBC::reset() {
     this->mapBanks();
 }
 
-void MBC::loadState(std::istream& data, u8 version) {
-    data.read((char*) this->sram, sizeof(this->sram));
-    data.read((char*) &this->gbClock, sizeof(this->gbClock));
-
+void Cartridge::loadState(std::istream& data, u8 version) {
     data.read((char*) &this->romBank0, sizeof(this->romBank0));
     data.read((char*) &this->romBank1, sizeof(this->romBank1));
     data.read((char*) &this->sramBank, sizeof(this->sramBank));
     data.read((char*) &this->sramEnabled, sizeof(this->sramEnabled));
 
-    switch(this->gameboy->romFile->getMBCType()) {
+    switch(this->mbcType) {
         case MBC1:
-            data.read((char*) &this->mbc1RockmanMapper, sizeof(this->mbc1RockmanMapper));
             data.read((char*) &this->mbc1RamMode, sizeof(this->mbc1RamMode));
             break;
         case MBC6:
@@ -149,18 +319,14 @@ void MBC::loadState(std::istream& data, u8 version) {
     this->mapBanks();
 }
 
-void MBC::saveState(std::ostream& data) {
-    data.write((char*) this->sram, sizeof(this->sram));
-    data.write((char*) &this->gbClock, sizeof(this->gbClock));
-
+void Cartridge::saveState(std::ostream& data) {
     data.write((char*) &this->romBank0, sizeof(this->romBank0));
     data.write((char*) &this->romBank1, sizeof(this->romBank1));
     data.write((char*) &this->sramBank, sizeof(this->sramBank));
     data.write((char*) &this->sramEnabled, sizeof(this->sramEnabled));
 
-    switch(this->gameboy->romFile->getMBCType()) {
+    switch(this->mbcType) {
         case MBC1:
-            data.write((char*) &this->mbc1RockmanMapper, sizeof(this->mbc1RockmanMapper));
             data.write((char*) &this->mbc1RamMode, sizeof(this->mbc1RamMode));
             break;
         case MBC6:
@@ -207,30 +373,22 @@ void MBC::saveState(std::ostream& data) {
     }
 }
 
-void MBC::update() {
+void Cartridge::update() {
     if(this->updateFunc != NULL) {
         (this->*updateFunc)();
     }
 }
 
-void MBC::load(std::istream& data) {
-    data.read((char*) this->sram, this->gameboy->romFile->getRamBanks() * 0x2000);
+void Cartridge::save(std::ostream& data) {
+    data.write((char*) this->sram, this->totalRamBanks * 0x2000);
 
-    if(this->gameboy->romFile->getMBCType() == MBC3 || this->gameboy->romFile->getMBCType() == HUC3 || this->gameboy->romFile->getMBCType() == TAMA5) {
-        data.read((char*) &this->gbClock, sizeof(this->gbClock));
-    }
-}
-
-void MBC::save(std::ostream& data) {
-    data.write((char*) this->sram, this->gameboy->romFile->getRamBanks() * 0x2000);
-
-    if(this->gameboy->romFile->getMBCType() == MBC3 || this->gameboy->romFile->getMBCType() == HUC3 || this->gameboy->romFile->getMBCType() == TAMA5) {
+    if(this->mbcType == MBC3 || this->mbcType == HUC3 || this->mbcType == TAMA5) {
         data.write((char*) &this->gbClock, sizeof(this->gbClock));
     }
 }
 
-u8 MBC::readSram(u16 addr) {
-    if(this->sramBank >= 0 && this->sramBank < this->gameboy->romFile->getRamBanks()) {
+u8 Cartridge::readSram(u16 addr) {
+    if(this->sramBank >= 0 && this->sramBank < this->totalRamBanks) {
         return this->sram[this->sramBank * 0x2000 + (addr & 0x1FFF)];
     } else {
         systemPrintDebug("Attempted to read from invalid SRAM bank: %d\n", this->sramBank);
@@ -238,146 +396,133 @@ u8 MBC::readSram(u16 addr) {
     }
 }
 
-void MBC::writeSram(u16 addr, u8 val) {
-    if(this->sramBank >= 0 && this->sramBank < this->gameboy->romFile->getRamBanks()) {
+void Cartridge::writeSram(u16 addr, u8 val) {
+    if(this->sramBank >= 0 && this->sramBank < this->totalRamBanks) {
         this->sram[this->sramBank * 0x2000 + (addr & 0x1FFF)] = val;
     } else {
         systemPrintDebug("Attempted to write to invalid SRAM bank: %d\n", this->sramBank);
     }
 }
 
-void MBC::mapRomBank0() {
-    u8* bankPtr = this->gameboy->romFile->getRomBank(this->romBank0);
+void Cartridge::mapRomBank0() {
+    u8* bankPtr = this->getRomBank(this->romBank0);
     if(bankPtr != NULL) {
-        this->gameboy->mmu->mapBank(0x0, bankPtr + 0x0000);
-        this->gameboy->mmu->mapBank(0x1, bankPtr + 0x1000);
-        this->gameboy->mmu->mapBank(0x2, bankPtr + 0x2000);
-        this->gameboy->mmu->mapBank(0x3, bankPtr + 0x3000);
+        this->gameboy->mmu->mapBankBlock(0x0, bankPtr + 0x0000);
+        this->gameboy->mmu->mapBankBlock(0x1, bankPtr + 0x1000);
+        this->gameboy->mmu->mapBankBlock(0x2, bankPtr + 0x2000);
+        this->gameboy->mmu->mapBankBlock(0x3, bankPtr + 0x3000);
     } else {
         systemPrintDebug("Attempted to access invalid ROM bank: %d\n", this->romBank0);
 
-        this->gameboy->mmu->mapBank(0x0, NULL);
-        this->gameboy->mmu->mapBank(0x1, NULL);
-        this->gameboy->mmu->mapBank(0x2, NULL);
-        this->gameboy->mmu->mapBank(0x3, NULL);
-    }
-
-    if(this->gameboy->biosOn) {
-        u8* bios = gbcBios;
-        if(biosMode == 1) {
-            bios = this->gameboy->gbMode != MODE_CGB && gbBiosLoaded ? (u8*) gbBios : (u8*) gbcBios;
-        } else if(biosMode == 2) {
-            bios = gbBios;
-        } else if(biosMode == 3) {
-            bios = gbcBios;
-        }
-
-        memcpy(bios + 0x100, this->gameboy->romFile->getRomBank(0) + 0x100, 0x100);
-
-        this->gameboy->mmu->mapBank(0x0, bios);
+        this->gameboy->mmu->mapBankBlock(0x0, NULL);
+        this->gameboy->mmu->mapBankBlock(0x1, NULL);
+        this->gameboy->mmu->mapBankBlock(0x2, NULL);
+        this->gameboy->mmu->mapBankBlock(0x3, NULL);
     }
 }
 
-void MBC::mapRomBank1() {
-    if(this->gameboy->romFile->getMBCType() == MBC6) {
-        u8* bankPtr1A = this->gameboy->romFile->getRomBank(this->romBank1A >> 1);
+void Cartridge::mapRomBank1() {
+    if(this->mbcType == MBC6) {
+        u8* bankPtr1A = this->getRomBank(this->romBank1A >> 1);
         if(bankPtr1A != NULL) {
             u8* subPtr = bankPtr1A + (this->romBank1A & 0x1) * 0x2000;
 
-            this->gameboy->mmu->mapBank(0x4, subPtr + 0x0000);
-            this->gameboy->mmu->mapBank(0x5, subPtr + 0x1000);
+            this->gameboy->mmu->mapBankBlock(0x4, subPtr + 0x0000);
+            this->gameboy->mmu->mapBankBlock(0x5, subPtr + 0x1000);
         } else {
             systemPrintDebug("Attempted to access invalid sub ROM bank: %d\n", this->romBank1A);
 
-            this->gameboy->mmu->mapBank(0x4, NULL);
-            this->gameboy->mmu->mapBank(0x5, NULL);
+            this->gameboy->mmu->mapBankBlock(0x4, NULL);
+            this->gameboy->mmu->mapBankBlock(0x5, NULL);
         }
 
-        u8* bankPtr1B = this->gameboy->romFile->getRomBank(this->romBank1B >> 1);
+        u8* bankPtr1B = this->getRomBank(this->romBank1B >> 1);
         if(bankPtr1B != NULL) {
             u8* subPtr = bankPtr1B + (this->romBank1B & 0x1) * 0x2000;
 
-            this->gameboy->mmu->mapBank(0x6, subPtr + 0x0000);
-            this->gameboy->mmu->mapBank(0x7, subPtr + 0x1000);
+            this->gameboy->mmu->mapBankBlock(0x6, subPtr + 0x0000);
+            this->gameboy->mmu->mapBankBlock(0x7, subPtr + 0x1000);
         } else {
             systemPrintDebug("Attempted to access invalid sub ROM bank: %d\n", this->romBank1B);
 
-            this->gameboy->mmu->mapBank(0x6, NULL);
-            this->gameboy->mmu->mapBank(0x7, NULL);
+            this->gameboy->mmu->mapBankBlock(0x6, NULL);
+            this->gameboy->mmu->mapBankBlock(0x7, NULL);
         }
     } else {
-        u8* bankPtr = this->gameboy->romFile->getRomBank(this->romBank1);
+        u8* bankPtr = this->getRomBank(this->romBank1);
         if(bankPtr != NULL) {
-            this->gameboy->mmu->mapBank(0x4, bankPtr + 0x0000);
-            this->gameboy->mmu->mapBank(0x5, bankPtr + 0x1000);
-            this->gameboy->mmu->mapBank(0x6, bankPtr + 0x2000);
-            this->gameboy->mmu->mapBank(0x7, bankPtr + 0x3000);
+            this->gameboy->mmu->mapBankBlock(0x4, bankPtr + 0x0000);
+            this->gameboy->mmu->mapBankBlock(0x5, bankPtr + 0x1000);
+            this->gameboy->mmu->mapBankBlock(0x6, bankPtr + 0x2000);
+            this->gameboy->mmu->mapBankBlock(0x7, bankPtr + 0x3000);
         } else {
             systemPrintDebug("Attempted to access invalid ROM bank: %d\n", this->romBank1);
 
-            this->gameboy->mmu->mapBank(0x4, NULL);
-            this->gameboy->mmu->mapBank(0x5, NULL);
-            this->gameboy->mmu->mapBank(0x6, NULL);
-            this->gameboy->mmu->mapBank(0x7, NULL);
+            this->gameboy->mmu->mapBankBlock(0x4, NULL);
+            this->gameboy->mmu->mapBankBlock(0x5, NULL);
+            this->gameboy->mmu->mapBankBlock(0x6, NULL);
+            this->gameboy->mmu->mapBankBlock(0x7, NULL);
         }
     }
 }
 
-void MBC::mapSramBank() {
-    if(this->sramBank >= 0 && this->sramBank < this->gameboy->romFile->getRamBanks()) {
+void Cartridge::mapSramBank() {
+    if(this->sramBank >= 0 && this->sramBank < this->totalRamBanks) {
         u8* bankPtr = &this->sram[this->sramBank * 0x2000];
 
-        this->gameboy->mmu->mapBank(0xA, bankPtr + 0x0000);
-        this->gameboy->mmu->mapBank(0xB, bankPtr + 0x1000);
+        this->gameboy->mmu->mapBankBlock(0xA, bankPtr + 0x0000);
+        this->gameboy->mmu->mapBankBlock(0xB, bankPtr + 0x1000);
     } else {
         // Only report if there's no chance it's a special bank number.
         if(this->readFunc == NULL) {
             systemPrintDebug("Attempted to access invalid SRAM bank: %d\n", this->sramBank);
         }
 
-        this->gameboy->mmu->mapBank(0xA, NULL);
-        this->gameboy->mmu->mapBank(0xB, NULL);
+        this->gameboy->mmu->mapBankBlock(0xA, NULL);
+        this->gameboy->mmu->mapBankBlock(0xB, NULL);
     }
 }
 
-void MBC::mapBanks() {
+void Cartridge::mapBanks() {
     this->mapRomBank0();
     this->mapRomBank1();
-    if(this->gameboy->romFile->getRamBanks() > 0) {
+    if(this->totalRamBanks > 0) {
         this->mapSramBank();
     }
 
+    std::function<u8(u16 addr)> read = NULL;
     if(this->readFunc != NULL) {
-        auto read = [this](u16 addr) -> u8 {
+        read = [this](u16 addr) -> u8 {
             return (this->*readFunc)(addr);
         };
-
-        this->gameboy->mmu->mapBankReadFunc(0xA, read);
-        this->gameboy->mmu->mapBankReadFunc(0xB, read);
     }
 
+    this->gameboy->mmu->mapBankReadFunc(0xA, read);
+    this->gameboy->mmu->mapBankReadFunc(0xB, read);
+
+    std::function<void(u16 addr, u8 val)> write = NULL;
     if(this->writeFunc != NULL) {
-        auto write = [this](u16 addr, u8 val) -> void {
+        write = [this](u16 addr, u8 val) -> void {
             (this->*writeFunc)(addr, val);
         };
-
-        this->gameboy->mmu->mapBankWriteFunc(0x0, write);
-        this->gameboy->mmu->mapBankWriteFunc(0x1, write);
-        this->gameboy->mmu->mapBankWriteFunc(0x2, write);
-        this->gameboy->mmu->mapBankWriteFunc(0x3, write);
-        this->gameboy->mmu->mapBankWriteFunc(0x4, write);
-        this->gameboy->mmu->mapBankWriteFunc(0x5, write);
-        this->gameboy->mmu->mapBankWriteFunc(0x6, write);
-        this->gameboy->mmu->mapBankWriteFunc(0x7, write);
-        this->gameboy->mmu->mapBankWriteFunc(0xA, write);
-        this->gameboy->mmu->mapBankWriteFunc(0xB, write);
     }
+
+    this->gameboy->mmu->mapBankWriteFunc(0x0, write);
+    this->gameboy->mmu->mapBankWriteFunc(0x1, write);
+    this->gameboy->mmu->mapBankWriteFunc(0x2, write);
+    this->gameboy->mmu->mapBankWriteFunc(0x3, write);
+    this->gameboy->mmu->mapBankWriteFunc(0x4, write);
+    this->gameboy->mmu->mapBankWriteFunc(0x5, write);
+    this->gameboy->mmu->mapBankWriteFunc(0x6, write);
+    this->gameboy->mmu->mapBankWriteFunc(0x7, write);
+    this->gameboy->mmu->mapBankWriteFunc(0xA, write);
+    this->gameboy->mmu->mapBankWriteFunc(0xB, write);
 }
 
 /* MBC read handlers */
 
 /* MBC3 */
-u8 MBC::m3r(u16 addr) {
+u8 Cartridge::m3r(u16 addr) {
     if(this->sramEnabled) {
         switch(this->sramBank) { // Check for RTC register
             case 0x8:
@@ -399,7 +544,7 @@ u8 MBC::m3r(u16 addr) {
 }
 
 /* MBC7 */
-u8 MBC::m7r(u16 addr) {
+u8 Cartridge::m7r(u16 addr) {
     switch(addr & 0xF0) {
         case 0x00:
         case 0x10:
@@ -422,7 +567,7 @@ u8 MBC::m7r(u16 addr) {
 }
 
 /* HUC3 */
-u8 MBC::h3r(u16 addr) {
+u8 Cartridge::h3r(u16 addr) {
     switch(this->huc3Mode) {
         case 0xA:
             return this->readSram((u16) (addr & 0x1FFF));
@@ -441,7 +586,7 @@ u8 MBC::h3r(u16 addr) {
 }
 
 /* CAMERA */
-u8 MBC::camr(u16 addr) {
+u8 Cartridge::camr(u16 addr) {
     if(this->cameraIO) {
         u8 reg = (u8) (addr & 0x7F);
         if(reg == 0) {
@@ -457,7 +602,7 @@ u8 MBC::camr(u16 addr) {
 /* MBC Write handlers */
 
 /* MBC0 (ROM) */
-void MBC::m0w(u16 addr, u8 val) {
+void Cartridge::m0w(u16 addr, u8 val) {
     switch(addr >> 12) {
         case 0x0: /* 0000 - 1FFF */
         case 0x1:
@@ -481,7 +626,7 @@ void MBC::m0w(u16 addr, u8 val) {
 }
 
 /* MBC1 */
-void MBC::m1w(u16 addr, u8 val) {
+void Cartridge::m1w(u16 addr, u8 val) {
     int newBank;
 
     switch(addr >> 12) {
@@ -492,7 +637,7 @@ void MBC::m1w(u16 addr, u8 val) {
         case 0x2: /* 2000 - 3FFF */
         case 0x3:
             val &= 0x1F;
-            if(this->mbc1RockmanMapper) {
+            if(this->rockmanMapper) {
                 newBank = ((val > 0xF) ? val - 8 : val);
             } else {
                 newBank = (this->romBank1 & 0xE0) | val;
@@ -531,7 +676,7 @@ void MBC::m1w(u16 addr, u8 val) {
 }
 
 /* MBC2 */
-void MBC::m2w(u16 addr, u8 val) {
+void Cartridge::m2w(u16 addr, u8 val) {
     switch(addr >> 12) {
         case 0x0: /* 0000 - 1FFF */
         case 0x1:
@@ -561,7 +706,7 @@ void MBC::m2w(u16 addr, u8 val) {
 }
 
 /* MBC3 */
-void MBC::m3w(u16 addr, u8 val) {
+void Cartridge::m3w(u16 addr, u8 val) {
     switch(addr >> 12) {
         case 0x0: /* 0000 - 1FFF */
         case 0x1:
@@ -638,7 +783,7 @@ void MBC::m3w(u16 addr, u8 val) {
 }
 
 /* MBC5 */
-void MBC::m5w(u16 addr, u8 val) {
+void Cartridge::m5w(u16 addr, u8 val) {
     switch(addr >> 12) {
         case 0x0: /* 0000 - 1FFF */
         case 0x1:
@@ -656,7 +801,7 @@ void MBC::m5w(u16 addr, u8 val) {
         case 0x5:
             /* MBC5 might have a rumble motor, which is triggered by the
              * 4th bit of the value written */
-            if(this->gameboy->romFile->hasRumble()) {
+            if(this->rumble) {
                 systemSetRumble((val & 0x8) != 0);
                 val &= 0x7;
             } else {
@@ -682,7 +827,7 @@ void MBC::m5w(u16 addr, u8 val) {
 }
 
 /* MBC6 */
-void MBC::m6w(u16 addr, u8 val) {
+void Cartridge::m6w(u16 addr, u8 val) {
     switch(addr >> 12) {
         case 0x0: /* 0000 - 1FFF */
         case 0x1:
@@ -738,7 +883,7 @@ void MBC::m6w(u16 addr, u8 val) {
 #define MBC7_COMMAND_FILL 3
 
 /* MBC7 */
-void MBC::m7w(u16 addr, u8 val) {
+void Cartridge::m7w(u16 addr, u8 val) {
     switch(addr >> 12) {
         case 0x0: /* 0000 - 1FFF */
         case 0x1:
@@ -922,7 +1067,7 @@ void MBC::m7w(u16 addr, u8 val) {
 }
 
 /* MMM01 */
-void MBC::mmm01w(u16 addr, u8 val) {
+void Cartridge::mmm01w(u16 addr, u8 val) {
     switch(addr >> 12) {
         case 0x0: /* 0000 - 1FFF */
         case 0x1:
@@ -945,7 +1090,7 @@ void MBC::mmm01w(u16 addr, u8 val) {
                 this->romBank1 = this->mmm01RomBaseBank + (val ? val : 1);
             this->mapRomBank1();
             } else {
-                this->mmm01RomBaseBank = (u8) (((val & 0x3F) % this->gameboy->romFile->getRomBanks()) + 2);
+                this->mmm01RomBaseBank = (u8) (((val & 0x3F) % this->getRomBanks()) + 2);
             }
 
             break;
@@ -973,7 +1118,7 @@ void MBC::mmm01w(u16 addr, u8 val) {
 }
 
 /* HUC1 */
-void MBC::h1w(u16 addr, u8 val) {
+void Cartridge::h1w(u16 addr, u8 val) {
     switch(addr >> 12) {
         case 0x0: /* 0000 - 1FFF */
         case 0x1:
@@ -1013,7 +1158,7 @@ void MBC::h1w(u16 addr, u8 val) {
 }
 
 /* HUC3 */
-void MBC::h3w(u16 addr, u8 val) {
+void Cartridge::h3w(u16 addr, u8 val) {
     switch(addr >> 12) {
         case 0x0: /* 0000 - 1FFF */
         case 0x1:
@@ -1104,7 +1249,7 @@ void MBC::h3w(u16 addr, u8 val) {
 }
 
 /* CAMERA */
-void MBC::camw(u16 addr, u8 val) {
+void Cartridge::camw(u16 addr, u8 val) {
     switch(addr >> 12) {
         case 0x0: /* 0000 - 1FFF */
         case 0x1:
@@ -1152,7 +1297,7 @@ void MBC::camw(u16 addr, u8 val) {
 }
 
 /* TAMA5 */
-void MBC::t5w(u16 addr, u8 val) {
+void Cartridge::t5w(u16 addr, u8 val) {
     if(addr <= 0xA001) {
         switch(addr & 1) {
             case 0: {
@@ -1296,7 +1441,7 @@ void MBC::t5w(u16 addr, u8 val) {
     }
 }
 
-void MBC::camu() {
+void Cartridge::camu() {
     if(this->cameraReadyCycle != 0 && this->gameboy->cpu->getCycle() >= this->cameraReadyCycle) {
         this->cameraRegs[0] &= ~0x1;
         this->cameraReadyCycle = 0;
@@ -1317,7 +1462,7 @@ void MBC::camu() {
 
 static const float edgeRatioLUT[8] = {0.50, 0.75, 1.00, 1.25, 2.00, 3.00, 4.00, 5.00};
 
-void MBC::camTakePicture() {
+void Cartridge::camTakePicture() {
     u32 pBits = (u32) (((this->cameraRegs[0] >> 1) & 3) != 0);
     u32 mBits = (u32) ((this->cameraRegs[0] >> 1) & 2);
     u32 nBit = (u32) ((this->cameraRegs[1] & 0x80) >> 7);
@@ -1464,11 +1609,11 @@ void MBC::camTakePicture() {
 #undef CLAMP
 
 /* Increment y if x is greater than val */
-#define OVERFLOW(x, val, y) ({ \
-    while ((x) >= (val)) {     \
-        (x) -= (val);          \
-        (y)++;                 \
-    }                          \
+#define OVERFLOW_VAL(x, val, y) ({ \
+    while ((x) >= (val)) {         \
+        (x) -= (val);              \
+        (y)++;                     \
+    }                              \
 })
 
 static int daysInMonth[12] = {
@@ -1479,21 +1624,21 @@ static int daysInLeapMonth[12] = {
         31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31
 };
 
-void MBC::latchClock() {
+void Cartridge::latchClock() {
     time_t now;
     time(&now);
 
     time_t difference = now - this->gbClock.last;
     struct tm* lt = gmtime((const time_t*) &difference);
 
-    switch(this->gameboy->romFile->getMBCType()) {
+    switch(this->mbcType) {
         case MBC3:
             this->gbClock.mbc3.s += lt->tm_sec;
-            OVERFLOW(this->gbClock.mbc3.s, 60, this->gbClock.mbc3.m);
+            OVERFLOW_VAL(this->gbClock.mbc3.s, 60, this->gbClock.mbc3.m);
             this->gbClock.mbc3.m += lt->tm_min;
-            OVERFLOW(this->gbClock.mbc3.m, 60, this->gbClock.mbc3.h);
+            OVERFLOW_VAL(this->gbClock.mbc3.m, 60, this->gbClock.mbc3.h);
             this->gbClock.mbc3.h += lt->tm_hour;
-            OVERFLOW(this->gbClock.mbc3.h, 24, this->gbClock.mbc3.d);
+            OVERFLOW_VAL(this->gbClock.mbc3.h, 24, this->gbClock.mbc3.d);
             this->gbClock.mbc3.d += lt->tm_yday;
             /* Overflow! */
             if(this->gbClock.mbc3.d > 0x1FF) {
@@ -1508,22 +1653,22 @@ void MBC::latchClock() {
             break;
         case HUC3:
             this->gbClock.huc3.m += lt->tm_min;
-            OVERFLOW(this->gbClock.huc3.m, 60 * 24, this->gbClock.huc3.d);
+            OVERFLOW_VAL(this->gbClock.huc3.m, 60 * 24, this->gbClock.huc3.d);
             this->gbClock.huc3.d += lt->tm_yday;
-            OVERFLOW(this->gbClock.huc3.d, 365, this->gbClock.huc3.y);
+            OVERFLOW_VAL(this->gbClock.huc3.d, 365, this->gbClock.huc3.y);
             this->gbClock.huc3.y += lt->tm_year - 70;
             break;
         case TAMA5:
             this->gbClock.tama5.s += lt->tm_sec;
-            OVERFLOW(this->gbClock.tama5.s, 60, this->gbClock.tama5.m);
+            OVERFLOW_VAL(this->gbClock.tama5.s, 60, this->gbClock.tama5.m);
             this->gbClock.tama5.m += lt->tm_min;
-            OVERFLOW(this->gbClock.tama5.m, 60, this->gbClock.tama5.h);
+            OVERFLOW_VAL(this->gbClock.tama5.m, 60, this->gbClock.tama5.h);
             this->gbClock.tama5.h += lt->tm_hour;
-            OVERFLOW(this->gbClock.tama5.h, 24, this->gbClock.tama5.d);
+            OVERFLOW_VAL(this->gbClock.tama5.h, 24, this->gbClock.tama5.d);
             this->gbClock.tama5.d += lt->tm_mday;
-            OVERFLOW(this->gbClock.tama5.d, (this->gbClock.tama5.y & 3) == 0 ? daysInLeapMonth[this->gbClock.tama5.mon] : daysInMonth[this->gbClock.tama5.mon], this->gbClock.tama5.mon);
+            OVERFLOW_VAL(this->gbClock.tama5.d, (this->gbClock.tama5.y & 3) == 0 ? daysInLeapMonth[this->gbClock.tama5.mon] : daysInMonth[this->gbClock.tama5.mon], this->gbClock.tama5.mon);
             this->gbClock.tama5.mon += lt->tm_mon;
-            OVERFLOW(this->gbClock.tama5.mon, 12, this->gbClock.tama5.y);
+            OVERFLOW_VAL(this->gbClock.tama5.mon, 12, this->gbClock.tama5.y);
             this->gbClock.tama5.y += lt->tm_year - 70;
             break;
         default:

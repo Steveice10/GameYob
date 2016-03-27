@@ -1,5 +1,4 @@
 #include <string.h>
-#include <ppu.h>
 
 #include "platform/common/manager.h"
 #include "platform/common/menu.h"
@@ -9,7 +8,6 @@
 #include "mmu.h"
 #include "ppu.h"
 #include "sgb.h"
-#include "romfile.h"
 
 enum {
     LCD_HBLANK = 0,
@@ -324,8 +322,8 @@ void PPU::saveState(std::ostream& data) {
 
 void PPU::mapBanks() {
     u8 bank = (u8) (this->gameboy->gbMode == MODE_CGB && (this->gameboy->mmu->readIO(VBK) & 0x1) != 0);
-    this->gameboy->mmu->mapBank(0x8, this->vram[bank] + 0x0000);
-    this->gameboy->mmu->mapBank(0x9, this->vram[bank] + 0x1000);
+    this->gameboy->mmu->mapBankBlock(0x8, this->vram[bank] + 0x0000);
+    this->gameboy->mmu->mapBankBlock(0x9, this->vram[bank] + 0x1000);
 }
 
 inline void PPU::checkLYC() {
@@ -777,13 +775,13 @@ inline void PPU::drawScanline(u8 scanline) {
                             u8 colorId = (u8) ((pxData >> (flipX ? x * 2 : 14 - x * 2)) & 3);
                             depthBuffer[pixelX] = depth - (u8) (colorId == 0);
 
-                            u32 colorDst = RGB555ToRGBA8888Table[basePalette[paletteIds[(pixelX >> 3) - tileX + 1] * 4 + this->expandedBgp[colorId]]];
+                            u32 outputColor = RGB555ToRGBA8888Table[basePalette[(paletteIds[(pixelX >> 3) - tileX + 1] << 2) + this->expandedBgp[colorId]]];
                             u32* colorOut = &lineBuffer[pixelX];
                             if(emulateBlur) {
-                                u32 colorSrc = *colorOut;
-                                *colorOut = (u32) ((colorDst + colorSrc - ((colorDst ^ colorSrc) & 0x01010101)) >> 1);
+                                u32 oldColor = *colorOut;
+                                *colorOut = (u32) (((u64) outputColor + (u64) oldColor - ((outputColor ^ oldColor) & 0x01010101)) >> 1);
                             } else {
-                                *colorOut = colorDst;
+                                *colorOut = outputColor;
                             }
                         }
                     }
@@ -842,13 +840,13 @@ inline void PPU::drawScanline(u8 scanline) {
                                 u8 colorId = (u8) ((pxData >> (flipX ? x * 2 : 14 - x * 2)) & 3);
                                 depthBuffer[pixelX] = depth - (u8) (colorId == 0);
 
-                                u32 colorDst = RGB555ToRGBA8888Table[basePalette[paletteIds[(pixelX >> 3) - tileX + 1] * 4 + this->expandedBgp[colorId]]];
+                                u32 outputColor = RGB555ToRGBA8888Table[basePalette[(paletteIds[(pixelX >> 3) - tileX + 1] << 2) + this->expandedBgp[colorId]]];
                                 u32* colorOut = &lineBuffer[pixelX];
                                 if(emulateBlur) {
-                                    u32 colorSrc = *colorOut;
-                                    *colorOut = (u32) ((colorDst + colorSrc - ((colorDst ^ colorSrc) & 0x01010101)) >> 1);
+                                    u32 oldColor = *colorOut;
+                                    *colorOut = (u32) (((u64) outputColor + (u64) oldColor - ((outputColor ^ oldColor) & 0x01010101)) >> 1);
                                 } else {
-                                    *colorOut = colorDst;
+                                    *colorOut = outputColor;
                                 }
                             }
                         }
@@ -915,13 +913,13 @@ inline void PPU::drawScanline(u8 scanline) {
                             if(colorId != 0 && depth >= depthBuffer[pixelX]) {
                                 depthBuffer[pixelX] = depth;
 
-                                u32 colorDst = RGB555ToRGBA8888Table[basePalette[paletteIds[(pixelX >> 3) - baseTileX] * 4 + this->expandedObp[obpId * 4 + colorId]]];
+                                u32 outputColor = RGB555ToRGBA8888Table[basePalette[(paletteIds[(pixelX >> 3) - baseTileX] << 2) + this->expandedObp[(obpId << 2) + colorId]]];
                                 u32* colorOut = &lineBuffer[pixelX];
                                 if(emulateBlur) {
-                                    u32 colorSrc = *colorOut;
-                                    *colorOut = (u32) ((colorDst + colorSrc - ((colorDst ^ colorSrc) & 0x01010101)) >> 1);
+                                    u32 oldColor = *colorOut;
+                                    *colorOut = (u32) (((u64) outputColor + (u64) oldColor - ((outputColor ^ oldColor) & 0x01010101)) >> 1);
                                 } else {
-                                    *colorOut = colorDst;
+                                    *colorOut = outputColor;
                                 }
                             }
                         }
