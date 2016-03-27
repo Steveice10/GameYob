@@ -106,7 +106,7 @@ void APU::setHalfSpeed(bool halfSpeed) {
     if(!this->halfSpeed && halfSpeed) {
         this->lastSoundCycle -= this->gameboy->cpu->getCycle() - this->lastSoundCycle;
     } else if(this->halfSpeed && !halfSpeed) {
-        this->lastSoundCycle += (this->gameboy->cpu->getCycle() - this->lastSoundCycle) / 2;
+        this->lastSoundCycle += (this->gameboy->cpu->getCycle() - this->lastSoundCycle) >> 1;
     }
 
     this->halfSpeed = halfSpeed;

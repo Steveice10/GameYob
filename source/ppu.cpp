@@ -485,8 +485,8 @@ void PPU::setHalfSpeed(bool halfSpeed) {
         this->lastScanlineCycle -= this->gameboy->cpu->getCycle() - this->lastScanlineCycle;
         this->lastPhaseCycle -= this->gameboy->cpu->getCycle() - this->lastPhaseCycle;
     } else if(this->halfSpeed && !halfSpeed) {
-        this->lastScanlineCycle += (this->gameboy->cpu->getCycle() - this->lastScanlineCycle) / 2;
-        this->lastPhaseCycle += (this->gameboy->cpu->getCycle() - this->lastPhaseCycle) / 2;
+        this->lastScanlineCycle += (this->gameboy->cpu->getCycle() - this->lastScanlineCycle) >> 1;
+        this->lastPhaseCycle += (this->gameboy->cpu->getCycle() - this->lastPhaseCycle) >> 1;
     }
 
     this->halfSpeed = halfSpeed;
