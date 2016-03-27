@@ -192,7 +192,7 @@ private:
         u32 years;
 
         u64 last;
-    } gbClock;
+    } rtcClock;
 
     // General
     s32 romBank0;
