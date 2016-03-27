@@ -170,7 +170,6 @@ private:
     Gameboy* gameboy;
 
     u8* rom;
-    u8* sram;
 
     std::string romTitle;
     int totalRomBanks;
@@ -182,6 +181,8 @@ private:
     mbcRead readFunc;
     mbcWrite writeFunc;
     mbcUpdate updateFunc;
+
+    u8* sram;
 
     struct {
         u32 seconds;

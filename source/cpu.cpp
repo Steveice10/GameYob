@@ -110,8 +110,6 @@ void CPU::run() {
     if(!this->haltState) {
         u8 op = READPC8();
 
-        //systemPrintDebug("0x%x: 0x%x\n", this->registers.pc.w - 1, op);
-
         if(this->haltBug) {
             this->registers.pc.w--;
             this->haltBug = false;
@@ -140,26 +138,16 @@ void CPU::run() {
     }
 }
 
-void CPU::advanceCycles(u64 cycles) {
-    this->cycleCount += cycles;
-
-    if(this->cycleCount >= this->eventCycle) {
-        this->eventCycle = UINT64_MAX;
-
-        if(this->gameboy->cartridge != NULL) {
-            this->gameboy->cartridge->update();
-        }
-
-        this->gameboy->ppu->update();
-        this->gameboy->apu->update();
-        this->gameboy->sgb->update();
-        this->gameboy->timer->update();
-        this->gameboy->serial->update();
+void CPU::updateEvents() {
+    if(this->gameboy->cartridge != NULL) {
+        this->gameboy->cartridge->update();
     }
-}
 
-void CPU::requestInterrupt(int id) {
-    this->gameboy->mmu->writeIO(IF, (u8) (this->gameboy->mmu->readIO(IF) | id));
+    this->gameboy->ppu->update();
+    this->gameboy->apu->update();
+    this->gameboy->sgb->update();
+    this->gameboy->timer->update();
+    this->gameboy->serial->update();
 }
 
 void CPU::undefined() {

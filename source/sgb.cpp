@@ -192,16 +192,20 @@ void SGB::saveState(std::ostream& data) {
 }
 
 void SGB::update() {
+    u8 interrupts = this->gameboy->mmu->readIO(IF);
+
     u8 joyp = this->gameboy->mmu->readIO(JOYP);
     if(!(joyp & 0x10)) {
         if((this->controllers[0] & 0xf0) != 0xf0) {
-            this->gameboy->cpu->requestInterrupt(INT_JOYPAD);
+            interrupts |= INT_JOYPAD;
         }
     } else if(!(joyp & 0x20)) {
         if((this->controllers[0] & 0x0f) != 0x0f) {
-            this->gameboy->cpu->requestInterrupt(INT_JOYPAD);
+            interrupts |= INT_JOYPAD;
         }
     }
+
+    this->gameboy->mmu->writeIO(IF, interrupts);
 }
 
 void SGB::refreshBg() {

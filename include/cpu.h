@@ -41,9 +41,15 @@ public:
 
     void run();
 
-    void advanceCycles(u64 cycles);
+    inline void advanceCycles(u64 cycles) {
+        this->cycleCount += cycles;
 
-    void requestInterrupt(int id);
+        if(this->cycleCount >= this->eventCycle) {
+            this->eventCycle = UINT64_MAX;
+
+            this->updateEvents();
+        }
+    }
 
     inline u64 getCycle() {
         return this->cycleCount;
@@ -55,6 +61,8 @@ public:
         }
     }
 private:
+    void updateEvents();
+
     void undefined();
     void nop();
     void ld_bc_nn();

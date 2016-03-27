@@ -80,7 +80,7 @@ void Timer::update() {
                     counter = tma + (counter - 0x100);
                 }
 
-                this->gameboy->cpu->requestInterrupt(INT_TIMER);
+                this->gameboy->mmu->writeIO(IF, (u8) (this->gameboy->mmu->readIO(IF) | INT_TIMER));
             }
 
             this->gameboy->mmu->writeIO(TIMA, (u8) counter);
