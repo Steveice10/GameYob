@@ -126,11 +126,13 @@ void PPU::reset() {
     memset(this->bgPaletteData, 0xFF, sizeof(this->bgPaletteData));
     memset(this->sprPaletteData, 0x00, sizeof(this->sprPaletteData));
 
-    this->gameboy->mmu->writeIO(LCDC, 0x91);
-    this->gameboy->mmu->writeIO(BGP, 0xFC);
-    this->gameboy->mmu->writeIO(OBP0, 0xFF);
-    this->gameboy->mmu->writeIO(OBP1, 0xFF);
-    this->gameboy->mmu->writeIO(HDMA5, 0xFF);
+    if(!this->gameboy->biosOn) {
+        this->gameboy->mmu->writeIO(LCDC, 0x91);
+        this->gameboy->mmu->writeIO(BGP, 0xFC);
+        this->gameboy->mmu->writeIO(OBP0, 0xFF);
+        this->gameboy->mmu->writeIO(OBP1, 0xFF);
+        this->gameboy->mmu->writeIO(HDMA5, 0xFF);
+    }
 
     this->mapBanks();
 

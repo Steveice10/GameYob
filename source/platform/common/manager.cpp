@@ -613,12 +613,7 @@ void mgrPowerOn(const char* romFile) {
         }
 
         enableMenuOption("Manage Cheats");
-
-        if(gameboy->cartridge->getRamBanks() > 0) {
-            enableMenuOption("Exit without saving");
-        } else {
-            disableMenuOption("Exit without saving");
-        }
+        enableMenuOption("Exit without saving");
     } else {
         disableMenuOption("Suspend");
         disableMenuOption("ROM Info");
@@ -679,7 +674,7 @@ void mgrSelectRom() {
 }
 
 void mgrWriteSave() {
-    if(gameboy == NULL || gameboy->cartridge == NULL || gameboy->cartridge->getRamBanks() == 0) {
+    if(gameboy == NULL || gameboy->cartridge == NULL) {
         return;
     }
 

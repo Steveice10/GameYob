@@ -112,7 +112,7 @@ bool Gameboy::loadState(std::istream& data) {
         this->cartridge->loadState(data, version);
     }
 
-    if((this->biosType == MODE_GB && !gbBiosLoaded) || (this->biosType == MODE_CGB && !gbcBiosLoaded)) {
+    if((this->gbMode == MODE_GB && !gbBiosLoaded) || (this->gbMode == MODE_CGB && !gbcBiosLoaded)) {
         this->biosOn = false;
     }
 

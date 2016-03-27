@@ -22,10 +22,6 @@ public:
 
     void transferTiles(u8* dest);
 
-    inline bool isInOamDma() {
-        return this->lastOamDmaBeginCycle != 0;
-    }
-
     inline u8 readOam(u16 addr) {
         return this->oam[addr & 0xFF];
     }

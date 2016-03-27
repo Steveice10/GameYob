@@ -24,19 +24,27 @@ static u8 temp2 = 0;
 #define FLAG_GET(f) ((this->registers.af.b.l & (f)) == (f))
 #define FLAG_SET(f, x) (this->registers.af.b.l ^= (-(x) ^ this->registers.af.b.l) & (f))
 
-#define SETPC(val) (this->registers.pc.w = (val), this->advanceCycles(4))
-
 #define MEMREAD(addr) (temp1 = this->gameboy->mmu->read(addr), this->advanceCycles(4), temp1)
 #define MEMWRITE(addr, val) (this->gameboy->mmu->write(addr, val), this->advanceCycles(4))
+
+#define SETPC(val) (this->registers.pc.w = (val), this->advanceCycles(4))
 
 #define READPC8() MEMREAD(this->registers.pc.w++)
 #define READPC16() (temp2 = READPC8(), temp2 | (READPC8() << 8))
 
+#define SETSP_SLOW(val) (this->registers.sp.w = (val), this->advanceCycles(4))
+
 #define PUSH8(val) MEMWRITE(--this->registers.sp.w, (val))
 #define PUSH16(val) (PUSH8((u8) (((val) >> 8) & 0xFF)), PUSH8((u8) ((val) & 0xFF)))
+#define PUSH16_SLOW(val) (PUSH16(val), this->advanceCycles(4))
 
 #define POP8() MEMREAD(this->registers.sp.w++)
 #define POP16() (temp2 = POP8(), temp2 | (POP8() << 8))
+
+#define RET_PROLOGUE() this->advanceCycles(4)
+
+#define ADD16(r, n) (this->advanceCycles(4), r + n)
+#define SUB16(r, n) (this->advanceCycles(4), r - n)
 
 CPU::CPU(Gameboy* gameboy) {
     this->gameboy = gameboy;
@@ -101,6 +109,8 @@ void CPU::saveState(std::ostream& data) {
 void CPU::run() {
     if(!this->haltState) {
         u8 op = READPC8();
+
+        //systemPrintDebug("0x%x: 0x%x\n", this->registers.pc.w - 1, op);
 
         if(this->haltBug) {
             this->registers.pc.w--;
@@ -168,8 +178,7 @@ void CPU::ld_bcp_a() {
 }
 
 void CPU::inc_bc() {
-    this->registers.bc.w++;
-    this->advanceCycles(4);
+    this->registers.bc.w = (u16) ADD16(this->registers.bc.w, 1);
 }
 
 void CPU::inc_b() {
@@ -209,12 +218,11 @@ void CPU::ld_nnp_sp() {
 }
 
 void CPU::add_hl_bc() {
-    int result = this->registers.hl.w + this->registers.bc.w;
+    int result = ADD16(this->registers.hl.w, this->registers.bc.w);
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, (this->registers.hl.w & 0xFFF) + (this->registers.bc.w & 0xFFF) >= 0x1000);
     FLAG_SET(FLAG_CARRY, result >= 0x10000);
     this->registers.hl.w = (u16) (result & 0xFFFF);
-    this->advanceCycles(4);
 }
 
 void CPU::ld_a_bcp() {
@@ -222,8 +230,7 @@ void CPU::ld_a_bcp() {
 }
 
 void CPU::dec_bc() {
-    this->registers.bc.w--;
-    this->advanceCycles(4);
+    this->registers.bc.w = (u16) SUB16(this->registers.bc.w, 1);
 }
 
 void CPU::inc_c() {
@@ -280,8 +287,7 @@ void CPU::ld_dep_a() {
 }
 
 void CPU::inc_de() {
-    this->registers.de.w++;
-    this->advanceCycles(4);
+    this->registers.de.w = (u16) ADD16(this->registers.de.w, 1);
 }
 
 void CPU::inc_d() {
@@ -319,12 +325,11 @@ void CPU::jr_n() {
 }
 
 void CPU::add_hl_de() {
-    int result = this->registers.hl.w + this->registers.de.w;
+    int result = ADD16(this->registers.hl.w, this->registers.de.w);
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, (this->registers.hl.w & 0xFFF) + (this->registers.de.w & 0xFFF) >= 0x1000);
     FLAG_SET(FLAG_CARRY, result >= 0x10000);
     this->registers.hl.w = (u16) (result & 0xFFFF);
-    this->advanceCycles(4);
 }
 
 void CPU::ld_a_dep() {
@@ -332,8 +337,7 @@ void CPU::ld_a_dep() {
 }
 
 void CPU::dec_de() {
-    this->registers.de.w--;
-    this->advanceCycles(4);
+    this->registers.de.w = (u16) SUB16(this->registers.de.w, 1);
 }
 
 void CPU::inc_e() {
@@ -381,8 +385,7 @@ void CPU::ldi_hlp_a() {
 }
 
 void CPU::inc_hl() {
-    this->registers.hl.w++;
-    this->advanceCycles(4);
+    this->registers.hl.w = (u16) ADD16(this->registers.hl.w, 1);
 }
 
 void CPU::inc_h() {
@@ -441,12 +444,11 @@ void CPU::jr_z_n() {
 }
 
 void CPU::add_hl_hl() {
-    int result = this->registers.hl.w + this->registers.hl.w;
+    int result = ADD16(this->registers.hl.w, this->registers.hl.w);
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, (this->registers.hl.w & 0xFFF) + (this->registers.hl.w & 0xFFF) >= 0x1000);
     FLAG_SET(FLAG_CARRY, result >= 0x10000);
     this->registers.hl.w = (u16) (result & 0xFFFF);
-    this->advanceCycles(4);
 }
 
 void CPU::ldi_a_hlp() {
@@ -454,8 +456,7 @@ void CPU::ldi_a_hlp() {
 }
 
 void CPU::dec_hl() {
-    this->registers.hl.w--;
-    this->advanceCycles(4);
+    this->registers.hl.w = (u16) SUB16(this->registers.hl.w, 1);
 }
 
 void CPU::inc_l() {
@@ -500,8 +501,7 @@ void CPU::ldd_hlp_a() {
 }
 
 void CPU::inc_sp() {
-    this->registers.sp.w++;
-    this->advanceCycles(4);
+    this->registers.sp.w = (u16) ADD16(this->registers.sp.w, 1);
 }
 
 void CPU::inc_hlp() {
@@ -541,12 +541,11 @@ void CPU::jr_c_n() {
 }
 
 void CPU::add_hl_sp() {
-    int result = this->registers.hl.w + this->registers.sp.w;
+    int result = ADD16(this->registers.hl.w, this->registers.sp.w);
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, (this->registers.hl.w & 0xFFF) + (this->registers.sp.w & 0xFFF) >= 0x1000);
     FLAG_SET(FLAG_CARRY, result >= 0x10000);
     this->registers.hl.w = (u16) (result & 0xFFFF);
-    this->advanceCycles(4);
 }
 
 void CPU::ldd_a_hlp() {
@@ -554,8 +553,7 @@ void CPU::ldd_a_hlp() {
 }
 
 void CPU::dec_sp() {
-    this->registers.sp.w--;
-    this->advanceCycles(4);
+    this->registers.sp.w = (u16) SUB16(this->registers.sp.w, 1);
 }
 
 void CPU::inc_a() {
@@ -1390,7 +1388,7 @@ void CPU::cp_a() {
 }
 
 void CPU::ret_nz() {
-    this->advanceCycles(4);
+    RET_PROLOGUE();
     if(!FLAG_GET(FLAG_ZERO)) {
         u16 addr = POP16();
         SETPC(addr);
@@ -1422,8 +1420,7 @@ void CPU::call_nz_nn() {
 }
 
 void CPU::push_bc() {
-    PUSH16(this->registers.bc.w);
-    this->advanceCycles(4);
+    PUSH16_SLOW(this->registers.bc.w);
 }
 
 void CPU::add_a_n() {
@@ -1442,7 +1439,7 @@ void CPU::rst_0() {
 }
 
 void CPU::ret_z() {
-    this->advanceCycles(4);
+    RET_PROLOGUE();
     if(FLAG_GET(FLAG_ZERO)) {
         u16 addr = POP16();
         SETPC(addr);
@@ -1496,7 +1493,7 @@ void CPU::rst_08() {
 }
 
 void CPU::ret_nc() {
-    this->advanceCycles(4);
+    RET_PROLOGUE();
     if(!FLAG_GET(FLAG_CARRY)) {
         u16 addr = POP16();
         SETPC(addr);
@@ -1523,8 +1520,7 @@ void CPU::call_nc_nn() {
 }
 
 void CPU::push_de() {
-    PUSH16(this->registers.de.w);
-    this->advanceCycles(4);
+    PUSH16_SLOW(this->registers.de.w);
 }
 
 void CPU::sub_n() {
@@ -1543,7 +1539,7 @@ void CPU::rst_10() {
 }
 
 void CPU::ret_c() {
-    this->advanceCycles(4);
+    RET_PROLOGUE();
     if(FLAG_GET(FLAG_CARRY)) {
         u16 addr = POP16();
         SETPC(addr);
@@ -1600,8 +1596,7 @@ void CPU::ld_ff_c_a() {
 }
 
 void CPU::push_hl() {
-    PUSH16(this->registers.hl.w);
-    this->advanceCycles(4);
+    PUSH16_SLOW(this->registers.hl.w);
 }
 
 void CPU::and_n() {
@@ -1621,13 +1616,12 @@ void CPU::rst_20() {
 
 void CPU::add_sp_n() {
     u8 val = READPC8();
-    u16 result = this->registers.sp.w + (s8) val;
+    u16 result = (u16) ADD16(this->registers.sp.w, (s8) val);
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, (this->registers.sp.w & 0xF) + (val & 0xF) >= 0x10);
     FLAG_SET(FLAG_CARRY, (this->registers.sp.w & 0xFF) + val >= 0x100);
     FLAG_SET(FLAG_ZERO, 0);
-    this->registers.sp.w = result;
-    this->advanceCycles(8);
+    SETSP_SLOW(result);
 }
 
 void CPU::jp_hl() {
@@ -1674,8 +1668,7 @@ void CPU::di_inst() {
 }
 
 void CPU::push_af() {
-    PUSH16(this->registers.af.w);
-    this->advanceCycles(4);
+    PUSH16_SLOW(this->registers.af.w);
 }
 
 void CPU::or_n() {
@@ -1695,18 +1688,16 @@ void CPU::rst_30() {
 
 void CPU::ld_hl_sp_n() {
     u8 val = READPC8();
-    u16 result = this->registers.sp.w + (s8) val;
+    u16 result = (u16) ADD16(this->registers.sp.w, (s8) val);
     FLAG_SET(FLAG_NEGATIVE, 0);
     FLAG_SET(FLAG_HALFCARRY, (this->registers.sp.w & 0xF) + (val & 0xF) >= 0x10);
     FLAG_SET(FLAG_CARRY, (this->registers.sp.w & 0xFF) + val >= 0x100);
     FLAG_SET(FLAG_ZERO, 0);
     this->registers.hl.w = result;
-    this->advanceCycles(4);
 }
 
 void CPU::ld_sp_hl() {
-    this->registers.sp.w = this->registers.hl.w;
-    this->advanceCycles(4);
+    SETSP_SLOW(this->registers.hl.w);
 }
 
 void CPU::ld_a_nnp() {
