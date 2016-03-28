@@ -395,31 +395,34 @@ void Cartridge::save(std::ostream& data) {
 }
 
 u8 Cartridge::readSram(u16 addr) {
-    if(this->sramBank >= 0 && this->sramBank < this->totalRamBanks) {
-        return this->sram[this->sramBank * 0x2000 + (addr & 0x1FFF)];
+    s32 bank = this->sramBank & (this->totalRamBanks - 1);
+    if(bank >= 0 && bank < this->totalRamBanks) {
+        return this->sram[bank * 0x2000 + (addr & 0x1FFF)];
     } else {
-        systemPrintDebug("Attempted to read from invalid SRAM bank: %d\n", this->sramBank);
+        systemPrintDebug("Attempted to read from invalid SRAM bank: %d\n", bank);
         return 0xFF;
     }
 }
 
 void Cartridge::writeSram(u16 addr, u8 val) {
-    if(this->sramBank >= 0 && this->sramBank < this->totalRamBanks) {
-        this->sram[this->sramBank * 0x2000 + (addr & 0x1FFF)] = val;
+    s32 bank = this->sramBank & (this->totalRamBanks - 1);
+    if(bank >= 0 && bank < this->totalRamBanks) {
+        this->sram[bank * 0x2000 + (addr & 0x1FFF)] = val;
     } else {
-        systemPrintDebug("Attempted to write to invalid SRAM bank: %d\n", this->sramBank);
+        systemPrintDebug("Attempted to write to invalid SRAM bank: %d\n", bank);
     }
 }
 
 void Cartridge::mapRomBank0() {
-    u8* bankPtr = this->getRomBank(this->romBank0);
+    s32 bank = this->romBank0 & (this->totalRomBanks - 1);
+    u8* bankPtr = this->getRomBank(bank);
     if(bankPtr != NULL) {
         this->gameboy->mmu->mapBankBlock(0x0, bankPtr + 0x0000);
         this->gameboy->mmu->mapBankBlock(0x1, bankPtr + 0x1000);
         this->gameboy->mmu->mapBankBlock(0x2, bankPtr + 0x2000);
         this->gameboy->mmu->mapBankBlock(0x3, bankPtr + 0x3000);
     } else {
-        systemPrintDebug("Attempted to access invalid ROM bank: %d\n", this->romBank0);
+        systemPrintDebug("Attempted to access invalid ROM bank: %d\n", bank);
 
         this->gameboy->mmu->mapBankBlock(0x0, NULL);
         this->gameboy->mmu->mapBankBlock(0x1, NULL);
@@ -430,40 +433,43 @@ void Cartridge::mapRomBank0() {
 
 void Cartridge::mapRomBank1() {
     if(this->mbcType == MBC6) {
-        u8* bankPtr1A = this->getRomBank(this->romBank1A >> 1);
+        s32 bank1A = this->romBank1A & ((this->totalRomBanks * 2) - 1);
+        u8* bankPtr1A = this->getRomBank(bank1A >> 1);
         if(bankPtr1A != NULL) {
-            u8* subPtr = bankPtr1A + (this->romBank1A & 0x1) * 0x2000;
+            u8* subPtr = bankPtr1A + (bank1A & 0x1) * 0x2000;
 
             this->gameboy->mmu->mapBankBlock(0x4, subPtr + 0x0000);
             this->gameboy->mmu->mapBankBlock(0x5, subPtr + 0x1000);
         } else {
-            systemPrintDebug("Attempted to access invalid sub ROM bank: %d\n", this->romBank1A);
+            systemPrintDebug("Attempted to access invalid sub ROM bank: %d\n", bank1A);
 
             this->gameboy->mmu->mapBankBlock(0x4, NULL);
             this->gameboy->mmu->mapBankBlock(0x5, NULL);
         }
 
-        u8* bankPtr1B = this->getRomBank(this->romBank1B >> 1);
+        s32 bank1B = this->romBank1B & ((this->totalRomBanks * 2) - 1);
+        u8* bankPtr1B = this->getRomBank(bank1B >> 1);
         if(bankPtr1B != NULL) {
-            u8* subPtr = bankPtr1B + (this->romBank1B & 0x1) * 0x2000;
+            u8* subPtr = bankPtr1B + (bank1B & 0x1) * 0x2000;
 
             this->gameboy->mmu->mapBankBlock(0x6, subPtr + 0x0000);
             this->gameboy->mmu->mapBankBlock(0x7, subPtr + 0x1000);
         } else {
-            systemPrintDebug("Attempted to access invalid sub ROM bank: %d\n", this->romBank1B);
+            systemPrintDebug("Attempted to access invalid sub ROM bank: %d\n", bank1B);
 
             this->gameboy->mmu->mapBankBlock(0x6, NULL);
             this->gameboy->mmu->mapBankBlock(0x7, NULL);
         }
     } else {
-        u8* bankPtr = this->getRomBank(this->romBank1);
+        s32 bank = this->romBank1 & (this->totalRomBanks - 1);
+        u8* bankPtr = this->getRomBank(bank);
         if(bankPtr != NULL) {
             this->gameboy->mmu->mapBankBlock(0x4, bankPtr + 0x0000);
             this->gameboy->mmu->mapBankBlock(0x5, bankPtr + 0x1000);
             this->gameboy->mmu->mapBankBlock(0x6, bankPtr + 0x2000);
             this->gameboy->mmu->mapBankBlock(0x7, bankPtr + 0x3000);
         } else {
-            systemPrintDebug("Attempted to access invalid ROM bank: %d\n", this->romBank1);
+            systemPrintDebug("Attempted to access invalid ROM bank: %d\n", bank);
 
             this->gameboy->mmu->mapBankBlock(0x4, NULL);
             this->gameboy->mmu->mapBankBlock(0x5, NULL);
@@ -474,15 +480,16 @@ void Cartridge::mapRomBank1() {
 }
 
 void Cartridge::mapSramBank() {
-    if(this->sramBank >= 0 && this->sramBank < this->totalRamBanks) {
-        u8* bankPtr = &this->sram[this->sramBank * 0x2000];
+    s32 bank = this->sramBank & (this->totalRamBanks - 1);
+    if(bank >= 0 && bank < this->totalRamBanks) {
+        u8* bankPtr = &this->sram[bank * 0x2000];
 
         this->gameboy->mmu->mapBankBlock(0xA, bankPtr + 0x0000);
         this->gameboy->mmu->mapBankBlock(0xB, bankPtr + 0x1000);
     } else {
         // Only report if there's no chance it's a special bank number.
         if(this->readFunc == NULL) {
-            systemPrintDebug("Attempted to access invalid SRAM bank: %d\n", this->sramBank);
+            systemPrintDebug("Attempted to access invalid SRAM bank: %d\n", bank);
         }
 
         this->gameboy->mmu->mapBankBlock(0xA, NULL);
@@ -1104,7 +1111,7 @@ void Cartridge::mmm01w(u16 addr, u8 val) {
                 this->romBank1 = this->mmm01RomBaseBank + (val ? val : 1);
             this->mapRomBank1();
             } else {
-                this->mmm01RomBaseBank = (u8) (((val & 0x3F) % this->getRomBanks()) + 2);
+                this->mmm01RomBaseBank = (u8) (((val & 0x3F) & (this->totalRomBanks - 1)) + 2);
             }
 
             break;
