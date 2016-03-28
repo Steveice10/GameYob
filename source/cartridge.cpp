@@ -3,9 +3,7 @@
 #include <time.h>
 
 #include <algorithm>
-#include <string>
 
-#include "platform/common/manager.h"
 #include "platform/input.h"
 #include "platform/system.h"
 #include "cpu.h"

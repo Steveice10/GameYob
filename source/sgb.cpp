@@ -1,6 +1,5 @@
 #include <stdlib.h>
 #include <string.h>
-#include <platform/system.h>
 
 #include "platform/common/manager.h"
 #include "cpu.h"

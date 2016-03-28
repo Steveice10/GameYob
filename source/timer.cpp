@@ -1,4 +1,3 @@
-#include "platform/system.h"
 #include "cpu.h"
 #include "gameboy.h"
 #include "mmu.h"

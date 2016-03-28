@@ -1,7 +1,6 @@
 #include <string.h>
 
 #include "platform/common/manager.h"
-#include "platform/common/menu.h"
 #include "platform/system.h"
 #include "apu.h"
 #include "cartridge.h"
