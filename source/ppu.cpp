@@ -378,7 +378,6 @@ void PPU::update() {
         while(this->gameboy->cpu->getCycle() >= this->lastScanlineCycle + (modeCycles[this->gameboy->mmu->readIO(STAT) & 3] << this->halfSpeed)) {
             this->updateScanline();
 
-            u8 interrupts = this->gameboy->mmu->readIO(IF);
             u8 stat = this->gameboy->mmu->readIO(STAT);
             u8 ly = this->gameboy->mmu->readIO(LY);
             u8 hdma5 = this->gameboy->mmu->readIO(HDMA5);
@@ -394,17 +393,19 @@ void PPU::update() {
                     if(ly >= 144) {
                         this->gameboy->mmu->writeIO(STAT, (u8) ((stat & ~3) | LCD_VBLANK));
 
+                        u8 interrupts = this->gameboy->mmu->readIO(IF);
                         interrupts |= INT_VBLANK;
                         if(stat & 0x30) {
                             interrupts |= INT_LCD;
                         }
 
+                        this->gameboy->mmu->writeIO(IF, interrupts);
                         this->gameboy->frontendEvents |= RET_VBLANK;
                     } else {
                         this->gameboy->mmu->writeIO(STAT, (u8) ((stat & ~3) | LCD_ACCESS_OAM));
 
                         if(stat & 0x20) {
-                            interrupts |= INT_LCD;
+                            this->gameboy->mmu->writeIO(IF, (u8) (this->gameboy->mmu->readIO(IF) | INT_LCD));
                         }
                     }
 
@@ -414,7 +415,7 @@ void PPU::update() {
                         this->gameboy->mmu->writeIO(STAT, (u8) ((stat & ~3) | LCD_ACCESS_OAM));
 
                         if(stat & 0x20) {
-                            interrupts |= INT_LCD;
+                            this->gameboy->mmu->writeIO(IF, (u8) (this->gameboy->mmu->readIO(IF) | INT_LCD));
                         }
                     } else {
                         ly++;
@@ -446,7 +447,7 @@ void PPU::update() {
                     this->gameboy->mmu->writeIO(STAT, (u8) ((stat & ~3) | LCD_HBLANK));
 
                     if(stat & 0x8) {
-                        interrupts |= INT_LCD;
+                        this->gameboy->mmu->writeIO(IF, (u8) (this->gameboy->mmu->readIO(IF) | INT_LCD));
                     }
 
                     if(this->gameboy->gbMode == MODE_CGB && (hdma5 & 0x80) == 0) {
@@ -472,8 +473,6 @@ void PPU::update() {
                 default:
                     break;
             }
-
-            this->gameboy->mmu->writeIO(IF, interrupts);
         }
 
         this->updateScanline();

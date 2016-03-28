@@ -60,8 +60,6 @@ void Serial::update() {
         this->printer->update();
     }
 
-    u8 interrupts = this->gameboy->mmu->readIO(IF);
-
     // For external clock
     if(this->nextSerialExternalCycle > 0) {
         if(this->gameboy->cpu->getCycle() >= this->nextSerialExternalCycle) {
@@ -77,7 +75,7 @@ void Serial::update() {
             if(sc & 0x80) {
                 this->gameboy->mmu->writeIO(SC, (u8) (sc & ~0x80));
 
-                interrupts |= INT_SERIAL;
+                this->gameboy->mmu->writeIO(IF, (u8) (this->gameboy->mmu->readIO(IF) | INT_SERIAL));
             }
 
             this->nextSerialExternalCycle = 0;
@@ -102,13 +100,11 @@ void Serial::update() {
             this->gameboy->mmu->writeIO(SB, received);
             this->gameboy->mmu->writeIO(SC, (u8) (sc & ~0x80));
 
-            interrupts |= INT_SERIAL;
+            this->gameboy->mmu->writeIO(IF, (u8) (this->gameboy->mmu->readIO(IF) | INT_SERIAL));
 
             this->nextSerialInternalCycle = 0;
         } else {
             this->gameboy->cpu->setEventCycle(this->nextSerialInternalCycle);
         }
     }
-
-    this->gameboy->mmu->writeIO(IF, interrupts);
 }
