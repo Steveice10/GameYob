@@ -70,7 +70,7 @@ bool gfxInit() {
     C3D_RenderTargetSetClear(targetBottom, C3D_CLEAR_ALL, 0, 0);
     C3D_RenderTargetSetOutput(targetBottom, GFX_BOTTOM, GFX_LEFT, displayFlags);
 
-    dvlb = DVLB_ParseFile((u32*) default_shbin, default_shbin_size);
+    dvlb = DVLB_ParseFile((u32*) default_shbin, default_shbin_len);
     if(dvlb == NULL) {
         gfxCleanup();
         return false;
@@ -231,21 +231,12 @@ void gfxLoadBorder(u8* imgData, int imgWidth, int imgHeight) {
     borderInit = true;
 }
 
-u32* gfxGetLineBuffer(u32 line) {
-    return screenBuffer + line * 256;
+u32* gfxGetScreenBuffer() {
+    return screenBuffer;
 }
 
-void gfxClearScreenBuffer(u32 rgba) {
-    for(int i = 0; i < 256 * 256; i++) {
-        screenBuffer[i] = rgba;
-    }
-}
-
-void gfxClearLineBuffer(u32 line, u32 rgba) {
-    u32* lineBuffer = gfxGetLineBuffer(line);
-    for(int i = 0; i < 256; i++) {
-        lineBuffer[i] = rgba;
-    }
+u32 gfxGetScreenPitch() {
+    return 256;
 }
 
 void gfxTakeScreenshot() {
@@ -427,7 +418,7 @@ void gfxDrawScreen() {
             screenTexSize = 512;
             transferBuffer = scale2xBuffer;
 
-            gfxScale2xRGBA8888(screenBuffer, 256, scale2xBuffer, 512, 160, 144);
+            gfxScale2xRGBA8888(screenBuffer, 256, scale2xBuffer, 512, 256, 224);
         }
     }
 
@@ -464,8 +455,8 @@ void gfxDrawScreen() {
     // Draw the screen.
     if(screenInit) {
         // Calculate the VBO dimensions.
-        int screenWidth = 160;
-        int screenHeight = 144;
+        int screenWidth = 256;
+        int screenHeight = 224;
         if(scaleMode == 1) {
             screenWidth *= 1.25f;
             screenHeight *= 1.25f;
@@ -473,11 +464,11 @@ void gfxDrawScreen() {
             screenWidth *= 1.50f;
             screenHeight *= 1.50f;
         } else if(scaleMode == 3) {
-            screenWidth *= viewportHeight / (float) 144;
-            screenHeight *= viewportHeight / (float) 144;
+            screenWidth *= viewportHeight / 224.0f;
+            screenHeight *= viewportHeight / 224.0f;
         } else if(scaleMode == 4) {
-            screenWidth *= viewportWidth / (float) 160;
-            screenHeight *= viewportHeight / (float) 144;
+            screenWidth *= viewportWidth / 256.0f;
+            screenHeight *= viewportHeight / 224.0f;
         }
 
         // Calculate VBO points.
@@ -486,8 +477,8 @@ void gfxDrawScreen() {
         const float x2 = x1 + screenWidth;
         const float y2 = y1 + screenHeight;
 
-        static const float baseTX2 = 160.0f / 256.0f;
-        static const float baseTY2 = 144.0f / 256.0f;
+        static const float baseTX2 = 256.0f / 256.0f;
+        static const float baseTY2 = 224.0f / 256.0f;
         static const float baseFilterMod = 0.25f / 256.0f;
 
         float tx2 = baseTX2;
@@ -535,11 +526,11 @@ void gfxDrawScreen() {
                 scaledBorderWidth *= 1.50f;
                 scaledBorderHeight *= 1.50f;
             } else if(scaleMode == 3) {
-                scaledBorderWidth *= viewportHeight / (float) 144;
-                scaledBorderHeight *= viewportHeight / (float) 144;
+                scaledBorderWidth *= viewportHeight / 224.0f;
+                scaledBorderHeight *= viewportHeight / 224.0f;
             } else if(scaleMode == 4) {
-                scaledBorderWidth *= viewportWidth / (float) 160;
-                scaledBorderHeight *= viewportHeight / (float) 144;
+                scaledBorderWidth *= viewportWidth / 256.0f;
+                scaledBorderHeight *= viewportHeight / 224.0f;
             }
         }
 

@@ -16,6 +16,8 @@ Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA */
 #include <assert.h>
 #include <string.h>
 
+#include "gameboy.h"
+
 unsigned const vol_reg    = 0xFF24;
 unsigned const stereo_reg = 0xFF25;
 unsigned const status_reg = 0xFF26;
@@ -59,10 +61,6 @@ void Gb_Apu::set_output( Blip_Buffer* center, Blip_Buffer* left, Blip_Buffer* ri
 		o.output = o.outputs [calc_output( i )];
 	}
 	while ( ++i < osc );
-}
-
-void Gb_Apu::set_osc_output_enabled(int osc, bool enabled) {
-    oscs[osc]->output_enabled = enabled;
 }
 
 void Gb_Apu::synth_volume( int iv )
@@ -120,25 +118,15 @@ void Gb_Apu::reduce_clicks( bool reduce )
 	
 	// Click reduction makes DAC off generate same output as volume 0
 	int dac_off_amp = 0;
-	if ( reduce && wave.mode != mode_agb ) // AGB already eliminates clicks
+	if ( reduce ) // AGB already eliminates clicks
 		dac_off_amp = -Gb_Osc::dac_bias;
 	
 	for ( int i = 0; i < osc_count; i++ )
 		oscs [i]->dac_off_amp = dac_off_amp;
-	
-	// AGB always eliminates clicks on wave channel using same method
-	if ( wave.mode == mode_agb )
-		wave.dac_off_amp = -Gb_Osc::dac_bias;
 }
 
-void Gb_Apu::reset( mode_t mode, bool agb_wave )
+void Gb_Apu::reset()
 {
-	// Hardware mode
-	if ( agb_wave )
-		mode = mode_agb; // using AGB wave features implies AGB hardware
-	wave.agb_mask = agb_wave ? 0xFF : 0;
-	for ( int i = 0; i < osc_count; i++ )
-		oscs [i]->mode = mode;
 	reduce_clicks( reduce_clicks_ );
 	
 	// Reset state
@@ -160,7 +148,7 @@ void Gb_Apu::reset( mode_t mode, bool agb_wave )
 		// TODO: verify that this works
 		write_register( 0, 0xFF1A, b * 0x40 );
 		for ( unsigned i = 0; i < sizeof initial_wave [0]; i++ )
-			write_register( 0, i + wave_ram, initial_wave [(mode != mode_dmg)] [i] );
+			write_register( 0, i + wave_ram, initial_wave [(this->gameboy->gbMode != MODE_GB)] [i] );
 	}
 }
 
@@ -171,18 +159,26 @@ void Gb_Apu::set_tempo( double t )
 		frame_period = s32 (frame_period / t);
 }
 
-Gb_Apu::Gb_Apu()
+Gb_Apu::Gb_Apu(Gameboy* gameboy)
 {
+	this->gameboy = gameboy;
+
 	wave.wave_ram = &regs [wave_ram - start_addr];
 	
 	oscs [0] = &square1;
 	oscs [1] = &square2;
 	oscs [2] = &wave;
 	oscs [3] = &noise;
+
+	oscs[0]->osc_index = 0;
+	oscs[1]->osc_index = 1;
+	oscs[2]->osc_index = 2;
+	oscs[3]->osc_index = 3;
 	
 	for ( int i = osc_count; --i >= 0; )
 	{
 		Gb_Osc& o = *oscs [i];
+		o.gameboy = gameboy;
 		o.regs        = &regs [i * 5];
 		o.output      = 0;
 		o.outputs [0] = 0;
@@ -270,10 +266,12 @@ void Gb_Apu::silence_osc( Gb_Osc& o )
 	if ( delta )
 	{
 		o.last_amp = 0;
-		if ( o.output && o.output_enabled )
+		if ( o.output )
 		{
 			o.output->set_modified();
-			med_synth.offset( last_time, delta, o.output );
+			if(gameboy->settings.soundChannelEnabled[o.osc_index]) {
+				med_synth.offset( last_time, delta, o.output );
+			}
 		}
 	}
 }
@@ -307,7 +305,7 @@ void Gb_Apu::write_register( s32 time, unsigned addr, int data )
 		// Power is off
 		
 		// length counters can only be written in DMG mode
-		if ( wave.mode != mode_dmg || (reg != 1 && reg != 5+1 && reg != 10+1 && reg != 15+1) )
+		if ( gameboy->gbMode != MODE_GB || (reg != 1 && reg != 5+1 && reg != 10+1 && reg != 15+1) )
 			return;
 		
 		if ( reg < 10 )
@@ -351,7 +349,7 @@ void Gb_Apu::write_register( s32 time, unsigned addr, int data )
 				silence_osc( *oscs [i] );
 		
 			reset_regs();
-			if ( wave.mode != mode_dmg )
+			if ( gameboy->gbMode != MODE_GB )
 				reset_lengths();
 			
 			regs [status_reg - start_addr] = data;
@@ -364,10 +362,10 @@ int Gb_Apu::read_register( s32 time, unsigned addr )
 	run_until( time );
 
 	if(addr == pcm12)
-		return oscs[0]->mode != mode_dmg ? ((square1.last_amp >> 4) & 0xF) | (square2.last_amp & 0xF0) : 0xFF;
+		return gameboy->gbMode != MODE_GB ? ((square1.last_amp >> 4) & 0xF) | (square2.last_amp & 0xF0) : 0xFF;
 
 	if(addr == pcm34)
-		return oscs[0]->mode != mode_dmg ? ((wave.last_amp >> 4) & 0xF) | (noise.last_amp & 0xF0) : 0xFF;
+		return gameboy->gbMode != MODE_GB ? ((wave.last_amp >> 4) & 0xF) | (noise.last_amp & 0xF0) : 0xFF;
 
 	int reg = addr - start_addr;
 	assert( (unsigned) reg < register_count );
@@ -385,8 +383,6 @@ int Gb_Apu::read_register( s32 time, unsigned addr )
 		0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF
 	};
 	int mask = masks [reg];
-	if ( wave.agb_mask && (reg == 10 || reg == 12) )
-		mask = 0x1F; // extra implemented bits in wave regs on AGB
 	int data = regs [reg] | mask;
 	
 	// Status register

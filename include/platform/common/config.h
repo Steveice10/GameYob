@@ -15,8 +15,6 @@ struct KeyConfig {
     u8 funcKeys[NUM_BUTTONS];
 };
 
-extern std::string gbBiosPath;
-extern std::string gbcBiosPath;
 extern std::string romPath;
 extern std::string borderPath;
 

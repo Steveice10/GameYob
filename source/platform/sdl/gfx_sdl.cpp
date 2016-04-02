@@ -9,8 +9,8 @@
 
 #include <SDL2/SDL.h>
 
-static SDL_Rect screenRect = {0, 0, 160, 144};
-static SDL_Rect windowScreenRect = {0, 0, 160, 144};
+static SDL_Rect screenRect = {0, 0, 256, 224};
+static SDL_Rect windowScreenRect = {0, 0, 256, 224};
 
 static SDL_Rect borderRect = {0, 0, 0, 0};
 static SDL_Rect windowBorderRect = {0, 0, 0, 0};
@@ -23,7 +23,7 @@ static SDL_Texture* borderTexture = NULL;
 static u32* screenBuffer;
 
 bool gfxInit() {
-    window = SDL_CreateWindow("GameYob", 0, 0, 160, 144, SDL_WINDOW_RESIZABLE | SDL_WINDOW_OPENGL);
+    window = SDL_CreateWindow("GameYob", 0, 0, 256, 224, SDL_WINDOW_RESIZABLE | SDL_WINDOW_OPENGL);
     if(window == NULL) {
         return false;
     }
@@ -33,12 +33,12 @@ bool gfxInit() {
         return false;
     }
 
-    screenTexture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_STREAMING, 160, 144);
+    screenTexture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_STREAMING, 256, 224);
     if(screenTexture == NULL) {
         return false;
     }
 
-    screenBuffer = (u32*) malloc(160 * 144 * sizeof(u32));
+    screenBuffer = (u32*) malloc(256 * 224 * sizeof(u32));
 
     return true;
 }
@@ -76,7 +76,7 @@ void gfxUpdateWindow() {
     SDL_GetWindowSize(window, &w, &h);
 
     if(borderTexture != NULL) {
-        if(w == 160 && h == 144) {
+        if(w == 256 && h == 224) {
             SDL_SetWindowSize(window, borderRect.w, borderRect.h);
             w = borderRect.w;
             h = borderRect.h;
@@ -87,15 +87,15 @@ void gfxUpdateWindow() {
         windowBorderRect.x = 0;
         windowBorderRect.y = 0;
 
-        windowScreenRect.w = (int) (w * (160.0f / (float) borderRect.w));
-        windowScreenRect.h = (int) (h * (144.0f / (float) borderRect.h));
+        windowScreenRect.w = (int) (w * (256.0f / (float) borderRect.w));
+        windowScreenRect.h = (int) (h * (224.0f / (float) borderRect.h));
         windowScreenRect.x = (w - windowScreenRect.w) / 2;
         windowScreenRect.y = (h - windowScreenRect.h) / 2;
     } else {
         if(w == borderRect.w && h == borderRect.h) {
-            SDL_SetWindowSize(window, 160, 144);
-            w = 160;
-            h = 144;
+            SDL_SetWindowSize(window, 256, 224);
+            w = 256;
+            h = 224;
         }
 
         windowScreenRect.w = w;
@@ -132,21 +132,12 @@ void gfxLoadBorder(u8* imgData, int imgWidth, int imgHeight) {
     gfxUpdateWindow();
 }
 
-u32* gfxGetLineBuffer(u32 line) {
-    return screenBuffer + line * 160;
+u32* gfxGetScreenBuffer() {
+    return screenBuffer;
 }
 
-void gfxClearScreenBuffer(u32 rgba) {
-    for(int i = 0; i < 160 * 144; i++) {
-        screenBuffer[i] = rgba;
-    }
-}
-
-void gfxClearLineBuffer(u32 line, u32 rgba) {
-    u32* lineBuffer = gfxGetLineBuffer(line);
-    for(int i = 0; i < 160; i++) {
-        lineBuffer[i] = rgba;
-    }
+u32 gfxGetScreenPitch() {
+    return 256;
 }
 
 void gfxTakeScreenshot() {
@@ -166,7 +157,7 @@ void gfxTakeScreenshot() {
 void gfxDrawScreen() {
     SDL_RenderClear(renderer);
 
-    SDL_UpdateTexture(screenTexture, &screenRect, screenBuffer, 160 * sizeof(u32));
+    SDL_UpdateTexture(screenTexture, &screenRect, screenBuffer, 256 * sizeof(u32));
     SDL_RenderCopy(renderer, screenTexture, &screenRect, &windowScreenRect);
 
     if(borderTexture != NULL) {

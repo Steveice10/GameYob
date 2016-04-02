@@ -7,6 +7,8 @@
 #include "gb_apu/Gb_Oscs.h"
 #include "types.h"
 
+class Gameboy;
+
 struct gb_apu_state_t;
 
 class Gb_Apu {
@@ -20,14 +22,8 @@ public:
 	void set_output( Blip_Buffer* center, Blip_Buffer* left = NULL, Blip_Buffer* right = NULL,
 			int chan = osc_count );
 	
-	// Resets hardware to initial power on state BEFORE boot ROM runs. Mode selects
-	// sound hardware. Additional AGB wave features are enabled separately.
-	enum mode_t {
-		mode_dmg,   // Game Boy monochrome
-		mode_cgb,   // Game Boy Color
-		mode_agb    // Game Boy Advance
-	};
-	void reset( mode_t mode = mode_cgb, bool agb_wave = false );
+	// Resets hardware to initial power on state BEFORE boot ROM runs.
+	void reset();
 	
 	// Reads and writes must be within the start_addr to end_addr range, inclusive.
 	// Addresses outside this range are not mapped to the sound hardware.
@@ -48,8 +44,6 @@ public:
 	// starts a new frame at time 0.
 	void end_frame( s32 frame_length );
 
-    void set_osc_output_enabled(int osc, bool enabled);
-	
 // Sound adjustments
 	
 	// Sets overall volume, where 1.0 is normal.
@@ -89,11 +83,13 @@ public:
 	const char* load_state( gb_apu_state_t const& in );
 
 public:
-	Gb_Apu();
+	Gb_Apu(Gameboy* gameboy);
 private:
 	// noncopyable
 	Gb_Apu( const Gb_Apu& );
 	Gb_Apu& operator = ( const Gb_Apu& );
+
+	Gameboy* gameboy;
 
 	Gb_Osc*     oscs [osc_count];
 	s32 last_time;          // time sound emulator has been run to

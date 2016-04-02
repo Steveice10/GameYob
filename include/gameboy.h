@@ -52,22 +52,69 @@ inline std::ostream& operator<<(std::ostream& str, GBMode v) {
     return str;
 }
 
+typedef enum {
+    SGB_OFF,
+    SGB_PREFER_GBC,
+    SGB_PREFER_SGB
+} SGBMode;
+
+typedef enum {
+    GBC_OFF,
+    GBC_IF_NEEDED,
+    GBC_ON
+} GBCMode;
+
+typedef struct {
+    void (*printDebug)(const char* s, ...);
+
+    u16 (*readTiltX)();
+    u16 (*readTiltY)();
+    void (*setRumble)(bool rumble);
+
+    bool (*getIRState)();
+    void (*setIRState)(bool state);
+
+    u32* (*getCameraImage)();
+
+    void (*printImage)(bool appending, u8* buf, int size, u8 palette);
+
+    u32* frameBuffer;
+    u32 framePitch;
+
+    u32* audioBuffer;
+    u32 audioSamples;
+    u32 audioSampleRate;
+
+    SGBMode sgbModeOption;
+    GBCMode gbcModeOption;
+    bool gbaModeOption;
+    bool biosEnabled;
+    bool perPixelRendering;
+    bool emulateBlur;
+    bool printerEnabled;
+    bool drawEnabled;
+    bool soundEnabled;
+    bool soundChannelEnabled[4];
+} GameboySettings;
+
 class Gameboy {
 public:
     Gameboy();
     ~Gameboy();
 
-    void powerOn(bool bios = true);
+    void powerOn();
     void powerOff();
 
     bool loadState(std::istream& data);
     bool saveState(std::ostream& data);
 
-    int run();
+    void runFrame();
 
     inline bool isPoweredOn() {
         return this->poweredOn;
     }
+
+    GameboySettings settings;
 
     Cartridge* cartridge;
 
@@ -79,12 +126,10 @@ public:
     Timer* timer;
     Serial* serial;
 
-    int frontendEvents;
-
     GBMode gbMode;
 
-    bool biosOn;
-    GBMode biosType;
+    bool ranFrame;
+    u32 audioSamplesWritten;
 private:
     bool poweredOn = false;
 };

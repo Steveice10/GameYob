@@ -24,7 +24,6 @@ public:
     u8 link(u8 val);
 private:
     void processBodyData(u8 dat);
-    void saveImage();
 
     Gameboy* gameboy;
 

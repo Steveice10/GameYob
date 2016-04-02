@@ -16,20 +16,12 @@ public:
 
     void update();
 
-    inline u32* getBg() {
-        return this->hasBg ? this->bg : NULL;
-    }
-
     inline u8 getGfxMask() {
         return this->mask;
     }
 
     u8* getPaletteMap() {
         return this->paletteMap;
-    }
-
-    u16* getActivePalette() {
-        return this->activePalette;
     }
 
     inline void setController(u8 controller, u8 val) {
@@ -111,9 +103,7 @@ private:
     bool hasBg;
     u8 bgTiles[0x2000];
     u8 bgMap[0x1000];
-    u32 bg[256 * 224];
 
     u8 mask;
     u8 paletteMap[20 * 18];
-    u16 activePalette[0x20];
 };

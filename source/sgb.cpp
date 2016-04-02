@@ -1,7 +1,5 @@
-#include <stdlib.h>
 #include <string.h>
 
-#include "platform/common/manager.h"
 #include "cpu.h"
 #include "gameboy.h"
 #include "mmu.h"
@@ -31,17 +29,9 @@ void SGB::reset() {
     this->hasBg = false;
     memset(this->bgTiles, 0, sizeof(this->bgTiles));
     memset(this->bgMap, 0, sizeof(this->bgMap));
-    memset(this->bg, 0, sizeof(this->bg));
 
     this->mask = 0;
     memset(this->paletteMap, 0, sizeof(this->paletteMap));
-
-    for(int i = 0; i < 4; i++) {
-        this->activePalette[i * 4 + 0] = 0x1F | (0x1F << 5) | (0x1F << 10) | (0x1 << 15);
-        this->activePalette[i * 4 + 1] = 0x14 | (0x14 << 5) | (0x14 << 10) | (0x1 << 15);
-        this->activePalette[i * 4 + 2] = 0x0A | (0x0A << 5) | (0x0A << 10) | (0x1 << 15);
-        this->activePalette[i * 4 + 3] = 0x00 | (0x00 << 5) | (0x00 << 10) | (0x1 << 15);
-    }
 
     this->gameboy->mmu->mapIOReadFunc(JOYP, [this](u16 addr) -> u8 {
         u8 joyp = this->gameboy->mmu->readIO(JOYP);
@@ -208,7 +198,7 @@ void SGB::update() {
 }
 
 void SGB::refreshBg() {
-    if(this->hasBg) {
+    if(this->hasBg && this->gameboy->settings.frameBuffer != NULL) {
         for(int tileY = 0; tileY < 28; tileY++) {
             u16* lineMap = (u16*) &this->bgMap[tileY * 32 * sizeof(u16)];
             for(int tileX = 0; tileX < 32; tileX++) {
@@ -231,7 +221,9 @@ void SGB::refreshBg() {
                         if(colorId != 0) {
                             color = (u16) (palette[colorId] | 0x8000);
                         } else if(pixelX < 48 || pixelX >= 208 || pixelY < 40 || pixelY >= 184) {
-                            color = (u16) (this->activePalette[0] | 0x8000);
+                            color = (u16) (this->gameboy->ppu->getBgPalette()[0] | 0x8000);
+                        } else {
+                            continue;
                         }
 
                         u8 r = (u8) ((color & 0x1F) << 3);
@@ -239,15 +231,11 @@ void SGB::refreshBg() {
                         u8 b = (u8) (((color >> 10) & 0x1F) << 3);
                         u8 a = (u8) (((color >> 15) & 0x01) * 0xFF);
 
-                        this->bg[pixelY * 256 + pixelX] = (r << 24) | (g << 16) | (b << 8) | a;
+                        this->gameboy->settings.frameBuffer[pixelY * this->gameboy->settings.framePitch + pixelX] = (r << 24) | (g << 16) | (b << 8) | a;
                     }
                 }
             }
         }
-
-        mgrRefreshBorder();
-    } else {
-        memset(this->bg, 0, sizeof(this->bg));
     }
 }
 
@@ -295,17 +283,20 @@ void SGB::palXX(int block) {
     u16 palette[4];
     memcpy(palette, &this->packet[1], 4 * sizeof(u16));
 
-    memcpy(&this->activePalette[s1 * 4], palette, sizeof(palette));
-    memcpy(&this->activePalette[(s1 + 4) * 4], palette, sizeof(palette));
+    memcpy(&this->gameboy->ppu->getBgPalette()[s1 * 4], palette, sizeof(palette));
+    memcpy(&this->gameboy->ppu->getSprPalette()[s1 * 4], palette, sizeof(palette));
+    memcpy(&this->gameboy->ppu->getSprPalette()[(s1 + 4) * 4], palette, sizeof(palette));
 
     memcpy(&palette[1], &this->packet[9], 3 * sizeof(u16));
 
-    memcpy(&this->activePalette[s2 * 4], palette, sizeof(palette));
-    memcpy(&this->activePalette[(s2 + 4) * 4], palette, sizeof(palette));
+    memcpy(&this->gameboy->ppu->getBgPalette()[s2 * 4], palette, sizeof(palette));
+    memcpy(&this->gameboy->ppu->getSprPalette()[s2 * 4], palette, sizeof(palette));
+    memcpy(&this->gameboy->ppu->getSprPalette()[(s2 + 4) * 4], palette, sizeof(palette));
 
     for(int i = 2; i < 4; i++) {
-        this->activePalette[i * 4] = palette[0];
-        this->activePalette[(i + 4) * 4] = palette[0];
+        this->gameboy->ppu->getBgPalette()[i * 4] = palette[0];
+        this->gameboy->ppu->getSprPalette()[i * 4] = palette[0];
+        this->gameboy->ppu->getSprPalette()[(i + 4) * 4] = palette[0];
     }
 }
 
@@ -512,8 +503,9 @@ void SGB::palSet(int block) {
         palette[0] = color0;
         memcpy(&palette[1], &this->palettes[paletteId * 8 + 2], 3 * sizeof(u16));
 
-        memcpy(&this->activePalette[i * 4], palette, sizeof(palette));
-        memcpy(&this->activePalette[(i + 4) * 4], palette, sizeof(palette));
+        memcpy(&this->gameboy->ppu->getBgPalette()[i * 4], palette, sizeof(palette));
+        memcpy(&this->gameboy->ppu->getSprPalette()[i * 4], palette, sizeof(palette));
+        memcpy(&this->gameboy->ppu->getSprPalette()[(i + 4) * 4], palette, sizeof(palette));
     }
 
     if(this->packet[9] & 0x80) {

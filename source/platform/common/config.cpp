@@ -14,8 +14,6 @@
 #include "platform/ui.h"
 #include "gameboy.h"
 
-std::string gbBiosPath = "";
-std::string gbcBiosPath = "";
 std::string borderPath = "";
 std::string romPath = "";
 
@@ -28,10 +26,6 @@ void generalParseConfig(char* line) {
 
         if(strcasecmp(parameter, "rompath") == 0) {
             romPath = value;
-        } else if(strcasecmp(parameter, "gbbiosfile") == 0) {
-            gbBiosPath = value;
-        } else if(strcasecmp(parameter, "gbcbiosfile") == 0 || strcasecmp(parameter, "biosfile") == 0) {
-            gbcBiosPath = value;
         } else if(strcasecmp(parameter, "borderfile") == 0) {
             borderPath = value;
         }
@@ -42,8 +36,6 @@ const std::string generalPrintConfig() {
     std::stringstream stream;
 
     stream << "rompath=" << romPath << "\n";
-    stream << "gbbiosfile=" << gbBiosPath << "\n";
-    stream << "gbcbiosfile=" << gbcBiosPath << "\n";
     stream << "borderfile=" << borderPath << "\n";
 
     return stream.str();
@@ -163,8 +155,6 @@ const std::string controlsPrintConfig() {
 }
 
 bool readConfigFile() {
-    gbBiosPath = systemDefaultGbBiosPath();
-    gbcBiosPath = systemDefaultGbcBiosPath();
     borderPath = systemDefaultBorderPath();
     romPath = systemDefaultRomPath();
 
@@ -173,7 +163,6 @@ bool readConfigFile() {
     std::ifstream stream(systemIniPath());
     if(!stream.is_open()) {
         romPath = "/";
-        mgrRefreshBios();
         controlsCheckConfig();
 
         printMenuMessage("Error opening gameyob.ini.");
@@ -219,7 +208,6 @@ bool readConfigFile() {
         romPath += "/";
     }
 
-    mgrRefreshBios();
     controlsCheckConfig();
     return true;
 }

@@ -245,18 +245,18 @@ void inputReleaseAll() {
     }
 }
 
-int inputGetMotionSensorX() {
+u16 inputGetMotionSensorX() {
     accelVector vec;
     hidAccelRead(&vec);
 
-    return (vec.x >> 3) + 2047;
+    return (u16) ((vec.x >> 3) + 2047);
 }
 
-int inputGetMotionSensorY() {
+u16 inputGetMotionSensorY() {
     accelVector vec;
     hidAccelRead(&vec);
 
-    return (vec.z >> 3) + 2047;
+    return (u16) ((vec.z >> 3) + 2047);
 }
 
 KeyConfig inputGetDefaultKeyConfig() {

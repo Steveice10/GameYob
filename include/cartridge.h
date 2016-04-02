@@ -208,10 +208,10 @@ private:
     u8 mbc3Ctrl;
 
     // MBC6
-    s32 romBank1ALatch;
-    s32 romBank1BLatch;
-    s32 romBank1A;
-    s32 romBank1B;
+    s32 mbc6RomBank1ALatch;
+    s32 mbc6RomBank1BLatch;
+    s32 mbc6RomBank1A;
+    s32 mbc6RomBank1B;
 
     // MBC7
     bool mbc7WriteEnable;

@@ -1,13 +1,14 @@
 #include <string.h>
 
-#include "platform/common/manager.h"
-#include "platform/system.h"
 #include "apu.h"
 #include "cartridge.h"
 #include "cpu.h"
 #include "gameboy.h"
 #include "mmu.h"
 #include "ppu.h"
+
+#include "bios_bin.h"
+#include "dummy_bios_bin.h"
 
 static const u8 initialHramGB[0x100] = {
         0xCF, 0x00, 0x7E, 0xFF, 0xD3, 0x00, 0x00, 0xF8,
@@ -97,29 +98,31 @@ void MMU::reset() {
 
     memcpy(this->hram, this->gameboy->gbMode == MODE_CGB ? (const u8*) initialHramCGB : initialHramGB, sizeof(this->hram));
 
-    this->bios = this->gameboy->biosType == MODE_CGB ? (u8*) gbcBios : (u8*) gbBios;
+    this->biosMapped = true;
+    this->useRealBios = this->gameboy->settings.biosEnabled;
 
     this->mapBanks();
 
     this->gameboy->mmu->mapIOReadFunc(RP, [this](u16 addr) -> u8 {
         u8 rp = this->gameboy->mmu->readIO(RP);
         if(this->gameboy->gbMode == MODE_CGB) {
-            return rp | (u8) ((rp & 0xC0) == 0xC0 && systemGetIRState() ? 0x0 : 0x2);
+            return rp | (u8) ((rp & 0xC0) == 0xC0 && this->gameboy->settings.getIRState() ? 0x0 : 0x2);
         } else {
             return rp;
         }
     });
 
     this->gameboy->mmu->mapIOWriteFunc(BIOS, [this](u16 addr, u8 val) -> void {
-        if(this->gameboy->biosOn) {
-            mgrReset(false);
+        if(this->biosMapped) {
+            this->biosMapped = false;
+            this->mapBanks();
         }
     });
 
     this->gameboy->mmu->mapIOWriteFunc(RP, [this](u16 addr, u8 val) -> void {
         if(this->gameboy->gbMode == MODE_CGB) {
             this->gameboy->mmu->writeIO(RP, (u8) ((val & ~0x2) | 0x3C));
-            systemSetIRState((val & 0x1) == 1);
+            this->gameboy->settings.setIRState((val & 0x1) == 1);
         }
     });
 
@@ -134,6 +137,8 @@ void MMU::reset() {
 void MMU::loadState(std::istream& data, u8 version) {
     data.read((char*) this->wram, sizeof(this->wram));
     data.read((char*) this->hram, sizeof(this->hram));
+    data.read((char*) &this->biosMapped, sizeof(this->biosMapped));
+    data.read((char*) &this->useRealBios, sizeof(this->useRealBios));
 
     this->mapBanks();
 }
@@ -141,6 +146,8 @@ void MMU::loadState(std::istream& data, u8 version) {
 void MMU::saveState(std::ostream& data) {
     data.write((char*) this->wram, sizeof(this->wram));
     data.write((char*) this->hram, sizeof(this->hram));
+    data.write((char*) &this->biosMapped, sizeof(this->biosMapped));
+    data.write((char*) &this->useRealBios, sizeof(this->useRealBios));
 }
 
 u8 MMU::read(u16 addr) {
@@ -150,7 +157,10 @@ u8 MMU::read(u16 addr) {
     } else if(this->banks[area] != NULL) {
         return this->banks[area][addr & 0xFFF];
     } else {
-        systemPrintDebug("Attempted to read from unmapped memory bank: 0x%x\n", area);
+        if(this->gameboy->settings.printDebug != NULL) {
+            this->gameboy->settings.printDebug("Attempted to read from unmapped memory bank: 0x%x\n", area);
+        }
+
         return 0xFF;
     }
 }
@@ -162,7 +172,9 @@ void MMU::write(u16 addr, u8 val) {
     } else if(this->banks[area] != NULL) {
         this->banks[area][addr & 0xFFF] = val;
     } else {
-        systemPrintDebug("Attempted to write to unmapped memory bank: 0x%x\n", area);
+        if(this->gameboy->settings.printDebug != NULL) {
+            this->gameboy->settings.printDebug("Attempted to write to unmapped memory bank: 0x%x\n", area);
+        }
     }
 }
 
@@ -173,10 +185,10 @@ void MMU::mapBanks() {
     this->mapBankBlock(0xD, this->wram[wramBank != 0 ? wramBank : 1]);
     this->mapBankBlock(0xE, this->wram[0]);
 
-    if(this->gameboy->biosOn) {
+    if(this->biosMapped) {
         this->mapBankReadFunc(0x0, [this](u16 addr) -> u8 {
             if(addr < 0x100 || (addr >= 0x200 && addr <= 0x8FF)) {
-                return this->bios[addr & 0xFFF];
+                return (this->useRealBios ? bios_bin : dummy_bios_bin)[addr & 0xFFF];
             } else if(this->banks[0x0] != NULL) {
                 return this->banks[0x0][addr & 0xFFF];
             }

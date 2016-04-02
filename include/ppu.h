@@ -29,6 +29,14 @@ public:
     inline void writeOam(u16 addr, u8 val) {
         this->oam[addr & 0xFF] = val;
     }
+
+    inline u16* getBgPalette() {
+        return this->bgPaletteData;
+    }
+
+    inline u16* getSprPalette() {
+        return this->sprPaletteData;
+    }
 private:
     typedef struct {
         u8 color[8];

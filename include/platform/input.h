@@ -36,8 +36,8 @@ bool inputKeyRepeat(int key);
 bool inputKeyPressed(int key);
 void inputKeyRelease(int key);
 void inputReleaseAll();
-int inputGetMotionSensorX();
-int inputGetMotionSensorY();
+u16 inputGetMotionSensorX();
+u16 inputGetMotionSensorY();
 
 struct KeyConfig;
 

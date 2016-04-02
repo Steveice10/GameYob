@@ -5,6 +5,7 @@
 #include <chrono>
 #include <fstream>
 #include <sstream>
+#include <gameboy.h>
 
 #include "platform/common/cheatengine.h"
 #include "platform/common/config.h"
@@ -12,12 +13,14 @@
 #include "platform/common/manager.h"
 #include "platform/common/menu.h"
 #include "platform/common/stb_image.h"
+#include "platform/audio.h"
 #include "platform/gfx.h"
 #include "platform/input.h"
 #include "platform/system.h"
 #include "platform/ui.h"
 #include "cartridge.h"
 #include "gameboy.h"
+#include "mmu.h"
 #include "ppu.h"
 #include "sgb.h"
 
@@ -477,20 +480,14 @@ static const unsigned short* findPalette(const char* title) {
     return NULL;
 }
 
-#define US_PER_FRAME ((s64) (1000000.0 / ((double) CYCLES_PER_SECOND / (double) CYCLES_PER_FRAME)))
+#define NS_PER_FRAME ((s64) (1000000000.0 / ((double) CYCLES_PER_SECOND / (double) CYCLES_PER_FRAME)))
 
 Gameboy* gameboy = NULL;
 CheatEngine* cheatEngine = NULL;
 
-u8 gbBios[0x200];
-bool gbBiosLoaded;
-u8 gbcBios[0x900];
-bool gbcBiosLoaded;
-
-u16 gbBgPalette[0x20];
-u16 gbSprPalette[0x20];
-
 int fastForwardCounter;
+
+static u32 audioBuffer[2048];
 
 static std::chrono::time_point<std::chrono::high_resolution_clock, std::chrono::nanoseconds> lastFrameTime;
 static bool fastForward;
@@ -510,14 +507,32 @@ static bool chooserInitialized = false;
 
 void mgrInit() {
     gameboy = new Gameboy();
+
+    gameboy->settings.printDebug = systemPrintDebug;
+
+    gameboy->settings.readTiltX = inputGetMotionSensorX;
+    gameboy->settings.readTiltY = inputGetMotionSensorY;
+    gameboy->settings.setRumble = systemSetRumble;
+
+    gameboy->settings.getIRState = systemGetIRState;
+    gameboy->settings.setIRState = systemSetIRState;
+
+    gameboy->settings.getCameraImage = systemGetCameraImage;
+
+    gameboy->settings.printImage = systemPrintImage;
+
+    gameboy->settings.frameBuffer = gfxGetScreenBuffer();
+    gameboy->settings.framePitch = gfxGetScreenPitch();
+
+    gameboy->settings.audioBuffer = audioBuffer;
+    gameboy->settings.audioSamples = sizeof(audioBuffer) / sizeof(u32);
+    gameboy->settings.audioSampleRate = audioGetSampleRate();
+
     cheatEngine = new CheatEngine(gameboy);
 
-    memset(gbBios, 0, sizeof(gbBios));
-    gbBiosLoaded = false;
-    memset(gbcBios, 0, sizeof(gbcBios));
-    gbcBiosLoaded = false;
-
     fastForwardCounter = 0;
+
+    memset(audioBuffer, 0, sizeof(audioBuffer));
 
     lastFrameTime = std::chrono::high_resolution_clock::now();
     fastForward = false;
@@ -549,16 +564,21 @@ void mgrExit() {
     }
 }
 
-void mgrReset(bool bios) {
+void mgrReset() {
     if(gameboy == NULL) {
         return;
     }
 
     gameboy->powerOff();
-    gameboy->powerOn(bios);
+    gameboy->powerOn();
 
     mgrRefreshBorder();
     mgrRefreshPalette();
+
+    audioClear();
+
+    memset(gfxGetScreenBuffer(), 0, gfxGetScreenPitch() * 224 * sizeof(u32));
+    gfxDrawScreen();
 }
 
 std::string mgrGetRomName() {
@@ -654,7 +674,7 @@ void mgrPowerOff(bool save) {
 
     mgrRefreshBorder();
 
-    gfxClearScreenBuffer(0x0000);
+    memset(gfxGetScreenBuffer(), 0, gfxGetScreenPitch() * 224 * sizeof(u32));
     gfxDrawScreen();
 }
 
@@ -732,6 +752,8 @@ bool mgrLoadState(int stateNum) {
         return false;
     }
 
+    mgrReset();
+
     bool ret = gameboy->loadState(stream);
     stream.close();
     return ret;
@@ -762,13 +784,17 @@ void mgrDeleteState(int stateNum) {
 }
 
 void mgrRefreshPalette() {
+    if(gameboy == NULL) {
+        return;
+    }
+
     const u16* palette = NULL;
     switch(gbColorizeMode) {
         case 0:
             palette = findPalette("GBC - Grayscale");
             break;
         case 1:
-            if(gameboy->cartridge != NULL && !gameboy->biosOn) {
+            if(gameboy->cartridge != NULL) {
                 palette = findPalette(gameboy->cartridge->getRomTitle().c_str());
             }
 
@@ -818,9 +844,9 @@ void mgrRefreshPalette() {
             break;
     }
 
-    memcpy(gbBgPalette, palette, 4 * sizeof(u16));
-    memcpy(gbSprPalette, palette + 4, 4 * sizeof(u16));
-    memcpy(gbSprPalette + 4 * 4, palette + 8, 4 * sizeof(u16));
+    memcpy(gameboy->ppu->getBgPalette(), palette, 4 * sizeof(u16));
+    memcpy(gameboy->ppu->getSprPalette(), palette + 4, 4 * sizeof(u16));
+    memcpy(gameboy->ppu->getSprPalette() + 4 * 4, palette + 8, 4 * sizeof(u16));
 }
 
 bool mgrTryRawBorderFile(std::string border) {
@@ -886,70 +912,13 @@ bool mgrTryBorderName(std::string border) {
     return false;
 }
 
-bool mgrTryCustomBorder() {
-    return gameboy != NULL && gameboy->cartridge != NULL && (mgrTryBorderName(mgrGetRomName()) || mgrTryBorderFile(borderPath));
-}
-
-bool mgrTrySgbBorder() {
-    if(gameboy != NULL && gameboy->isPoweredOn() && gameboy->gbMode == MODE_SGB && gameboy->sgb->getBg() != NULL) {
-        gfxLoadBorder((u8*) gameboy->sgb->getBg(), 256, 224);
-        return true;
-    }
-
-    return false;
-}
-
 void mgrRefreshBorder() {
-    switch(borderSetting) {
-        case 1:
-            if(mgrTrySgbBorder()) {
-                return;
-            }
-
-            break;
-        case 2:
-            if(mgrTryCustomBorder()) {
-                return;
-            }
-
-            break;
-        case 3:
-            if(mgrTrySgbBorder() || mgrTryCustomBorder()) {
-                return;
-            }
-
-            break;
-        case 4:
-            if(mgrTryCustomBorder() || mgrTrySgbBorder()) {
-                return;
-            }
-
-            break;
-        default:
-            break;
-    }
-
     gfxLoadBorder(NULL, 0, 0);
-}
 
-void mgrRefreshBios() {
-    gbBiosLoaded = false;
-    gbcBiosLoaded = false;
-
-    std::ifstream gbStream(gbBiosPath, std::ios::binary);
-    if(gbStream.is_open()) {
-        gbStream.read((char*) gbBios, sizeof(gbBios));
-        gbStream.close();
-
-        gbBiosLoaded = true;
-    }
-
-    std::ifstream gbcStream(gbcBiosPath, std::ios::binary);
-    if(gbcStream.is_open()) {
-        gbcStream.read((char*) gbcBios, sizeof(gbcBios));
-        gbcStream.close();
-
-        gbcBiosLoaded = true;
+    if(customBordersEnabled && gameboy != NULL && gameboy->cartridge != NULL) {
+        if(!mgrTryBorderName(mgrGetRomName())) {
+            mgrTryBorderFile(borderPath);
+        }
     }
 }
 
@@ -991,7 +960,7 @@ void mgrRun() {
     }
 
     auto time = std::chrono::high_resolution_clock::now();
-    if(mgrGetFastForward() || std::chrono::duration_cast<std::chrono::microseconds>(time - lastFrameTime).count() >= US_PER_FRAME) {
+    if(mgrGetFastForward() || (time - lastFrameTime).count() >= NS_PER_FRAME) {
         lastFrameTime = time;
 
         inputUpdate();
@@ -1084,11 +1053,16 @@ void mgrRun() {
         }
 
         if(gameboy->isPoweredOn() && !emulationPaused) {
-            while(!(gameboy->run() & RET_VBLANK));
-
             cheatEngine->applyGSCheats();
 
-            if(!mgrGetFastForward() || fastForwardCounter++ >= fastForwardFrameSkip) {
+            gameboy->settings.drawEnabled = !fastForward || fastForwardCounter++ >= fastForwardFrameSkip;
+            gameboy->runFrame();
+
+            if(gameboy->settings.soundEnabled) {
+                audioPlay(audioBuffer, gameboy->audioSamplesWritten);
+            }
+
+            if(gameboy->settings.drawEnabled) {
                 fastForwardCounter = 0;
                 gfxDrawScreen();
             }

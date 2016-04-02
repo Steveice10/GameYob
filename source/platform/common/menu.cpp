@@ -35,36 +35,22 @@ int gameScreen = 0;
 int pauseOnMenu = 0;
 int stateNum = 0;
 
-int borderSetting = 0;
+bool customBordersEnabled = false;
+int borderScaleMode = 0;
+
+int gbColorizeMode = 0;
 
 int scaleMode = 0;
 int scaleFilter = 0;
-int borderScaleMode = 0;
 
 void (*subMenuUpdateFunc)();
 
 bool fpsOutput = false;
 bool timeOutput = false;
 
-int gbColorizeMode = 0;
-
-bool printerEnabled = 0;
-
-bool soundEnabled = 0;
-
-int sgbModeOption = 0;
-int gbcModeOption = 0;
-bool gbaModeOption = 0;
-
-int biosMode = 0;
-
 int fastForwardFrameSkip = 0;
 
-bool perPixelRendering = false;
-bool emulateBlur = false;
-
 FileChooser borderChooser("/", supportedImages, true);
-FileChooser biosChooser("/", {"bin"}, true);
 
 // Private function used for simple submenus
 void subMenuGenericUpdateFunc() {
@@ -127,7 +113,7 @@ void returnToLauncherFunc(int value) {
 }
 
 void printerEnableFunc(int value) {
-    printerEnabled = (bool) value;
+    gameboy->settings.printerEnabled = (bool) value;
 }
 
 void cheatFunc(int value) {
@@ -203,39 +189,19 @@ void returnFunc(int value) {
 }
 
 void gameboyModeFunc(int value) {
-    gbcModeOption = value;
+    gameboy->settings.gbcModeOption = (GBCMode) value;
 }
 
 void gbaModeFunc(int value) {
-    gbaModeOption = (bool) value;
+    gameboy->settings.gbaModeOption = value == 1;
 }
 
 void sgbModeFunc(int value) {
-    sgbModeOption = value;
+    gameboy->settings.sgbModeOption = (SGBMode) value;
 }
 
-void biosModeFunc(int value) {
-    biosMode = value;
-}
-
-void selectGbBiosFunc(int value) {
-    char* filename = biosChooser.chooseFile();
-    if(filename != NULL) {
-        gbBiosPath = filename;
-        free(filename);
-
-        mgrRefreshBios();
-    }
-}
-
-void selectGbcBiosFunc(int value) {
-    char* filename = biosChooser.chooseFile();
-    if(filename != NULL) {
-        gbcBiosPath = filename;
-        free(filename);
-
-        mgrRefreshBios();
-    }
+void biosEnableFunc(int value) {
+    gameboy->settings.biosEnabled = value == 1;
 }
 
 void setScreenFunc(int value) {
@@ -275,11 +241,11 @@ void setFastForwardFrameSkipFunc(int value) {
 }
 
 void setPerPixelRenderingFunc(int value) {
-    perPixelRendering = value == 1;
+    gameboy->settings.perPixelRendering = value == 1;
 }
 
 void setEmulateBlurFunc(int value) {
-    emulateBlur = value == 1;
+    gameboy->settings.emulateBlur = value == 1;
 }
 
 void gbColorizeFunc(int value) {
@@ -298,9 +264,9 @@ void selectBorderFunc(int value) {
     }
 }
 
-void borderFunc(int value) {
-    borderSetting = value;
-    if(borderSetting >= 2) {
+void setCustomBordersEnabledFunc(int value) {
+    customBordersEnabled = value == 1;
+    if(customBordersEnabled) {
         enableMenuOption("Select Border");
     } else {
         disableMenuOption("Select Border");
@@ -310,7 +276,7 @@ void borderFunc(int value) {
 }
 
 void soundEnableFunc(int value) {
-    soundEnabled = (bool) value;
+    gameboy->settings.soundEnabled = (bool) value;
 }
 
 void romInfoFunc(int value) {
@@ -338,7 +304,7 @@ void versionInfoFunc(int value) {
 }
 
 void setChanEnabled(int chan, int value) {
-    gameboy->apu->setChannelEnabled(chan, value == 1);
+    gameboy->settings.soundChannelEnabled[chan] = value == 1;
 }
 
 void chan1Func(int value) {
@@ -621,15 +587,13 @@ SubMenu menuList[] = {
         },
         {
                 "Gameboy",
-                7,
+                5,
                 {
                         {"GB Printer", printerEnableFunc, 2, {"Off", "On"}, 1},
                         {"GBA Mode", gbaModeFunc, 2, {"Off", "On"}, 0},
                         {"GBC Mode", gameboyModeFunc, 3, {"Off", "If Needed", "On"}, 2},
                         {"SGB Mode", sgbModeFunc, 3, {"Off", "Prefer GBC", "Prefer SGB"}, 1},
-                        {"BIOS Mode", biosModeFunc, 4, {"Off", "Auto", "GB Only", "GBC Only"}, 1},
-                        {"Select GB BIOS", selectGbBiosFunc, 0, {}, 0},
-                        {"Select GBC BIOS", selectGbcBiosFunc, 0, {}, 0}
+                        {"BIOS", biosEnableFunc, 2, {"Off", "On"}, 1}
                 }
         },
         {
@@ -643,7 +607,7 @@ SubMenu menuList[] = {
                         {"Per Pixel Rendering", setPerPixelRenderingFunc, 2, {"Off", "On"}, 0},
                         {"Emulate Blur", setEmulateBlurFunc, 2, {"Off", "On"}, 0},
                         {"Colorize GB", gbColorizeFunc, 14, {"Off", "Auto", "Inverted", "Pastel Mix", "Red", "Orange", "Yellow", "Green", "Blue", "Brown", "Dark Green", "Dark Blue", "Dark Brown", "Classic Green"}, 1},
-                        {"Borders", borderFunc, 5, {"Off", "SGB Only", "Custom Only", "Prefer SGB", "Prefer Custom"}, 1},
+                        {"Custom Borders", setCustomBordersEnabledFunc, 2, {"Off", "On"}, 1},
                         {"Border Scaling", setBorderScaleModeFunc, 2, {"Pre-Scaled", "Scale Base"}, 0},
                         {"Select Border", selectBorderFunc, 0, {}, 0}
                 }

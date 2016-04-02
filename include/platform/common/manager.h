@@ -8,20 +8,12 @@ class Gameboy;
 extern Gameboy* gameboy;
 extern CheatEngine* cheatEngine;
 
-extern u8 gbBios[0x200];
-extern bool gbBiosLoaded;
-extern u8 gbcBios[0x900];
-extern bool gbcBiosLoaded;
-
-extern u16 gbBgPalette[0x20];
-extern u16 gbSprPalette[0x20];
-
 extern int fastForwardCounter;
 
 void mgrInit();
 void mgrExit();
 
-void mgrReset(bool bios = true);
+void mgrReset();
 
 std::string mgrGetRomName();
 void mgrPowerOn(const char* romFile);
@@ -37,7 +29,6 @@ void mgrDeleteState(int stateNum);
 
 void mgrRefreshPalette();
 void mgrRefreshBorder();
-void mgrRefreshBios();
 
 bool mgrGetFastForward();
 void mgrSetFastForward(bool ff);

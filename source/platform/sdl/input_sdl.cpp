@@ -152,11 +152,11 @@ void inputReleaseAll() {
     }
 }
 
-int inputGetMotionSensorX() {
+u16 inputGetMotionSensorX() {
     return 2047;
 }
 
-int inputGetMotionSensorY() {
+u16 inputGetMotionSensorY() {
     return 2047;
 }
 

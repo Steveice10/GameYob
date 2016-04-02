@@ -7,6 +7,8 @@
 #include "gb_apu/Blip_Buffer.h"
 #include "types.h"
 
+class Gameboy;
+
 class Gb_Osc {
 protected:
 	
@@ -18,14 +20,14 @@ protected:
 	void push_sample( const Blip_Synth<quality, range>* synth, s32 time, int delta, Blip_Buffer* out );
 	int write_trig( int frame_phase, int max_len, int old_data );
 public:
-
 	enum { dac_bias = 7 };
 
-	bool            output_enabled = true;
+	Gameboy* gameboy;
+
+	int				osc_index;
 	Blip_Buffer*    outputs [4];// NULL, right, left, center
 	Blip_Buffer*    output;     // where to output sound
-	u8* regs;       // osc's 5 registers
-	int             mode;       // mode_dmg, mode_cgb, mode_agb
+	u8*             regs;       // osc's 5 registers
 	int             dac_off_amp;// amplitude when DAC is off
 	int             last_amp;   // current amplitude in Blip_Buffer
 	typedef Blip_Synth<blip_good_quality,1> Good_Synth;
@@ -148,10 +150,8 @@ public:
 	}
 	
 private:
-	enum { bank40_mask = 0x40 };
 	enum { bank_size   = 32 };
-	
-	int agb_mask;               // 0xFF if AGB features enabled, 0 otherwise
+
 	u8* wave_ram;   // 32 bytes (64 nybbles), stored in APU
 
 	bool first_phase;
@@ -166,7 +166,7 @@ private:
 	
 	void corrupt_wave();
 	
-	u8* wave_bank() const { return &wave_ram [(~regs [0] & bank40_mask) >> 2 & agb_mask]; }
+	u8* wave_bank() const { return &wave_ram [0]; }
 	
 	// Wave index that would be accessed, or -1 if no access would occur
 	int access( unsigned addr ) const;

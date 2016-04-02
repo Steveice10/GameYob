@@ -23,14 +23,11 @@ public:
     void update();
 
     void setHalfSpeed(bool halfSpeed);
-
-    void setChannelEnabled(int channel, bool enabled);
 private:
     Gameboy* gameboy;
 
-    Stereo_Buffer* buffer;
-
-    Gb_Apu* apu;
+    Stereo_Buffer* buffer = NULL;
+    Gb_Apu* apu = NULL;
 
     u64 lastSoundCycle;
     bool halfSpeed;

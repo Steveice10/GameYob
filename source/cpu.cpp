@@ -1,8 +1,5 @@
 #include <string.h>
 
-#include "platform/common/menu.h"
-#include "platform/system.h"
-#include "types.h"
 #include "apu.h"
 #include "cartridge.h"
 #include "cpu.h"
@@ -58,23 +55,8 @@ void CPU::reset() {
     this->haltBug = false;
     this->ime = false;
 
-    if(this->gameboy->biosOn) {
-        this->registers.pc.w = 0;
-    } else {
-        this->registers.pc.w = 0x100;
-    }
-
-    this->registers.af.b.l = 0xB0;
-    this->registers.bc.w = 0x0013;
-    this->registers.de.w = 0x00D8;
-    this->registers.hl.w = 0x014D;
-    if(this->gameboy->gbMode == MODE_CGB) {
-        this->registers.af.b.h = 0x11;
-        if(gbaModeOption) {
-            this->registers.bc.b.h |= 1;
-        }
-    } else {
-        this->registers.af.b.h = 0x01;
+    if(this->gameboy->gbMode == MODE_CGB && this->gameboy->settings.gbaModeOption) {
+        this->registers.bc.b.h = 1;
     }
 
     this->gameboy->mmu->mapIOWriteFunc(IF, [this](u16 addr, u8 val) -> void {
@@ -151,7 +133,9 @@ void CPU::updateEvents() {
 }
 
 void CPU::undefined() {
-    systemPrintDebug("Undefined instruction 0x%x at 0x%x.\n", this->gameboy->mmu->read((u16) (this->registers.pc.w - 1)), this->registers.pc.w - 1);
+    if(this->gameboy->settings.printDebug != NULL) {
+        this->gameboy->settings.printDebug("Undefined instruction 0x%x at 0x%x.\n", this->gameboy->mmu->read((u16) (this->registers.pc.w - 1)), this->registers.pc.w - 1);
+    }
 }
 
 void CPU::nop() {

@@ -1,0 +1,180 @@
+; VRAM
+VRAM_START EQU $8000
+VRAM_END EQU $9FFF
+VRAM_SIZE EQU $2000
+
+; Input
+R_JOYP EQU $FF00
+
+; Serial
+R_SB EQU $FF01
+R_SC EQU $FF02
+
+; Timer
+R_DIV EQU $FF04
+R_TIMA EQU $FF05
+R_TMA EQU $FF06
+R_TAC EQU $FF07
+
+; Interrupts
+R_IF EQU $FF0F
+R_IE EQU $FFFF
+
+; Audio
+R_NR10 EQU $FF10
+R_NR11 EQU $FF11
+R_NR12 EQU $FF12
+R_NR13 EQU $FF13
+R_NR14 EQU $FF14
+R_NR21 EQU $FF16
+R_NR22 EQU $FF17
+R_NR23 EQU $FF18
+R_NR24 EQU $FF19
+R_NR30 EQU $FF1A
+R_NR31 EQU $FF1B
+R_NR32 EQU $FF1C
+R_NR33 EQU $FF1D
+R_NR34 EQU $FF1E
+R_NR41 EQU $FF20
+R_NR42 EQU $FF21
+R_NR43 EQU $FF22
+R_NR44 EQU $FF23
+R_NR50 EQU $FF24
+R_NR51 EQU $FF25
+R_NR52 EQU $FF26
+
+WAVERAM_START EQU $FF30
+WAVERAM_END EQU $FF3F
+
+; LCD
+R_LCDC EQU $FF40
+R_STAT EQU $FF41
+R_SCY EQU $FF42
+R_SCX EQU $FF43
+R_LY EQU $FF44
+R_LYC EQU $FF45
+R_DMA EQU $FF46
+R_BGP EQU $FF47
+R_OBP0 EQU $FF48
+R_OBP1 EQU $FF49
+R_WY EQU $FF4A
+R_WX EQU $FF4B
+R_VBK EQU $FF4F
+R_HDMA1 EQU $FF51
+R_HDMA2 EQU $FF52
+R_HDMA3 EQU $FF53
+R_HDMA4 EQU $FF54
+R_HDMA5 EQU $FF55
+R_BCPS EQU $FF68
+R_BCPD EQU $FF69
+R_OCPS EQU $FF6A
+R_OCPD EQU $FF6B
+
+; CPU
+R_KEY1 EQU $FF4D
+
+; BIOS
+R_BIOS EQU $FF50
+
+; Infrared
+R_RP EQU $FF56
+
+; WRAM
+R_SVBK EQU $FF70
+
+; Read register to A.
+rrega: MACRO
+        LDH A,[\1 - $FF00]
+ENDM
+
+; Read register.
+rreg: MACRO
+        rrega \1
+        LD \2,A
+ENDM
+
+; Write register from A.
+wrega: MACRO
+        LDH [\1 - $FF00],A
+ENDM
+
+; Write register.
+wreg: MACRO
+	LD A,\2
+        wrega \1
+ENDM
+
+; Fill BC bytes of (HL) with D.
+FillMem:
+	PUSH AF
+	PUSH BC
+	PUSH HL
+	LD A,0
+	CP C
+	JR NZ,FillMemIncB
+	CP B
+	JR Z,FillMemRet
+	DEC B
+FillMemIncB:
+	INC B
+	LD A,D
+FillMemLoop:
+	LD [HL+],A
+	DEC C
+	JR NZ,FillMemLoop
+	DEC B
+	JR NZ,FillMemLoop
+FillMemRet:
+	POP HL
+	POP BC
+	POP AF
+	RET
+
+; Load BC bytes of byte-per-line tiles from (DE) to (HL).
+LoadByteTiles:
+	PUSH AF
+	PUSH BC
+	PUSH DE
+	PUSH HL
+	LD A,0
+	CP C
+	JR NZ,LoadByteTilesIncB
+	CP B
+	JR Z,LoadByteTilesRet
+	DEC B
+LoadByteTilesIncB:
+	INC B
+LoadByteTilesLoop:
+	LD A,[DE]
+	LD [HL+],A
+	INC HL
+	INC DE
+	DEC C
+	JR NZ, LoadByteTilesLoop
+	DEC B
+	JR NZ, LoadByteTilesLoop
+LoadByteTilesRet:
+	POP HL
+	POP DE
+	POP BC
+	POP AF
+	RET
+
+; Wait for VBlank interrupt trigger.
+WaitForVBlank:
+	PUSH HL
+	LD HL,R_IF
+	RES 0,[HL]
+WaitForVBlankInner:
+	BIT 0,[HL]
+	JR Z,WaitForVBlankInner
+	POP HL
+	RET
+
+; Play frequency B.
+PlayFrequency:
+	PUSH AF
+        wreg R_NR13,B
+        wreg R_NR14,$87
+	POP AF
+	RET

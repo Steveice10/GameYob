@@ -1,4 +1,3 @@
-#include "platform/common/menu.h"
 #include "cartridge.h"
 #include "cpu.h"
 #include "gameboy.h"
@@ -56,7 +55,7 @@ void Serial::saveState(std::ostream& data) {
 }
 
 void Serial::update() {
-    if(printerEnabled) {
+    if(this->gameboy->settings.printerEnabled) {
         this->printer->update();
     }
 
@@ -91,7 +90,7 @@ void Serial::update() {
             u8 sb = this->gameboy->mmu->readIO(SB);
 
             u8 received = 0xFF;
-            if(printerEnabled && (this->gameboy->cartridge == NULL || this->gameboy->cartridge->getRomTitle().compare("ALLEY WAY") != 0)) { // Alleyway breaks when the printer is enabled, so force disable it.
+            if(this->gameboy->settings.printerEnabled && (this->gameboy->cartridge == NULL || this->gameboy->cartridge->getRomTitle().compare("ALLEY WAY") != 0)) { // Alleyway breaks when the printer is enabled, so force disable it.
                 received = this->printer->link(sb);
             } else {
                 // TODO: Send/Receive

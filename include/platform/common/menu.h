@@ -8,25 +8,17 @@
 
 extern std::vector<std::string> supportedImages;
 
-extern int borderSetting;
+extern bool customBordersEnabled;
+extern int borderScaleMode;
+extern int gbColorizeMode;
 extern int pauseOnMenu;
 extern int stateNum;
 extern int gameScreen;
 extern int scaleMode;
 extern int scaleFilter;
-extern int borderScaleMode;
 extern bool fpsOutput;
 extern bool timeOutput;
-extern int gbColorizeMode;
-extern bool printerEnabled;
-extern bool soundEnabled;
-extern int sgbModeOption;
-extern int gbcModeOption;
-extern bool gbaModeOption;
-extern int biosMode;
 extern int fastForwardFrameSkip;
-extern bool perPixelRendering;
-extern bool emulateBlur;
 extern FILE* linkSocket;
 
 void setMenuDefaults();

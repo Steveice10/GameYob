@@ -13,7 +13,7 @@ int main(int argc, char* argv[]) {
     readConfigFile();
 
     while(systemIsRunning()) {
-        systemRun();
+        mgrRun();
     }
 
     mgrExit();

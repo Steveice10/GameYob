@@ -4,13 +4,10 @@
 
 bool systemInit(int argc, char* argv[]);
 void systemExit();
-void systemRun();
 bool systemIsRunning();
 void systemRequestExit();
 
 const std::string systemIniPath();
-const std::string systemDefaultGbBiosPath();
-const std::string systemDefaultGbcBiosPath();
 const std::string systemDefaultBorderPath();
 const std::string systemDefaultRomPath();
 
@@ -27,3 +24,5 @@ FILE* systemSocketConnect(const std::string ipAddress, u16 port);
 void systemSetRumble(bool rumble);
 
 u32* systemGetCameraImage();
+
+void systemPrintImage(bool appending, u8* buf, int size, u8 palette);

@@ -1,8 +1,6 @@
 #include "gb_apu/Gb_Apu.h"
 #include "gb_apu/Multi_Buffer.h"
 
-#include "platform/common/menu.h"
-#include "platform/audio.h"
 #include "apu.h"
 #include "cpu.h"
 #include "gameboy.h"
@@ -10,34 +8,42 @@
 
 APU::APU(Gameboy* gameboy) {
     this->gameboy = gameboy;
-
-    this->buffer = new Stereo_Buffer();
-    this->buffer->set_sample_rate((long) audioGetSampleRate());
-    this->buffer->clock_rate(CYCLES_PER_SECOND);
-
-    this->apu = new Gb_Apu();
-    this->apu->set_output(this->buffer->center(), this->buffer->left(), this->buffer->right());
 }
 
 APU::~APU() {
-    delete this->apu;
-    delete this->buffer;
+    if(this->buffer != NULL) {
+        delete this->buffer;
+        this->buffer = NULL;
+    }
+
+    if(this->apu != NULL) {
+        delete this->apu;
+        this->apu = NULL;
+    }
 }
 
 void APU::reset() {
-    audioClear();
+    if(this->buffer != NULL) {
+        delete this->buffer;
+        this->buffer = NULL;
+    }
+
+    if(this->apu != NULL) {
+        delete this->apu;
+        this->apu = NULL;
+    }
+
+    this->buffer = new Stereo_Buffer();
+    this->buffer->set_sample_rate((long) this->gameboy->settings.audioSampleRate);
+    this->buffer->clock_rate(CYCLES_PER_SECOND);
+    this->buffer->clear();
+
+    this->apu = new Gb_Apu(gameboy);
+    this->apu->set_output(this->buffer->center(), this->buffer->left(), this->buffer->right());
+    this->apu->reset();
 
     this->lastSoundCycle = 0;
     this->halfSpeed = false;
-
-    this->apu->reset(this->gameboy->gbMode == MODE_CGB ? Gb_Apu::mode_cgb : Gb_Apu::mode_dmg);
-    this->buffer->clear();
-
-    if(!this->gameboy->biosOn) {
-        this->apu->write_register(0, NR52, 0x80);
-        this->apu->write_register(0, NR51, 0xF3);
-        this->apu->write_register(0, NR50, 0x77);
-    }
 
     auto read = [this](u16 addr) -> u8 {
         return (u8) this->apu->read_register((u32) (this->gameboy->cpu->getCycle() - this->lastSoundCycle) >> this->halfSpeed, addr);
@@ -65,7 +71,6 @@ void APU::loadState(std::istream& data, u8 version) {
     data.read((char*) &this->halfSpeed, sizeof(this->halfSpeed));
 
     this->apu->load_state(apuState);
-    audioClear();
 }
 
 void APU::saveState(std::ostream& data) {
@@ -86,14 +91,14 @@ void APU::update() {
 
         this->lastSoundCycle = this->gameboy->cpu->getCycle();
 
-        if(soundEnabled) {
-            long available = this->buffer->samples_avail();
-            u32* buf = new u32[available / 2 * sizeof(u32)];
+        if(this->gameboy->settings.soundEnabled && this->gameboy->settings.audioBuffer != NULL) {
+            long space = this->gameboy->settings.audioSamples - this->gameboy->audioSamplesWritten;
+            long read = this->buffer->samples_avail() / 2;
+            if(read > space) {
+                read = space;
+            }
 
-            long count = this->buffer->read_samples((s16*) buf, available);
-            audioPlay(buf, count / 2);
-
-            delete buf;
+            this->gameboy->audioSamplesWritten += this->buffer->read_samples((s16*) &this->gameboy->settings.audioBuffer[this->gameboy->audioSamplesWritten], read * 2) / 2;
         } else {
             this->buffer->clear();
         }
@@ -110,9 +115,5 @@ void APU::setHalfSpeed(bool halfSpeed) {
     }
 
     this->halfSpeed = halfSpeed;
-}
-
-void APU::setChannelEnabled(int channel, bool enabled) {
-    this->apu->set_osc_output_enabled(channel, enabled);
 }
 

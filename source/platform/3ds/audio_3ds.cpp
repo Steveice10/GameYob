@@ -65,7 +65,7 @@ void audioCleanup() {
     }
 }
 
-u16 audioGetSampleRate() {
+u32 audioGetSampleRate() {
     return 44100;
 }
 

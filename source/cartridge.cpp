@@ -1,11 +1,8 @@
-#include <errno.h>
 #include <string.h>
 #include <time.h>
 
 #include <algorithm>
 
-#include "platform/input.h"
-#include "platform/system.h"
 #include "cpu.h"
 #include "gameboy.h"
 #include "cartridge.h"
@@ -122,7 +119,10 @@ Cartridge::Cartridge(std::istream& romData, int romSize, std::istream& saveData,
             this->mbcType = HUC1;
             break;
         default:
-            systemPrintDebug("Unsupported mapper value %02x\n", this->rom[0x0147]);
+            if(this->gameboy->settings.printDebug != NULL) {
+                this->gameboy->settings.printDebug("Unsupported mapper value %02x\n", this->rom[0x0147]);
+            }
+
             this->mbcType = MBC5;
             break;
     }
@@ -149,7 +149,10 @@ Cartridge::Cartridge(std::istream& romData, int romSize, std::istream& saveData,
                 this->totalRamBanks = 16;
                 break;
             default:
-                systemPrintDebug("Invalid RAM bank number: %x\nDefaulting to 4 banks.\n", this->getRawRamSize());
+                if(this->gameboy->settings.printDebug != NULL) {
+                    this->gameboy->settings.printDebug("Invalid RAM bank number: %x\nDefaulting to 4 banks.\n", this->getRawRamSize());
+                }
+
                 this->totalRamBanks = 4;
                 break;
         }
@@ -222,10 +225,10 @@ void Cartridge::reset(Gameboy* gameboy) {
     this->mbc3Ctrl = 0;
 
     // MBC6
-    this->romBank1ALatch = 2;
-    this->romBank1BLatch = 3;
-    this->romBank1A = 2;
-    this->romBank1B = 3;
+    this->mbc6RomBank1ALatch = 2;
+    this->mbc6RomBank1BLatch = 3;
+    this->mbc6RomBank1A = 2;
+    this->mbc6RomBank1B = 3;
 
     // MBC7
     this->mbc7WriteEnable = false;
@@ -278,10 +281,10 @@ void Cartridge::loadState(std::istream& data, u8 version) {
             data.read((char*) &this->mbc3Ctrl, sizeof(this->mbc3Ctrl));
             break;
         case MBC6:
-            data.read((char*) &this->romBank1ALatch, sizeof(this->romBank1ALatch));
-            data.read((char*) &this->romBank1BLatch, sizeof(this->romBank1BLatch));
-            data.read((char*) &this->romBank1A, sizeof(this->romBank1A));
-            data.read((char*) &this->romBank1B, sizeof(this->romBank1B));
+            data.read((char*) &this->mbc6RomBank1ALatch, sizeof(this->mbc6RomBank1ALatch));
+            data.read((char*) &this->mbc6RomBank1BLatch, sizeof(this->mbc6RomBank1BLatch));
+            data.read((char*) &this->mbc6RomBank1A, sizeof(this->mbc6RomBank1A));
+            data.read((char*) &this->mbc6RomBank1B, sizeof(this->mbc6RomBank1B));
             break;
         case MBC7:
             data.read((char*) &this->mbc7WriteEnable, sizeof(this->mbc7WriteEnable));
@@ -337,10 +340,10 @@ void Cartridge::saveState(std::ostream& data) {
             data.write((char*) &this->mbc3Ctrl, sizeof(this->mbc3Ctrl));
             break;
         case MBC6:
-            data.write((char*) &this->romBank1ALatch, sizeof(this->romBank1ALatch));
-            data.write((char*) &this->romBank1BLatch, sizeof(this->romBank1BLatch));
-            data.write((char*) &this->romBank1A, sizeof(this->romBank1A));
-            data.write((char*) &this->romBank1B, sizeof(this->romBank1B));
+            data.write((char*) &this->mbc6RomBank1ALatch, sizeof(this->mbc6RomBank1ALatch));
+            data.write((char*) &this->mbc6RomBank1BLatch, sizeof(this->mbc6RomBank1BLatch));
+            data.write((char*) &this->mbc6RomBank1A, sizeof(this->mbc6RomBank1A));
+            data.write((char*) &this->mbc6RomBank1B, sizeof(this->mbc6RomBank1B));
             break;
         case MBC7:
             data.write((char*) &this->mbc7WriteEnable, sizeof(this->mbc7WriteEnable));
@@ -399,7 +402,10 @@ u8 Cartridge::readSram(u16 addr) {
     if(bank >= 0 && bank < this->totalRamBanks) {
         return this->sram[bank * 0x2000 + (addr & 0x1FFF)];
     } else {
-        systemPrintDebug("Attempted to read from invalid SRAM bank: %d\n", bank);
+        if(this->gameboy->settings.printDebug != NULL) {
+            this->gameboy->settings.printDebug("Attempted to read from invalid SRAM bank: %d\n", bank);
+        }
+
         return 0xFF;
     }
 }
@@ -409,7 +415,9 @@ void Cartridge::writeSram(u16 addr, u8 val) {
     if(bank >= 0 && bank < this->totalRamBanks) {
         this->sram[bank * 0x2000 + (addr & 0x1FFF)] = val;
     } else {
-        systemPrintDebug("Attempted to write to invalid SRAM bank: %d\n", bank);
+        if(this->gameboy->settings.printDebug != NULL) {
+            this->gameboy->settings.printDebug("Attempted to write to invalid SRAM bank: %d\n", bank);
+        }
     }
 }
 
@@ -422,7 +430,9 @@ void Cartridge::mapRomBank0() {
         this->gameboy->mmu->mapBankBlock(0x2, bankPtr + 0x2000);
         this->gameboy->mmu->mapBankBlock(0x3, bankPtr + 0x3000);
     } else {
-        systemPrintDebug("Attempted to access invalid ROM bank: %d\n", bank);
+        if(this->gameboy->settings.printDebug != NULL) {
+            this->gameboy->settings.printDebug("Attempted to access invalid ROM bank: %d\n", bank);
+        }
 
         this->gameboy->mmu->mapBankBlock(0x0, NULL);
         this->gameboy->mmu->mapBankBlock(0x1, NULL);
@@ -433,7 +443,7 @@ void Cartridge::mapRomBank0() {
 
 void Cartridge::mapRomBank1() {
     if(this->mbcType == MBC6) {
-        s32 bank1A = this->romBank1A & ((this->totalRomBanks * 2) - 1);
+        s32 bank1A = this->mbc6RomBank1A & ((this->totalRomBanks * 2) - 1);
         u8* bankPtr1A = this->getRomBank(bank1A >> 1);
         if(bankPtr1A != NULL) {
             u8* subPtr = bankPtr1A + (bank1A & 0x1) * 0x2000;
@@ -441,13 +451,15 @@ void Cartridge::mapRomBank1() {
             this->gameboy->mmu->mapBankBlock(0x4, subPtr + 0x0000);
             this->gameboy->mmu->mapBankBlock(0x5, subPtr + 0x1000);
         } else {
-            systemPrintDebug("Attempted to access invalid sub ROM bank: %d\n", bank1A);
+            if(this->gameboy->settings.printDebug != NULL) {
+                this->gameboy->settings.printDebug("Attempted to access invalid sub ROM bank: %d\n", bank1A);
+            }
 
             this->gameboy->mmu->mapBankBlock(0x4, NULL);
             this->gameboy->mmu->mapBankBlock(0x5, NULL);
         }
 
-        s32 bank1B = this->romBank1B & ((this->totalRomBanks * 2) - 1);
+        s32 bank1B = this->mbc6RomBank1B & ((this->totalRomBanks * 2) - 1);
         u8* bankPtr1B = this->getRomBank(bank1B >> 1);
         if(bankPtr1B != NULL) {
             u8* subPtr = bankPtr1B + (bank1B & 0x1) * 0x2000;
@@ -455,7 +467,9 @@ void Cartridge::mapRomBank1() {
             this->gameboy->mmu->mapBankBlock(0x6, subPtr + 0x0000);
             this->gameboy->mmu->mapBankBlock(0x7, subPtr + 0x1000);
         } else {
-            systemPrintDebug("Attempted to access invalid sub ROM bank: %d\n", bank1B);
+            if(this->gameboy->settings.printDebug != NULL) {
+                this->gameboy->settings.printDebug("Attempted to access invalid sub ROM bank: %d\n", bank1B);
+            }
 
             this->gameboy->mmu->mapBankBlock(0x6, NULL);
             this->gameboy->mmu->mapBankBlock(0x7, NULL);
@@ -469,7 +483,9 @@ void Cartridge::mapRomBank1() {
             this->gameboy->mmu->mapBankBlock(0x6, bankPtr + 0x2000);
             this->gameboy->mmu->mapBankBlock(0x7, bankPtr + 0x3000);
         } else {
-            systemPrintDebug("Attempted to access invalid ROM bank: %d\n", bank);
+            if(this->gameboy->settings.printDebug != NULL) {
+                this->gameboy->settings.printDebug("Attempted to access invalid ROM bank: %d\n", bank);
+            }
 
             this->gameboy->mmu->mapBankBlock(0x4, NULL);
             this->gameboy->mmu->mapBankBlock(0x5, NULL);
@@ -488,8 +504,8 @@ void Cartridge::mapSramBank() {
         this->gameboy->mmu->mapBankBlock(0xB, bankPtr + 0x1000);
     } else {
         // Only report if there's no chance it's a special bank number.
-        if(this->readFunc == NULL) {
-            systemPrintDebug("Attempted to access invalid SRAM bank: %d\n", bank);
+        if(this->readFunc == NULL && this->gameboy->settings.printDebug != NULL) {
+            this->gameboy->settings.printDebug("Attempted to access invalid SRAM bank: %d\n", bank);
         }
 
         this->gameboy->mmu->mapBankBlock(0xA, NULL);
@@ -566,13 +582,29 @@ u8 Cartridge::m7r(u16 addr) {
         case 0x70:
             return 0;
         case 0x20:
-            return (u8) (inputGetMotionSensorX() & 0xFF);
+            if(this->gameboy->settings.readTiltX == NULL) {
+                return 0xFF;
+            }
+
+            return (u8) (this->gameboy->settings.readTiltX() & 0xFF);
         case 0x30:
-            return (u8) ((inputGetMotionSensorX() >> 8) & 0xFF);
+            if(this->gameboy->settings.readTiltX == NULL) {
+                return 0x07;
+            }
+
+            return (u8) ((this->gameboy->settings.readTiltX() >> 8) & 0xFF);
         case 0x40:
-            return (u8) (inputGetMotionSensorY() & 0xFF);
+            if(this->gameboy->settings.readTiltY == NULL) {
+                return 0xFF;
+            }
+
+            return (u8) (this->gameboy->settings.readTiltY() & 0xFF);
         case 0x50:
-            return (u8) ((inputGetMotionSensorY() >> 8) & 0xFF);
+            if(this->gameboy->settings.readTiltY == NULL) {
+                return 0x07;
+            }
+
+            return (u8) ((this->gameboy->settings.readTiltY() >> 8) & 0xFF);
         case 0x80:
             return this->mbc7RA;
         default:
@@ -822,14 +854,8 @@ void Cartridge::m5w(u16 addr, u8 val) {
         case 0x5:
             /* MBC5 might have a rumble motor, which is triggered by the
              * 4th bit of the value written */
-            if(this->rumble) {
-                systemSetRumble((val & 0x8) != 0);
-                val &= 0x7;
-            } else {
-                val &= 0xF;
-            }
-
-            this->sramBank = val;
+            this->gameboy->settings.setRumble(this->rumble && (val & 0x8) != 0);
+            this->sramBank = this->rumble ? (val & 0x7) : (val & 0xF);
             this->mapSramBank();
             break;
         case 0x6: /* 6000 - 7FFF */
@@ -856,18 +882,18 @@ void Cartridge::m6w(u16 addr, u8 val) {
             break;
         case 0x2: /* 2000 - 3FFF */
             if(!(addr & 0x0800)) {
-                this->romBank1ALatch = val & 0x7F;
+                this->mbc6RomBank1ALatch = val & 0x7F;
             } else if(val == 0) {
-                this->romBank1A = this->romBank1ALatch;
+                this->mbc6RomBank1A = this->mbc6RomBank1ALatch;
                 this->mapRomBank1();
             }
 
             break;
         case 0x3:
             if(!(addr & 0x0800)) {
-                this->romBank1BLatch = val & 0x7F;
+                this->mbc6RomBank1BLatch = val & 0x7F;
             } else if(val == 0) {
-                this->romBank1B = this->romBank1BLatch;
+                this->mbc6RomBank1B = this->mbc6RomBank1BLatch;
                 this->mapRomBank1();
             }
 
@@ -1250,7 +1276,10 @@ void Cartridge::h3w(u16 addr, u8 val) {
                             this->huc3Value = 1;
                             break;
                         default:
-                            systemPrintDebug("Unhandled HuC3 command 0x%02X.\n", val);
+                            if(this->gameboy->settings.printDebug != NULL) {
+                                this->gameboy->settings.printDebug("Unhandled HuC3 command 0x%02X.\n", val);
+                            }
+
                             break;
                     }
 
@@ -1496,7 +1525,11 @@ void Cartridge::camTakePicture() {
     this->cameraReadyCycle = this->gameboy->cpu->getCycle() + exposureBits * 64 + (nBit ? 0 : 2048) + 129784;
     this->gameboy->cpu->setEventCycle(this->cameraReadyCycle);
 
-    u32* image = systemGetCameraImage();
+    if(this->gameboy->settings.getCameraImage == NULL) {
+        return;
+    }
+
+    u32* image = this->gameboy->settings.getCameraImage();
     if(image == NULL) {
         return;
     }
@@ -1582,7 +1615,10 @@ void Cartridge::camTakePicture() {
             memcpy(filtered, tempBuf, sizeof(filtered));
             break;
         default:
-            systemPrintDebug("Unsupported camera filter mode: 0x%x\n", filterMode);
+            if(this->gameboy->settings.printDebug != NULL) {
+                this->gameboy->settings.printDebug("Unsupported camera filter mode: 0x%x\n", filterMode);
+            }
+
             break;
     }
 

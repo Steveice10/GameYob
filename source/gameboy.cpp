@@ -1,5 +1,3 @@
-#include "platform/common/manager.h"
-#include "platform/common/menu.h"
 #include "apu.h"
 #include "cartridge.h"
 #include "cpu.h"
@@ -37,22 +35,20 @@ Gameboy::~Gameboy() {
     delete this->serial;
 }
 
-void Gameboy::powerOn(bool bios) {
+void Gameboy::powerOn() {
     if(this->poweredOn) {
         return;
     }
 
-    this->frontendEvents = 0;
-
     if(this->cartridge != NULL) {
-        if((gbcModeOption == 1 && this->cartridge->isCgbRequired()) || (gbcModeOption == 2 && this->cartridge->isCgbSupported())) {
-            if(sgbModeOption == 2 && this->cartridge->isSgbEnhanced()) {
+        if((this->settings.gbcModeOption == GBC_IF_NEEDED && this->cartridge->isCgbRequired()) || (this->settings.gbcModeOption == GBC_ON && this->cartridge->isCgbSupported())) {
+            if(this->settings.sgbModeOption == SGB_PREFER_SGB && this->cartridge->isSgbEnhanced()) {
                 this->gbMode = MODE_SGB;
             } else {
                 this->gbMode = MODE_CGB;
             }
         } else {
-            if(sgbModeOption != 0 && this->cartridge->isSgbEnhanced()) {
+            if(this->settings.sgbModeOption != SGB_OFF && this->cartridge->isSgbEnhanced()) {
                 this->gbMode = MODE_SGB;
             } else {
                 this->gbMode = MODE_GB;
@@ -60,13 +56,6 @@ void Gameboy::powerOn(bool bios) {
         }
     } else {
         this->gbMode = MODE_CGB;
-    }
-
-    this->biosOn = bios && ((biosMode == 1 && (gbBiosLoaded || gbcBiosLoaded)) || (biosMode == 2 && gbBiosLoaded) || (biosMode == 3 && gbcBiosLoaded));
-    this->biosType = (biosMode == 1 && gbBiosLoaded && (!gbcBiosLoaded || this->gbMode != MODE_CGB)) || biosMode == 2 ? MODE_GB : MODE_CGB;
-
-    if(this->biosOn) {
-        this->gbMode = this->biosType;
     }
 
     this->mmu->reset();
@@ -97,8 +86,6 @@ bool Gameboy::loadState(std::istream& data) {
     }
 
     data.read((char*) &this->gbMode, sizeof(this->gbMode));
-    data.read((char*) &this->biosOn, sizeof(this->biosOn));
-    data.read((char*) &this->biosType, sizeof(this->biosType));
 
     this->mmu->loadState(data, version);
     this->cpu->loadState(data, version);
@@ -112,10 +99,6 @@ bool Gameboy::loadState(std::istream& data) {
         this->cartridge->loadState(data, version);
     }
 
-    if((this->gbMode == MODE_GB && !gbBiosLoaded) || (this->gbMode == MODE_CGB && !gbcBiosLoaded)) {
-        this->biosOn = false;
-    }
-
     return true;
 }
 
@@ -123,8 +106,6 @@ bool Gameboy::saveState(std::ostream& data) {
     data.write((char*) &STATE_VERSION, sizeof(STATE_VERSION));
 
     data.write((char*) &this->gbMode, sizeof(this->gbMode));
-    data.write((char*) &this->biosOn, sizeof(this->biosOn));
-    data.write((char*) &this->biosType, sizeof(this->biosType));
 
     this->mmu->saveState(data);
     this->cpu->saveState(data);
@@ -141,16 +122,15 @@ bool Gameboy::saveState(std::ostream& data) {
     return true;
 }
 
-int Gameboy::run() {
+void Gameboy::runFrame() {
     if(!this->poweredOn) {
-        return RET_VBLANK;
+        return;
     }
 
-    while(this->frontendEvents == 0) {
+    this->ranFrame = false;
+    this->audioSamplesWritten = 0;
+
+    while(!this->ranFrame) {
         this->cpu->run();
     }
-
-    int ret = this->frontendEvents;
-    this->frontendEvents = 0;
-    return ret;
 }

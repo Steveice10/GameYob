@@ -13,6 +13,8 @@ details. You should have received a copy of the GNU Lesser General Public
 License along with this module; if not, write to the Free Software Foundation,
 Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA */
 
+#include "gameboy.h"
+
 bool const cgb_02 = false; // enables bug in early CGB units that causes problems in some games
 bool const cgb_05 = false; // enables CGB-05 zombie behavior
 
@@ -30,11 +32,7 @@ void Gb_Osc::reset()
 
 inline void Gb_Osc::update_amp( s32 time, int new_amp )
 {
-	if(output_enabled)
-	{
-		output->set_modified();
-	}
-
+	output->set_modified();
 	int delta = new_amp - last_amp;
 	if ( delta )
 	{
@@ -46,7 +44,7 @@ inline void Gb_Osc::update_amp( s32 time, int new_amp )
 template<int quality,int range>
 inline void Gb_Osc::push_sample( const Blip_Synth<quality, range>* synth, s32 time, int delta, Blip_Buffer* out )
 {
-	if(output_enabled)
+	if(gameboy->settings.soundChannelEnabled[osc_index])
 	{
 		synth->offset_inline( time, delta, out );
 	}
@@ -124,10 +122,10 @@ void Gb_Sweep_Square::clock_sweep()
 
 int Gb_Wave::access( unsigned addr ) const
 {
-	if ( enabled && mode != Gb_Apu::mode_agb )
+	if ( enabled )
 	{
 		addr = phase & (bank_size - 1);
-		if ( mode == Gb_Apu::mode_dmg )
+		if ( gameboy->gbMode == MODE_GB )
 		{
 			if ( first_phase || delay != period() )
 				return -1; // can only access within narrow time window while playing
@@ -169,7 +167,7 @@ int Gb_Osc::write_trig( int frame_phase, int max_len, int old_data )
 inline void Gb_Env::zombie_volume( int old, int data )
 {
 	int v = volume;
-	if ( mode == Gb_Apu::mode_agb || cgb_05 )
+	if ( cgb_05 )
 	{
 		// CGB-05 behavior, very close to AGB behavior as well
 		if ( (old ^ data) & 8 )
@@ -305,7 +303,7 @@ inline void Gb_Wave::write_register( int frame_phase, int reg, int old_data, int
 		{
 			if ( !dac_enabled() )
 				enabled = false;
-			else if ( mode == Gb_Apu::mode_dmg && was_enabled &&
+			else if ( gameboy->gbMode == MODE_GB && was_enabled &&
 					(unsigned) (delay - 2) < 2 )
 				corrupt_wave();
 			
@@ -338,12 +336,6 @@ void Gb_Square::run( s32 time, s32 end_time )
 	int const duty_code = regs [1] >> 6;
 	int duty_offset = duty_offsets [duty_code];
 	int duty = duties [duty_code];
-	if ( mode == Gb_Apu::mode_agb )
-	{
-		// AGB uses inverted duty
-		duty_offset -= duty;
-		duty = 8 - duty;
-	}
 	int ph = (this->phase + duty_offset) & 7;
 	
 	// Determine what will be generated
@@ -358,9 +350,7 @@ void Gb_Square::run( s32 time, s32 end_time )
 				vol = this->volume;
 			
 			amp = -dac_bias;
-			if ( mode == Gb_Apu::mode_agb )
-				amp = -(vol >> 1);
-			
+
 			// Play inaudible frequencies as constant amplitude
 			if ( frequency() >= 0x7FA && delay < 32 )
 			{
@@ -503,21 +493,11 @@ void Gb_Noise::run( s32 time, s32 end_time )
 				vol = this->volume;
 
 			amp = -dac_bias;
-			if ( mode == Gb_Apu::mode_agb )
-				amp = -(vol >> 1);
-
 			if ( !(phase & 1) )
 			{
 				amp += vol;
 				vol = -vol;
 			}
-		}
-
-		// AGB negates final output
-		if ( mode == Gb_Apu::mode_agb )
-		{
-			vol = -vol;
-			amp = -amp;
 		}
 
 		update_amp( time, amp );
@@ -584,7 +564,7 @@ void Gb_Wave::run( s32 time, s32 end_time )
 	// Calc volume
 	static unsigned char const volumes [8] = { 0, 4, 2, 1, 3, 3, 3, 3 };
 	int const volume_shift = 2;
-	int const volume_idx = regs [2] >> 5 & (agb_mask | 3); // 2 bits on DMG/CGB, 3 on AGB
+	int const volume_idx = regs [2] >> 5 & 3;
 	int const volume_mul = volumes [volume_idx];
 	
 	// Determine what will be generated
@@ -619,20 +599,10 @@ void Gb_Wave::run( s32 time, s32 end_time )
 		this->first_phase = false;
 
 		unsigned char const* wave = this->wave_ram;
-		
+
 		// wave size and bank
-		int const size20_mask = 0x20;
-		int const flags = regs [0] & agb_mask;
-		int const wave_mask = (flags & size20_mask) | 0x1F;
-		int swap_banks = 0;
-		if ( flags & bank40_mask )
-		{
-			swap_banks = flags & size20_mask;
-			wave += bank_size/2 - (swap_banks >> 1);
-		}
-		
-		int ph = this->phase ^ swap_banks;
-		ph = (ph + 1) & wave_mask; // pre-advance
+		int ph = this->phase;
+		ph = (ph + 1) & (bank_size - 1); // pre-advance
 
 		int const per = this->period();
 		if ( !playing )
@@ -650,7 +620,7 @@ void Gb_Wave::run( s32 time, s32 end_time )
 			{
 				// Extract nybble
 				int nybble = wave [ph >> 1] << (ph << 2 & 4) & 0xF0;
-				ph = (ph + 1) & wave_mask;
+				ph = (ph + 1) & (bank_size - 1);
 				
 				// Scale by volume
 				int amp = (nybble * volume_mul) >> (volume_shift + 4);
@@ -666,13 +636,13 @@ void Gb_Wave::run( s32 time, s32 end_time )
 			while ( time <= end_time );
 			this->last_amp = lamp - dac_bias;
 		}
-		ph = (ph - 1) & wave_mask; // undo pre-advance and mask position
+		ph = (ph - 1) & (bank_size - 1); // undo pre-advance and mask position
 		
 		// Keep track of last byte read
 		if ( enabled )
 			sample_buf = wave [ph >> 1];
-		
-		this->phase = ph ^ swap_banks; // undo swapped banks
+
+		this->phase = (unsigned) ph;
 	}
 	delay = time - end_time;
 }

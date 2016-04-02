@@ -128,6 +128,10 @@ public:
     inline void writeIO(u16 addr, u8 val) {
         this->hram[addr & 0xFF] = val;
     }
+
+    inline bool isBiosMapped() {
+        return this->biosMapped;
+    }
 private:
     void mapBanks();
 
@@ -143,5 +147,6 @@ private:
     u8 wram[8][0x1000];
     u8 hram[0x100];
 
-    u8* bios;
+    bool biosMapped;
+    bool useRealBios;
 };
