@@ -464,11 +464,11 @@ void gfxDrawScreen() {
             screenWidth *= 1.50f;
             screenHeight *= 1.50f;
         } else if(scaleMode == 3) {
-            screenWidth *= viewportHeight / 224.0f;
-            screenHeight *= viewportHeight / 224.0f;
+            screenWidth *= viewportHeight / (float) screenHeight;
+            screenHeight = viewportHeight;
         } else if(scaleMode == 4) {
-            screenWidth *= viewportWidth / 256.0f;
-            screenHeight *= viewportHeight / 224.0f;
+            screenWidth = viewportWidth;
+            screenHeight = viewportHeight;
         }
 
         // Calculate VBO points.

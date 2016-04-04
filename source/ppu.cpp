@@ -740,7 +740,7 @@ inline void PPU::drawScanline(u8 scanline) {
         return;
     }
 
-    u32* lineBuffer = &this->gameboy->settings.frameBuffer[(scanline + 40) * this->gameboy->settings.framePitch];
+    u32* lineBuffer = &this->gameboy->settings.frameBuffer[(scanline + 40) * this->gameboy->settings.framePitch + 48];
 
     switch(this->gameboy->sgb->getGfxMask()) {
         case 0: {
@@ -950,11 +950,11 @@ inline void PPU::drawScanline(u8 scanline) {
             break;
         }
         case 2:
-            memset(lineBuffer, 0, this->gameboy->settings.framePitch * sizeof(u32));
+            memset(lineBuffer, 0, 160 * sizeof(u32));
             break;
         case 3: {
             u32 clearColor = RGB555ToRGBA8888Table[this->bgPaletteData[this->gameboy->mmu->readIO(BGP) & 3]];
-            for(u32 i = 0; i < this->gameboy->settings.framePitch; i++) {
+            for(u32 i = 0; i < 160; i++) {
                 lineBuffer[i] = clearColor;
             }
 
