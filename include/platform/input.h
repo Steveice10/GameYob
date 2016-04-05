@@ -29,11 +29,7 @@ enum {
 void inputInit();
 void inputCleanup();
 void inputUpdate();
-int inputGetKeyCount();
-const char* inputGetKeyName(int keyIndex);
-bool inputIsValidKey(int keyIndex);
 bool inputKeyHeld(int key);
-bool inputKeyRepeat(int key);
 bool inputKeyPressed(int key);
 void inputKeyRelease(int key);
 void inputReleaseAll();
@@ -41,6 +37,10 @@ u16 inputGetMotionSensorX();
 u16 inputGetMotionSensorY();
 
 struct KeyConfig;
+
+int inputGetKeyCount();
+bool inputIsValidKey(int keyIndex);
+const char* inputGetKeyName(int keyIndex);
 
 KeyConfig inputGetDefaultKeyConfig();
 void inputLoadKeyConfig(KeyConfig* keyConfig);

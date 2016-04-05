@@ -1695,7 +1695,7 @@ void Cartridge::latchClock() {
     this->rtcClock.hours += lt->tm_hour;
     OVERFLOW_VAL(this->rtcClock.hours, 24, this->rtcClock.days);
     this->rtcClock.days += lt->tm_mday - 1;
-    OVERFLOW_VAL(this->rtcClock.days, (this->rtcClock.years & 3) == 0 ? daysInLeapMonth[this->rtcClock.months] : daysInMonth[this->rtcClock.months], this->rtcClock.months);
+    OVERFLOW_VAL(this->rtcClock.days, (this->rtcClock.years & 3) == 0 ? daysInLeapMonth[this->rtcClock.months % 12] : daysInMonth[this->rtcClock.months % 12], this->rtcClock.months);
     this->rtcClock.months += lt->tm_mon;
     OVERFLOW_VAL(this->rtcClock.months, 12, this->rtcClock.years);
     this->rtcClock.years += lt->tm_year - 70;

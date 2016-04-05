@@ -126,7 +126,6 @@ static int funcKeyMapping[NUM_FUNC_KEYS];
 static bool forceReleased[NUM_FUNC_KEYS] = {false};
 static bool uiForceReleased[NUM_BUTTONS] = {false};
 
-static u64 nextRepeat = 0;
 static u64 nextUiRepeat = 0;
 
 extern void uiPushInput(UIKey key);
@@ -142,13 +141,13 @@ void inputCleanup() {
 void inputUpdate() {
     hidScanInput();
     for(int i = 0; i < NUM_FUNC_KEYS; i++) {
-        if(!(hidKeysDown() & funcKeyMapping[i]) && !(hidKeysHeld() & funcKeyMapping[i])) {
+        if(!(hidKeysHeld() & funcKeyMapping[i])) {
             forceReleased[i] = false;
         }
     }
 
     for(int i = 0; i < NUM_BUTTONS; i++) {
-        if(!(hidKeysDown() & (1 << i)) && !(hidKeysHeld() & (1 << i))) {
+        if(!(hidKeysHeld() & (1 << i))) {
             uiForceReleased[i] = false;
         }
     }
@@ -179,62 +178,18 @@ void inputUpdate() {
     }
 }
 
-const char* inputGetKeyName(int keyIndex) {
-    return dsKeyNames[keyIndex];
-}
-
-bool inputIsValidKey(int keyIndex) {
-    return keyIndex >= 0 && keyIndex < NUM_BUTTONS && (keyIndex <= 11 || keyIndex == 14 || keyIndex == 15 || keyIndex >= 24);
-}
-
 bool inputKeyHeld(int key) {
-    if(key < 0 || key >= NUM_FUNC_KEYS) {
-        return false;
-    }
-
-    if(forceReleased[key]) {
-        return false;
-    }
-
-    return (hidKeysHeld() & funcKeyMapping[key]) != 0;
+    return key >= 0 && key < NUM_FUNC_KEYS && !forceReleased[key] && (hidKeysHeld() & funcKeyMapping[key]) != 0;
 }
 
 bool inputKeyPressed(int key) {
-    if(key < 0 || key >= NUM_FUNC_KEYS) {
-        return false;
-    }
-
-    if(forceReleased[key]) {
-        return false;
-    }
-
-    return (hidKeysDown() & funcKeyMapping[key]) != 0;
-}
-
-bool inputKeyRepeat(int key) {
-    if(key < 0 || key >= NUM_FUNC_KEYS) {
-        return false;
-    }
-
-    if(inputKeyPressed(key)) {
-        nextRepeat = osGetTime() + 250;
-        return true;
-    }
-
-    if(inputKeyHeld(key) && osGetTime() >= nextRepeat) {
-        nextRepeat = osGetTime() + 50;
-        return true;
-    }
-
-    return false;
+    return key >= 0 && key < NUM_FUNC_KEYS && !forceReleased[key] && (hidKeysDown() & funcKeyMapping[key]) != 0;
 }
 
 void inputKeyRelease(int key) {
-    if(key < 0 || key >= NUM_FUNC_KEYS) {
-        return;
+    if(key >= 0 && key < NUM_FUNC_KEYS) {
+        forceReleased[key] = true;
     }
-
-    forceReleased[key] = true;
 }
 
 void inputReleaseAll() {
@@ -251,14 +206,26 @@ u16 inputGetMotionSensorX() {
     accelVector vec;
     hidAccelRead(&vec);
 
-    return (u16) ((vec.x >> 3) + 2047);
+    return (u16) ((vec.x >> 3) + 0x7FF);
 }
 
 u16 inputGetMotionSensorY() {
     accelVector vec;
     hidAccelRead(&vec);
 
-    return (u16) ((vec.z >> 3) + 2047);
+    return (u16) ((vec.z >> 3) + 0x7FF);
+}
+
+int inputGetKeyCount() {
+    return NUM_BUTTONS;
+}
+
+bool inputIsValidKey(int keyIndex) {
+    return keyIndex >= 0 && keyIndex < NUM_BUTTONS && strlen(dsKeyNames[keyIndex]) > 0;
+}
+
+const char* inputGetKeyName(int keyIndex) {
+    return dsKeyNames[keyIndex];
 }
 
 KeyConfig inputGetDefaultKeyConfig() {

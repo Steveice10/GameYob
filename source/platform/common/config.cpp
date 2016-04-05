@@ -149,7 +149,7 @@ const std::string controlsPrintConfig() {
 
         int keyCount = inputGetKeyCount();
         for(int j = 0; j < keyCount; j++) {
-            if(inputIsValidKey(j) && strlen(inputGetKeyName(j)) > 0) {
+            if(inputIsValidKey(j)) {
                 stream << inputGetKeyName(j) << "=" << gbKeyNames[keyConfigs[i].funcKeys[j]] << "\n";
             }
         }
