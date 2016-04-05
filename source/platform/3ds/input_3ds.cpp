@@ -11,6 +11,8 @@
 #include "platform/input.h"
 #include "platform/ui.h"
 
+#define NUM_BUTTONS 32
+
 static const char* dsKeyNames[NUM_BUTTONS] = {
         "A",         // 0
         "B",         // 1

@@ -15,8 +15,8 @@ static KeyConfig defaultKeyConfig = {
 
 static KeyConfig* currKeyConfig = &defaultKeyConfig;
 
-static bool pressed[NUM_BUTTONS] = {false};
-static bool held[NUM_BUTTONS] = {false};
+static bool pressed[512] = {false};
+static bool held[512] = {false};
 static bool forceReleased[NUM_FUNC_KEYS] = {false};
 
 static long nextRepeat = 0;
@@ -76,12 +76,16 @@ void inputUpdate() {
     }
 }
 
+int inputGetKeyCount() {
+    return keyCount;
+}
+
 const char* inputGetKeyName(int keyIndex) {
     return SDL_GetScancodeName((SDL_Scancode) keyIndex);
 }
 
 bool inputIsValidKey(int keyIndex) {
-    return keyIndex >= 0 && keyIndex < NUM_BUTTONS && keyIndex != SDL_SCANCODE_RETURN2 && strcmp(SDL_GetScancodeName((SDL_Scancode) keyIndex), "") != 0;
+    return keyIndex >= 0 && keyIndex < keyCount && keyIndex != SDL_SCANCODE_RETURN2 && strcmp(SDL_GetScancodeName((SDL_Scancode) keyIndex), "") != 0;
 }
 
 bool inputKeyHeld(int key) {
@@ -93,7 +97,7 @@ bool inputKeyHeld(int key) {
         return false;
     }
 
-    for(int i = 0; i < NUM_BUTTONS; i++) {
+    for(int i = 0; i < keyCount; i++) {
         if(held[i] && key == currKeyConfig->funcKeys[i]) {
             return true;
         }
@@ -111,7 +115,7 @@ bool inputKeyPressed(int key) {
         return false;
     }
 
-    for(int i = 0; i < NUM_BUTTONS; i++) {
+    for(int i = 0; i < keyCount; i++) {
         if(pressed[i] && key == currKeyConfig->funcKeys[i]) {
             return true;
         }

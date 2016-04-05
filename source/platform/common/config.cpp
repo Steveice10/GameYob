@@ -73,6 +73,8 @@ void controlsParseConfig(char* line2) {
         line[strlen(line) - 1] = '\0';
     }
 
+    int keyCount = inputGetKeyCount();
+
     if(line[0] == '(') {
         char* bracketEnd;
         if((bracketEnd = strrchr(line, ')')) != 0) {
@@ -83,7 +85,7 @@ void controlsParseConfig(char* line2) {
             KeyConfig* config = &keyConfigs.back();
             strncpy(config->name, name, 32);
             config->name[31] = '\0';
-            for(int i = 0; i < NUM_BUTTONS; i++) {
+            for(int i = 0; i < keyCount; i++) {
                 if(strlen(inputGetKeyName(i)) > 0) {
                     config->funcKeys[i] = FUNC_KEY_NONE;
                 }
@@ -102,7 +104,7 @@ void controlsParseConfig(char* line2) {
         } else {
             if(strlen(line) > 0) {
                 int realKey = -1;
-                for(int i = 0; i < NUM_BUTTONS; i++) {
+                for(int i = 0; i < keyCount; i++) {
                     if(strcasecmp(line, inputGetKeyName(i)) == 0) {
                         realKey = i;
                         break;
@@ -144,7 +146,9 @@ const std::string controlsPrintConfig() {
     stream << "config=" << selectedKeyConfig << "\n";
     for(unsigned int i = 0; i < keyConfigs.size(); i++) {
         stream << "(" << keyConfigs[i].name << ")\n";
-        for(int j = 0; j < NUM_BUTTONS; j++) {
+
+        int keyCount = inputGetKeyCount();
+        for(int j = 0; j < keyCount; j++) {
             if(inputIsValidKey(j) && strlen(inputGetKeyName(j)) > 0) {
                 stream << inputGetKeyName(j) << "=" << gbKeyNames[keyConfigs[i].funcKeys[j]] << "\n";
             }
@@ -255,7 +259,8 @@ void redrawKeyConfigChooser() {
 
     uiPrint("              Button   Function\n\n");
 
-    for(int i = 0, elements = 0; i < NUM_BUTTONS && elements < scrollY + uiGetHeight() - 7; i++) {
+    int keyCount = inputGetKeyCount();
+    for(int i = 0, elements = 0; i < keyCount && elements < scrollY + uiGetHeight() - 7; i++) {
         if(!inputIsValidKey(i)) {
             continue;
         }
@@ -297,6 +302,7 @@ void updateKeyConfigChooser() {
     int &cursor = keyConfigChooser_cursor;
     int &scrollY = keyConfigChooser_scrollY;
     KeyConfig* config = &keyConfigs[selectedKeyConfig];
+    int keyCount = inputGetKeyCount();
 
     UIKey key;
     while((key = uiReadKey()) != UI_KEY_NONE) {
@@ -323,7 +329,7 @@ void updateKeyConfigChooser() {
                 redraw = true;
             }
         } else if(key == UI_KEY_DOWN) {
-            if(option == (int) NUM_BUTTONS - 1) {
+            if(option == keyCount - 1) {
                 option = -1;
                 cursor = -1;
             } else {
@@ -331,7 +337,7 @@ void updateKeyConfigChooser() {
                 option++;
                 while(!inputIsValidKey(option)) {
                     option++;
-                    if(option >= (int) NUM_BUTTONS) {
+                    if(option >= keyCount) {
                         option = -1;
                         cursor = -1;
                         break;
@@ -354,7 +360,7 @@ void updateKeyConfigChooser() {
             redraw = true;
         } else if(key == UI_KEY_UP) {
             if(option == -1) {
-                option = (int) NUM_BUTTONS - 1;
+                option = keyCount - 1;
                 while(!inputIsValidKey(option)) {
                     option--;
                     if(option < 0) {
@@ -366,7 +372,7 @@ void updateKeyConfigChooser() {
 
                 if(option != -1) {
                     cursor = 0;
-                    for(int i = 0; i < NUM_BUTTONS; i++) {
+                    for(int i = 0; i < keyCount; i++) {
                         if(inputIsValidKey(i)) {
                             cursor++;
                         }

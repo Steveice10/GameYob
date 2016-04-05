@@ -29,6 +29,7 @@ enum {
 void inputInit();
 void inputCleanup();
 void inputUpdate();
+int inputGetKeyCount();
 const char* inputGetKeyName(int keyIndex);
 bool inputIsValidKey(int keyIndex);
 bool inputKeyHeld(int key);
