@@ -923,7 +923,7 @@ void mgrRefreshBorder() {
 }
 
 bool mgrGetFastForward() {
-    return fastForward || (!isMenuOn() && inputKeyHeld(FUNC_KEY_FAST_FORWARD));
+    return fastForward || (!menuOn && inputKeyHeld(FUNC_KEY_FAST_FORWARD));
 }
 
 void mgrSetFastForward(bool ff) {
@@ -965,7 +965,7 @@ void mgrRun() {
 
         inputUpdate();
 
-        if(isMenuOn()) {
+        if(menuOn) {
             updateMenu();
         } else if(gameboy->isPoweredOn()) {
             u8 buttonsPressed = 0xFF;
@@ -1047,7 +1047,7 @@ void mgrRun() {
                 mgrReset();
             }
 
-            if(inputKeyPressed(FUNC_KEY_SCREENSHOT) && !isMenuOn()) {
+            if(inputKeyPressed(FUNC_KEY_SCREENSHOT) && !menuOn) {
                 gfxTakeScreenshot();
             }
         }
@@ -1072,7 +1072,7 @@ void mgrRun() {
 
         time = std::chrono::high_resolution_clock::now();
         if(std::chrono::duration_cast<std::chrono::seconds>(time - lastPrintTime).count() > 0) {
-            if(!isMenuOn() && !showConsoleDebug() && (fpsOutput || timeOutput)) {
+            if(!menuOn && !showConsoleDebug() && (fpsOutput || timeOutput)) {
                 uiClear();
                 int fpsLength = 0;
                 if(fpsOutput) {

@@ -666,10 +666,6 @@ void closeMenu() {
     mgrUnpause();
 }
 
-bool isMenuOn() {
-    return menuOn;
-}
-
 // Some helper functions
 void menuCursorUp() {
     option--;
@@ -845,7 +841,7 @@ void redrawMenu() {
 
 // Called each vblank while the menu is on
 void updateMenu() {
-    if(!isMenuOn())
+    if(!menuOn)
         return;
 
     if(subMenuUpdateFunc != 0) {
@@ -925,7 +921,7 @@ void updateMenu() {
         }
     }
 
-    if(redraw && subMenuUpdateFunc == 0 && isMenuOn()) {// The menu may have been closed by an option
+    if(redraw && subMenuUpdateFunc == 0 && menuOn) {// The menu may have been closed by an option
         redrawMenu();
     }
 }
@@ -1040,6 +1036,6 @@ const std::string menuPrintConfig() {
 }
 
 bool showConsoleDebug() {
-    return consoleDebugOutput && !isMenuOn();
+    return consoleDebugOutput && !menuOn;
 }
 

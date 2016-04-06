@@ -8,6 +8,8 @@
 
 extern std::vector<std::string> supportedImages;
 
+extern bool menuOn;
+
 extern bool customBordersEnabled;
 extern int borderScaleMode;
 extern int gbColorizeMode;
@@ -24,8 +26,7 @@ extern FILE* linkSocket;
 void setMenuDefaults();
 
 void displayMenu();
-void closeMenu(); // updateScreens may need to be called after this
-bool isMenuOn();
+void closeMenu();
 
 void redrawMenu();
 void updateMenu();

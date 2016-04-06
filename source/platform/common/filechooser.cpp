@@ -351,7 +351,6 @@ void FileChooser::refreshContents() {
 void FileChooser::redrawChooser() {
     int screenLen = uiGetWidth();
 
-    uiSync();
     uiClear();
 
     std::string currDirName = directory;
