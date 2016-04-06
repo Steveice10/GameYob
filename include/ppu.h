@@ -67,7 +67,6 @@ private:
 
     u64 lastScanlineCycle;
     u64 lastPhaseCycle;
-    u64 lastOamDmaBeginCycle;
     bool halfSpeed;
 
     u8 scanlineX;

@@ -103,7 +103,6 @@ void PPU::reset() {
 
     this->lastScanlineCycle = 0;
     this->lastPhaseCycle = 0;
-    this->lastOamDmaBeginCycle = 0;
     this->halfSpeed = false;
 
     this->scanlineX = 0;
@@ -186,9 +185,11 @@ void PPU::reset() {
     });
 
     this->gameboy->mmu->mapIOWriteFunc(DMA, [this](u16 addr, u8 val) -> void {
-        this->oamDmaSrc = val << 8;
-        this->lastOamDmaBeginCycle = this->gameboy->cpu->getCycle();
-        this->gameboy->cpu->setEventCycle(this->lastOamDmaBeginCycle + 0xA0);
+        u16 src = val << 8;
+
+        for(u8 i = 0; i < 0xA0; i++) {
+            this->oam[i] = this->gameboy->mmu->read(src++);
+        }
     });
 
     this->gameboy->mmu->mapIOWriteFunc(BGP, [this](u16 addr, u8 val) -> void {
@@ -298,7 +299,6 @@ void PPU::reset() {
 void PPU::loadState(std::istream& data, u8 version) {
     data.read((char*) &this->lastScanlineCycle, sizeof(this->lastScanlineCycle));
     data.read((char*) &this->lastPhaseCycle, sizeof(this->lastPhaseCycle));
-    data.read((char*) &this->lastOamDmaBeginCycle, sizeof(this->lastOamDmaBeginCycle));
     data.read((char*) &this->halfSpeed, sizeof(this->halfSpeed));
     data.read((char*) &this->scanlineX, sizeof(this->scanlineX));
     data.read((char*) &this->oamDmaSrc, sizeof(this->oamDmaSrc));
@@ -315,7 +315,6 @@ void PPU::loadState(std::istream& data, u8 version) {
 void PPU::saveState(std::ostream& data) {
     data.write((char*) &this->lastScanlineCycle, sizeof(this->lastScanlineCycle));
     data.write((char*) &this->lastPhaseCycle, sizeof(this->lastPhaseCycle));
-    data.write((char*) &this->lastOamDmaBeginCycle, sizeof(this->lastOamDmaBeginCycle));
     data.write((char*) &this->halfSpeed, sizeof(this->halfSpeed));
     data.write((char*) &this->scanlineX, sizeof(this->scanlineX));
     data.write((char*) &this->oamDmaSrc, sizeof(this->oamDmaSrc));
@@ -346,19 +345,6 @@ inline void PPU::checkLYC() {
 }
 
 void PPU::update() {
-    if(this->lastOamDmaBeginCycle != 0) {
-        while((this->oamDmaSrc & 0xFF) < 0xA0 && this->gameboy->cpu->getCycle() >= this->lastOamDmaBeginCycle + (this->oamDmaSrc & 0xFF) + 1) {
-            this->oam[this->oamDmaSrc & 0xFF] = this->gameboy->mmu->read(this->oamDmaSrc);
-            this->oamDmaSrc++;
-        }
-
-        if((this->oamDmaSrc & 0xFF) < 0xA0) {
-            this->gameboy->cpu->setEventCycle(this->lastOamDmaBeginCycle + 0xA0);
-        } else {
-            this->lastOamDmaBeginCycle = 0;
-        }
-    }
-
     if((this->gameboy->mmu->readIO(LCDC) & 0x80) == 0) {
         this->lastScanlineCycle = this->gameboy->cpu->getCycle();
 
@@ -779,28 +765,22 @@ inline void PPU::drawScanline(u8 scanline) {
                         u8 bank = (u8) ((flags >> 3) & 1);
                         bool flipX = (bool) ((flags >> 5) & 1);
                         bool flipY = (bool) ((flags >> 6) & 1);
-                        u8 depth = (u8) (1 + ((flags >> 6) & 2));
-
-                        u8 paletteIds[3];
-                        if(this->gameboy->gbMode == MODE_SGB) {
-                            memcpy(paletteIds, &subSgbMap[tileX - 1], sizeof(paletteIds));
-                        } else {
-                            memset(paletteIds, paletteId, sizeof(paletteIds));
-                        }
+                        u8 depth = (u8) ((((flags >> 6) & 2) + 1) * (lcdc & 0x01));
 
                         u16 offset = (u16) ((tileId * 0x10) + ((flipY ? 7 - subTileY : subTileY) * 2));
                         u16 pxData = (u16) (BitStretchTable256[this->vram[bank][offset]] | (BitStretchTable256[this->vram[bank][offset + 1]] << 1));
 
                         for(u8 x = 0; x < 8; x++) {
-                            s16 pixelX = (s16) (tileX * 8 + x - baseSubTileX);
-                            if(pixelX < 0 || pixelX >= 160) {
+                            u8 pixelX = (u8) (tileX * 8 + x - baseSubTileX);
+                            if(pixelX >= 160) {
                                 continue;
                             }
 
+                            u8 palette = this->gameboy->gbMode == MODE_SGB ? subSgbMap[pixelX >> 3] : paletteId;
                             u8 colorId = (u8) ((pxData >> (flipX ? x * 2 : 14 - x * 2)) & 3);
-                            depthBuffer[pixelX] = depth - (u8) (colorId == 0);
+                            depthBuffer[pixelX] = (u8) ((depth - depthOffset[colorId]) & 3);
 
-                            u32 outputColor = RGB555ToRGBA8888Table[baseBgPalette[(paletteIds[(pixelX >> 3) - tileX + 1] << 2) + this->expandedBgp[colorId]]];
+                            u32 outputColor = RGB555ToRGBA8888Table[baseBgPalette[(palette << 2) + this->expandedBgp[colorId]]];
                             u32* colorOut = &lineBuffer[pixelX];
                             if(this->gameboy->settings.emulateBlur) {
                                 u32 oldColor = *colorOut;
@@ -809,10 +789,6 @@ inline void PPU::drawScanline(u8 scanline) {
                                 *colorOut = outputColor;
                             }
                         }
-                    }
-
-                    if(this->gameboy->gbMode == MODE_CGB && (lcdc & 0x01) == 0) {
-                        memset(depthBuffer, 0, 160);
                     }
                 }
 
@@ -841,28 +817,22 @@ inline void PPU::drawScanline(u8 scanline) {
                             u8 bank = (u8) ((flags >> 3) & 1);
                             bool flipX = (bool) ((flags >> 5) & 1);
                             bool flipY = (bool) ((flags >> 6) & 1);
-                            u8 depth = (u8) (1 + ((flags >> 6) & 2));
-
-                            u8 paletteIds[3];
-                            if(this->gameboy->gbMode == MODE_SGB) {
-                                memcpy(paletteIds, &subSgbMap[tileX - 1], sizeof(paletteIds));
-                            } else {
-                                memset(paletteIds, paletteId, sizeof(paletteIds));
-                            }
+                            u8 depth = (u8) ((((flags >> 6) & 2) + 1) * (lcdc & 0x01));
 
                             u16 offset = (u16) ((tileId * 0x10) + ((flipY ? 7 - subTileY : subTileY) * 2));
                             u16 pxData = (u16) (BitStretchTable256[this->vram[bank][offset]] | (BitStretchTable256[this->vram[bank][offset + 1]] << 1));
 
                             for(u8 x = 0; x < 8; x++) {
-                                s16 pixelX = (s16) (tileX * 8 + x + basePixelX);
-                                if(pixelX < 0 || pixelX >= 160) {
+                                u8 pixelX = (u8) (tileX * 8 + x + basePixelX);
+                                if(pixelX >= 160) {
                                     continue;
                                 }
 
+                                u8 palette = this->gameboy->gbMode == MODE_SGB ? subSgbMap[pixelX >> 3] : paletteId;
                                 u8 colorId = (u8) ((pxData >> (flipX ? x * 2 : 14 - x * 2)) & 3);
-                                depthBuffer[pixelX] = depth - (u8) (colorId == 0);
+                                depthBuffer[pixelX] = (u8) ((depth - depthOffset[colorId]) & 3);
 
-                                u32 outputColor = RGB555ToRGBA8888Table[baseBgPalette[(paletteIds[(pixelX >> 3) - tileX + 1] << 2) + this->expandedBgp[colorId]]];
+                                u32 outputColor = RGB555ToRGBA8888Table[baseBgPalette[(palette << 2) + this->expandedBgp[colorId]]];
                                 u32* colorOut = &lineBuffer[pixelX];
                                 if(this->gameboy->settings.emulateBlur) {
                                     u32 oldColor = *colorOut;
@@ -872,10 +842,6 @@ inline void PPU::drawScanline(u8 scanline) {
                                 }
                             }
                         }
-
-                        if(this->gameboy->gbMode == MODE_CGB && (lcdc & 0x01) == 0) {
-                            memset(depthBuffer, 0, 160);
-                        }
                     }
                 }
 
@@ -883,13 +849,6 @@ inline void PPU::drawScanline(u8 scanline) {
                 if((lcdc & 0x02) != 0) {
                     for(s8 spriteId = (s8) (this->currSprites - 1); spriteId >= 0; spriteId--) {
                         SpriteLine* line = &this->currSpriteLines[spriteId];
-
-                        u8 paletteIds[2];
-                        if(this->gameboy->gbMode == MODE_SGB) {
-                            memcpy(paletteIds, &subSgbMap[line->x], sizeof(paletteIds));
-                        } else {
-                            memset(paletteIds, line->palette, sizeof(paletteIds));
-                        }
 
                         for(u8 x = 0; x < 8; x++) {
                             u8 pixelX = line->x + x;
@@ -902,7 +861,12 @@ inline void PPU::drawScanline(u8 scanline) {
                             if(colorId != 0 && depth >= depthBuffer[pixelX]) {
                                 depthBuffer[pixelX] = depth;
 
-                                u32 outputColor = RGB555ToRGBA8888Table[baseSprPalette[(paletteIds[(pixelX >> 3) - (line->x >> 3)] << 2) + this->expandedObp[(line->obp << 2) + colorId]]];
+                                u8 palette = line->palette;
+                                if(this->gameboy->gbMode == MODE_SGB) {
+                                    palette += subSgbMap[pixelX >> 3];
+                                }
+
+                                u32 outputColor = RGB555ToRGBA8888Table[baseSprPalette[(palette << 2) + this->expandedObp[(line->obp << 2) + colorId]]];
                                 u32* colorOut = &lineBuffer[pixelX];
                                 if(this->gameboy->settings.emulateBlur) {
                                     u32 oldColor = *colorOut;
