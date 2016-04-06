@@ -616,10 +616,13 @@ inline void PPU::updateLineSprites() {
 }
 
 inline void PPU::updateScanline() {
-    bool drawing = this->gameboy->settings.perPixelRendering && this->gameboy->settings.drawEnabled && (this->gameboy->mmu->readIO(STAT) & 3) == LCD_ACCESS_OAM_VRAM;
+    u8 mode = (u8) (this->gameboy->mmu->readIO(STAT) & 3);
+    u8 ly = this->gameboy->mmu->readIO(LY);
+
+    bool drawing = this->gameboy->settings.perPixelRendering && this->gameboy->settings.drawEnabled && mode == LCD_ACCESS_OAM_VRAM;
     if(drawing && this->scanlineX < 160) {
         while(this->scanlineX < 160 && this->gameboy->cpu->getCycle() >= this->lastScanlineCycle + ((this->scanlineX + 7) << this->halfSpeed)) {
-            this->drawPixel(this->scanlineX, this->gameboy->mmu->readIO(LY));
+            this->drawPixel(this->scanlineX, ly);
             this->scanlineX++;
         }
     }
@@ -627,7 +630,7 @@ inline void PPU::updateScanline() {
     if(drawing && this->scanlineX < 160) {
         this->gameboy->cpu->setEventCycle(this->lastScanlineCycle + ((this->scanlineX + 7) << this->halfSpeed));
     } else {
-        this->gameboy->cpu->setEventCycle(this->lastScanlineCycle + (modeCycles[this->gameboy->mmu->readIO(STAT) & 3] << this->halfSpeed));
+        this->gameboy->cpu->setEventCycle(this->lastScanlineCycle + (modeCycles[mode] << this->halfSpeed));
     }
 }
 
@@ -651,8 +654,8 @@ inline void PPU::drawPixel(u8 x, u8 y) {
                 // Background
                 if(this->gameboy->gbMode == MODE_CGB || (lcdc & 0x01) != 0) {
                     u8 map = (u8) ((lcdc >> 3) & 1);
-                    u8 pixelX = (u8) ((x + this->gameboy->mmu->readIO(SCX)) & 0xFF);
-                    u8 pixelY = (u8) ((y + this->gameboy->mmu->readIO(SCY)) & 0xFF);
+                    u8 pixelX = (u8) (x + this->gameboy->mmu->readIO(SCX));
+                    u8 pixelY = (u8) (y + this->gameboy->mmu->readIO(SCY));
                     u8 subX = (u8) (pixelX & 7);
 
                     TileLine* line = &this->currTileLines[map];
@@ -751,10 +754,10 @@ inline void PPU::drawScanline(u8 scanline) {
                 u16* baseBgPalette = this->gameboy->gbMode != MODE_GB || !this->gameboy->mmu->isBiosMapped() ? (u16*) this->bgPaletteData : grayScalePalette;
                 u16* baseSprPalette = this->gameboy->gbMode != MODE_GB || !this->gameboy->mmu->isBiosMapped() ? (u16*) this->sprPaletteData : grayScalePalette;
 
+                u8* subSgbMap = &this->gameboy->sgb->getPaletteMap()[(scanline >> 3) * 20];
+
                 // Background
                 if(this->gameboy->gbMode == MODE_CGB || (lcdc & 0x01) != 0) {
-                    u8* subSgbMap = &this->gameboy->sgb->getPaletteMap()[(scanline >> 3) * 20];
-
                     u8 basePixelX = this->gameboy->mmu->readIO(SCX);
                     u8 baseTileX = basePixelX >> 3;
                     u8 baseSubTileX = (u8) (basePixelX & 7);
@@ -818,8 +821,6 @@ inline void PPU::drawScanline(u8 scanline) {
                     u8 wx = this->gameboy->mmu->readIO(WX);
                     u8 wy = this->gameboy->mmu->readIO(WY);
                     if(wy <= scanline && wy < 144 && wx >= 0 && wx < 167) {
-                        u8* subSgbMap = &this->gameboy->sgb->getPaletteMap()[(scanline >> 3) * 20];
-
                         s16 basePixelX = (s16) (wx - 7);
                         s16 baseTileX = (s16) (basePixelX >> 3);
 
@@ -880,60 +881,28 @@ inline void PPU::drawScanline(u8 scanline) {
 
                 // Sprites
                 if((lcdc & 0x02) != 0) {
-                    u8* subSgbMap = &this->gameboy->sgb->getPaletteMap()[(scanline >> 3) * 20];
-
-                    u8 spriteHeight = (u8) ((lcdc & 0x04) != 0 ? 16 : 8);
-
-                    for(s8 sprite = 39; sprite >= 0; sprite--) {
-                        u8 spriteY = this->oam[sprite * 4 + 0];
-
-                        if(scanline + 16 < spriteY || scanline + 16 >= spriteY + spriteHeight) {
-                            continue;
-                        }
-
-                        u8 spriteX = this->oam[sprite * 4 + 1];
-                        u8 tileId = this->oam[sprite * 4 + 2];
-                        u8 flags = this->oam[sprite * 4 + 3];
-
-                        s16 basePixelX = (s16) (spriteX - 8);
-                        s8 baseTileX = (s8) (basePixelX >> 3);
-
-                        u8 pixelY = (u8) (scanline - spriteY + 16);
-                        u8 tileY = pixelY >> 3;
-                        u8 subTileY = (u8) (pixelY & 7);
-
-                        u8 paletteId = (u8) (flags & 7);
-                        u8 bank = (u8) ((flags >> 3) & 1);
-                        u8 obpId = (u8) ((flags >> 4) & 1);
-                        bool flipX = (bool) ((flags >> 5) & 1);
-                        bool flipY = (bool) ((flags >> 6) & 1);
-                        u8 depth = (u8) (2 - ((flags >> 6) & 2));
-
-                        if(spriteHeight == 16) {
-                            tileId = (u8) (((tileId & ~1) + tileY) ^ flipY);
-                        }
+                    for(s8 spriteId = (s8) (this->currSprites - 1); spriteId >= 0; spriteId--) {
+                        SpriteLine* line = &this->currSpriteLines[spriteId];
 
                         u8 paletteIds[2];
                         if(this->gameboy->gbMode == MODE_SGB) {
-                            memcpy(paletteIds, &subSgbMap[baseTileX], sizeof(paletteIds));
+                            memcpy(paletteIds, &subSgbMap[line->x], sizeof(paletteIds));
                         } else {
-                            memset(paletteIds, paletteId, sizeof(paletteIds));
+                            memset(paletteIds, line->palette, sizeof(paletteIds));
                         }
 
-                        u16 offset = (u16) ((tileId * 0x10) + ((flipY ? 7 - subTileY : subTileY) * 2));
-                        u16 pxData = (u16) (BitStretchTable256[this->vram[bank][offset]] | (BitStretchTable256[this->vram[bank][offset + 1]] << 1));
-
                         for(u8 x = 0; x < 8; x++) {
-                            s16 pixelX = (s16) (basePixelX + x);
-                            if(pixelX < 0 || pixelX >= 160) {
+                            u8 pixelX = line->x + x;
+                            if(pixelX >= 160) {
                                 continue;
                             }
 
-                            u8 colorId = (u8) ((pxData >> (flipX ? x * 2 : 14 - x * 2)) & 3);
+                            u8 colorId = line->color[x];
+                            u8 depth = line->depth[x];
                             if(colorId != 0 && depth >= depthBuffer[pixelX]) {
                                 depthBuffer[pixelX] = depth;
 
-                                u32 outputColor = RGB555ToRGBA8888Table[baseSprPalette[(paletteIds[(pixelX >> 3) - baseTileX] << 2) + this->expandedObp[(obpId << 2) + colorId]]];
+                                u32 outputColor = RGB555ToRGBA8888Table[baseSprPalette[(paletteIds[(pixelX >> 3) - (line->x >> 3)] << 2) + this->expandedObp[(line->obp << 2) + colorId]]];
                                 u32* colorOut = &lineBuffer[pixelX];
                                 if(this->gameboy->settings.emulateBlur) {
                                     u32 oldColor = *colorOut;

@@ -152,7 +152,7 @@ void inputUpdate() {
         }
     }
 
-    if(isMenuOn() || isFileChooserActive()) {
+    if(menuOn || isFileChooserActive()) {
         for(int i = 0; i < NUM_BUTTONS; i++) {
             if(uiForceReleased[i]) {
                 continue;

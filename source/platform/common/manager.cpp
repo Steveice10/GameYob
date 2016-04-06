@@ -1055,7 +1055,7 @@ void mgrRun() {
         if(gameboy->isPoweredOn() && !emulationPaused) {
             cheatEngine->applyGSCheats();
 
-            gameboy->settings.drawEnabled = !fastForward || fastForwardCounter++ >= fastForwardFrameSkip;
+            gameboy->settings.drawEnabled = !mgrGetFastForward() || fastForwardCounter++ >= fastForwardFrameSkip;
             gameboy->runFrame();
 
             if(gameboy->settings.soundEnabled) {
