@@ -784,7 +784,7 @@ void mgrDeleteState(int stateNum) {
 }
 
 void mgrRefreshPalette() {
-    if(gameboy == NULL) {
+    if(gameboy == NULL || gameboy->gbMode != MODE_GB) {
         return;
     }
 
