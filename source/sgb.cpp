@@ -217,21 +217,16 @@ void SGB::refreshBg() {
                         int dataY = flipY ? 7 - y : y;
                         u8 colorId = (u8) (((tile[dataY * 2] >> (7 - dataX)) & 1) | (((tile[dataY * 2 + 1] >> (7 - dataX)) & 1) << 1) | (((tile[0x10 + dataY * 2] >> (7 - dataX)) & 1) << 2) | (((tile[0x10 + dataY * 2 + 1] >> (7 - dataX)) & 1) << 3));
 
-                        u16 color = 0;
+                        u32 color = 0;
                         if(colorId != 0) {
-                            color = (u16) (palette[colorId] | 0x8000);
+                            color = RGB555ToRGB8888(palette[colorId]);
                         } else if(pixelX < 48 || pixelX >= 208 || pixelY < 40 || pixelY >= 184) {
-                            color = (u16) (this->gameboy->ppu->getBgPalette()[0] | 0x8000);
+                            color = this->gameboy->ppu->getBgPalette()[0];
                         } else {
                             continue;
                         }
 
-                        u8 r = (u8) ((color & 0x1F) << 3);
-                        u8 g = (u8) (((color >> 5) & 0x1F) << 3);
-                        u8 b = (u8) (((color >> 10) & 0x1F) << 3);
-                        u8 a = (u8) (((color >> 15) & 0x01) * 0xFF);
-
-                        this->gameboy->settings.frameBuffer[pixelY * this->gameboy->settings.framePitch + pixelX] = (r << 24) | (g << 16) | (b << 8) | a;
+                        this->gameboy->settings.frameBuffer[pixelY * this->gameboy->settings.framePitch + pixelX] = color;
                     }
                 }
             }
@@ -280,23 +275,32 @@ void SGB::palXX(int block) {
             return;
     }
 
-    u16 palette[4];
-    memcpy(palette, &this->packet[1], 4 * sizeof(u16));
+    u16* paletteData = (u16*) &this->packet[1];
 
-    memcpy(&this->gameboy->ppu->getBgPalette()[s1 * 4], palette, sizeof(palette));
-    memcpy(&this->gameboy->ppu->getSprPalette()[s1 * 4], palette, sizeof(palette));
-    memcpy(&this->gameboy->ppu->getSprPalette()[(s1 + 4) * 4], palette, sizeof(palette));
+    u32 color0 = RGB555ToRGB8888(paletteData[0]);
 
-    memcpy(&palette[1], &this->packet[9], 3 * sizeof(u16));
+    u32 palette[3];
 
-    memcpy(&this->gameboy->ppu->getBgPalette()[s2 * 4], palette, sizeof(palette));
-    memcpy(&this->gameboy->ppu->getSprPalette()[s2 * 4], palette, sizeof(palette));
-    memcpy(&this->gameboy->ppu->getSprPalette()[(s2 + 4) * 4], palette, sizeof(palette));
+    palette[0] = RGB555ToRGB8888(paletteData[1]);
+    palette[1] = RGB555ToRGB8888(paletteData[2]);
+    palette[2] = RGB555ToRGB8888(paletteData[3]);
 
-    for(int i = 2; i < 4; i++) {
-        this->gameboy->ppu->getBgPalette()[i * 4] = palette[0];
-        this->gameboy->ppu->getSprPalette()[i * 4] = palette[0];
-        this->gameboy->ppu->getSprPalette()[(i + 4) * 4] = palette[0];
+    memcpy(&this->gameboy->ppu->getBgPalette()[s1 * 4 + 1], palette, sizeof(palette));
+    memcpy(&this->gameboy->ppu->getSprPalette()[s1 * 4 + 1], palette, sizeof(palette));
+    memcpy(&this->gameboy->ppu->getSprPalette()[(s1 + 4) * 4 + 1], palette, sizeof(palette));
+
+    palette[0] = RGB555ToRGB8888(paletteData[4]);
+    palette[1] = RGB555ToRGB8888(paletteData[5]);
+    palette[2] = RGB555ToRGB8888(paletteData[6]);
+
+    memcpy(&this->gameboy->ppu->getBgPalette()[s2 * 4 + 1], palette, sizeof(palette));
+    memcpy(&this->gameboy->ppu->getSprPalette()[s2 * 4 + 1], palette, sizeof(palette));
+    memcpy(&this->gameboy->ppu->getSprPalette()[(s2 + 4) * 4 + 1], palette, sizeof(palette));
+
+    for(int i = 0; i < 4; i++) {
+        this->gameboy->ppu->getBgPalette()[i * 4] = color0;
+        this->gameboy->ppu->getSprPalette()[i * 4] = color0;
+        this->gameboy->ppu->getSprPalette()[(i + 4) * 4] = color0;
     }
 }
 
@@ -494,14 +498,16 @@ void SGB::souTrn(int block) {
 
 void SGB::palSet(int block) {
     int color0PaletteId = (this->packet[1] | (this->packet[2] << 8)) & 0x1ff;
-    u16 color0 = (u16) (this->palettes[color0PaletteId * 8] | (this->palettes[color0PaletteId * 8 + 1] << 8));
+    u32 color0 = RGB555ToRGB8888(this->palettes[color0PaletteId * 4]);
 
     for(int i = 0; i < 4; i++) {
         int paletteId = (this->packet[i * 2 + 1] | (this->packet[i * 2 + 2] << 8)) & 0x1ff;
 
-        u16 palette[4];
+        u32 palette[4];
         palette[0] = color0;
-        memcpy(&palette[1], &this->palettes[paletteId * 8 + 2], 3 * sizeof(u16));
+        palette[1] = RGB555ToRGB8888(this->palettes[paletteId * 4 + 1]);
+        palette[2] = RGB555ToRGB8888(this->palettes[paletteId * 4 + 2]);
+        palette[3] = RGB555ToRGB8888(this->palettes[paletteId * 4 + 3]);
 
         memcpy(&this->gameboy->ppu->getBgPalette()[i * 4], palette, sizeof(palette));
         memcpy(&this->gameboy->ppu->getSprPalette()[i * 4], palette, sizeof(palette));
@@ -518,7 +524,7 @@ void SGB::palSet(int block) {
 }
 
 void SGB::palTrn(int block) {
-    this->gameboy->ppu->transferTiles(this->palettes);
+    this->gameboy->ppu->transferTiles((u8*) this->palettes);
 }
 
 void SGB::atrcEn(int block) {

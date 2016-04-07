@@ -97,7 +97,7 @@ private:
     u8 selectedController; // Which controller is being observed
     u8 buttonsChecked;
 
-    u8 palettes[0x1000];
+    u16 palettes[0x1000];
     u8 attrFiles[0x1000];
 
     bool hasBg;

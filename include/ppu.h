@@ -30,12 +30,12 @@ public:
         this->oam[addr & 0xFF] = val;
     }
 
-    inline u16* getBgPalette() {
-        return this->bgPaletteData;
+    inline u32* getBgPalette() {
+        return this->bgPalette;
     }
 
-    inline u16* getSprPalette() {
-        return this->sprPaletteData;
+    inline u32* getSprPalette() {
+        return this->sprPalette;
     }
 private:
     typedef struct {
@@ -83,6 +83,6 @@ private:
     u8 vram[2][0x2000];
     u8 oam[0xA0];
 
-    u16 bgPaletteData[0x20];
-    u16 sprPaletteData[0x20];
+    u32 bgPalette[0x20];
+    u32 sprPalette[0x20];
 };
