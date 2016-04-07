@@ -81,8 +81,6 @@ void PPU::reset() {
 
     this->scanlineX = 0;
 
-    this->oamDmaSrc = 0;
-
     memset(this->currTileLines, 0, sizeof(this->currTileLines));
     memset(this->currSpriteLines, 0, sizeof(this->currSpriteLines));
     this->currSprites = 0;
@@ -327,7 +325,6 @@ void PPU::loadState(std::istream& data, u8 version) {
     data.read((char*) &this->lastPhaseCycle, sizeof(this->lastPhaseCycle));
     data.read((char*) &this->halfSpeed, sizeof(this->halfSpeed));
     data.read((char*) &this->scanlineX, sizeof(this->scanlineX));
-    data.read((char*) &this->oamDmaSrc, sizeof(this->oamDmaSrc));
     data.read((char*) this->expandedBgp, sizeof(this->expandedBgp));
     data.read((char*) this->expandedObp, sizeof(this->expandedObp));
     data.read((char*) this->vram, sizeof(this->vram));
@@ -343,7 +340,6 @@ void PPU::saveState(std::ostream& data) {
     data.write((char*) &this->lastPhaseCycle, sizeof(this->lastPhaseCycle));
     data.write((char*) &this->halfSpeed, sizeof(this->halfSpeed));
     data.write((char*) &this->scanlineX, sizeof(this->scanlineX));
-    data.write((char*) &this->oamDmaSrc, sizeof(this->oamDmaSrc));
     data.write((char*) this->expandedBgp, sizeof(this->expandedBgp));
     data.write((char*) this->expandedObp, sizeof(this->expandedObp));
     data.write((char*) this->vram, sizeof(this->vram));
