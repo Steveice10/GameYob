@@ -1089,4 +1089,5 @@ private:
     bool haltBug;
 
     bool ime;
+    u64 imeCycle;
 };

@@ -54,6 +54,7 @@ void CPU::reset() {
     this->haltState = false;
     this->haltBug = false;
     this->ime = false;
+    this->imeCycle = 0;
 
     if(this->gameboy->gbMode == MODE_CGB && this->gameboy->settings.gbaModeOption) {
         this->registers.bc.b.h = 1;
@@ -77,6 +78,7 @@ void CPU::loadState(std::istream& data, u8 version) {
     data.read((char*) &this->haltState, sizeof(this->haltState));
     data.read((char*) &this->haltBug, sizeof(this->haltBug));
     data.read((char*) &this->ime, sizeof(this->ime));
+    data.read((char*) &this->imeCycle, sizeof(this->imeCycle));
 }
 
 void CPU::saveState(std::ostream& data) {
@@ -86,6 +88,7 @@ void CPU::saveState(std::ostream& data) {
     data.write((char*) &this->haltState, sizeof(this->haltState));
     data.write((char*) &this->haltBug, sizeof(this->haltBug));
     data.write((char*) &this->ime, sizeof(this->ime));
+    data.write((char*) &this->imeCycle, sizeof(this->imeCycle));
 }
 
 void CPU::run() {
@@ -121,6 +124,15 @@ void CPU::run() {
 }
 
 void CPU::updateEvents() {
+    if(this->imeCycle != 0) {
+        if(this->imeCycle >= this->cycleCount) {
+            this->imeCycle = 0;
+            this->ime = true;
+        } else {
+            this->setEventCycle(this->imeCycle);
+        }
+    }
+
     if(this->gameboy->cartridge != NULL) {
         this->gameboy->cartridge->update();
     }
@@ -1520,7 +1532,10 @@ void CPU::ret_c() {
 
 void CPU::reti() {
     u16 addr = POP16();
-    this->ime = true;
+
+    this->imeCycle = this->cycleCount + 4;
+    this->setEventCycle(this->imeCycle);
+
     SETPC(addr);
 }
 
@@ -1637,6 +1652,7 @@ void CPU::ld_a_ff_c() {
 
 void CPU::di_inst() {
     this->ime = false;
+    this->imeCycle = 0;
 }
 
 void CPU::push_af() {
@@ -1678,7 +1694,8 @@ void CPU::ld_a_nnp() {
 }
 
 void CPU::ei() {
-    this->ime = true;
+    this->imeCycle = this->cycleCount + 4;
+    this->setEventCycle(this->imeCycle);
 }
 
 void CPU::cp_n() {
