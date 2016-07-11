@@ -299,7 +299,7 @@ void versionInfoFunc(int value) {
     displaySubMenu(subMenuGenericUpdateFunc);
 
     uiClear();
-    uiPrint("Version: %s\n", VERSION_STRING);
+    uiPrint("Version: %d.%d.%d\n", VERSION_MAJOR, VERSION_MINOR, VERSION_MICRO);
     uiFlush();
 }
 

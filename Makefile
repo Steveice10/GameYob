@@ -32,7 +32,7 @@ else
 	LIBRARIES := ncurses SDL2 m
 endif
 
-BUILD_FLAGS := -O3 -Wno-unused-function -Wno-unused-result -DVERSION_STRING="\"`git describe --tags --abbrev=0` (`git describe --always --abbrev=10`)\""
+BUILD_FLAGS := -O3 -Wno-unused-function -Wno-unused-result
 ifeq ($(TARGET),3DS)
 	BUILD_FLAGS += -DBACKEND_3DS
 else
@@ -40,6 +40,12 @@ else
 endif
 
 RUN_FLAGS :=
+
+VERSION_PARTS := $(subst ., ,$(shell git describe --tags --abbrev=0))
+
+VERSION_MAJOR := $(word 1, $(VERSION_PARTS))
+VERSION_MINOR := $(word 2, $(VERSION_PARTS))
+VERSION_MICRO := $(word 3, $(VERSION_PARTS))
 
 # 3DS CONFIGURATION #
 
