@@ -85,6 +85,19 @@ void PPU::reset() {
     memset(this->currSpriteLines, 0, sizeof(this->currSpriteLines));
     this->currSprites = 0;
 
+    memset(this->vram, 0, sizeof(this->vram));
+    memset(this->oam, 0, sizeof(this->oam));
+    memset(this->rawBgPalette, 0, sizeof(this->rawBgPalette));
+    memset(this->rawSprPalette, 0, sizeof(this->rawSprPalette));
+
+    if(this->gameboy->gbMode == MODE_CGB) {
+        memset(this->bgPalette, 0xFF, sizeof(this->bgPalette));
+        memset(this->sprPalette, 0x00, sizeof(this->sprPalette));
+    } else {
+        memcpy(this->bgPalette, grayScalePalette, sizeof(this->bgPalette));
+        memcpy(this->sprPalette, grayScalePalette, sizeof(this->sprPalette));
+    }
+
     if(this->gameboy->gbMode == MODE_CGB) {
         for(u8 i = 0; i < sizeof(this->expandedBgp); i++) {
             this->expandedBgp[i] = i;
@@ -99,29 +112,11 @@ void PPU::reset() {
         memset(this->expandedObp, 3, sizeof(this->expandedObp));
     }
 
-    memset(this->vram, 0, sizeof(this->vram));
-    memset(this->oam, 0, sizeof(this->oam));
-
-    if(this->gameboy->gbMode == MODE_CGB) {
-        memset(this->bgPalette, 0xFF, sizeof(this->bgPalette));
-        memset(this->sprPalette, 0x00, sizeof(this->sprPalette));
-    } else {
-        memcpy(this->bgPalette, grayScalePalette, sizeof(this->bgPalette));
-        memcpy(this->sprPalette, grayScalePalette, sizeof(this->sprPalette));
-    }
-
     this->mapBanks();
 
     this->gameboy->mmu->mapIOReadFunc(BCPD, [this](u16 addr) -> u8 {
         if(this->gameboy->gbMode == MODE_CGB) {
-            u8 selected = (u8) (this->gameboy->mmu->readIO(BCPS) & 0x3F);
-            u32 curr = this->bgPalette[selected >> 1];
-
-            if(selected & 1) {
-                return (u8) ((((curr >> 19) & 0x18) >> 3) | (((curr >> 11) & 0x1F) << 2));
-            } else {
-                return (u8) (((curr >> 27) & 0x1F) | (((curr >> 19) & 0x07) << 5));
-            }
+            return this->rawBgPalette[this->gameboy->mmu->readIO(BCPS) & 0x3F];
         } else {
             return this->gameboy->mmu->readIO(BCPD);
         }
@@ -129,14 +124,7 @@ void PPU::reset() {
 
     this->gameboy->mmu->mapIOReadFunc(OCPD, [this](u16 addr) -> u8 {
         if(this->gameboy->gbMode == MODE_CGB) {
-            u8 selected = (u8) (this->gameboy->mmu->readIO(OCPS) & 0x3F);
-
-            u32 curr = this->sprPalette[selected >> 1];
-            if(selected & 1) {
-                return (u8) (((curr >> 27) & 0x1F) | (((curr >> 19) & 0x07) << 5));
-            } else {
-                return (u8) ((((curr >> 19) & 0x18) >> 6) | (((curr >> 11) & 0x1F) << 2));
-            }
+            return this->rawSprPalette[this->gameboy->mmu->readIO(OCPS) & 0x3F];
         } else {
             return this->gameboy->mmu->readIO(OCPD);
         }
@@ -226,23 +214,15 @@ void PPU::reset() {
             u8 bcps = this->gameboy->mmu->readIO(BCPS);
             u8 selected = (u8) (bcps & 0x3F);
 
-            u32 curr = this->bgPalette[selected >> 1];
-
-            u8 r5 = 0;
-            u8 g5 = 0;
-            u8 b5 = 0;
-
+            u16 rgb555 = 0;
             if(selected & 1) {
-                r5 = (u8) ((curr >> 27) & 0x1F);
-                g5 = (u8) (((curr >> 19) & 0x07) | ((val << 3) & 0x18));
-                b5 = (u8) ((val >> 2) & 0x1F);
+                rgb555 = this->rawBgPalette[selected & ~1] | (val << 8);
             } else {
-                r5 = (u8) (val & 0x1F);
-                g5 = (u8) (((val >> 5) & 0x07) | ((curr >> 19) & 0x18));
-                b5 = (u8) ((curr >> 11) & 0x1F);
+                rgb555 = val | (this->rawBgPalette[selected | 1] << 8);
             }
 
-            this->bgPalette[selected >> 1] = RGB555ComponentsToRGB8888(r5, g5, b5);
+            this->rawBgPalette[selected] = val;
+            this->bgPalette[selected >> 1] = RGB555ToRGB8888(rgb555);
 
             if(bcps & 0x80) {
                 this->gameboy->mmu->writeIO(BCPS, (u8) (((bcps & 0x3F) + 1) | (bcps & 0x80) | 0x40));
@@ -261,23 +241,15 @@ void PPU::reset() {
             u8 ocps = this->gameboy->mmu->readIO(OCPS);
             u8 selected = (u8) (ocps & 0x3F);
 
-            u32 curr = this->sprPalette[selected >> 1];
-
-            u8 r5 = 0;
-            u8 g5 = 0;
-            u8 b5 = 0;
-
+            u16 rgb555 = 0;
             if(selected & 1) {
-                r5 = (u8) ((curr >> 27) & 0x1F);
-                g5 = (u8) (((curr >> 19) & 0x07) | ((val << 3) & 0x18));
-                b5 = (u8) ((val >> 2) & 0x1F);
+                rgb555 = this->rawSprPalette[selected & ~1] | (val << 8);
             } else {
-                r5 = (u8) (val & 0x1F);
-                g5 = (u8) (((val >> 5) & 0x07) | ((curr >> 19) & 0x18));
-                b5 = (u8) ((curr >> 11) & 0x1F);
+                rgb555 = val | (this->rawSprPalette[selected | 1] << 8);
             }
 
-            this->sprPalette[selected >> 1] = RGB555ComponentsToRGB8888(r5, g5, b5);
+            this->rawSprPalette[selected] = val;
+            this->sprPalette[selected >> 1] = RGB555ToRGB8888(rgb555);
 
             if(ocps & 0x80) {
                 this->gameboy->mmu->writeIO(OCPS, (u8) (((ocps & 0x3F) + 1) | (ocps & 0x80) | 0x40));
@@ -325,12 +297,14 @@ void PPU::loadState(std::istream& data, u8 version) {
     data.read((char*) &this->lastPhaseCycle, sizeof(this->lastPhaseCycle));
     data.read((char*) &this->halfSpeed, sizeof(this->halfSpeed));
     data.read((char*) &this->scanlineX, sizeof(this->scanlineX));
-    data.read((char*) this->expandedBgp, sizeof(this->expandedBgp));
-    data.read((char*) this->expandedObp, sizeof(this->expandedObp));
     data.read((char*) this->vram, sizeof(this->vram));
     data.read((char*) this->oam, sizeof(this->oam));
+    data.read((char*) this->rawBgPalette, sizeof(this->rawBgPalette));
+    data.read((char*) this->rawSprPalette, sizeof(this->rawSprPalette));
     data.read((char*) this->bgPalette, sizeof(this->bgPalette));
     data.read((char*) this->sprPalette, sizeof(this->sprPalette));
+    data.read((char*) this->expandedBgp, sizeof(this->expandedBgp));
+    data.read((char*) this->expandedObp, sizeof(this->expandedObp));
 
     this->mapBanks();
 }
@@ -340,12 +314,14 @@ void PPU::saveState(std::ostream& data) {
     data.write((char*) &this->lastPhaseCycle, sizeof(this->lastPhaseCycle));
     data.write((char*) &this->halfSpeed, sizeof(this->halfSpeed));
     data.write((char*) &this->scanlineX, sizeof(this->scanlineX));
-    data.write((char*) this->expandedBgp, sizeof(this->expandedBgp));
-    data.write((char*) this->expandedObp, sizeof(this->expandedObp));
     data.write((char*) this->vram, sizeof(this->vram));
     data.write((char*) this->oam, sizeof(this->oam));
+    data.write((char*) this->rawBgPalette, sizeof(this->rawBgPalette));
+    data.write((char*) this->rawSprPalette, sizeof(this->rawSprPalette));
     data.write((char*) this->bgPalette, sizeof(this->bgPalette));
     data.write((char*) this->sprPalette, sizeof(this->sprPalette));
+    data.write((char*) this->expandedBgp, sizeof(this->expandedBgp));
+    data.write((char*) this->expandedObp, sizeof(this->expandedObp));
 }
 
 void PPU::mapBanks() {

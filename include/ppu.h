@@ -71,18 +71,18 @@ private:
 
     u8 scanlineX;
 
-    u16 oamDmaSrc;
-
     TileLine currTileLines[2];
     SpriteLine currSpriteLines[10];
     u8 currSprites;
 
-    u8 expandedBgp[4];
-    u8 expandedObp[8];
-
     u8 vram[2][0x2000];
     u8 oam[0xA0];
+    u8 rawBgPalette[0x40];
+    u8 rawSprPalette[0x40];
 
     u32 bgPalette[0x20];
     u32 sprPalette[0x20];
+
+    u8 expandedBgp[4];
+    u8 expandedObp[8];
 };
