@@ -26,10 +26,10 @@ EXTRA_OUTPUT_FILES :=
 
 ifeq ($(TARGET),3DS)
 	LIBRARY_DIRS := $(DEVKITPRO)/libctru
-	LIBRARIES := citro3d ctru m
+	LIBRARIES := citro3d ctru
 else
 	LIBRARY_DIRS :=
-	LIBRARIES := ncurses SDL2 m
+	LIBRARIES := ncurses SDL2
 endif
 
 BUILD_FLAGS := -O3 -Wno-unused-function -Wno-unused-result
