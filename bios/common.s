@@ -100,7 +100,7 @@ ENDM
 
 ; Write register.
 wreg: MACRO
-	LD A,\2
+        LD A,\2
         wrega \1
 ENDM
 

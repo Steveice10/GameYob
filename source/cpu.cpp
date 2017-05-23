@@ -1,4 +1,5 @@
 #include <string.h>
+#include <cpu.h>
 
 #include "apu.h"
 #include "cartridge.h"
@@ -18,30 +19,22 @@ static u8 temp2 = 0;
 #define FLAG_HALFCARRY 0x20
 #define FLAG_CARRY 0x10
 
-#define FLAG_GET(f) ((this->registers.af.b.l & (f)) == (f))
-#define FLAG_SET(f, x) (this->registers.af.b.l ^= (-(x) ^ this->registers.af.b.l) & (f))
+#define FLAG_GET(f) ((this->registers.r8[R8_F] & (f)) == (f))
+#define FLAG_SET(f, x) (this->registers.r8[R8_F] ^= (-(x) ^ this->registers.r8[R8_F]) & (f))
+
+#define SETPC(val) (this->registers.r16[R16_PC] = (val), this->advanceCycles(4))
 
 #define MEMREAD(addr) (temp1 = this->gameboy->mmu->read(addr), this->advanceCycles(4), temp1)
 #define MEMWRITE(addr, val) (this->gameboy->mmu->write(addr, val), this->advanceCycles(4))
 
-#define SETPC(val) (this->registers.pc.w = (val), this->advanceCycles(4))
-
-#define READPC8() MEMREAD(this->registers.pc.w++)
+#define READPC8() MEMREAD(this->registers.r16[R16_PC]++)
 #define READPC16() (temp2 = READPC8(), temp2 | (READPC8() << 8))
 
-#define SETSP_SLOW(val) (this->registers.sp.w = (val), this->advanceCycles(4))
+#define PUSH(val) (MEMWRITE(--this->registers.r16[R16_SP], ((val) >> 8)), MEMWRITE(--this->registers.r16[R16_SP], ((val) & 0xFF)))
+#define POP() (temp2 = MEMREAD(this->registers.r16[R16_SP]++), temp2 | (MEMREAD(this->registers.r16[R16_SP]++) << 8))
 
-#define PUSH8(val) MEMWRITE(--this->registers.sp.w, (val))
-#define PUSH16(val) (PUSH8((u8) (((val) >> 8) & 0xFF)), PUSH8((u8) ((val) & 0xFF)))
-#define PUSH16_SLOW(val) (PUSH16(val), this->advanceCycles(4))
-
-#define POP8() MEMREAD(this->registers.sp.w++)
-#define POP16() (temp2 = POP8(), temp2 | (POP8() << 8))
-
-#define RET_PROLOGUE() this->advanceCycles(4)
-
-#define ADD16(r, n) (this->advanceCycles(4), r + n)
-#define SUB16(r, n) (this->advanceCycles(4), r - n)
+#define ADD16(r, n) (this->advanceCycles(4), (r) + (n))
+#define SUB16(r, n) (this->advanceCycles(4), (r) - (n))
 
 CPU::CPU(Gameboy* gameboy) {
     this->gameboy = gameboy;
@@ -57,7 +50,7 @@ void CPU::reset() {
     this->imeCycle = 0;
 
     if(this->gameboy->gbMode == MODE_CGB && this->gameboy->settings.gbaModeOption) {
-        this->registers.bc.b.h = 1;
+        this->registers.r8[R8_B] = 1;
     }
 
     this->gameboy->mmu->mapIOWriteFunc(IF, [this](u16 addr, u8 val) -> void {
@@ -91,16 +84,665 @@ void CPU::saveState(std::ostream& data) {
     data.write((char*) &this->imeCycle, sizeof(this->imeCycle));
 }
 
+static const u8 r[8] = {
+        R8_B,
+        R8_C,
+        R8_D,
+        R8_E,
+        R8_H,
+        R8_L,
+        R16_HL,
+        R8_A
+};
+
+static const u8 rp[4] = {
+        R16_BC,
+        R16_DE,
+        R16_HL,
+        R16_SP
+};
+
+static const u8 rp2[4] = {
+        R16_BC,
+        R16_DE,
+        R16_HL,
+        R16_AF
+};
+
+static const u8 cc[4] = {
+    FLAG_ZERO,
+    FLAG_ZERO,
+    FLAG_CARRY,
+    FLAG_CARRY
+};
+
+#define READ_R(i) ((i) == 6 ? MEMREAD(this->registers.r16[R16_HL]) : this->registers.r8[r[i]])
+#define WRITE_R(i, v) ((i) == 6 ? (MEMWRITE(this->registers.r16[R16_HL], (v)), 0) : this->registers.r8[r[i]] = (v))
+
+#define READ_RP(i) (this->registers.r16[rp[i]])
+#define WRITE_RP(i, v) (this->registers.r16[rp[i]] = (v))
+
+#define READ_RP2(i) (this->registers.r16[rp2[i]])
+#define WRITE_RP2(i, v) (this->registers.r16[rp2[i]] = (v))
+
+#define CHECK_CC(i) (FLAG_GET(cc[i]) ^ (~(i) & 1))
+
+inline void CPU::alu(u8 func, u8 val) {
+    u8 a = this->registers.r8[R8_A];
+
+    u16 result = 0;
+
+    if(func < 4 || func == 7) {
+        u16 low = 0;
+        u16 high = 0;
+
+        switch(func) {
+            case 1: { // ADC
+                low = (u16) FLAG_GET(FLAG_CARRY);
+            }
+            case 0: { // ADD A
+                low += (a & 0xF) + (val & 0xF);
+                high = (a >> 4) + (val >> 4);
+                break;
+            }
+            case 3: { // SBC
+                low = (u16) -FLAG_GET(FLAG_CARRY);
+            }
+            case 2:   // SUB
+            case 7: { // CP
+                low += (a & 0xF) - (val & 0xF);
+                high = (a >> 4) - (val >> 4);
+                break;
+            }
+        }
+
+        FLAG_SET(FLAG_NEGATIVE, (func & 0x6) != 0);
+        FLAG_SET(FLAG_HALFCARRY, (low & 0xF0) != 0);
+
+        result = low + (high << 4);
+    } else {
+        switch(func) {
+            case 4: { // AND
+                result = a & val;
+                break;
+            }
+            case 5: { // XOR
+                result = a ^ val;
+                break;
+            }
+            case 6: { // OR
+                result = a | val;
+                break;
+            }
+        }
+
+        FLAG_SET(FLAG_NEGATIVE, 0);
+        FLAG_SET(FLAG_HALFCARRY, func == 4);
+    }
+
+    FLAG_SET(FLAG_CARRY, result >= 0x100);
+    FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
+
+    if(func != 7) {
+        this->registers.r8[R8_A] = (u8) (result & 0xFF);
+    }
+}
+
+inline u8 CPU::rot(u8 func, u8 val) {
+    u8 carry = 0;
+    u8 result = 0;
+
+    switch(func) {
+        case 0: { // RLC
+            carry = (u8) ((val & 0x80) >> 7);
+            result = (val << 1) | carry;
+            break;
+        }
+        case 1: { // RRC
+            carry = (u8) ((val & 0x01) << 7);
+            result = (val >> 1) | carry;
+            break;
+        }
+        case 2: { // RL
+            carry = (u8) (val & 0x80);
+            result = (val << 1) | (u8) FLAG_GET(FLAG_CARRY);
+            break;
+        }
+        case 3: { // RR
+            carry = (u8) (val & 0x01);
+            result = (val >> 1) | (u8) (FLAG_GET(FLAG_CARRY) << 7);
+            break;
+        }
+        case 4: { // SLA
+            carry = (u8) (val & 0x80);
+            result = val << 1;
+            break;
+        }
+        case 5: { // SRA
+            carry = (u8) (val & 0x01);
+            result = (val >> 1) | (u8) (val & 0x80);
+            break;
+        }
+        case 6: { // SWAP
+            carry = 0;
+            result = (u8) (((val & 0x0F) << 4) | ((val & 0xF0) >> 4));
+            break;
+        }
+        case 7: { // SRL
+            carry = (u8) (val & 0x01);
+            result = val >> 1;
+            break;
+        }
+    }
+
+    FLAG_SET(FLAG_NEGATIVE, 0);
+    FLAG_SET(FLAG_HALFCARRY, 0);
+    FLAG_SET(FLAG_CARRY, carry != 0);
+    FLAG_SET(FLAG_ZERO, result == 0);
+
+    return result;
+}
+
 void CPU::run() {
     if(!this->haltState) {
         u8 op = READPC8();
 
         if(this->haltBug) {
-            this->registers.pc.w--;
+            this->registers.r16[R16_PC]--;
             this->haltBug = false;
         }
 
-        (this->*opcodes[op])();
+        u8 x = op >> 6;
+        u8 y = (u8) ((op >> 3) & 0x7);
+        u8 z = (u8) (op & 0x7);
+        u8 p = y >> 1;
+        u8 q = (u8) (y & 0x1);
+
+        switch(x) {
+            case 0: {
+                switch(z) {
+                    case 0: {
+                        switch(y) {
+                            case 0: { // NOP
+                                break;
+                            }
+                            case 1: { // LD (nn), SP
+                                u16 addr = READPC16();
+
+                                MEMWRITE(addr, this->registers.r8[R8_SP_P]);
+                                MEMWRITE((u16) (addr + 1), this->registers.r8[R8_SP_S]);
+                                break;
+                            }
+                            case 2: { // STOP
+                                u8 key1 = this->gameboy->mmu->readIO(KEY1);
+                                if(this->gameboy->gbMode == MODE_CGB && (key1 & 0x01) != 0) {
+                                    bool doubleSpeed = (key1 & 0x80) == 0;
+
+                                    this->gameboy->apu->setHalfSpeed(doubleSpeed);
+                                    this->gameboy->ppu->setHalfSpeed(doubleSpeed);
+
+                                    this->gameboy->mmu->writeIO(KEY1, (u8) (key1 ^ 0x81));
+                                    this->registers.r16[R16_PC]++;
+                                } else {
+                                    this->haltState = true;
+                                }
+
+                                break;
+                            }
+                            case 3: { // JR d
+                                s8 offset = READPC8();
+                                SETPC(this->registers.r16[R16_PC] + offset);
+                                break;
+                            }
+                            default: { // JR cc[y-4], d
+                                s8 offset = READPC8();
+                                if(CHECK_CC(y - 4)) {
+                                    SETPC(this->registers.r16[R16_PC] + offset);
+                                }
+
+                                break;
+                            }
+                        }
+
+                        break;
+                    }
+                    case 1: {
+                        switch(q) {
+                            case 0: { // LD rp[p], nn
+                                u16 val = READPC16();
+                                WRITE_RP(p, val);
+                                break;
+                            }
+                            case 1: { // ADD HL, rp[p]
+                                u16 hl = this->registers.r16[R16_HL];
+                                u16 val = READ_RP(p);
+
+                                u32 result = ADD16(hl, val);
+                                FLAG_SET(FLAG_NEGATIVE, 0);
+                                FLAG_SET(FLAG_HALFCARRY, (hl & 0xFFF) + (val & 0xFFF) >= 0x1000);
+                                FLAG_SET(FLAG_CARRY, result >= 0x10000);
+
+                                this->registers.r16[R16_HL] = (u16) (result & 0xFFFF);
+                                break;
+                            }
+                        }
+
+                        break;
+                    }
+                    case 2: {
+                        switch(q) {
+                            case 0: {
+                                switch(p) {
+                                    case 0: { // LD (BC), A
+                                        MEMWRITE(this->registers.r16[R16_BC], this->registers.r8[R8_A]);
+                                        break;
+                                    }
+                                    case 1: { // LD (DE), A
+                                        MEMWRITE(this->registers.r16[R16_DE], this->registers.r8[R8_A]);
+                                        break;
+                                    }
+                                    case 2: { // LD (HL+), A
+                                        MEMWRITE(this->registers.r16[R16_HL]++, this->registers.r8[R8_A]);
+                                        break;
+                                    }
+                                    case 3: { // LD (HL-), A
+                                        MEMWRITE(this->registers.r16[R16_HL]--, this->registers.r8[R8_A]);
+                                        break;
+                                    }
+                                }
+
+                                break;
+                            }
+                            case 1: {
+                                switch(p) {
+                                    case 0: { // LD A, (BC)
+                                        this->registers.r8[R8_A] = MEMREAD(this->registers.r16[R16_BC]);
+                                        break;
+                                    }
+                                    case 1: { // LD A, (DE)
+                                        this->registers.r8[R8_A] = MEMREAD(this->registers.r16[R16_DE]);
+                                        break;
+                                    }
+                                    case 2: { // LD A, (HL+)
+                                        this->registers.r8[R8_A] = MEMREAD(this->registers.r16[R16_HL]++);
+                                        break;
+                                    }
+                                    case 3: { // LD A, (HL-)
+                                        this->registers.r8[R8_A] = MEMREAD(this->registers.r16[R16_HL]--);
+                                        break;
+                                    }
+                                }
+
+                                break;
+                            }
+                        }
+
+                        break;
+                    }
+                    case 3: {
+                        switch(q) {
+                            case 0: { // INC rp[p]
+                                u16 val = READ_RP(p);
+                                u16 result = (u16) ADD16(val, 1);
+                                WRITE_RP(p, result);
+                                break;
+                            }
+                            case 1: { // DEC rp[p]
+                                u16 val = READ_RP(p);
+                                u16 result = (u16) SUB16(val, 1);
+                                WRITE_RP(p, result);
+                                break;
+                            }
+                        }
+
+                        break;
+                    }
+                    case 4: { // INC r[y]
+                        u8 val = READ_R(y);
+
+                        u8 result = (u8) (val + 1);
+                        FLAG_SET(FLAG_NEGATIVE, 0);
+                        FLAG_SET(FLAG_HALFCARRY, (val & 0xF) == 0xF);
+                        FLAG_SET(FLAG_ZERO, result == 0);
+
+                        WRITE_R(y, result);
+                        break;
+                    }
+                    case 5: { // DEC r[y]
+                        u8 val = READ_R(y);
+
+                        u8 result = (u8) (val - 1);
+                        FLAG_SET(FLAG_NEGATIVE, 1);
+                        FLAG_SET(FLAG_HALFCARRY, (val & 0xF) == 0);
+                        FLAG_SET(FLAG_ZERO, result == 0);
+
+                        WRITE_R(y, result);
+                        break;
+                    }
+                    case 6: { // LD r[y], n
+                        u8 val = READPC8();
+                        WRITE_R(y, val);
+                        break;
+                    }
+                    case 7: {
+                        switch(y) {
+                            case 4: { // DAA
+                                u16 result = this->registers.r8[R8_A];
+
+                                if(FLAG_GET(FLAG_NEGATIVE)) {
+                                    if(FLAG_GET(FLAG_HALFCARRY)) {
+                                        result += 0xFA;
+                                    }
+
+                                    if(FLAG_GET(FLAG_CARRY)) {
+                                        result += 0xA0;
+                                    }
+                                } else {
+                                    if(FLAG_GET(FLAG_HALFCARRY) || (result & 0xF) > 9) {
+                                        result += 0x06;
+                                    }
+
+                                    if(FLAG_GET(FLAG_CARRY) || (result & 0x1F0) > 0x90) {
+                                        result += 0x60;
+                                        FLAG_SET(FLAG_CARRY, 1);
+                                    } else {
+                                        FLAG_SET(FLAG_CARRY, 0);
+                                    }
+                                }
+
+                                FLAG_SET(FLAG_HALFCARRY, 0);
+                                FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
+
+                                this->registers.r8[R8_A] = (u8) (result & 0xFF);
+                                break;
+                            }
+                            case 5: { // CPL
+                                this->registers.r8[R8_A] = ~this->registers.r8[R8_A];
+                                FLAG_SET(FLAG_NEGATIVE, 1);
+                                FLAG_SET(FLAG_HALFCARRY, 1);
+                                break;
+                            }
+                            case 6: { // SCF
+                                FLAG_SET(FLAG_NEGATIVE, 0);
+                                FLAG_SET(FLAG_HALFCARRY, 0);
+                                FLAG_SET(FLAG_CARRY, 1);
+                                break;
+                            }
+                            case 7: { // CCF
+                                FLAG_SET(FLAG_CARRY, !FLAG_GET(FLAG_CARRY));
+                                FLAG_SET(FLAG_NEGATIVE, 0);
+                                FLAG_SET(FLAG_HALFCARRY, 0);
+                                break;
+                            }
+                            default: { // rot[y] A
+                                this->registers.r8[R8_A] = this->rot(y, this->registers.r8[R8_A]);
+                                FLAG_SET(FLAG_ZERO, 0);
+                                break;
+                            }
+                        }
+
+                        break;
+                    }
+                }
+
+                break;
+            }
+            case 1: {
+                if(z == 6 && y == 6) { // HALT
+                    if(!this->ime && (this->gameboy->mmu->readIO(IF) & this->gameboy->mmu->readIO(IE) & 0x1F) != 0) {
+                        if(this->gameboy->gbMode != MODE_CGB) {
+                            this->haltBug = true;
+                        }
+                    } else {
+                        this->haltState = true;
+                    }
+                } else { // LD r[y], r[z]
+                    u8 val = READ_R(z);
+                    WRITE_R(y, val);
+                }
+
+                break;
+            }
+            case 2: { // alu[y] r[z]
+                this->alu(y, READ_R(z));
+                break;
+            }
+            case 3: {
+                switch(z) {
+                    case 0: {
+                        switch(y) {
+                            case 4: { // LD (0xFF00 + nn), A
+                                u8 reg = READPC8();
+                                MEMWRITE((u16) (0xFF00 + reg), this->registers.r8[R8_A]);
+                                break;
+                            }
+                            case 5: { // ADD SP, d
+                                u16 sp = this->registers.r16[R16_SP];
+                                u8 val = READPC8();
+
+                                u16 result = (u16) ADD16(sp, (s8) val);
+                                FLAG_SET(FLAG_NEGATIVE, 0);
+                                FLAG_SET(FLAG_HALFCARRY, (sp & 0xF) + (val & 0xF) >= 0x10);
+                                FLAG_SET(FLAG_CARRY, (sp & 0xFF) + val >= 0x100);
+                                FLAG_SET(FLAG_ZERO, 0);
+
+                                this->registers.r16[R16_SP] = result;
+                                this->advanceCycles(4);
+                                break;
+                            }
+                            case 6: { // LD A, (0xFF00 + n)
+                                u8 reg = READPC8();
+                                this->registers.r8[R8_A] = MEMREAD((u16) (0xFF00 + reg));
+                                break;
+                            }
+                            case 7: { // LD HL, SP+ d
+                                u16 sp = this->registers.r16[R16_SP];
+                                u8 val = READPC8();
+
+                                u16 result = (u16) ADD16(sp, (s8) val);
+                                FLAG_SET(FLAG_NEGATIVE, 0);
+                                FLAG_SET(FLAG_HALFCARRY, (sp & 0xF) + (val & 0xF) >= 0x10);
+                                FLAG_SET(FLAG_CARRY, (sp & 0xFF) + val >= 0x100);
+                                FLAG_SET(FLAG_ZERO, 0);
+
+                                this->registers.r16[R16_HL] = result;
+                                break;
+                            }
+                            default: { // RET cc[y]
+                                this->advanceCycles(4);
+
+                                if(CHECK_CC(y)) {
+                                    u16 addr = POP();
+                                    SETPC(addr);
+                                }
+
+                                break;
+                            }
+                        }
+
+                        break;
+                    }
+                    case 1: {
+                        switch(q) {
+                            case 0: { // POP rp2[p]
+                                u8 oldFLow = (u8) (this->registers.r8[R8_F] & 0xF);
+
+                                u16 val = POP();
+                                WRITE_RP2(p, val);
+
+                                this->registers.r8[R8_F] = (u8) ((this->registers.r8[R8_F] & 0xF0) | oldFLow);
+                                break;
+                            }
+                            case 1: {
+                                switch(p) {
+                                    case 0: { // RET
+                                        u16 addr = POP();
+                                        SETPC(addr);
+                                        break;
+                                    }
+                                    case 1: { // RETI
+                                        u16 addr = POP();
+
+                                        this->imeCycle = this->cycleCount + 4;
+                                        this->setEventCycle(this->imeCycle);
+
+                                        SETPC(addr);
+                                        break;
+                                    }
+                                    case 2: { // JP HL
+                                        this->registers.r16[R16_PC] = this->registers.r16[R16_HL];
+                                        break;
+                                    }
+                                    case 3: { // LD SP, HL
+                                        this->registers.r16[R16_SP] = this->registers.r16[R16_HL];
+                                        this->advanceCycles(4);
+                                        break;
+                                    }
+                                }
+
+                                break;
+                            }
+                        }
+
+                        break;
+                    }
+                    case 2: {
+                        switch(y) {
+                            case 4: { // LD (0xFF00+C), A
+                                MEMWRITE((u16) (0xFF00 + this->registers.r8[R8_C]), this->registers.r8[R8_A]);
+                                break;
+                            }
+                            case 5: { // LD (nn), A
+                                u16 addr = READPC16();
+                                MEMWRITE(addr, this->registers.r8[R8_A]);
+                                break;
+                            }
+                            case 6: { // LD A, (0xFF00+C)
+                                this->registers.r8[R8_A] = MEMREAD((u16) (0xFF00 + this->registers.r8[R8_C]));
+                                break;
+                            }
+                            case 7: { // LD A, (nn)
+                                u16 addr = READPC16();
+                                this->registers.r8[R8_A] = MEMREAD(addr);
+                                break;
+                            }
+                            default: { // JP cc[y], nn
+                                u16 addr = READPC16();
+                                if(CHECK_CC(y)) {
+                                    SETPC(addr);
+                                }
+
+                                break;
+                            }
+                        }
+
+                        break;
+                    }
+                    case 3: {
+                        switch(y) {
+                            case 0: { // JP nn
+                                u16 addr = READPC16();
+                                SETPC(addr);
+                                break;
+                            }
+                            case 1: { // CB
+                                u8 cbOp = READPC8();
+
+                                u8 cbX = cbOp >> 6;
+                                u8 cbY = (u8) ((cbOp >> 3) & 0x7);
+                                u8 cbZ = (u8) (cbOp & 0x7);
+
+                                u8 val = READ_R(cbZ);
+                                u8 result = 0;
+
+                                switch(cbX) {
+                                    case 0: { // rot[y] r[z]
+                                        result = this->rot(cbY, val);
+                                        break;
+                                    }
+                                    case 1: { // BIT y, r[z]
+                                        FLAG_SET(FLAG_NEGATIVE, 0);
+                                        FLAG_SET(FLAG_HALFCARRY, 1);
+                                        FLAG_SET(FLAG_ZERO, (val & (1 << cbY)) == 0);
+                                        break;
+                                    }
+                                    case 2: { // RES y, r[z]
+                                        result = val & ~((u8) (1 << cbY));
+                                        break;
+                                    }
+                                    case 3: { // SET y, r[z]
+                                        result = val | (u8) (1 << cbY);
+                                        break;
+                                    }
+                                }
+
+                                if(cbX != 1) {
+                                    WRITE_R(cbZ, result);
+                                }
+
+                                break;
+                            }
+                            case 6: { // DI
+                                this->ime = false;
+                                this->imeCycle = 0;
+                                break;
+                            }
+                            case 7: { // EI
+                                this->imeCycle = this->cycleCount + 4;
+                                this->setEventCycle(this->imeCycle);
+                                break;
+                            }
+                        }
+
+                        break;
+                    }
+                    case 4: {
+                        if((y & 0x4) == 0) { // CALL cc[y], nn
+                            u16 addr = READPC16();
+                            if(CHECK_CC(y)) {
+                                PUSH(this->registers.r16[R16_PC]);
+                                SETPC(addr);
+                            }
+                        }
+
+                        break;
+                    }
+                    case 5: {
+                        switch(q) {
+                            case 0: { // PUSH rp2[p]
+                                u16 val = READ_RP2(p);
+                                PUSH(val);
+                                this->advanceCycles(4);
+                                break;
+                            }
+                            case 1: {
+                                if(p == 0) { // CALL nn
+                                    u16 addr = READPC16();
+                                    PUSH(this->registers.r16[R16_PC]);
+                                    SETPC(addr);
+                                }
+
+                                break;
+                            }
+                        }
+
+                        break;
+                    }
+                    case 6: { // alu[y] n
+                        u8 val = READPC8();
+                        this->alu(y, val);
+                        break;
+                    }
+                    case 7: { // RST y*8
+                        PUSH(this->registers.r16[R16_PC]);
+                        SETPC(y * 8);
+                        break;
+                    }
+                }
+
+                break;
+            }
+        }
     } else {
         this->advanceCycles(this->eventCycle - this->cycleCount);
     }
@@ -111,14 +753,13 @@ void CPU::run() {
         if(this->ime) {
             this->ime = false;
 
-            this->gameboy->mmu->write(--this->registers.sp.w, this->registers.pc.b.h);
-            this->gameboy->mmu->write(--this->registers.sp.w, this->registers.pc.b.l);
+            this->advanceCycles(12);
+
+            PUSH(this->registers.r16[R16_PC]);
 
             int irqNo = __builtin_ffs(triggered) - 1;
-            this->registers.pc.w = (u16) (0x40 + (irqNo << 3));
+            this->registers.r16[R16_PC] = (u16) (0x40 + (irqNo << 3));
             this->gameboy->mmu->writeIO(IF, (u8) (this->gameboy->mmu->readIO(IF) & ~(1 << irqNo)));
-
-            this->advanceCycles(20);
         }
     }
 }
@@ -142,3092 +783,4 @@ void CPU::updateEvents() {
     this->gameboy->sgb->update();
     this->gameboy->timer->update();
     this->gameboy->serial->update();
-}
-
-void CPU::undefined() {
-    if(this->gameboy->settings.printDebug != NULL) {
-        this->gameboy->settings.printDebug("Undefined instruction 0x%x at 0x%x.\n", this->gameboy->mmu->read((u16) (this->registers.pc.w - 1)), this->registers.pc.w - 1);
-    }
-}
-
-void CPU::nop() {
-}
-
-void CPU::ld_bc_nn() {
-    this->registers.bc.w = READPC16();
-}
-
-void CPU::ld_bcp_a() {
-    MEMWRITE(this->registers.bc.w, this->registers.af.b.h);
-}
-
-void CPU::inc_bc() {
-    this->registers.bc.w = (u16) ADD16(this->registers.bc.w, 1);
-}
-
-void CPU::inc_b() {
-    u8 result = (u8) (this->registers.bc.b.h + 1);
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.bc.b.h & 0xF) == 0xF);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.bc.b.h = result;
-}
-
-void CPU::dec_b() {
-    u8 result = (u8) (this->registers.bc.b.h - 1);
-    FLAG_SET(FLAG_NEGATIVE, 1);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.bc.b.h & 0xF) == 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.bc.b.h = result;
-}
-
-void CPU::ld_b_n() {
-    this->registers.bc.b.h = READPC8();
-}
-
-void CPU::rlca() {
-    u8 carry = (u8) ((this->registers.af.b.h & 0x80) >> 7);
-    u8 result = (this->registers.af.b.h << 1) | carry;
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, carry != 0);
-    FLAG_SET(FLAG_ZERO, 0);
-    this->registers.af.b.h = result;
-}
-
-void CPU::ld_nnp_sp() {
-    u16 addr = READPC16();
-    MEMWRITE(addr, (u8) (this->registers.sp.w & 0xFF));
-    MEMWRITE((u16) (addr + 1), (u8) ((this->registers.sp.w >> 8) & 0xFF));
-}
-
-void CPU::add_hl_bc() {
-    int result = ADD16(this->registers.hl.w, this->registers.bc.w);
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.hl.w & 0xFFF) + (this->registers.bc.w & 0xFFF) >= 0x1000);
-    FLAG_SET(FLAG_CARRY, result >= 0x10000);
-    this->registers.hl.w = (u16) (result & 0xFFFF);
-}
-
-void CPU::ld_a_bcp() {
-    this->registers.af.b.h = MEMREAD(this->registers.bc.w);
-}
-
-void CPU::dec_bc() {
-    this->registers.bc.w = (u16) SUB16(this->registers.bc.w, 1);
-}
-
-void CPU::inc_c() {
-    u8 result = (u8) (this->registers.bc.b.l + 1);
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.bc.b.l & 0xF) == 0xF);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.bc.b.l = result;
-}
-
-void CPU::dec_c() {
-    u8 result = (u8) (this->registers.bc.b.l - 1);
-    FLAG_SET(FLAG_NEGATIVE, 1);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.bc.b.l & 0xF) == 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.bc.b.l = result;
-}
-
-void CPU::ld_c_n() {
-    this->registers.bc.b.l = READPC8();
-}
-
-void CPU::rrca() {
-    u8 carry = (u8) ((this->registers.af.b.h & 0x01) << 7);
-    u8 result = (this->registers.af.b.h >> 1) | carry;
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, carry != 0);
-    FLAG_SET(FLAG_ZERO, 0);
-    this->registers.af.b.h = result;
-}
-
-void CPU::stop() {
-    u8 key1 = this->gameboy->mmu->readIO(KEY1);
-    if(this->gameboy->gbMode == MODE_CGB && (key1 & 0x01) != 0) {
-        bool doubleSpeed = (key1 & 0x80) == 0;
-
-        this->gameboy->apu->setHalfSpeed(doubleSpeed);
-        this->gameboy->ppu->setHalfSpeed(doubleSpeed);
-
-        this->gameboy->mmu->writeIO(KEY1, (u8) (key1 ^ 0x81));
-        this->registers.pc.w++;
-    } else {
-        this->haltState = true;
-    }
-}
-
-void CPU::ld_de_nn() {
-    this->registers.de.w = READPC16();
-}
-
-void CPU::ld_dep_a() {
-    MEMWRITE(this->registers.de.w, this->registers.af.b.h);
-}
-
-void CPU::inc_de() {
-    this->registers.de.w = (u16) ADD16(this->registers.de.w, 1);
-}
-
-void CPU::inc_d() {
-    u8 result = (u8) (this->registers.de.b.h + 1);
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.de.b.h & 0xF) == 0xF);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.de.b.h = result;
-}
-
-void CPU::dec_d() {
-    u8 result = (u8) (this->registers.de.b.h - 1);
-    FLAG_SET(FLAG_NEGATIVE, 1);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.de.b.h & 0xF) == 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.de.b.h = result;
-}
-
-void CPU::ld_d_n() {
-    this->registers.de.b.h = READPC8();
-}
-
-void CPU::rla() {
-    u8 result = (this->registers.af.b.h << 1) | (u8) FLAG_GET(FLAG_CARRY);
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, (this->registers.af.b.h & 0x80) != 0);
-    FLAG_SET(FLAG_ZERO, 0);
-    this->registers.af.b.h = result;
-}
-
-void CPU::jr_n() {
-    s8 offset = READPC8();
-    SETPC(this->registers.pc.w + offset);
-}
-
-void CPU::add_hl_de() {
-    int result = ADD16(this->registers.hl.w, this->registers.de.w);
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.hl.w & 0xFFF) + (this->registers.de.w & 0xFFF) >= 0x1000);
-    FLAG_SET(FLAG_CARRY, result >= 0x10000);
-    this->registers.hl.w = (u16) (result & 0xFFFF);
-}
-
-void CPU::ld_a_dep() {
-    this->registers.af.b.h = MEMREAD(this->registers.de.w);
-}
-
-void CPU::dec_de() {
-    this->registers.de.w = (u16) SUB16(this->registers.de.w, 1);
-}
-
-void CPU::inc_e() {
-    u8 result = (u8) (this->registers.de.b.l + 1);
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.de.b.l & 0xF) == 0xF);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.de.b.l = result;
-}
-
-void CPU::dec_e() {
-    u8 result = (u8) (this->registers.de.b.l - 1);
-    FLAG_SET(FLAG_NEGATIVE, 1);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.de.b.l & 0xF) == 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.de.b.l = result;
-}
-
-void CPU::ld_e_n() {
-    this->registers.de.b.l = READPC8();
-}
-
-void CPU::rra() {
-    u8 result = (this->registers.af.b.h >> 1) | (u8) (FLAG_GET(FLAG_CARRY) << 7);
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, (this->registers.af.b.h & 0x01) != 0);
-    FLAG_SET(FLAG_ZERO, 0);
-    this->registers.af.b.h = result;
-}
-
-void CPU::jr_nz_n() {
-    s8 offset = READPC8();
-    if(!FLAG_GET(FLAG_ZERO)) {
-        SETPC(this->registers.pc.w + offset);
-    }
-}
-
-void CPU::ld_hl_nn() {
-    this->registers.hl.w = READPC16();
-}
-
-void CPU::ldi_hlp_a() {
-    MEMWRITE(this->registers.hl.w++, this->registers.af.b.h);
-}
-
-void CPU::inc_hl() {
-    this->registers.hl.w = (u16) ADD16(this->registers.hl.w, 1);
-}
-
-void CPU::inc_h() {
-    u8 result = (u8) (this->registers.hl.b.h + 1);
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.hl.b.h & 0xF) == 0xF);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.hl.b.h = result;
-}
-
-void CPU::dec_h() {
-    u8 result = (u8) (this->registers.hl.b.h - 1);
-    FLAG_SET(FLAG_NEGATIVE, 1);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.hl.b.h & 0xF) == 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.hl.b.h = result;
-}
-
-void CPU::ld_h_n() {
-    this->registers.hl.b.h = READPC8();
-}
-
-void CPU::daa() {
-    int result = this->registers.af.b.h;
-    if(FLAG_GET(FLAG_NEGATIVE)) {
-        if(FLAG_GET(FLAG_HALFCARRY)) {
-            result += 0xFA;
-        }
-
-        if(FLAG_GET(FLAG_CARRY)) {
-            result += 0xA0;
-        }
-    } else {
-        if(FLAG_GET(FLAG_HALFCARRY) || (result & 0xF) > 9) {
-            result += 0x06;
-        }
-
-        if(FLAG_GET(FLAG_CARRY) || (result & 0x1F0) > 0x90) {
-            result += 0x60;
-            FLAG_SET(FLAG_CARRY, 1);
-        } else {
-            FLAG_SET(FLAG_CARRY, 0);
-        }
-    }
-
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
-    this->registers.af.b.h = (u8) (result & 0xFF);
-}
-
-void CPU::jr_z_n() {
-    s8 offset = READPC8();
-    if(FLAG_GET(FLAG_ZERO)) {
-        SETPC(this->registers.pc.w + offset);
-    }
-}
-
-void CPU::add_hl_hl() {
-    int result = ADD16(this->registers.hl.w, this->registers.hl.w);
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.hl.w & 0xFFF) + (this->registers.hl.w & 0xFFF) >= 0x1000);
-    FLAG_SET(FLAG_CARRY, result >= 0x10000);
-    this->registers.hl.w = (u16) (result & 0xFFFF);
-}
-
-void CPU::ldi_a_hlp() {
-    this->registers.af.b.h = MEMREAD(this->registers.hl.w++);
-}
-
-void CPU::dec_hl() {
-    this->registers.hl.w = (u16) SUB16(this->registers.hl.w, 1);
-}
-
-void CPU::inc_l() {
-    u8 result = (u8) (this->registers.hl.b.l + 1);
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.hl.b.l & 0xF) == 0xF);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.hl.b.l = result;
-}
-
-void CPU::dec_l() {
-    u8 result = (u8) (this->registers.hl.b.l - 1);
-    FLAG_SET(FLAG_NEGATIVE, 1);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.hl.b.l & 0xF) == 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.hl.b.l = result;
-}
-
-void CPU::ld_l_n() {
-    this->registers.hl.b.l = READPC8();
-}
-
-void CPU::cpl() {
-    this->registers.af.b.h = ~this->registers.af.b.h;
-    FLAG_SET(FLAG_NEGATIVE, 1);
-    FLAG_SET(FLAG_HALFCARRY, 1);
-}
-
-void CPU::jr_nc_n() {
-    s8 offset = READPC8();
-    if(!FLAG_GET(FLAG_CARRY)) {
-        SETPC(this->registers.pc.w + offset);
-    }
-}
-
-void CPU::ld_sp_nn() {
-    this->registers.sp.w = READPC16();
-}
-
-void CPU::ldd_hlp_a() {
-    MEMWRITE(this->registers.hl.w--, this->registers.af.b.h);
-}
-
-void CPU::inc_sp() {
-    this->registers.sp.w = (u16) ADD16(this->registers.sp.w, 1);
-}
-
-void CPU::inc_hlp() {
-    u8 val = MEMREAD(this->registers.hl.w);
-    u8 result = (u8) (val + 1);
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, (val & 0xF) == 0xF);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    MEMWRITE(this->registers.hl.w, result);
-}
-
-void CPU::dec_hlp() {
-    u8 val = MEMREAD(this->registers.hl.w);
-    u8 result = (u8) (val - 1);
-    FLAG_SET(FLAG_NEGATIVE, 1);
-    FLAG_SET(FLAG_HALFCARRY, (val & 0xF) == 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    MEMWRITE(this->registers.hl.w, result);
-}
-
-void CPU::ld_hlp_n() {
-    u8 val = READPC8();
-    MEMWRITE(this->registers.hl.w, val);
-}
-
-void CPU::scf() {
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, 1);
-}
-
-void CPU::jr_c_n() {
-    s8 offset = READPC8();
-    if(FLAG_GET(FLAG_CARRY)) {
-        SETPC(this->registers.pc.w + offset);
-    }
-}
-
-void CPU::add_hl_sp() {
-    int result = ADD16(this->registers.hl.w, this->registers.sp.w);
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.hl.w & 0xFFF) + (this->registers.sp.w & 0xFFF) >= 0x1000);
-    FLAG_SET(FLAG_CARRY, result >= 0x10000);
-    this->registers.hl.w = (u16) (result & 0xFFFF);
-}
-
-void CPU::ldd_a_hlp() {
-    this->registers.af.b.h = MEMREAD(this->registers.hl.w--);
-}
-
-void CPU::dec_sp() {
-    this->registers.sp.w = (u16) SUB16(this->registers.sp.w, 1);
-}
-
-void CPU::inc_a() {
-    u8 result = (u8) (this->registers.af.b.h + 1);
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) == 0xF);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.af.b.h = result;
-}
-
-void CPU::dec_a() {
-    u8 result = (u8) (this->registers.af.b.h - 1);
-    FLAG_SET(FLAG_NEGATIVE, 1);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) == 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.af.b.h = result;
-}
-
-void CPU::ld_a_n() {
-    this->registers.af.b.h = READPC8();
-}
-
-void CPU::ccf() {
-    FLAG_SET(FLAG_CARRY, !FLAG_GET(FLAG_CARRY));
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-}
-
-void CPU::ld_b_c() {
-    this->registers.bc.b.h = this->registers.bc.b.l;
-}
-
-void CPU::ld_b_d() {
-    this->registers.bc.b.h = this->registers.de.b.h;
-}
-
-void CPU::ld_b_e() {
-    this->registers.bc.b.h = this->registers.de.b.l;
-}
-
-void CPU::ld_b_h() {
-    this->registers.bc.b.h = this->registers.hl.b.h;
-}
-
-void CPU::ld_b_l() {
-    this->registers.bc.b.h = this->registers.hl.b.l;
-}
-
-void CPU::ld_b_hlp() {
-    this->registers.bc.b.h = MEMREAD(this->registers.hl.w);
-}
-
-void CPU::ld_b_a() {
-    this->registers.bc.b.h = this->registers.af.b.h;
-}
-
-void CPU::ld_c_b() {
-    this->registers.bc.b.l = this->registers.bc.b.h;
-}
-
-void CPU::ld_c_d() {
-    this->registers.bc.b.l = this->registers.de.b.h;
-}
-
-void CPU::ld_c_e() {
-    this->registers.bc.b.l = this->registers.de.b.l;
-}
-
-void CPU::ld_c_h() {
-    this->registers.bc.b.l = this->registers.hl.b.h;
-}
-
-void CPU::ld_c_l() {
-    this->registers.bc.b.l = this->registers.hl.b.l;
-}
-
-void CPU::ld_c_hlp() {
-    this->registers.bc.b.l = MEMREAD(this->registers.hl.w);
-}
-
-void CPU::ld_c_a() {
-    this->registers.bc.b.l = this->registers.af.b.h;
-}
-
-void CPU::ld_d_b() {
-    this->registers.de.b.h = this->registers.bc.b.h;
-}
-
-void CPU::ld_d_c() {
-    this->registers.de.b.h = this->registers.bc.b.l;
-}
-
-void CPU::ld_d_e() {
-    this->registers.de.b.h = this->registers.de.b.l;
-}
-
-void CPU::ld_d_h() {
-    this->registers.de.b.h = this->registers.hl.b.h;
-}
-
-void CPU::ld_d_l() {
-    this->registers.de.b.h = this->registers.hl.b.l;
-}
-
-void CPU::ld_d_hlp() {
-    this->registers.de.b.h = MEMREAD(this->registers.hl.w);
-}
-
-void CPU::ld_d_a() {
-    this->registers.de.b.h = this->registers.af.b.h;
-}
-
-void CPU::ld_e_b() {
-    this->registers.de.b.l = this->registers.bc.b.h;
-}
-
-void CPU::ld_e_c() {
-    this->registers.de.b.l = this->registers.bc.b.l;
-}
-
-void CPU::ld_e_d() {
-    this->registers.de.b.l = this->registers.de.b.h;
-}
-
-void CPU::ld_e_h() {
-    this->registers.de.b.l = this->registers.hl.b.h;
-}
-
-void CPU::ld_e_l() {
-    this->registers.de.b.l = this->registers.hl.b.l;
-}
-
-void CPU::ld_e_hlp() {
-    this->registers.de.b.l = MEMREAD(this->registers.hl.w);
-}
-
-void CPU::ld_e_a() {
-    this->registers.de.b.l = this->registers.af.b.h;
-}
-
-void CPU::ld_h_b() {
-    this->registers.hl.b.h = this->registers.bc.b.h;
-}
-
-void CPU::ld_h_c() {
-    this->registers.hl.b.h = this->registers.bc.b.l;
-}
-
-void CPU::ld_h_d() {
-    this->registers.hl.b.h = this->registers.de.b.h;
-}
-
-void CPU::ld_h_e() {
-    this->registers.hl.b.h = this->registers.de.b.l;
-}
-
-void CPU::ld_h_l() {
-    this->registers.hl.b.h = this->registers.hl.b.l;
-}
-
-void CPU::ld_h_hlp() {
-    this->registers.hl.b.h = MEMREAD(this->registers.hl.w);
-}
-
-void CPU::ld_h_a() {
-    this->registers.hl.b.h = this->registers.af.b.h;
-}
-
-void CPU::ld_l_b() {
-    this->registers.hl.b.l = this->registers.bc.b.h;
-}
-
-void CPU::ld_l_c() {
-    this->registers.hl.b.l = this->registers.bc.b.l;
-}
-
-void CPU::ld_l_d() {
-    this->registers.hl.b.l = this->registers.de.b.h;
-}
-
-void CPU::ld_l_e() {
-    this->registers.hl.b.l = this->registers.de.b.l;
-}
-
-void CPU::ld_l_h() {
-    this->registers.hl.b.l = this->registers.hl.b.h;
-}
-
-void CPU::ld_l_hlp() {
-    this->registers.hl.b.l = MEMREAD(this->registers.hl.w);
-}
-
-void CPU::ld_l_a() {
-    this->registers.hl.b.l = this->registers.af.b.h;
-}
-
-void CPU::ld_hlp_b() {
-    MEMWRITE(this->registers.hl.w, this->registers.bc.b.h);
-}
-
-void CPU::ld_hlp_c() {
-    MEMWRITE(this->registers.hl.w, this->registers.bc.b.l);
-}
-
-void CPU::ld_hlp_d() {
-    MEMWRITE(this->registers.hl.w, this->registers.de.b.h);
-}
-
-void CPU::ld_hlp_e() {
-    MEMWRITE(this->registers.hl.w, this->registers.de.b.l);
-}
-
-void CPU::ld_hlp_h() {
-    MEMWRITE(this->registers.hl.w, this->registers.hl.b.h);
-}
-
-void CPU::ld_hlp_l() {
-    MEMWRITE(this->registers.hl.w, this->registers.hl.b.l);
-}
-
-void CPU::halt() {
-    if(!this->ime && (this->gameboy->mmu->readIO(IF) & this->gameboy->mmu->readIO(IE) & 0x1F) != 0) {
-        if(this->gameboy->gbMode != MODE_CGB) {
-            this->haltBug = true;
-        }
-    } else {
-        this->haltState = true;
-    }
-}
-
-void CPU::ld_hlp_a() {
-    MEMWRITE(this->registers.hl.w, this->registers.af.b.h);
-}
-
-void CPU::ld_a_b() {
-    this->registers.af.b.h = this->registers.bc.b.h;
-}
-
-void CPU::ld_a_c() {
-    this->registers.af.b.h = this->registers.bc.b.l;
-}
-
-void CPU::ld_a_d() {
-    this->registers.af.b.h = this->registers.de.b.h;
-}
-
-void CPU::ld_a_e() {
-    this->registers.af.b.h = this->registers.de.b.l;
-}
-
-void CPU::ld_a_h() {
-    this->registers.af.b.h = this->registers.hl.b.h;
-}
-
-void CPU::ld_a_l() {
-    this->registers.af.b.h = this->registers.hl.b.l;
-}
-
-void CPU::ld_a_hlp() {
-    this->registers.af.b.h = MEMREAD(this->registers.hl.w);
-}
-
-void CPU::add_a_b() {
-    u16 result = this->registers.af.b.h + this->registers.bc.b.h;
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) + (this->registers.bc.b.h & 0xF) >= 0x10);
-    FLAG_SET(FLAG_CARRY, result >= 0x100);
-    FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
-    this->registers.af.b.h = (u8) (result & 0xFF);
-}
-
-void CPU::add_a_c() {
-    u16 result = this->registers.af.b.h + this->registers.bc.b.l;
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) + (this->registers.bc.b.l & 0xF) >= 0x10);
-    FLAG_SET(FLAG_CARRY, result >= 0x100);
-    FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
-    this->registers.af.b.h = (u8) (result & 0xFF);
-}
-
-void CPU::add_a_d() {
-    u16 result = this->registers.af.b.h + this->registers.de.b.h;
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) + (this->registers.de.b.h & 0xF) >= 0x10);
-    FLAG_SET(FLAG_CARRY, result >= 0x100);
-    FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
-    this->registers.af.b.h = (u8) (result & 0xFF);
-}
-
-void CPU::add_a_e() {
-    u16 result = this->registers.af.b.h + this->registers.de.b.l;
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) + (this->registers.de.b.l & 0xF) >= 0x10);
-    FLAG_SET(FLAG_CARRY, result >= 0x100);
-    FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
-    this->registers.af.b.h = (u8) (result & 0xFF);
-}
-
-void CPU::add_a_h() {
-    u16 result = this->registers.af.b.h + this->registers.hl.b.h;
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) + (this->registers.hl.b.h & 0xF) >= 0x10);
-    FLAG_SET(FLAG_CARRY, result >= 0x100);
-    FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
-    this->registers.af.b.h = (u8) (result & 0xFF);
-}
-
-void CPU::add_a_l() {
-    u16 result = this->registers.af.b.h + this->registers.hl.b.l;
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) + (this->registers.hl.b.l & 0xF) >= 0x10);
-    FLAG_SET(FLAG_CARRY, result >= 0x100);
-    FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
-    this->registers.af.b.h = (u8) (result & 0xFF);
-}
-
-void CPU::add_a_hlp() {
-    u8 val = MEMREAD(this->registers.hl.w);
-    u16 result = this->registers.af.b.h + val;
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) + (val & 0xF) >= 0x10);
-    FLAG_SET(FLAG_CARRY, result >= 0x100);
-    FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
-    this->registers.af.b.h = (u8) (result & 0xFF);
-}
-
-void CPU::add_a_a() {
-    u16 result = this->registers.af.b.h + this->registers.af.b.h;
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) + (this->registers.af.b.h & 0xF) >= 0x10);
-    FLAG_SET(FLAG_CARRY, result >= 0x100);
-    FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
-    this->registers.af.b.h = (u8) (result & 0xFF);
-}
-
-void CPU::adc_b() {
-    u16 result = this->registers.af.b.h + this->registers.bc.b.h + (u16) FLAG_GET(FLAG_CARRY);
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) + (this->registers.bc.b.h & 0xF) + FLAG_GET(FLAG_CARRY) >= 0x10);
-    FLAG_SET(FLAG_CARRY, result >= 0x100);
-    FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
-    this->registers.af.b.h = (u8) (result & 0xFF);
-}
-
-void CPU::adc_c() {
-    u16 result = this->registers.af.b.h + this->registers.bc.b.l + (u16) FLAG_GET(FLAG_CARRY);
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) + (this->registers.bc.b.l & 0xF) + FLAG_GET(FLAG_CARRY) >= 0x10);
-    FLAG_SET(FLAG_CARRY, result >= 0x100);
-    FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
-    this->registers.af.b.h = (u8) (result & 0xFF);
-}
-
-void CPU::adc_d() {
-    u16 result = this->registers.af.b.h + this->registers.de.b.h + (u16) FLAG_GET(FLAG_CARRY);
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) + (this->registers.de.b.h & 0xF) + FLAG_GET(FLAG_CARRY) >= 0x10);
-    FLAG_SET(FLAG_CARRY, result >= 0x100);
-    FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
-    this->registers.af.b.h = (u8) (result & 0xFF);
-}
-
-void CPU::adc_e() {
-    u16 result = this->registers.af.b.h + this->registers.de.b.l + (u16) FLAG_GET(FLAG_CARRY);
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) + (this->registers.de.b.l & 0xF) + FLAG_GET(FLAG_CARRY) >= 0x10);
-    FLAG_SET(FLAG_CARRY, result >= 0x100);
-    FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
-    this->registers.af.b.h = (u8) (result & 0xFF);
-}
-
-void CPU::adc_h() {
-    u16 result = this->registers.af.b.h + this->registers.hl.b.h + (u16) FLAG_GET(FLAG_CARRY);
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) + (this->registers.hl.b.h & 0xF) + FLAG_GET(FLAG_CARRY) >= 0x10);
-    FLAG_SET(FLAG_CARRY, result >= 0x100);
-    FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
-    this->registers.af.b.h = (u8) (result & 0xFF);
-}
-
-void CPU::adc_l() {
-    u16 result = this->registers.af.b.h + this->registers.hl.b.l + (u16) FLAG_GET(FLAG_CARRY);
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) + (this->registers.hl.b.l & 0xF) + FLAG_GET(FLAG_CARRY) >= 0x10);
-    FLAG_SET(FLAG_CARRY, result >= 0x100);
-    FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
-    this->registers.af.b.h = (u8) (result & 0xFF);
-}
-
-void CPU::adc_hlp() {
-    u8 val = MEMREAD(this->registers.hl.w);
-    u16 result = this->registers.af.b.h + val + (u16) FLAG_GET(FLAG_CARRY);
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) + (val & 0xF) + FLAG_GET(FLAG_CARRY) >= 0x10);
-    FLAG_SET(FLAG_CARRY, result >= 0x100);
-    FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
-    this->registers.af.b.h = (u8) (result & 0xFF);
-}
-
-void CPU::adc_a() {
-    u16 result = this->registers.af.b.h + this->registers.af.b.h + (u16) FLAG_GET(FLAG_CARRY);
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) + (this->registers.af.b.h & 0xF) + FLAG_GET(FLAG_CARRY) >= 0x10);
-    FLAG_SET(FLAG_CARRY, result >= 0x100);
-    FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
-    this->registers.af.b.h = (u8) (result & 0xFF);
-}
-
-void CPU::sub_b() {
-    int result = this->registers.af.b.h - this->registers.bc.b.h;
-    FLAG_SET(FLAG_NEGATIVE, 1);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) - (this->registers.bc.b.h & 0xF) < 0);
-    FLAG_SET(FLAG_CARRY, result < 0);
-    FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
-    this->registers.af.b.h = (u8) (result & 0xFF);
-}
-
-void CPU::sub_c() {
-    int result = this->registers.af.b.h - this->registers.bc.b.l;
-    FLAG_SET(FLAG_NEGATIVE, 1);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) - (this->registers.bc.b.l & 0xF) < 0);
-    FLAG_SET(FLAG_CARRY, result < 0);
-    FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
-    this->registers.af.b.h = (u8) (result & 0xFF);
-}
-
-void CPU::sub_d() {
-    int result = this->registers.af.b.h - this->registers.de.b.h;
-    FLAG_SET(FLAG_NEGATIVE, 1);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) - (this->registers.de.b.h & 0xF) < 0);
-    FLAG_SET(FLAG_CARRY, result < 0);
-    FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
-    this->registers.af.b.h = (u8) (result & 0xFF);
-}
-
-void CPU::sub_e() {
-    int result = this->registers.af.b.h - this->registers.de.b.l;
-    FLAG_SET(FLAG_NEGATIVE, 1);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) - (this->registers.de.b.l & 0xF) < 0);
-    FLAG_SET(FLAG_CARRY, result < 0);
-    FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
-    this->registers.af.b.h = (u8) (result & 0xFF);
-}
-
-void CPU::sub_h() {
-    int result = this->registers.af.b.h - this->registers.hl.b.h;
-    FLAG_SET(FLAG_NEGATIVE, 1);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) - (this->registers.hl.b.h & 0xF) < 0);
-    FLAG_SET(FLAG_CARRY, result < 0);
-    FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
-    this->registers.af.b.h = (u8) (result & 0xFF);
-}
-
-void CPU::sub_l() {
-    int result = this->registers.af.b.h - this->registers.hl.b.l;
-    FLAG_SET(FLAG_NEGATIVE, 1);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) - (this->registers.hl.b.l & 0xF) < 0);
-    FLAG_SET(FLAG_CARRY, result < 0);
-    FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
-    this->registers.af.b.h = (u8) (result & 0xFF);
-}
-
-void CPU::sub_hlp() {
-    u8 val = MEMREAD(this->registers.hl.w);
-    int result = this->registers.af.b.h - val;
-    FLAG_SET(FLAG_NEGATIVE, 1);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) - (val & 0xF) < 0);
-    FLAG_SET(FLAG_CARRY, result < 0);
-    FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
-    this->registers.af.b.h = (u8) (result & 0xFF);
-}
-
-void CPU::sub_a() {
-    int result = this->registers.af.b.h - this->registers.af.b.h;
-    FLAG_SET(FLAG_NEGATIVE, 1);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) - (this->registers.af.b.h & 0xF) < 0);
-    FLAG_SET(FLAG_CARRY, result < 0);
-    FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
-    this->registers.af.b.h = (u8) (result & 0xFF);
-}
-
-void CPU::sbc_b() {
-    int result = this->registers.af.b.h - this->registers.bc.b.h - FLAG_GET(FLAG_CARRY);
-    FLAG_SET(FLAG_NEGATIVE, 1);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) - (this->registers.bc.b.h & 0xF) - FLAG_GET(FLAG_CARRY) < 0);
-    FLAG_SET(FLAG_CARRY, result < 0);
-    FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
-    this->registers.af.b.h = (u8) (result & 0xFF);
-}
-
-void CPU::sbc_c() {
-    int result = this->registers.af.b.h - this->registers.bc.b.l - FLAG_GET(FLAG_CARRY);
-    FLAG_SET(FLAG_NEGATIVE, 1);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) - (this->registers.bc.b.l & 0xF) - FLAG_GET(FLAG_CARRY) < 0);
-    FLAG_SET(FLAG_CARRY, result < 0);
-    FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
-    this->registers.af.b.h = (u8) (result & 0xFF);
-}
-
-void CPU::sbc_d() {
-    int result = this->registers.af.b.h - this->registers.de.b.h - FLAG_GET(FLAG_CARRY);
-    FLAG_SET(FLAG_NEGATIVE, 1);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) - (this->registers.de.b.h & 0xF) - FLAG_GET(FLAG_CARRY) < 0);
-    FLAG_SET(FLAG_CARRY, result < 0);
-    FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
-    this->registers.af.b.h = (u8) (result & 0xFF);
-}
-
-void CPU::sbc_e() {
-    int result = this->registers.af.b.h - this->registers.de.b.l - FLAG_GET(FLAG_CARRY);
-    FLAG_SET(FLAG_NEGATIVE, 1);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) - (this->registers.de.b.l & 0xF) - FLAG_GET(FLAG_CARRY) < 0);
-    FLAG_SET(FLAG_CARRY, result < 0);
-    FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
-    this->registers.af.b.h = (u8) (result & 0xFF);
-}
-
-void CPU::sbc_h() {
-    int result = this->registers.af.b.h - this->registers.hl.b.h - FLAG_GET(FLAG_CARRY);
-    FLAG_SET(FLAG_NEGATIVE, 1);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) - (this->registers.hl.b.h & 0xF) - FLAG_GET(FLAG_CARRY) < 0);
-    FLAG_SET(FLAG_CARRY, result < 0);
-    FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
-    this->registers.af.b.h = (u8) (result & 0xFF);
-}
-
-void CPU::sbc_l() {
-    int result = this->registers.af.b.h - this->registers.hl.b.l - FLAG_GET(FLAG_CARRY);
-    FLAG_SET(FLAG_NEGATIVE, 1);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) - (this->registers.hl.b.l & 0xF) - FLAG_GET(FLAG_CARRY) < 0);
-    FLAG_SET(FLAG_CARRY, result < 0);
-    FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
-    this->registers.af.b.h = (u8) (result & 0xFF);
-}
-
-void CPU::sbc_hlp() {
-    u8 val = MEMREAD(this->registers.hl.w);
-    int result = this->registers.af.b.h - val - FLAG_GET(FLAG_CARRY);
-    FLAG_SET(FLAG_NEGATIVE, 1);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) - (val & 0xF) - FLAG_GET(FLAG_CARRY) < 0);
-    FLAG_SET(FLAG_CARRY, result < 0);
-    FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
-    this->registers.af.b.h = (u8) (result & 0xFF);
-}
-
-void CPU::sbc_a() {
-    int result = this->registers.af.b.h - this->registers.af.b.h - FLAG_GET(FLAG_CARRY);
-    FLAG_SET(FLAG_NEGATIVE, 1);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) - (this->registers.af.b.h & 0xF) - FLAG_GET(FLAG_CARRY) < 0);
-    FLAG_SET(FLAG_CARRY, result < 0);
-    FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
-    this->registers.af.b.h = (u8) (result & 0xFF);
-}
-
-void CPU::and_b() {
-    u8 result = this->registers.af.b.h & this->registers.bc.b.h;
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_CARRY, 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.af.b.h = result;
-}
-
-void CPU::and_c() {
-    u8 result = this->registers.af.b.h & this->registers.bc.b.l;
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_CARRY, 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.af.b.h = result;
-}
-
-void CPU::and_d() {
-    u8 result = this->registers.af.b.h & this->registers.de.b.h;
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_CARRY, 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.af.b.h = result;
-}
-
-void CPU::and_e() {
-    u8 result = this->registers.af.b.h & this->registers.de.b.l;
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_CARRY, 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.af.b.h = result;
-}
-
-void CPU::and_h() {
-    u8 result = this->registers.af.b.h & this->registers.hl.b.h;
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_CARRY, 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.af.b.h = result;
-}
-
-void CPU::and_l() {
-    u8 result = this->registers.af.b.h & this->registers.hl.b.l;
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_CARRY, 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.af.b.h = result;
-}
-
-void CPU::and_hlp() {
-    u8 val = MEMREAD(this->registers.hl.w);
-    u8 result = this->registers.af.b.h & val;
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_CARRY, 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.af.b.h = result;
-}
-
-void CPU::and_a() {
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_CARRY, 0);
-    FLAG_SET(FLAG_ZERO, this->registers.af.b.h == 0);
-}
-
-void CPU::xor_b() {
-    u8 result = this->registers.af.b.h ^ this->registers.bc.b.h;
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.af.b.h = result;
-}
-
-void CPU::xor_c() {
-    u8 result = this->registers.af.b.h ^ this->registers.bc.b.l;
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.af.b.h = result;
-}
-
-void CPU::xor_d() {
-    u8 result = this->registers.af.b.h ^ this->registers.de.b.h;
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.af.b.h = result;
-}
-
-void CPU::xor_e() {
-    u8 result = this->registers.af.b.h ^ this->registers.de.b.l;
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.af.b.h = result;
-}
-
-void CPU::xor_h() {
-    u8 result = this->registers.af.b.h ^ this->registers.hl.b.h;
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.af.b.h = result;
-}
-
-void CPU::xor_l() {
-    u8 result = this->registers.af.b.h ^ this->registers.hl.b.l;
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.af.b.h = result;
-}
-
-void CPU::xor_hlp() {
-    u8 val = MEMREAD(this->registers.hl.w);
-    u8 result = this->registers.af.b.h ^ val;
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.af.b.h = result;
-}
-
-void CPU::xor_a() {
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, 0);
-    FLAG_SET(FLAG_ZERO, 1);
-    this->registers.af.b.h = 0;
-}
-
-void CPU::or_b() {
-    u8 result = this->registers.af.b.h | this->registers.bc.b.h;
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.af.b.h = result;
-}
-
-void CPU::or_c() {
-    u8 result = this->registers.af.b.h | this->registers.bc.b.l;
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.af.b.h = result;
-}
-
-void CPU::or_d() {
-    u8 result = this->registers.af.b.h | this->registers.de.b.h;
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.af.b.h = result;
-}
-
-void CPU::or_e() {
-    u8 result = this->registers.af.b.h | this->registers.de.b.l;
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.af.b.h = result;
-}
-
-void CPU::or_h() {
-    u8 result = this->registers.af.b.h | this->registers.hl.b.h;
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.af.b.h = result;
-}
-
-void CPU::or_l() {
-    u8 result = this->registers.af.b.h | this->registers.hl.b.l;
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.af.b.h = result;
-}
-
-void CPU::or_hlp() {
-    u8 val = MEMREAD(this->registers.hl.w);
-    u8 result = this->registers.af.b.h | val;
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.af.b.h = result;
-}
-
-void CPU::or_a() {
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, 0);
-    FLAG_SET(FLAG_ZERO, this->registers.af.b.h == 0);
-}
-
-void CPU::cp_b() {
-    int result = this->registers.af.b.h - this->registers.bc.b.h;
-    FLAG_SET(FLAG_NEGATIVE, 1);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) - (this->registers.bc.b.h & 0xF) < 0);
-    FLAG_SET(FLAG_CARRY, result < 0);
-    FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
-}
-
-void CPU::cp_c() {
-    int result = this->registers.af.b.h - this->registers.bc.b.l;
-    FLAG_SET(FLAG_NEGATIVE, 1);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) - (this->registers.bc.b.l & 0xF) < 0);
-    FLAG_SET(FLAG_CARRY, result < 0);
-    FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
-}
-
-void CPU::cp_d() {
-    int result = this->registers.af.b.h - this->registers.de.b.h;
-    FLAG_SET(FLAG_NEGATIVE, 1);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) - (this->registers.de.b.h & 0xF) < 0);
-    FLAG_SET(FLAG_CARRY, result < 0);
-    FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
-}
-
-void CPU::cp_e() {
-    int result = this->registers.af.b.h - this->registers.de.b.l;
-    FLAG_SET(FLAG_NEGATIVE, 1);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) - (this->registers.de.b.l & 0xF) < 0);
-    FLAG_SET(FLAG_CARRY, result < 0);
-    FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
-}
-
-void CPU::cp_h() {
-    int result = this->registers.af.b.h - this->registers.hl.b.h;
-    FLAG_SET(FLAG_NEGATIVE, 1);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) - (this->registers.hl.b.h & 0xF) < 0);
-    FLAG_SET(FLAG_CARRY, result < 0);
-    FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
-}
-
-void CPU::cp_l() {
-    int result = this->registers.af.b.h - this->registers.hl.b.l;
-    FLAG_SET(FLAG_NEGATIVE, 1);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) - (this->registers.hl.b.l & 0xF) < 0);
-    FLAG_SET(FLAG_CARRY, result < 0);
-    FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
-}
-
-void CPU::cp_hlp() {
-    u8 val = MEMREAD(this->registers.hl.w);
-    int result = this->registers.af.b.h - val;
-    FLAG_SET(FLAG_NEGATIVE, 1);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) - (val & 0xF) < 0);
-    FLAG_SET(FLAG_CARRY, result < 0);
-    FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
-}
-
-void CPU::cp_a() {
-    int result = this->registers.af.b.h - this->registers.af.b.h;
-    FLAG_SET(FLAG_NEGATIVE, 1);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) - (this->registers.af.b.h & 0xF) < 0);
-    FLAG_SET(FLAG_CARRY, result < 0);
-    FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
-}
-
-void CPU::ret_nz() {
-    RET_PROLOGUE();
-    if(!FLAG_GET(FLAG_ZERO)) {
-        u16 addr = POP16();
-        SETPC(addr);
-    }
-}
-
-void CPU::pop_bc() {
-    this->registers.bc.w = POP16();
-}
-
-void CPU::jp_nz_nn() {
-    u16 addr = READPC16();
-    if(!FLAG_GET(FLAG_ZERO)) {
-        SETPC(addr);
-    }
-}
-
-void CPU::jp_nn() {
-    u16 addr = READPC16();
-    SETPC(addr);
-}
-
-void CPU::call_nz_nn() {
-    u16 addr = READPC16();
-    if(!FLAG_GET(FLAG_ZERO)) {
-        PUSH16(this->registers.pc.w);
-        SETPC(addr);
-    }
-}
-
-void CPU::push_bc() {
-    PUSH16_SLOW(this->registers.bc.w);
-}
-
-void CPU::add_a_n() {
-    u8 val = READPC8();
-    u16 result = this->registers.af.b.h + val;
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) + (val & 0xF) >= 0x10);
-    FLAG_SET(FLAG_CARRY, result >= 0x100);
-    FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
-    this->registers.af.b.h = (u8) (result & 0xFF);
-}
-
-void CPU::rst_0() {
-    PUSH16(this->registers.pc.w);
-    SETPC(0x0000);
-}
-
-void CPU::ret_z() {
-    RET_PROLOGUE();
-    if(FLAG_GET(FLAG_ZERO)) {
-        u16 addr = POP16();
-        SETPC(addr);
-    }
-}
-
-void CPU::ret() {
-    u16 addr = POP16();
-    SETPC(addr);
-}
-
-void CPU::jp_z_nn() {
-    u16 addr = READPC16();
-    if(FLAG_GET(FLAG_ZERO)) {
-        SETPC(addr);
-    }
-}
-
-void CPU::cb_n() {
-    u8 op = READPC8();
-    (this->*cbOpcodes[op])();
-}
-
-void CPU::call_z_nn() {
-    u16 addr = READPC16();
-    if(FLAG_GET(FLAG_ZERO)) {
-        PUSH16(this->registers.pc.w);
-        SETPC(addr);
-    }
-}
-
-void CPU::call_nn() {
-    u16 addr = READPC16();
-    PUSH16(this->registers.pc.w);
-    SETPC(addr);
-}
-
-void CPU::adc_n() {
-    u8 val = READPC8();
-    u16 result = this->registers.af.b.h + val + (u16) FLAG_GET(FLAG_CARRY);
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) + (val & 0xF) + FLAG_GET(FLAG_CARRY) >= 0x10);
-    FLAG_SET(FLAG_CARRY, result >= 0x100);
-    FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
-    this->registers.af.b.h = (u8) (result & 0xFF);
-}
-
-void CPU::rst_08() {
-    PUSH16(this->registers.pc.w);
-    SETPC(0x0008);
-}
-
-void CPU::ret_nc() {
-    RET_PROLOGUE();
-    if(!FLAG_GET(FLAG_CARRY)) {
-        u16 addr = POP16();
-        SETPC(addr);
-    }
-}
-
-void CPU::pop_de() {
-    this->registers.de.w = POP16();
-}
-
-void CPU::jp_nc_nn() {
-    u16 addr = READPC16();
-    if(!FLAG_GET(FLAG_CARRY)) {
-        SETPC(addr);
-    }
-}
-
-void CPU::call_nc_nn() {
-    u16 addr = READPC16();
-    if(!FLAG_GET(FLAG_CARRY)) {
-        PUSH16(this->registers.pc.w);
-        SETPC(addr);
-    }
-}
-
-void CPU::push_de() {
-    PUSH16_SLOW(this->registers.de.w);
-}
-
-void CPU::sub_n() {
-    u8 val = READPC8();
-    int result = this->registers.af.b.h - val;
-    FLAG_SET(FLAG_NEGATIVE, 1);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) - (val & 0xF) < 0);
-    FLAG_SET(FLAG_CARRY, result < 0);
-    FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
-    this->registers.af.b.h = (u8) (result & 0xFF);
-}
-
-void CPU::rst_10() {
-    PUSH16(this->registers.pc.w);
-    SETPC(0x0010);
-}
-
-void CPU::ret_c() {
-    RET_PROLOGUE();
-    if(FLAG_GET(FLAG_CARRY)) {
-        u16 addr = POP16();
-        SETPC(addr);
-    }
-}
-
-void CPU::reti() {
-    u16 addr = POP16();
-
-    this->imeCycle = this->cycleCount + 4;
-    this->setEventCycle(this->imeCycle);
-
-    SETPC(addr);
-}
-
-void CPU::jp_c_nn() {
-    u16 addr = READPC16();
-    if(FLAG_GET(FLAG_CARRY)) {
-        SETPC(addr);
-    }
-}
-
-void CPU::call_c_nn() {
-    u16 addr = READPC16();
-    if(FLAG_GET(FLAG_CARRY)) {
-        PUSH16(this->registers.pc.w);
-        SETPC(addr);
-    }
-}
-
-void CPU::sbc_n() {
-    u8 val = READPC8();
-    int result = this->registers.af.b.h - val - FLAG_GET(FLAG_CARRY);
-    FLAG_SET(FLAG_NEGATIVE, 1);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) - (val & 0xF) - FLAG_GET(FLAG_CARRY) < 0);
-    FLAG_SET(FLAG_CARRY, result < 0);
-    FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
-    this->registers.af.b.h = (u8) (result & 0xFF);
-}
-
-void CPU::rst_18() {
-    PUSH16(this->registers.pc.w);
-    SETPC(0x0018);
-}
-
-void CPU::ld_ff_n_a() {
-    u8 reg = READPC8();
-    MEMWRITE((u16) (0xFF00 + reg), this->registers.af.b.h);
-}
-
-void CPU::pop_hl() {
-    this->registers.hl.w = POP16();
-}
-
-void CPU::ld_ff_c_a() {
-    MEMWRITE((u16) (0xFF00 + this->registers.bc.b.l), this->registers.af.b.h);
-}
-
-void CPU::push_hl() {
-    PUSH16_SLOW(this->registers.hl.w);
-}
-
-void CPU::and_n() {
-    u8 val = READPC8();
-    u8 result = this->registers.af.b.h & val;
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_CARRY, 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.af.b.h = result;
-}
-
-void CPU::rst_20() {
-    PUSH16(this->registers.pc.w);
-    SETPC(0x0020);
-}
-
-void CPU::add_sp_n() {
-    u8 val = READPC8();
-    u16 result = (u16) ADD16(this->registers.sp.w, (s8) val);
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.sp.w & 0xF) + (val & 0xF) >= 0x10);
-    FLAG_SET(FLAG_CARRY, (this->registers.sp.w & 0xFF) + val >= 0x100);
-    FLAG_SET(FLAG_ZERO, 0);
-    SETSP_SLOW(result);
-}
-
-void CPU::jp_hl() {
-    this->registers.pc.w = this->registers.hl.w;
-}
-
-void CPU::ld_nnp_a() {
-    u16 addr = READPC16();
-    MEMWRITE(addr, this->registers.af.b.h);
-}
-
-void CPU::xor_n() {
-    u8 val = READPC8();
-    u8 result = this->registers.af.b.h ^ val;
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.af.b.h = result;
-}
-
-void CPU::rst_28() {
-    PUSH16(this->registers.pc.w);
-    SETPC(0x0028);
-}
-
-void CPU::ld_a_ff_n() {
-    u8 reg = READPC8();
-    this->registers.af.b.h = MEMREAD((u16) (0xFF00 + reg));
-}
-
-void CPU::pop_af() {
-    u8 oldFLow = (u8) (this->registers.af.b.l & 0xF);
-    this->registers.af.w = POP16();
-    this->registers.af.b.l = (u8) ((this->registers.af.b.l & 0xF0) | oldFLow);
-}
-
-void CPU::ld_a_ff_c() {
-    this->registers.af.b.h = MEMREAD((u16) (0xFF00 + this->registers.bc.b.l));
-}
-
-void CPU::di_inst() {
-    this->ime = false;
-    this->imeCycle = 0;
-}
-
-void CPU::push_af() {
-    PUSH16_SLOW(this->registers.af.w);
-}
-
-void CPU::or_n() {
-    u8 val = READPC8();
-    u8 result = this->registers.af.b.h | val;
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.af.b.h = result;
-}
-
-void CPU::rst_30() {
-    PUSH16(this->registers.pc.w);
-    SETPC(0x0030);
-}
-
-void CPU::ld_hl_sp_n() {
-    u8 val = READPC8();
-    u16 result = (u16) ADD16(this->registers.sp.w, (s8) val);
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.sp.w & 0xF) + (val & 0xF) >= 0x10);
-    FLAG_SET(FLAG_CARRY, (this->registers.sp.w & 0xFF) + val >= 0x100);
-    FLAG_SET(FLAG_ZERO, 0);
-    this->registers.hl.w = result;
-}
-
-void CPU::ld_sp_hl() {
-    SETSP_SLOW(this->registers.hl.w);
-}
-
-void CPU::ld_a_nnp() {
-    u16 addr = READPC16();
-    this->registers.af.b.h = MEMREAD(addr);
-}
-
-void CPU::ei() {
-    this->imeCycle = this->cycleCount + 4;
-    this->setEventCycle(this->imeCycle);
-}
-
-void CPU::cp_n() {
-    u8 val = READPC8();
-    int result = this->registers.af.b.h - val;
-    FLAG_SET(FLAG_NEGATIVE, 1);
-    FLAG_SET(FLAG_HALFCARRY, (this->registers.af.b.h & 0xF) - (val & 0xF) < 0);
-    FLAG_SET(FLAG_CARRY, result < 0);
-    FLAG_SET(FLAG_ZERO, (result & 0xFF) == 0);
-}
-
-void CPU::rst_38() {
-    PUSH16(this->registers.pc.w);
-    SETPC(0x0038);
-}
-
-void CPU::rlc_b() {
-    u8 carry = (u8) ((this->registers.bc.b.h & 0x80) >> 7);
-    u8 result = (this->registers.bc.b.h << 1) | carry;
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, carry != 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.bc.b.h = result;
-}
-
-void CPU::rlc_c() {
-    u8 carry = (u8) ((this->registers.bc.b.l & 0x80) >> 7);
-    u8 result = (this->registers.bc.b.l << 1) | carry;
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, carry != 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.bc.b.l = result;
-}
-
-void CPU::rlc_d() {
-    u8 carry = (u8) ((this->registers.de.b.h & 0x80) >> 7);
-    u8 result = (this->registers.de.b.h << 1) | carry;
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, carry != 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.de.b.h = result;
-}
-
-void CPU::rlc_e() {
-    u8 carry = (u8) ((this->registers.de.b.l & 0x80) >> 7);
-    u8 result = (this->registers.de.b.l << 1) | carry;
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, carry != 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.de.b.l = result;
-}
-
-void CPU::rlc_h() {
-    u8 carry = (u8) ((this->registers.hl.b.h & 0x80) >> 7);
-    u8 result = (this->registers.hl.b.h << 1) | carry;
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, carry != 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.hl.b.h = result;
-}
-
-void CPU::rlc_l() {
-    u8 carry = (u8) ((this->registers.hl.b.l & 0x80) >> 7);
-    u8 result = (this->registers.hl.b.l << 1) | carry;
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, carry != 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.hl.b.l = result;
-}
-
-void CPU::rlc_hlp() {
-    u8 val = MEMREAD(this->registers.hl.w);
-    u8 carry = (u8) ((val & 0x80) >> 7);
-    u8 result = (val << 1) | carry;
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, carry != 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    MEMWRITE(this->registers.hl.w, result);
-}
-
-void CPU::rlc_a() {
-    u8 carry = (u8) ((this->registers.af.b.h & 0x80) >> 7);
-    u8 result = (this->registers.af.b.h << 1) | carry;
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, carry != 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.af.b.h = result;
-}
-
-void CPU::rrc_b() {
-    u8 carry = (u8) ((this->registers.bc.b.h & 0x01) << 7);
-    u8 result = (this->registers.bc.b.h >> 1) | carry;
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, carry != 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.bc.b.h = result;
-}
-
-void CPU::rrc_c() {
-    u8 carry = (u8) ((this->registers.bc.b.l & 0x01) << 7);
-    u8 result = (this->registers.bc.b.l >> 1) | carry;
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, carry != 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.bc.b.l = result;
-}
-
-void CPU::rrc_d() {
-    u8 carry = (u8) ((this->registers.de.b.h & 0x01) << 7);
-    u8 result = (this->registers.de.b.h >> 1) | carry;
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, carry != 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.de.b.h = result;
-}
-
-void CPU::rrc_e() {
-    u8 carry = (u8) ((this->registers.de.b.l & 0x01) << 7);
-    u8 result = (this->registers.de.b.l >> 1) | carry;
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, carry != 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.de.b.l = result;
-}
-
-void CPU::rrc_h() {
-    u8 carry = (u8) ((this->registers.hl.b.h & 0x01) << 7);
-    u8 result = (this->registers.hl.b.h >> 1) | carry;
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, carry != 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.hl.b.h = result;
-}
-
-void CPU::rrc_l() {
-    u8 carry = (u8) ((this->registers.hl.b.l & 0x01) << 7);
-    u8 result = (this->registers.hl.b.l >> 1) | carry;
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, carry != 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.hl.b.l = result;
-}
-
-void CPU::rrc_hlp() {
-    u8 val = MEMREAD(this->registers.hl.w);
-    u8 carry = (u8) ((val & 0x01) << 7);
-    u8 result = (val >> 1) | carry;
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, carry != 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    MEMWRITE(this->registers.hl.w, result);
-}
-
-void CPU::rrc_a() {
-    u8 carry = (u8) ((this->registers.af.b.h & 0x01) << 7);
-    u8 result = (this->registers.af.b.h >> 1) | carry;
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, carry != 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.af.b.h = result;
-}
-
-void CPU::rl_b() {
-    u8 result = (this->registers.bc.b.h << 1) | (u8) FLAG_GET(FLAG_CARRY);
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, (this->registers.bc.b.h & 0x80) != 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.bc.b.h = result;
-}
-
-void CPU::rl_c() {
-    u8 result = (this->registers.bc.b.l << 1) | (u8) FLAG_GET(FLAG_CARRY);
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, (this->registers.bc.b.l & 0x80) != 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.bc.b.l = result;
-}
-
-void CPU::rl_d() {
-    u8 result = (this->registers.de.b.h << 1) | (u8) FLAG_GET(FLAG_CARRY);
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, (this->registers.de.b.h & 0x80) != 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.de.b.h = result;
-}
-
-void CPU::rl_e() {
-    u8 result = (this->registers.de.b.l << 1) | (u8) FLAG_GET(FLAG_CARRY);
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, (this->registers.de.b.l & 0x80) != 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.de.b.l = result;
-}
-
-void CPU::rl_h() {
-    u8 result = (this->registers.hl.b.h << 1) | (u8) FLAG_GET(FLAG_CARRY);
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, (this->registers.hl.b.h & 0x80) != 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.hl.b.h = result;
-}
-
-void CPU::rl_l() {
-    u8 result = (this->registers.hl.b.l << 1) | (u8) FLAG_GET(FLAG_CARRY);
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, (this->registers.hl.b.l & 0x80) != 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.hl.b.l = result;
-}
-
-void CPU::rl_hlp() {
-    u8 val = MEMREAD(this->registers.hl.w);
-    u8 result = (val << 1) | (u8) FLAG_GET(FLAG_CARRY);
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, (val & 0x80) != 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    MEMWRITE(this->registers.hl.w, result);
-}
-
-void CPU::rl_a() {
-    u8 result = (this->registers.af.b.h << 1) | (u8) FLAG_GET(FLAG_CARRY);
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, (this->registers.af.b.h & 0x80) != 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.af.b.h = result;
-}
-
-void CPU::rr_b() {
-    u8 result = (this->registers.bc.b.h >> 1) | (u8) (FLAG_GET(FLAG_CARRY) << 7);
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, (this->registers.bc.b.h & 0x01) != 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.bc.b.h = result;
-}
-
-void CPU::rr_c() {
-    u8 result = (this->registers.bc.b.l >> 1) | (u8) (FLAG_GET(FLAG_CARRY) << 7);
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, (this->registers.bc.b.l & 0x01) != 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.bc.b.l = result;
-}
-
-void CPU::rr_d() {
-    u8 result = (this->registers.de.b.h >> 1) | (u8) (FLAG_GET(FLAG_CARRY) << 7);
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, (this->registers.de.b.h & 0x01) != 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.de.b.h = result;
-}
-
-void CPU::rr_e() {
-    u8 result = (this->registers.de.b.l >> 1) | (u8) (FLAG_GET(FLAG_CARRY) << 7);
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, (this->registers.de.b.l & 0x01) != 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.de.b.l = result;
-}
-
-void CPU::rr_h() {
-    u8 result = (this->registers.hl.b.h >> 1) | (u8) (FLAG_GET(FLAG_CARRY) << 7);
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, (this->registers.hl.b.h & 0x01) != 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.hl.b.h = result;
-}
-
-void CPU::rr_l() {
-    u8 result = (this->registers.hl.b.l >> 1) | (u8) (FLAG_GET(FLAG_CARRY) << 7);
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, (this->registers.hl.b.l & 0x01) != 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.hl.b.l = result;
-}
-
-void CPU::rr_hlp() {
-    u8 val = MEMREAD(this->registers.hl.w);
-    u8 result = (val >> 1) | (u8) (FLAG_GET(FLAG_CARRY) << 7);
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, (val & 0x01) != 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    MEMWRITE(this->registers.hl.w, result);
-}
-
-void CPU::rr_a() {
-    u8 result = (this->registers.af.b.h >> 1) | (u8) (FLAG_GET(FLAG_CARRY) << 7);
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, (this->registers.af.b.h & 0x01) != 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.af.b.h = result;
-}
-
-void CPU::sla_b() {
-    u8 result = this->registers.bc.b.h << 1;
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, (this->registers.bc.b.h & 0x80) != 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.bc.b.h = result;
-}
-
-void CPU::sla_c() {
-    u8 result = this->registers.bc.b.l << 1;
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, (this->registers.bc.b.l & 0x80) != 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.bc.b.l = result;
-}
-
-void CPU::sla_d() {
-    u8 result = this->registers.de.b.h << 1;
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, (this->registers.de.b.h & 0x80) != 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.de.b.h = result;
-}
-
-void CPU::sla_e() {
-    u8 result = this->registers.de.b.l << 1;
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, (this->registers.de.b.l & 0x80) != 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.de.b.l = result;
-}
-
-void CPU::sla_h() {
-    u8 result = this->registers.hl.b.h << 1;
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, (this->registers.hl.b.h & 0x80) != 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.hl.b.h = result;
-}
-
-void CPU::sla_l() {
-    u8 result = this->registers.hl.b.l << 1;
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, (this->registers.hl.b.l & 0x80) != 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.hl.b.l = result;
-}
-
-void CPU::sla_hlp() {
-    u8 val = MEMREAD(this->registers.hl.w);
-    u8 result = val << 1;
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, (val & 0x80) != 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    MEMWRITE(this->registers.hl.w, result);
-}
-
-void CPU::sla_a() {
-    u8 result = this->registers.af.b.h << 1;
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, (this->registers.af.b.h & 0x80) != 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.af.b.h = result;
-}
-
-void CPU::sra_b() {
-    u8 result = (this->registers.bc.b.h >> 1) | (u8) (this->registers.bc.b.h & 0x80);
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, (this->registers.bc.b.h & 0x01) != 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.bc.b.h = result;
-}
-
-void CPU::sra_c() {
-    u8 result = (this->registers.bc.b.l >> 1) | (u8) (this->registers.bc.b.l & 0x80);
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, (this->registers.bc.b.l & 0x01) != 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.bc.b.l = result;
-}
-
-void CPU::sra_d() {
-    u8 result = (this->registers.de.b.h >> 1) | (u8) (this->registers.de.b.h & 0x80);
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, (this->registers.de.b.h & 0x01) != 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.de.b.h = result;
-}
-
-void CPU::sra_e() {
-    u8 result = (this->registers.de.b.l >> 1) | (u8) (this->registers.de.b.l & 0x80);
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, (this->registers.de.b.l & 0x01) != 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.de.b.l = result;
-}
-
-void CPU::sra_h() {
-    u8 result = (this->registers.hl.b.h >> 1) | (u8) (this->registers.hl.b.h & 0x80);
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, (this->registers.hl.b.h & 0x01) != 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.hl.b.h = result;
-}
-
-void CPU::sra_l() {
-    u8 result = (this->registers.hl.b.l >> 1) | (u8) (this->registers.hl.b.l & 0x80);
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, (this->registers.hl.b.l & 0x01) != 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.hl.b.l = result;
-}
-
-void CPU::sra_hlp() {
-    u8 val = MEMREAD(this->registers.hl.w);
-    u8 result = (val >> 1) | (u8) (val & 0x80);
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, (val & 0x01) != 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    MEMWRITE(this->registers.hl.w, result);
-}
-
-void CPU::sra_a() {
-    u8 result = (this->registers.af.b.h >> 1) | (u8) (this->registers.af.b.h & 0x80);
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, (this->registers.af.b.h & 0x01) != 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.af.b.h = result;
-}
-
-void CPU::swap_b() {
-    u8 result = (u8) (((this->registers.bc.b.h & 0x0F) << 4) | ((this->registers.bc.b.h & 0xF0) >> 4));
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.bc.b.h = result;
-}
-
-void CPU::swap_c() {
-    u8 result = (u8) (((this->registers.bc.b.l & 0x0F) << 4) | ((this->registers.bc.b.l & 0xF0) >> 4));
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.bc.b.l = result;
-}
-
-void CPU::swap_d() {
-    u8 result = (u8) (((this->registers.de.b.h & 0x0F) << 4) | ((this->registers.de.b.h & 0xF0) >> 4));
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.de.b.h = result;
-}
-
-void CPU::swap_e() {
-    u8 result = (u8) (((this->registers.de.b.l & 0x0F) << 4) | ((this->registers.de.b.l & 0xF0) >> 4));
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.de.b.l = result;
-}
-
-void CPU::swap_h() {
-    u8 result = (u8) (((this->registers.hl.b.h & 0x0F) << 4) | ((this->registers.hl.b.h & 0xF0) >> 4));
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.hl.b.h = result;
-}
-
-void CPU::swap_l() {
-    u8 result = (u8) (((this->registers.hl.b.l & 0x0F) << 4) | ((this->registers.hl.b.l & 0xF0) >> 4));
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.hl.b.l = result;
-}
-
-void CPU::swap_hlp() {
-    u8 val = MEMREAD(this->registers.hl.w);
-    u8 result = (u8) (((val & 0x0F) << 4) | ((val & 0xF0) >> 4));
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    MEMWRITE(this->registers.hl.w, result);
-}
-
-void CPU::swap_a() {
-    u8 result = (u8) (((this->registers.af.b.h & 0x0F) << 4) | ((this->registers.af.b.h & 0xF0) >> 4));
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.af.b.h = result;
-}
-
-void CPU::srl_b() {
-    u8 result = this->registers.bc.b.h >> 1;
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, (this->registers.bc.b.h & 0x01) != 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.bc.b.h = result;
-}
-
-void CPU::srl_c() {
-    u8 result = this->registers.bc.b.l >> 1;
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, (this->registers.bc.b.l & 0x01) != 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.bc.b.l = result;
-}
-
-void CPU::srl_d() {
-    u8 result = this->registers.de.b.h >> 1;
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, (this->registers.de.b.h & 0x01) != 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.de.b.h = result;
-}
-
-void CPU::srl_e() {
-    u8 result = this->registers.de.b.l >> 1;
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, (this->registers.de.b.l & 0x01) != 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.de.b.l = result;
-}
-
-void CPU::srl_h() {
-    u8 result = this->registers.hl.b.h >> 1;
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, (this->registers.hl.b.h & 0x01) != 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.hl.b.h = result;
-}
-
-void CPU::srl_l() {
-    u8 result = this->registers.hl.b.l >> 1;
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, (this->registers.hl.b.l & 0x01) != 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.hl.b.l = result;
-}
-
-void CPU::srl_hlp() {
-    u8 val = MEMREAD(this->registers.hl.w);
-    u8 result = val >> 1;
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, (val & 0x01) != 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    MEMWRITE(this->registers.hl.w, result);
-}
-
-void CPU::srl_a() {
-    u8 result = this->registers.af.b.h >> 1;
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 0);
-    FLAG_SET(FLAG_CARRY, (this->registers.af.b.h & 0x01) != 0);
-    FLAG_SET(FLAG_ZERO, result == 0);
-    this->registers.af.b.h = result;
-}
-
-void CPU::bit_0_b() {
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_ZERO, (this->registers.bc.b.h & (1 << 0)) == 0);
-}
-
-void CPU::bit_0_c() {
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_ZERO, (this->registers.bc.b.l & (1 << 0)) == 0);
-}
-
-void CPU::bit_0_d() {
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_ZERO, (this->registers.de.b.h & (1 << 0)) == 0);
-}
-
-void CPU::bit_0_e() {
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_ZERO, (this->registers.de.b.l & (1 << 0)) == 0);
-}
-
-void CPU::bit_0_h() {
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_ZERO, (this->registers.hl.b.h & (1 << 0)) == 0);
-}
-
-void CPU::bit_0_l() {
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_ZERO, (this->registers.hl.b.l & (1 << 0)) == 0);
-}
-
-void CPU::bit_0_hlp() {
-    u8 val = MEMREAD(this->registers.hl.w);
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_ZERO, (val & (1 << 0)) == 0);
-}
-
-void CPU::bit_0_a() {
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_ZERO, (this->registers.af.b.h & (1 << 0)) == 0);
-}
-
-void CPU::bit_1_b() {
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_ZERO, (this->registers.bc.b.h & (1 << 1)) == 0);
-}
-
-void CPU::bit_1_c() {
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_ZERO, (this->registers.bc.b.l & (1 << 1)) == 0);
-}
-
-void CPU::bit_1_d() {
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_ZERO, (this->registers.de.b.h & (1 << 1)) == 0);
-}
-
-void CPU::bit_1_e() {
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_ZERO, (this->registers.de.b.l & (1 << 1)) == 0);
-}
-
-void CPU::bit_1_h() {
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_ZERO, (this->registers.hl.b.h & (1 << 1)) == 0);
-}
-
-void CPU::bit_1_l() {
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_ZERO, (this->registers.hl.b.l & (1 << 1)) == 0);
-}
-
-void CPU::bit_1_hlp() {
-    u8 val = MEMREAD(this->registers.hl.w);
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_ZERO, (val & (1 << 1)) == 0);
-}
-
-void CPU::bit_1_a() {
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_ZERO, (this->registers.af.b.h & (1 << 1)) == 0);
-}
-
-void CPU::bit_2_b() {
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_ZERO, (this->registers.bc.b.h & (1 << 2)) == 0);
-}
-
-void CPU::bit_2_c() {
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_ZERO, (this->registers.bc.b.l & (1 << 2)) == 0);
-}
-
-void CPU::bit_2_d() {
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_ZERO, (this->registers.de.b.h & (1 << 2)) == 0);
-}
-
-void CPU::bit_2_e() {
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_ZERO, (this->registers.de.b.l & (1 << 2)) == 0);
-}
-
-void CPU::bit_2_h() {
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_ZERO, (this->registers.hl.b.h & (1 << 2)) == 0);
-}
-
-void CPU::bit_2_l() {
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_ZERO, (this->registers.hl.b.l & (1 << 2)) == 0);
-}
-
-void CPU::bit_2_hlp() {
-    u8 val = MEMREAD(this->registers.hl.w);
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_ZERO, (val & (1 << 2)) == 0);
-}
-
-void CPU::bit_2_a() {
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_ZERO, (this->registers.af.b.h & (1 << 2)) == 0);
-}
-
-void CPU::bit_3_b() {
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_ZERO, (this->registers.bc.b.h & (1 << 3)) == 0);
-}
-
-void CPU::bit_3_c() {
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_ZERO, (this->registers.bc.b.l & (1 << 3)) == 0);
-}
-
-void CPU::bit_3_d() {
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_ZERO, (this->registers.de.b.h & (1 << 3)) == 0);
-}
-
-void CPU::bit_3_e() {
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_ZERO, (this->registers.de.b.l & (1 << 3)) == 0);
-}
-
-void CPU::bit_3_h() {
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_ZERO, (this->registers.hl.b.h & (1 << 3)) == 0);
-}
-
-void CPU::bit_3_l() {
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_ZERO, (this->registers.hl.b.l & (1 << 3)) == 0);
-}
-
-void CPU::bit_3_hlp() {
-    u8 val = MEMREAD(this->registers.hl.w);
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_ZERO, (val & (1 << 3)) == 0);
-}
-
-void CPU::bit_3_a() {
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_ZERO, (this->registers.af.b.h & (1 << 3)) == 0);
-}
-
-void CPU::bit_4_b() {
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_ZERO, (this->registers.bc.b.h & (1 << 4)) == 0);
-}
-
-void CPU::bit_4_c() {
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_ZERO, (this->registers.bc.b.l & (1 << 4)) == 0);
-}
-
-void CPU::bit_4_d() {
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_ZERO, (this->registers.de.b.h & (1 << 4)) == 0);
-}
-
-void CPU::bit_4_e() {
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_ZERO, (this->registers.de.b.l & (1 << 4)) == 0);
-}
-
-void CPU::bit_4_h() {
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_ZERO, (this->registers.hl.b.h & (1 << 4)) == 0);
-}
-
-void CPU::bit_4_l() {
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_ZERO, (this->registers.hl.b.l & (1 << 4)) == 0);
-}
-
-void CPU::bit_4_hlp() {
-    u8 val = MEMREAD(this->registers.hl.w);
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_ZERO, (val & (1 << 4)) == 0);
-}
-
-void CPU::bit_4_a() {
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_ZERO, (this->registers.af.b.h & (1 << 4)) == 0);
-}
-
-void CPU::bit_5_b() {
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_ZERO, (this->registers.bc.b.h & (1 << 5)) == 0);
-}
-
-void CPU::bit_5_c() {
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_ZERO, (this->registers.bc.b.l & (1 << 5)) == 0);
-}
-
-void CPU::bit_5_d() {
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_ZERO, (this->registers.de.b.h & (1 << 5)) == 0);
-}
-
-void CPU::bit_5_e() {
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_ZERO, (this->registers.de.b.l & (1 << 5)) == 0);
-}
-
-void CPU::bit_5_h() {
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_ZERO, (this->registers.hl.b.h & (1 << 5)) == 0);
-}
-
-void CPU::bit_5_l() {
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_ZERO, (this->registers.hl.b.l & (1 << 5)) == 0);
-}
-
-void CPU::bit_5_hlp() {
-    u8 val = MEMREAD(this->registers.hl.w);
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_ZERO, (val & (1 << 5)) == 0);
-}
-
-void CPU::bit_5_a() {
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_ZERO, (this->registers.af.b.h & (1 << 5)) == 0);
-}
-
-void CPU::bit_6_b() {
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_ZERO, (this->registers.bc.b.h & (1 << 6)) == 0);
-}
-
-void CPU::bit_6_c() {
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_ZERO, (this->registers.bc.b.l & (1 << 6)) == 0);
-}
-
-void CPU::bit_6_d() {
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_ZERO, (this->registers.de.b.h & (1 << 6)) == 0);
-}
-
-void CPU::bit_6_e() {
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_ZERO, (this->registers.de.b.l & (1 << 6)) == 0);
-}
-
-void CPU::bit_6_h() {
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_ZERO, (this->registers.hl.b.h & (1 << 6)) == 0);
-}
-
-void CPU::bit_6_l() {
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_ZERO, (this->registers.hl.b.l & (1 << 6)) == 0);
-}
-
-void CPU::bit_6_hlp() {
-    u8 val = MEMREAD(this->registers.hl.w);
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_ZERO, (val & (1 << 6)) == 0);
-}
-
-void CPU::bit_6_a() {
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_ZERO, (this->registers.af.b.h & (1 << 6)) == 0);
-}
-
-void CPU::bit_7_b() {
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_ZERO, (this->registers.bc.b.h & (1 << 7)) == 0);
-}
-
-void CPU::bit_7_c() {
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_ZERO, (this->registers.bc.b.l & (1 << 7)) == 0);
-}
-
-void CPU::bit_7_d() {
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_ZERO, (this->registers.de.b.h & (1 << 7)) == 0);
-}
-
-void CPU::bit_7_e() {
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_ZERO, (this->registers.de.b.l & (1 << 7)) == 0);
-}
-
-void CPU::bit_7_h() {
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_ZERO, (this->registers.hl.b.h & (1 << 7)) == 0);
-}
-
-void CPU::bit_7_l() {
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_ZERO, (this->registers.hl.b.l & (1 << 7)) == 0);
-}
-
-void CPU::bit_7_hlp() {
-    u8 val = MEMREAD(this->registers.hl.w);
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_ZERO, (val & (1 << 7)) == 0);
-}
-
-void CPU::bit_7_a() {
-    FLAG_SET(FLAG_NEGATIVE, 0);
-    FLAG_SET(FLAG_HALFCARRY, 1);
-    FLAG_SET(FLAG_ZERO, (this->registers.af.b.h & (1 << 7)) == 0);
-}
-
-void CPU::res_0_b() {
-    this->registers.bc.b.h &= ~(1 << 0);
-}
-
-void CPU::res_0_c() {
-    this->registers.bc.b.l &= ~(1 << 0);
-}
-
-void CPU::res_0_d() {
-    this->registers.de.b.h &= ~(1 << 0);
-}
-
-void CPU::res_0_e() {
-    this->registers.de.b.l &= ~(1 << 0);
-}
-
-void CPU::res_0_h() {
-    this->registers.hl.b.h &= ~(1 << 0);
-}
-
-void CPU::res_0_l() {
-    this->registers.hl.b.l &= ~(1 << 0);
-}
-
-void CPU::res_0_hlp() {
-    u8 val = MEMREAD(this->registers.hl.w);
-    MEMWRITE(this->registers.hl.w, val & (u8) ~(1 << 0));
-}
-
-void CPU::res_0_a() {
-    this->registers.af.b.h &= ~(1 << 0);
-}
-
-void CPU::res_1_b() {
-    this->registers.bc.b.h &= ~(1 << 1);
-}
-
-void CPU::res_1_c() {
-    this->registers.bc.b.l &= ~(1 << 1);
-}
-
-void CPU::res_1_d() {
-    this->registers.de.b.h &= ~(1 << 1);
-}
-
-void CPU::res_1_e() {
-    this->registers.de.b.l &= ~(1 << 1);
-}
-
-void CPU::res_1_h() {
-    this->registers.hl.b.h &= ~(1 << 1);
-}
-
-void CPU::res_1_l() {
-    this->registers.hl.b.l &= ~(1 << 1);
-}
-
-void CPU::res_1_hlp() {
-    u8 val = MEMREAD(this->registers.hl.w);
-    MEMWRITE(this->registers.hl.w, val & (u8) ~(1 << 1));
-}
-
-void CPU::res_1_a() {
-    this->registers.af.b.h &= ~(1 << 1);
-}
-
-void CPU::res_2_b() {
-    this->registers.bc.b.h &= ~(1 << 2);
-}
-
-void CPU::res_2_c() {
-    this->registers.bc.b.l &= ~(1 << 2);
-}
-
-void CPU::res_2_d() {
-    this->registers.de.b.h &= ~(1 << 2);
-}
-
-void CPU::res_2_e() {
-    this->registers.de.b.l &= ~(1 << 2);
-}
-
-void CPU::res_2_h() {
-    this->registers.hl.b.h &= ~(1 << 2);
-}
-
-void CPU::res_2_l() {
-    this->registers.hl.b.l &= ~(1 << 2);
-}
-
-void CPU::res_2_hlp() {
-    u8 val = MEMREAD(this->registers.hl.w);
-    MEMWRITE(this->registers.hl.w, val & (u8) ~(1 << 2));
-}
-
-void CPU::res_2_a() {
-    this->registers.af.b.h &= ~(1 << 2);
-}
-
-void CPU::res_3_b() {
-    this->registers.bc.b.h &= ~(1 << 3);
-}
-
-void CPU::res_3_c() {
-    this->registers.bc.b.l &= ~(1 << 3);
-}
-
-void CPU::res_3_d() {
-    this->registers.de.b.h &= ~(1 << 3);
-}
-
-void CPU::res_3_e() {
-    this->registers.de.b.l &= ~(1 << 3);
-}
-
-void CPU::res_3_h() {
-    this->registers.hl.b.h &= ~(1 << 3);
-}
-
-void CPU::res_3_l() {
-    this->registers.hl.b.l &= ~(1 << 3);
-}
-
-void CPU::res_3_hlp() {
-    u8 val = MEMREAD(this->registers.hl.w);
-    MEMWRITE(this->registers.hl.w, val & (u8) ~(1 << 3));
-}
-
-void CPU::res_3_a() {
-    this->registers.af.b.h &= ~(1 << 3);
-}
-
-void CPU::res_4_b() {
-    this->registers.bc.b.h &= ~(1 << 4);
-}
-
-void CPU::res_4_c() {
-    this->registers.bc.b.l &= ~(1 << 4);
-}
-
-void CPU::res_4_d() {
-    this->registers.de.b.h &= ~(1 << 4);
-}
-
-void CPU::res_4_e() {
-    this->registers.de.b.l &= ~(1 << 4);
-}
-
-void CPU::res_4_h() {
-    this->registers.hl.b.h &= ~(1 << 4);
-}
-
-void CPU::res_4_l() {
-    this->registers.hl.b.l &= ~(1 << 4);
-}
-
-void CPU::res_4_hlp() {
-    u8 val = MEMREAD(this->registers.hl.w);
-    MEMWRITE(this->registers.hl.w, val & (u8) ~(1 << 4));
-}
-
-void CPU::res_4_a() {
-    this->registers.af.b.h &= ~(1 << 4);
-}
-
-void CPU::res_5_b() {
-    this->registers.bc.b.h &= ~(1 << 5);
-}
-
-void CPU::res_5_c() {
-    this->registers.bc.b.l &= ~(1 << 5);
-}
-
-void CPU::res_5_d() {
-    this->registers.de.b.h &= ~(1 << 5);
-}
-
-void CPU::res_5_e() {
-    this->registers.de.b.l &= ~(1 << 5);
-}
-
-void CPU::res_5_h() {
-    this->registers.hl.b.h &= ~(1 << 5);
-}
-
-void CPU::res_5_l() {
-    this->registers.hl.b.l &= ~(1 << 5);
-}
-
-void CPU::res_5_hlp() {
-    u8 val = MEMREAD(this->registers.hl.w);
-    MEMWRITE(this->registers.hl.w, val & (u8) ~(1 << 5));
-}
-
-void CPU::res_5_a() {
-    this->registers.af.b.h &= ~(1 << 5);
-}
-
-void CPU::res_6_b() {
-    this->registers.bc.b.h &= ~(1 << 6);
-}
-
-void CPU::res_6_c() {
-    this->registers.bc.b.l &= ~(1 << 6);
-}
-
-void CPU::res_6_d() {
-    this->registers.de.b.h &= ~(1 << 6);
-}
-
-void CPU::res_6_e() {
-    this->registers.de.b.l &= ~(1 << 6);
-}
-
-void CPU::res_6_h() {
-    this->registers.hl.b.h &= ~(1 << 6);
-}
-
-void CPU::res_6_l() {
-    this->registers.hl.b.l &= ~(1 << 6);
-}
-
-void CPU::res_6_hlp() {
-    u8 val = MEMREAD(this->registers.hl.w);
-    MEMWRITE(this->registers.hl.w, val & (u8) ~(1 << 6));
-}
-
-void CPU::res_6_a() {
-    this->registers.af.b.h &= ~(1 << 6);
-}
-
-void CPU::res_7_b() {
-    this->registers.bc.b.h &= ~(1 << 7);
-}
-
-void CPU::res_7_c() {
-    this->registers.bc.b.l &= ~(1 << 7);
-}
-
-void CPU::res_7_d() {
-    this->registers.de.b.h &= ~(1 << 7);
-}
-
-void CPU::res_7_e() {
-    this->registers.de.b.l &= ~(1 << 7);
-}
-
-void CPU::res_7_h() {
-    this->registers.hl.b.h &= ~(1 << 7);
-}
-
-void CPU::res_7_l() {
-    this->registers.hl.b.l &= ~(1 << 7);
-}
-
-void CPU::res_7_hlp() {
-    u8 val = MEMREAD(this->registers.hl.w);
-    MEMWRITE(this->registers.hl.w, val & (u8) ~(1 << 7));
-}
-
-void CPU::res_7_a() {
-    this->registers.af.b.h &= ~(1 << 7);
-}
-
-void CPU::set_0_b() {
-    this->registers.bc.b.h |= 1 << 0;
-}
-
-void CPU::set_0_c() {
-    this->registers.bc.b.l |= 1 << 0;
-}
-
-void CPU::set_0_d() {
-    this->registers.de.b.h |= 1 << 0;
-}
-
-void CPU::set_0_e() {
-    this->registers.de.b.l |= 1 << 0;
-}
-
-void CPU::set_0_h() {
-    this->registers.hl.b.h |= 1 << 0;
-}
-
-void CPU::set_0_l() {
-    this->registers.hl.b.l |= 1 << 0;
-}
-
-void CPU::set_0_hlp() {
-    u8 val = MEMREAD(this->registers.hl.w);
-    MEMWRITE(this->registers.hl.w, val | (u8) (1 << 0));
-}
-
-void CPU::set_0_a() {
-    this->registers.af.b.h |= 1 << 0;
-}
-
-void CPU::set_1_b() {
-    this->registers.bc.b.h |= 1 << 1;
-}
-
-void CPU::set_1_c() {
-    this->registers.bc.b.l |= 1 << 1;
-}
-
-void CPU::set_1_d() {
-    this->registers.de.b.h |= 1 << 1;
-}
-
-void CPU::set_1_e() {
-    this->registers.de.b.l |= 1 << 1;
-}
-
-void CPU::set_1_h() {
-    this->registers.hl.b.h |= 1 << 1;
-}
-
-void CPU::set_1_l() {
-    this->registers.hl.b.l |= 1 << 1;
-}
-
-void CPU::set_1_hlp() {
-    u8 val = MEMREAD(this->registers.hl.w);
-    MEMWRITE(this->registers.hl.w, val | (u8) (1 << 1));
-}
-
-void CPU::set_1_a() {
-    this->registers.af.b.h |= 1 << 1;
-}
-
-void CPU::set_2_b() {
-    this->registers.bc.b.h |= 1 << 2;
-}
-
-void CPU::set_2_c() {
-    this->registers.bc.b.l |= 1 << 2;
-}
-
-void CPU::set_2_d() {
-    this->registers.de.b.h |= 1 << 2;
-}
-
-void CPU::set_2_e() {
-    this->registers.de.b.l |= 1 << 2;
-}
-
-void CPU::set_2_h() {
-    this->registers.hl.b.h |= 1 << 2;
-}
-
-void CPU::set_2_l() {
-    this->registers.hl.b.l |= 1 << 2;
-}
-
-void CPU::set_2_hlp() {
-    u8 val = MEMREAD(this->registers.hl.w);
-    MEMWRITE(this->registers.hl.w, val | (u8) (1 << 2));
-}
-
-void CPU::set_2_a() {
-    this->registers.af.b.h |= 1 << 2;
-}
-
-void CPU::set_3_b() {
-    this->registers.bc.b.h |= 1 << 3;
-}
-
-void CPU::set_3_c() {
-    this->registers.bc.b.l |= 1 << 3;
-}
-
-void CPU::set_3_d() {
-    this->registers.de.b.h |= 1 << 3;
-}
-
-void CPU::set_3_e() {
-    this->registers.de.b.l |= 1 << 3;
-}
-
-void CPU::set_3_h() {
-    this->registers.hl.b.h |= 1 << 3;
-}
-
-void CPU::set_3_l() {
-    this->registers.hl.b.l |= 1 << 3;
-}
-
-void CPU::set_3_hlp() {
-    u8 val = MEMREAD(this->registers.hl.w);
-    MEMWRITE(this->registers.hl.w, val | (u8) (1 << 3));
-}
-
-void CPU::set_3_a() {
-    this->registers.af.b.h |= 1 << 3;
-}
-
-void CPU::set_4_b() {
-    this->registers.bc.b.h |= 1 << 4;
-}
-
-void CPU::set_4_c() {
-    this->registers.bc.b.l |= 1 << 4;
-}
-
-void CPU::set_4_d() {
-    this->registers.de.b.h |= 1 << 4;
-}
-
-void CPU::set_4_e() {
-    this->registers.de.b.l |= 1 << 4;
-}
-
-void CPU::set_4_h() {
-    this->registers.hl.b.h |= 1 << 4;
-}
-
-void CPU::set_4_l() {
-    this->registers.hl.b.l |= 1 << 4;
-}
-
-void CPU::set_4_hlp() {
-    u8 val = MEMREAD(this->registers.hl.w);
-    MEMWRITE(this->registers.hl.w, val | (u8) (1 << 4));
-}
-
-void CPU::set_4_a() {
-    this->registers.af.b.h |= 1 << 4;
-}
-
-void CPU::set_5_b() {
-    this->registers.bc.b.h |= 1 << 5;
-}
-
-void CPU::set_5_c() {
-    this->registers.bc.b.l |= 1 << 5;
-}
-
-void CPU::set_5_d() {
-    this->registers.de.b.h |= 1 << 5;
-}
-
-void CPU::set_5_e() {
-    this->registers.de.b.l |= 1 << 5;
-}
-
-void CPU::set_5_h() {
-    this->registers.hl.b.h |= 1 << 5;
-}
-
-void CPU::set_5_l() {
-    this->registers.hl.b.l |= 1 << 5;
-}
-
-void CPU::set_5_hlp() {
-    u8 val = MEMREAD(this->registers.hl.w);
-    MEMWRITE(this->registers.hl.w, val | (u8) (1 << 5));
-}
-
-void CPU::set_5_a() {
-    this->registers.af.b.h |= 1 << 5;
-}
-
-void CPU::set_6_b() {
-    this->registers.bc.b.h |= 1 << 6;
-}
-
-void CPU::set_6_c() {
-    this->registers.bc.b.l |= 1 << 6;
-}
-
-void CPU::set_6_d() {
-    this->registers.de.b.h |= 1 << 6;
-}
-
-void CPU::set_6_e() {
-    this->registers.de.b.l |= 1 << 6;
-}
-
-void CPU::set_6_h() {
-    this->registers.hl.b.h |= 1 << 6;
-}
-
-void CPU::set_6_l() {
-    this->registers.hl.b.l |= 1 << 6;
-}
-
-void CPU::set_6_hlp() {
-    u8 val = MEMREAD(this->registers.hl.w);
-    MEMWRITE(this->registers.hl.w, val | (u8) (1 << 6));
-}
-
-void CPU::set_6_a() {
-    this->registers.af.b.h |= 1 << 6;
-}
-
-void CPU::set_7_b() {
-    this->registers.bc.b.h |= 1 << 7;
-}
-
-void CPU::set_7_c() {
-    this->registers.bc.b.l |= 1 << 7;
-}
-
-void CPU::set_7_d() {
-    this->registers.de.b.h |= 1 << 7;
-}
-
-void CPU::set_7_e() {
-    this->registers.de.b.l |= 1 << 7;
-}
-
-void CPU::set_7_h() {
-    this->registers.hl.b.h |= 1 << 7;
-}
-
-void CPU::set_7_l() {
-    this->registers.hl.b.l |= 1 << 7;
-}
-
-void CPU::set_7_hlp() {
-    u8 val = MEMREAD(this->registers.hl.w);
-    MEMWRITE(this->registers.hl.w, val | (u8) (1 << 7));
-}
-
-void CPU::set_7_a() {
-    this->registers.af.b.h |= 1 << 7;
 }
