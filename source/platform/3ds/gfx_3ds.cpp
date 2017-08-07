@@ -449,8 +449,8 @@ void gfxDrawScreen() {
     C3D_FrameDrawOn(target);
     C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER, shaderInstanceGetUniformLocation(program.vertexShader, "projection"), gameScreen == 0 ? &projectionTop : &projectionBottom);
 
-    u16 viewportWidth = target->renderBuf.colorBuf.height;
-    u16 viewportHeight = target->renderBuf.colorBuf.width;
+    u16 viewportWidth = target->frameBuf.height;
+    u16 viewportHeight = target->frameBuf.width;
 
     // Draw the screen.
     if(screenInit) {
