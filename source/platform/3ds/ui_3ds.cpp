@@ -80,14 +80,16 @@ void uiUpdateScreen() {
     }
 }
 
-int uiGetWidth() {
+void uiGetSize(int* width, int* height) {
     PrintConsole* console = !gameScreen == 0 ? topConsole : bottomConsole;
-    return console->consoleWidth;
-}
 
-int uiGetHeight() {
-    PrintConsole* console = !gameScreen == 0 ? topConsole : bottomConsole;
-    return console->consoleHeight;
+    if(width != NULL) {
+        *width = console->consoleWidth;
+    }
+
+    if(height != NULL) {
+        *height = console->consoleHeight;
+    }
 }
 
 void uiClear() {

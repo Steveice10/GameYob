@@ -37,7 +37,11 @@ VERSION_MICRO := $(word 3, $(VERSION_PARTS))
 # PC CONFIGURATION #
 
 ifneq ($(TARGET),$(filter $(TARGET),3DS WIIU))
-    LIBRARIES += ncurses SDL2
+    ifeq ($(OS),Windows_NT)
+        LIBRARIES += pdcurses SDL2main SDL2 dinput8 dxguid dxerr8 user32 gdi32 winmm imm32 ole32 oleaut32 shell32 version uuid
+    else
+        LIBRARIES += ncurses SDL2
+    endif
 
     BUILD_FLAGS += -DBACKEND_SDL
 endif

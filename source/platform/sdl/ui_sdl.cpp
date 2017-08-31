@@ -1,11 +1,10 @@
 #ifdef BACKEND_SDL
 
-#include <sys/ioctl.h>
 #include <unistd.h>
 
 #include "platform/ui.h"
 
-#include <ncurses.h>
+#include <curses.h>
 
 WINDOW* window;
 
@@ -13,12 +12,8 @@ static TextColor textColor = TEXT_COLOR_NONE;
 static bool highlighted = false;
 
 void uiInit() {
-    initscr();
+    window = initscr();
     start_color();
-
-    struct winsize w;
-    ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
-    window = newwin(w.ws_row, w.ws_col, 0, 0);
 
     noecho();
     cbreak();
@@ -51,18 +46,18 @@ void uiCleanup() {
 void uiUpdateScreen() {
 }
 
-int uiGetWidth() {
-    struct winsize w;
-    ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
+void uiGetSize(int* width, int* height) {
+    int y = 0;
+    int x = 0;
+    getmaxyx(window, y, x);
 
-    return w.ws_col;
-}
+    if(width != NULL) {
+        *width = x;
+    }
 
-int uiGetHeight() {
-    struct winsize w;
-    ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
-
-    return w.ws_row;
+    if(height != NULL) {
+        *height = y;
+    }
 }
 
 void uiClear() {

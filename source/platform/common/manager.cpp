@@ -1093,7 +1093,10 @@ void mgrRun() {
                     char timeDisplay[6] = {0};
                     strncpy(timeDisplay, timeString, 5);
 
-                    int spaces = uiGetWidth() - (int) strlen(timeDisplay) - fpsLength;
+                    int width = 0;
+                    uiGetSize(&width, NULL);
+
+                    int spaces = width - (int) strlen(timeDisplay) - fpsLength;
                     for(int i = 0; i < spaces; i++) {
                         uiPrint(" ");
                     }

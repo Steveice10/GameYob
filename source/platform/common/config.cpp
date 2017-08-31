@@ -246,6 +246,9 @@ void redrawKeyConfigChooser() {
     int &scrollY = keyConfigChooser_scrollY;
     KeyConfig* config = &keyConfigs[selectedKeyConfig];
 
+    int height = 0;
+    uiGetSize(NULL, &height);
+
     uiClear();
 
     uiPrint("Config: ");
@@ -260,7 +263,7 @@ void redrawKeyConfigChooser() {
     uiPrint("              Button   Function\n\n");
 
     int keyCount = inputGetKeyCount();
-    for(int i = 0, elements = 0; i < keyCount && elements < scrollY + uiGetHeight() - 7; i++) {
+    for(int i = 0, elements = 0; i < keyCount && elements < scrollY + height - 7; i++) {
         if(!inputIsValidKey(i)) {
             continue;
         }
@@ -303,6 +306,9 @@ void updateKeyConfigChooser() {
     int &scrollY = keyConfigChooser_scrollY;
     KeyConfig* config = &keyConfigs[selectedKeyConfig];
     int keyCount = inputGetKeyCount();
+
+    int height = 0;
+    uiGetSize(NULL, &height);
 
     UIKey key;
     while((key = uiReadKey()) != UI_KEY_NONE) {
@@ -352,7 +358,7 @@ void updateKeyConfigChooser() {
                     scrollY--;
                 }
 
-                while(cursor >= scrollY + uiGetHeight() - 7) {
+                while(cursor >= scrollY + height - 7) {
                     scrollY++;
                 }
             }
@@ -398,7 +404,7 @@ void updateKeyConfigChooser() {
                     scrollY--;
                 }
 
-                while(cursor >= scrollY + uiGetHeight() - 7) {
+                while(cursor >= scrollY + height - 7) {
                     scrollY++;
                 }
             }

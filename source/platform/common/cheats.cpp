@@ -11,7 +11,11 @@ int cheatMenuSelection = 0;
 bool cheatMenuGameboyWasPaused = false;
 
 void redrawCheatMenu() {
-    cheatsPerPage = uiGetHeight() - 2;
+    int height = 0;
+    uiGetSize(NULL, &height);
+
+    cheatsPerPage = height - 2;
+
     int numCheats = cheatEngine->getNumCheats();
     int numPages = (numCheats - 1) / cheatsPerPage + 1;
     int page = cheatMenuSelection / cheatsPerPage;

@@ -29,8 +29,7 @@ typedef enum {
 void uiInit();
 void uiCleanup();
 void uiUpdateScreen();
-int uiGetWidth();
-int uiGetHeight();
+void uiGetSize(int* width, int* height);
 void uiClear();
 void uiSetLineHighlighted(bool highlight);
 void uiSetTextColor(TextColor color);

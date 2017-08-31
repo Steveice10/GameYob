@@ -280,7 +280,7 @@ void FileChooser::refreshContents() {
                                 name = name.substr(0, dot);
                             }
 
-                            for(uint i = 0; i < unmatchedStates.size(); i++) {
+                            for(u32 i = 0; i < unmatchedStates.size(); i++) {
                                 if(name.compare(unmatchedStates[i]) == 0) {
                                     flag |= FLAG_SUSPENDED;
                                     unmatchedStates.erase(unmatchedStates.begin() + i);
@@ -349,7 +349,8 @@ void FileChooser::refreshContents() {
 }
 
 void FileChooser::redrawChooser() {
-    int screenLen = uiGetWidth();
+    int screenLen = 0;
+    uiGetSize(&screenLen, NULL);
 
     uiClear();
 
@@ -360,7 +361,7 @@ void FileChooser::redrawChooser() {
 
     uiPrint("%s", currDirName.c_str());
 
-    for(uint j = 0; j < screenLen - currDirName.length(); j++) {
+    for(u32 j = 0; j < screenLen - currDirName.length(); j++) {
         uiPrint(" ");
     }
 
@@ -397,7 +398,7 @@ void FileChooser::redrawChooser() {
             uiPrint("/");
         }
 
-        for(uint j = 0; j < displayLen - fileName.length(); j++) {
+        for(u32 j = 0; j < displayLen - fileName.length(); j++) {
             uiPrint(" ");
         }
 
@@ -482,7 +483,10 @@ bool FileChooser::updateChooser(char** result) {
  * for free()ing it.
  */
 char* FileChooser::chooseFile() {
-    filesPerPage = uiGetHeight() - 1;
+    int height = 0;
+    uiGetSize(NULL, &height);
+
+    filesPerPage = height - 1;
 
     refreshContents();
     redrawChooser();

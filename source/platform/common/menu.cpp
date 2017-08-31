@@ -3,7 +3,6 @@
 
 #include <sstream>
 
-#include <arpa/inet.h>
 #include <errno.h>
 #include <unistd.h>
 
@@ -705,8 +704,9 @@ int menuGetNumRows() {
 void redrawMenu() {
     uiClear();
 
-    int width = uiGetWidth();
-    int height = uiGetHeight();
+    int width = 0;
+    int height = 0;
+    uiGetSize(&width, &height);
 
     // Top line: submenu
     int pos = 0;
@@ -929,8 +929,10 @@ void updateMenu() {
 // Message will be printed immediately, but also stored in case it's overwritten
 // right away.
 void printMenuMessage(const char* s) {
-    int width = uiGetWidth();
-    int height = uiGetHeight();
+    int width = 0;
+    int height = 0;
+    uiGetSize(&width, &height);
+
     int rows = menuGetNumRows();
 
     bool hadPreviousMessage = printMessage[0] != '\0';
