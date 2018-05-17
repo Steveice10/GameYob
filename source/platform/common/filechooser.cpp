@@ -328,10 +328,11 @@ void FileChooser::refreshContents() {
         closedir(dir);
     }
 
-    quickSort(filenames, flags, nameSortFunction, 0, numFiles - 1);
+    quickSort(filenames, flags, nameSortFunction, 0, numFiles > 0 ? (u32) (numFiles - 1) : 0);
 
-    if(selection >= numFiles)
+    if(selection >= numFiles) {
         selection = 0;
+    }
 
     if(!matchFile.empty()) {
         for(int i = 0; i < numFiles; i++) {

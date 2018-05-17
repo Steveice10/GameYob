@@ -68,7 +68,9 @@ unsigned int selectedKeyConfig = 0;
 
 void controlsParseConfig(char* line2) {
     char line[100];
-    strncpy(line, line2, 100);
+    strncpy(line, line2, 99);
+    line[99] = '\0';
+
     while(strlen(line) > 0 && (line[strlen(line) - 1] == '\n' || line[strlen(line) - 1] == ' ')) {
         line[strlen(line) - 1] = '\0';
     }
@@ -83,7 +85,7 @@ void controlsParseConfig(char* line2) {
 
             keyConfigs.push_back(KeyConfig());
             KeyConfig* config = &keyConfigs.back();
-            strncpy(config->name, name, 32);
+            strncpy(config->name, name, 31);
             config->name[31] = '\0';
             for(int i = 0; i < keyCount; i++) {
                 if(strlen(inputGetKeyName(i)) > 0) {
@@ -181,7 +183,8 @@ bool readConfigFile() {
 
         if(strLine.length() > 0) {
             char line[strLine.size() + 1];
-            strncpy(line, strLine.c_str(), sizeof(line));
+            strncpy(line, strLine.c_str(), sizeof(line) - 1);
+            line[sizeof(line) - 1] = '\0';
 
             char c = 0;
             while(*line != '\0' && ((c = line[strlen(line) - 1]) == ' ' || c == '\n' || c == '\r')) {

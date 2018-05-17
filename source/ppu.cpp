@@ -568,7 +568,7 @@ inline void PPU::updateLineSprites() {
         }
 
         line->x = (u8) (this->oam[offset + 1] - 8);
-        u8 tile = (u8) (this->oam[offset + 2] & ~large);
+        u8 tile = (u8) (this->oam[offset + 2] & ~((u8) large));
         u8 flags = this->oam[offset + 3];
 
         line->palette = (u8) (flags & 7);

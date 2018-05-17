@@ -31,10 +31,10 @@ static bool screenInit;
 static C3D_Tex screenTexture;
 
 static bool borderInit;
-static int borderWidth;
-static int borderHeight;
-static int gpuBorderWidth;
-static int gpuBorderHeight;
+static u16 borderWidth;
+static u16 borderHeight;
+static u16 gpuBorderWidth;
+static u16 gpuBorderHeight;
 static C3D_Tex borderTexture;
 
 static u32* screenBuffer;
@@ -52,22 +52,20 @@ bool gfxInit() {
 
     u32 displayFlags = GX_TRANSFER_FLIP_VERT(0) | GX_TRANSFER_OUT_TILED(0) | GX_TRANSFER_RAW_COPY(0) | GX_TRANSFER_IN_FORMAT(GX_TRANSFER_FMT_RGBA8) | GX_TRANSFER_OUT_FORMAT(GX_TRANSFER_FMT_RGB8) | GX_TRANSFER_SCALING(GX_TRANSFER_SCALE_NO);
 
-    targetTop = C3D_RenderTargetCreate(240, 400, GPU_RB_RGBA8, GPU_RB_DEPTH24_STENCIL8);
+    targetTop = C3D_RenderTargetCreate(240, 400, GPU_RB_RGBA8, 0);
     if(targetTop == NULL) {
         gfxCleanup();
         return false;
     }
 
-    C3D_RenderTargetSetClear(targetTop, C3D_CLEAR_ALL, 0, 0);
     C3D_RenderTargetSetOutput(targetTop, GFX_TOP, GFX_LEFT, displayFlags);
 
-    targetBottom = C3D_RenderTargetCreate(240, 320, GPU_RB_RGBA8, GPU_RB_DEPTH24_STENCIL8);
+    targetBottom = C3D_RenderTargetCreate(240, 320, GPU_RB_RGBA8, 0);
     if(targetBottom == NULL) {
         gfxCleanup();
         return false;
     }
 
-    C3D_RenderTargetSetClear(targetBottom, C3D_CLEAR_ALL, 0, 0);
     C3D_RenderTargetSetOutput(targetBottom, GFX_BOTTOM, GFX_LEFT, displayFlags);
 
     dvlb = DVLB_ParseFile((u32*) default_shbin, default_shbin_len);
@@ -107,10 +105,6 @@ bool gfxInit() {
         gfxCleanup();
         return false;
     }
-
-    C3D_TexEnvSrc(env, C3D_Both, GPU_TEXTURE0, 0, 0);
-    C3D_TexEnvOp(env, C3D_Both, 0, 0, 0);
-    C3D_TexEnvFunc(env, C3D_Both, GPU_REPLACE);
 
     C3D_DepthTest(true, GPU_GEQUAL, GPU_WRITE_ALL);
 
@@ -181,7 +175,7 @@ void gfxCleanup() {
 }
 
 void gfxLoadBorder(u8* imgData, int imgWidth, int imgHeight) {
-    if(imgData == NULL || (borderInit && (borderWidth != imgWidth || borderHeight != imgHeight))) {
+    if(imgData == NULL || (borderInit && (borderWidth != (u16) imgWidth || borderHeight != (u16) imgHeight))) {
         if(borderInit) {
             C3D_TexDelete(&borderTexture);
             borderInit = false;
@@ -198,10 +192,10 @@ void gfxLoadBorder(u8* imgData, int imgWidth, int imgHeight) {
     }
 
     // Adjust the texture to power-of-two dimensions.
-    borderWidth = imgWidth;
-    borderHeight = imgHeight;
-    gpuBorderWidth = (int) pow(2, ceil(log(borderWidth) / log(2)));
-    gpuBorderHeight = (int) pow(2, ceil(log(borderHeight) / log(2)));
+    borderWidth = (u16) imgWidth;
+    borderHeight = (u16) imgHeight;
+    gpuBorderWidth = (u16) pow(2, ceil(log(borderWidth) / log(2)));
+    gpuBorderHeight = (u16) pow(2, ceil(log(borderHeight) / log(2)));
 
     // Create the texture.
     if(!borderInit && !C3D_TexInit(&borderTexture, gpuBorderWidth, gpuBorderHeight, GPU_RGBA8)) {
@@ -220,9 +214,7 @@ void gfxLoadBorder(u8* imgData, int imgWidth, int imgHeight) {
     }
 
     GSPGPU_FlushDataCache(temp, gpuBorderWidth * gpuBorderHeight * sizeof(u32));
-    if(R_SUCCEEDED(GX_DisplayTransfer(temp, (u32) GX_BUFFER_DIM(gpuBorderWidth, gpuBorderHeight), (u32*) borderTexture.data, (u32) GX_BUFFER_DIM(gpuBorderWidth, gpuBorderHeight), GX_TRANSFER_FLIP_VERT(1) | GX_TRANSFER_OUT_TILED(1) | GX_TRANSFER_RAW_COPY(0) | GX_TRANSFER_IN_FORMAT(GX_TRANSFER_FMT_RGBA8) | GX_TRANSFER_OUT_FORMAT(GX_TRANSFER_FMT_RGBA8) | GX_TRANSFER_SCALING(GX_TRANSFER_SCALE_NO)))) {
-        gspWaitForPPF();
-    }
+    C3D_SyncDisplayTransfer(temp, (u32) GX_BUFFER_DIM(gpuBorderWidth, gpuBorderHeight), (u32*) borderTexture.data, (u32) GX_BUFFER_DIM(gpuBorderWidth, gpuBorderHeight), GX_TRANSFER_FLIP_VERT(1) | GX_TRANSFER_OUT_TILED(1) | GX_TRANSFER_RAW_COPY(0) | GX_TRANSFER_IN_FORMAT(GX_TRANSFER_FMT_RGBA8) | GX_TRANSFER_OUT_FORMAT(GX_TRANSFER_FMT_RGBA8) | GX_TRANSFER_SCALING(GX_TRANSFER_SCALE_NO));
 
     linearFree(temp);
 
@@ -434,9 +426,7 @@ void gfxDrawScreen() {
     C3D_TexSetFilter(&screenTexture, filter, filter);
 
     GSPGPU_FlushDataCache(transferBuffer, screenTexSize * screenTexSize * sizeof(u32));
-    if(R_SUCCEEDED(GX_DisplayTransfer(transferBuffer, (u32) GX_BUFFER_DIM(screenTexSize, screenTexSize), (u32*) screenTexture.data, (u32) GX_BUFFER_DIM(screenTexSize, screenTexSize), GX_TRANSFER_FLIP_VERT(1) | GX_TRANSFER_OUT_TILED(1) | GX_TRANSFER_RAW_COPY(0) | GX_TRANSFER_IN_FORMAT(GX_TRANSFER_FMT_RGBA8) | GX_TRANSFER_OUT_FORMAT(GX_TRANSFER_FMT_RGBA8) | GX_TRANSFER_SCALING(GX_TRANSFER_SCALE_NO)))) {
-        gspWaitForPPF();
-    }
+    C3D_SyncDisplayTransfer(transferBuffer, (u32) GX_BUFFER_DIM(screenTexSize, screenTexSize), (u32*) screenTexture.data, (u32) GX_BUFFER_DIM(screenTexSize, screenTexSize), GX_TRANSFER_FLIP_VERT(1) | GX_TRANSFER_OUT_TILED(1) | GX_TRANSFER_RAW_COPY(0) | GX_TRANSFER_IN_FORMAT(GX_TRANSFER_FMT_RGBA8) | GX_TRANSFER_OUT_FORMAT(GX_TRANSFER_FMT_RGBA8) | GX_TRANSFER_SCALING(GX_TRANSFER_SCALE_NO));
 
     GSPGPU_InvalidateDataCache(screenTexture.data, screenTexture.size);
 
@@ -445,6 +435,7 @@ void gfxDrawScreen() {
     }
 
     C3D_RenderTarget* target = gameScreen == 0 ? targetTop : targetBottom;
+    C3D_RenderTargetClear(target, C3D_CLEAR_ALL, 0, 0);
 
     C3D_FrameDrawOn(target);
     C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER, shaderInstanceGetUniformLocation(program.vertexShader, "projection"), gameScreen == 0 ? &projectionTop : &projectionBottom);

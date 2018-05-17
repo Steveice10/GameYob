@@ -936,7 +936,8 @@ void printMenuMessage(const char* s) {
     int rows = menuGetNumRows();
 
     bool hadPreviousMessage = printMessage[0] != '\0';
-    strncpy(printMessage, s, 33);
+    strncpy(printMessage, s, sizeof(printMessage) - 1);
+    printMessage[sizeof(printMessage) - 1] = '\0';
 
     if(hadPreviousMessage) {
         uiPrint("\r");

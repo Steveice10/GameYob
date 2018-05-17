@@ -856,11 +856,7 @@ bool mgrTryRawBorderFile(std::string border) {
         int imgHeight;
         int imgDepth;
         u8* image = stbi_load(border.c_str(), &imgWidth, &imgHeight, &imgDepth, STBI_rgb_alpha);
-        if(image == NULL || imgDepth != STBI_rgb_alpha) {
-            if(image != NULL) {
-                stbi_image_free(image);
-            }
-
+        if(image == NULL) {
             systemPrintDebug("Failed to decode image file.\n");
             return false;
         }
