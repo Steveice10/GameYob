@@ -7,8 +7,9 @@
 #include <queue>
 
 #include <switch.h>
+#include <platform/common/manager.h>
 
-#include "platform/common/menu.h"
+#include "platform/common/menu/menu.h"
 #include "platform/ui.h"
 
 static TextColor textColor;

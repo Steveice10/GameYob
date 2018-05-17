@@ -1,9 +1,9 @@
 #include <string.h>
 
 #include "platform/common/cheatengine.h"
-#include "platform/common/cheats.h"
+#include "platform/common/menu/cheatmenu.h"
 #include "platform/common/manager.h"
-#include "platform/common/menu.h"
+#include "platform/common/menu/menu.h"
 #include "platform/ui.h"
 
 int cheatsPerPage = 0;
@@ -29,9 +29,12 @@ void redrawCheatMenu() {
             uiSetLineHighlighted(true);
         }
 
-        uiPrint("%s", cheatEngine->cheats[i].name);
+        const std::string& name = cheatEngine->getCheatName(i);
 
-        for(unsigned int j = 0; j < 25 - strlen(cheatEngine->cheats[i].name); j++) {
+        uiPrint("%s", name.c_str());
+
+        size_t nameLen = name.length();
+        for(unsigned int j = 0; j < 25 - nameLen; j++) {
             uiPrint(" ");
         }
 

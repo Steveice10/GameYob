@@ -1,47 +1,19 @@
-#include <stdlib.h>
 #include <string.h>
 
 #include <fstream>
-#include <sstream>
 #include <vector>
+
+#include "libs/inih/INIReader.h"
 
 #include "platform/common/cheatengine.h"
 #include "platform/common/config.h"
 #include "platform/common/manager.h"
-#include "platform/common/menu.h"
+#include "platform/common/menu/menu.h"
 #include "platform/input.h"
 #include "platform/system.h"
-#include "platform/ui.h"
 #include "gameboy.h"
 
-std::string borderPath = "";
-std::string romPath = "";
-
-void generalParseConfig(char* line) {
-    char* equalsPos;
-    if((equalsPos = strrchr(line, '=')) != 0 && equalsPos != line + strlen(line) - 1) {
-        *equalsPos = '\0';
-        const char* parameter = line;
-        const char* value = equalsPos + 1;
-
-        if(strcasecmp(parameter, "rompath") == 0) {
-            romPath = value;
-        } else if(strcasecmp(parameter, "borderfile") == 0) {
-            borderPath = value;
-        }
-    }
-}
-
-const std::string generalPrintConfig() {
-    std::stringstream stream;
-
-    stream << "rompath=" << romPath << "\n";
-    stream << "borderfile=" << borderPath << "\n";
-
-    return stream.str();
-}
-
-const char* gbKeyNames[] = {
+static const char* funcKeyNames[NUM_FUNC_KEYS] = {
         "-",
         "A",
         "B",
@@ -63,399 +35,232 @@ const char* gbKeyNames[] = {
         "Screenshot"
 };
 
-std::vector<KeyConfig> keyConfigs;
-unsigned int selectedKeyConfig = 0;
+static std::string borderPath = "";
+static std::string romPath = "";
 
-void controlsParseConfig(char* line2) {
-    char line[100];
-    strncpy(line, line2, 99);
-    line[99] = '\0';
+static std::vector<KeyConfig> keyConfigs;
+static u32 selectedKeyConfig = 0;
 
-    while(strlen(line) > 0 && (line[strlen(line) - 1] == '\n' || line[strlen(line) - 1] == ' ')) {
-        line[strlen(line) - 1] = '\0';
-    }
-
-    int keyCount = inputGetKeyCount();
-
-    if(line[0] == '(') {
-        char* bracketEnd;
-        if((bracketEnd = strrchr(line, ')')) != 0) {
-            *bracketEnd = '\0';
-            const char* name = line + 1;
-
-            keyConfigs.push_back(KeyConfig());
-            KeyConfig* config = &keyConfigs.back();
-            strncpy(config->name, name, 31);
-            config->name[31] = '\0';
-            for(int i = 0; i < keyCount; i++) {
-                if(strlen(inputGetKeyName(i)) > 0) {
-                    config->funcKeys[i] = FUNC_KEY_NONE;
-                }
-            }
-        }
-
-        return;
-    }
-
-    char* equalsPos;
-    if((equalsPos = strrchr(line, '=')) != 0 && equalsPos != line + strlen(line) - 1) {
-        *equalsPos = '\0';
-
-        if(strcasecmp(line, "config") == 0) {
-            selectedKeyConfig = atoi(equalsPos + 1);
-        } else {
-            if(strlen(line) > 0) {
-                int realKey = -1;
-                for(int i = 0; i < keyCount; i++) {
-                    if(strcasecmp(line, inputGetKeyName(i)) == 0) {
-                        realKey = i;
-                        break;
-                    }
-                }
-
-                int gbKey = -1;
-                for(int i = 0; i < NUM_FUNC_KEYS; i++) {
-                    if(strcasecmp(equalsPos + 1, gbKeyNames[i]) == 0) {
-                        gbKey = i;
-                        break;
-                    }
-                }
-
-                if(gbKey != -1 && realKey != -1) {
-                    KeyConfig* config = &keyConfigs.back();
-                    config->funcKeys[realKey] = (u8) gbKey;
-                }
-            }
-        }
-    }
-}
-
-void controlsCheckConfig() {
-    if(keyConfigs.empty()) {
-        keyConfigs.push_back(inputGetDefaultKeyConfig());
-    }
-
-    if(selectedKeyConfig >= keyConfigs.size()) {
-        selectedKeyConfig = 0;
-    }
-
-    inputLoadKeyConfig(&keyConfigs[selectedKeyConfig]);
-}
-
-const std::string controlsPrintConfig() {
-    std::stringstream stream;
-
-    stream << "config=" << selectedKeyConfig << "\n";
-    for(unsigned int i = 0; i < keyConfigs.size(); i++) {
-        stream << "(" << keyConfigs[i].name << ")\n";
-
-        int keyCount = inputGetKeyCount();
-        for(int j = 0; j < keyCount; j++) {
-            if(inputIsValidKey(j)) {
-                stream << inputGetKeyName(j) << "=" << gbKeyNames[keyConfigs[i].funcKeys[j]] << "\n";
-            }
-        }
-    }
-
-    return stream.str();
-}
-
-bool readConfigFile() {
-    borderPath = systemDefaultBorderPath();
-    romPath = systemDefaultRomPath();
-
-    void (*configParser)(char*) = generalParseConfig;
-
-    std::ifstream stream(systemIniPath());
-    if(!stream.is_open()) {
-        romPath = "/";
-        controlsCheckConfig();
-
-        printMenuMessage("Error opening gameyob.ini.");
-        systemPrintDebug("Failed to open gameyob.ini: %s\n", strerror(errno));
-        stream.close();
-        return false;
-    }
-
-    while(!stream.eof()) {
-        std::string strLine;
-        std::getline(stream, strLine);
-
-        if(strLine.length() > 0) {
-            char line[strLine.size() + 1];
-            strncpy(line, strLine.c_str(), sizeof(line) - 1);
-            line[sizeof(line) - 1] = '\0';
-
-            char c = 0;
-            while(*line != '\0' && ((c = line[strlen(line) - 1]) == ' ' || c == '\n' || c == '\r')) {
-                line[strlen(line) - 1] = '\0';
-            }
-
-            if(line[0] == '[') {
-                char* endBrace;
-                if((endBrace = strrchr(line, ']')) != 0) {
-                    *endBrace = '\0';
-                    const char* section = line + 1;
-                    if(strcasecmp(section, "general") == 0) {
-                        configParser = generalParseConfig;
-                    } else if(strcasecmp(section, "console") == 0) {
-                        configParser = menuParseConfig;
-                    } else if(strcasecmp(section, "controls") == 0) {
-                        configParser = controlsParseConfig;
-                    }
-                }
-            } else {
-                configParser(line);
-            }
-        }
-    }
+static void configLoadGeneral(INIReader &reader) {
+    romPath = reader.Get("general", "rompath", "/");
+    borderPath = reader.Get("general", "borderfile", "");
 
     size_t len = romPath.length();
     if(len == 0 || romPath[len - 1] != '/') {
         romPath += "/";
     }
-
-    controlsCheckConfig();
-    return true;
 }
 
-void writeConfigFile() {
-    std::ofstream stream(systemIniPath());
-    if(!stream.is_open()) {
-        printMenuMessage("Error opening gameyob.ini.");
-        systemPrintDebug("Failed to open gameyob.ini: %s\n", strerror(errno));
+static void configSaveGeneral(std::ofstream &stream) {
+    stream << "[general]\n";
+    stream << "rompath=" << romPath << "\n";
+    stream << "borderfile=" << borderPath << "\n";
+    stream << "\n";
+}
+
+static void configValidateControls() {
+    if(keyConfigs.empty()) {
+        keyConfigs.push_back(inputGetDefaultKeyConfig());
+    }
+
+    if(selectedKeyConfig >= keyConfigs.size()) {
+        selectedKeyConfig = (u32) (keyConfigs.size() - 1);
+    }
+
+    inputLoadKeyConfig(&keyConfigs[selectedKeyConfig]);
+}
+
+static void configLoadControlsProfile(INIReader &reader, const std::string &name) {
+    if(name.empty()) {
         return;
     }
 
-    stream << "[general]\n";
-    stream << generalPrintConfig();
-    stream << "[console]\n";
-    stream << menuPrintConfig();
+    keyConfigs.push_back(KeyConfig());
+    KeyConfig& config = keyConfigs.back();
+
+    config.name = name;
+
+    u32 keyCount = (u32) inputGetKeyCount();
+    for(u32 i = 0; i < keyCount; i++) {
+        if(inputIsValidKey(i)) {
+            std::string mappedKey = reader.Get(name, std::string(inputGetKeyName(i)), "");
+
+            if(!mappedKey.empty()) {
+                for(u8 funcKey = 0; funcKey < NUM_FUNC_KEYS; funcKey++) {
+                    if(strcasecmp(mappedKey.c_str(), funcKeyNames[funcKey]) == 0) {
+                        config.funcKeys[i] = funcKey;
+                        break;
+                    }
+                }
+            } else {
+                config.funcKeys[i] = FUNC_KEY_NONE;
+            }
+        }
+    }
+}
+
+static void configLoadControls(INIReader &reader) {
+    selectedKeyConfig = (u32) reader.GetInteger("controls", "selected", 0);
+
+    std::string profiles = reader.Get("controls", "profiles", "");
+    if(profiles.length() > 0) {
+        size_t startPos = 0;
+        size_t endPos = 0;
+        while((endPos = profiles.find(',', startPos)) != std::string::npos) {
+            configLoadControlsProfile(reader, profiles.substr(startPos, endPos));
+
+            startPos = endPos + 1;
+        }
+
+        if(startPos < profiles.length()) {
+            configLoadControlsProfile(reader, profiles.substr(startPos));
+        }
+    }
+
+    configValidateControls();
+}
+
+static void configSaveControls(std::ofstream &stream) {
     stream << "[controls]\n";
-    stream << controlsPrintConfig();
+    stream << "selected=" << selectedKeyConfig << "\n";
+    stream << "profiles=";
+    for(u32 i = 0; i < keyConfigs.size(); i++) {
+        stream << keyConfigs[i].name << ",";
+    }
+
+    stream << "\n\n";
+
+    u32 keyCount = (u32) inputGetKeyCount();
+    for(u32 i = 0; i < keyConfigs.size(); i++) {
+        KeyConfig& keyConfig = keyConfigs[i];
+
+        stream << "[" << keyConfig.name << "]\n";
+        for(u32 j = 0; j < keyCount; j++) {
+            if(inputIsValidKey(j)) {
+                stream << inputGetKeyName(j) << "=" << funcKeyNames[keyConfig.funcKeys[j]] << "\n";
+            }
+        }
+
+        stream << "\n";
+    }
+}
+
+void configLoadOptions(INIReader &reader) {
+    for(int i = 0; i < numMenus; i++) {
+        for(int j = 0; j < menuList[i].numOptions; j++) {
+            if(menuList[i].options[j].numValues != 0) {
+                int value = (int) reader.GetInteger("options", menuList[i].options[j].name, -1);
+                if(value != -1) {
+                    menuList[i].options[j].selection = value;
+                    menuList[i].options[j].function(value);
+                }
+            }
+        }
+    }
+}
+
+void configSaveOptions(std::ofstream &stream) {
+    stream << "[options]\n";
+
+    for(int i = 0; i < numMenus; i++) {
+        for(int j = 0; j < menuList[i].numOptions; j++) {
+            if(menuList[i].options[j].numValues != 0) {
+                stream << menuList[i].options[j].name << "=" << menuList[i].options[j].selection << "\n";
+            }
+        }
+    }
+
+    stream << "\n";
+}
+
+bool configLoad() {
+    borderPath = systemDefaultBorderPath();
+    romPath = systemDefaultRomPath();
+
+    keyConfigs.clear();
+
+    INIReader reader(systemIniPath());
+    if(reader.ParseError() < 0) {
+        configValidateControls();
+
+        printMenuMessage("Error loading gameyob.ini.");
+        systemPrintDebug("Failed to load gameyob.ini: %s\n", strerror(errno));
+        return false;
+    }
+
+    configLoadGeneral(reader);
+    configLoadControls(reader);
+    configLoadOptions(reader);
+
+    return true;
+}
+
+void configSave() {
+    std::ofstream stream(systemIniPath());
+    if(!stream.is_open()) {
+        printMenuMessage("Error saving gameyob.ini.");
+        systemPrintDebug("Failed to save gameyob.ini: %s\n", strerror(errno));
+        return;
+    }
+
+    configSaveGeneral(stream);
+    configSaveControls(stream);
+    configSaveOptions(stream);
+
     stream.close();
 
     if(gameboy->cartridge != NULL) {
-        cheatEngine->saveCheats((mgrGetRomName() + ".cht").c_str());
+        cheatEngine->saveCheats(mgrGetRomName() + ".cht");
     }
 }
 
-int keyConfigChooser_option;
-int keyConfigChooser_cursor;
-int keyConfigChooser_scrollY;
-
-void redrawKeyConfigChooser() {
-    int &option = keyConfigChooser_option;
-    int &scrollY = keyConfigChooser_scrollY;
-    KeyConfig* config = &keyConfigs[selectedKeyConfig];
-
-    int height = 0;
-    uiGetSize(NULL, &height);
-
-    uiClear();
-
-    uiPrint("Config: ");
-    if(option == -1) {
-        uiSetTextColor(TEXT_COLOR_YELLOW);
-        uiPrint("* %s *\n\n", config->name);
-        uiSetTextColor(TEXT_COLOR_NONE);
-    } else {
-        uiPrint("  %s  \n\n", config->name);
-    }
-
-    uiPrint("              Button   Function\n\n");
-
-    int keyCount = inputGetKeyCount();
-    for(int i = 0, elements = 0; i < keyCount && elements < scrollY + height - 7; i++) {
-        if(!inputIsValidKey(i)) {
-            continue;
-        }
-
-        if(elements < scrollY) {
-            elements++;
-            continue;
-        }
-
-        int len = 18 - (int) strlen(inputGetKeyName(i));
-        while(len > 0) {
-            uiPrint(" ");
-            len--;
-        }
-
-        if(option == i) {
-            uiSetLineHighlighted(true);
-            uiPrint("* %s | %s *\n", inputGetKeyName(i), gbKeyNames[config->funcKeys[i]]);
-            uiSetLineHighlighted(false);
-        } else {
-            uiPrint("  %s | %s  \n", inputGetKeyName(i), gbKeyNames[config->funcKeys[i]]);
-        }
-
-        elements++;
-    }
-
-    uiPrint("\nPress X to make a new config.");
-    if(selectedKeyConfig != 0) {
-        uiPrint("\nPress Y to delete this config.");
-    }
-
-    uiFlush();
+std::string& configGetRomPath() {
+    return romPath;
 }
 
-void updateKeyConfigChooser() {
-    bool redraw = false;
-
-    int &option = keyConfigChooser_option;
-    int &cursor = keyConfigChooser_cursor;
-    int &scrollY = keyConfigChooser_scrollY;
-    KeyConfig* config = &keyConfigs[selectedKeyConfig];
-    int keyCount = inputGetKeyCount();
-
-    int height = 0;
-    uiGetSize(NULL, &height);
-
-    UIKey key;
-    while((key = uiReadKey()) != UI_KEY_NONE) {
-        if(key == UI_KEY_B) {
-            inputLoadKeyConfig(config);
-            closeSubMenu();
-        } else if(key == UI_KEY_X) {
-            keyConfigs.push_back(KeyConfig(*config));
-            selectedKeyConfig = (u32) keyConfigs.size() - 1;
-            char name[32];
-            sprintf(name, "Custom %d", (int) keyConfigs.size() - 1);
-            strcpy(keyConfigs.back().name, name);
-            option = -1;
-            cursor = -1;
-            scrollY = 0;
-            redraw = true;
-        } else if(key == UI_KEY_Y) {
-            if(selectedKeyConfig != 0) /* can't erase the default */ {
-                keyConfigs.erase(keyConfigs.begin() + selectedKeyConfig);
-                if(selectedKeyConfig >= keyConfigs.size()) {
-                    selectedKeyConfig = (u32) keyConfigs.size() - 1;
-                }
-
-                redraw = true;
-            }
-        } else if(key == UI_KEY_DOWN) {
-            if(option == keyCount - 1) {
-                option = -1;
-                cursor = -1;
-            } else {
-                cursor++;
-                option++;
-                while(!inputIsValidKey(option)) {
-                    option++;
-                    if(option >= keyCount) {
-                        option = -1;
-                        cursor = -1;
-                        break;
-                    }
-                }
-            }
-
-            if(cursor < 0) {
-                scrollY = 0;
-            } else {
-                while(cursor < scrollY) {
-                    scrollY--;
-                }
-
-                while(cursor >= scrollY + height - 7) {
-                    scrollY++;
-                }
-            }
-
-            redraw = true;
-        } else if(key == UI_KEY_UP) {
-            if(option == -1) {
-                option = keyCount - 1;
-                while(!inputIsValidKey(option)) {
-                    option--;
-                    if(option < 0) {
-                        option = -1;
-                        cursor = -1;
-                        break;
-                    }
-                }
-
-                if(option != -1) {
-                    cursor = 0;
-                    for(int i = 0; i < keyCount; i++) {
-                        if(inputIsValidKey(i)) {
-                            cursor++;
-                        }
-                    }
-                }
-            } else {
-                cursor--;
-                option--;
-                while(!inputIsValidKey(option)) {
-                    option--;
-                    if(option < 0) {
-                        option = -1;
-                        cursor = -1;
-                        break;
-                    }
-                }
-            }
-
-            if(cursor < 0) {
-                scrollY = 0;
-            } else {
-                while(cursor < scrollY) {
-                    scrollY--;
-                }
-
-                while(cursor >= scrollY + height - 7) {
-                    scrollY++;
-                }
-            }
-
-            redraw = true;
-        } else if(key == UI_KEY_LEFT) {
-            if(option == -1) {
-                if(selectedKeyConfig == 0) {
-                    selectedKeyConfig = keyConfigs.size() - 1;
-                } else {
-                    selectedKeyConfig--;
-                }
-            } else {
-                if(config->funcKeys[option] <= 0) {
-                    config->funcKeys[option] = NUM_FUNC_KEYS - 1;
-                } else {
-                    config->funcKeys[option]--;
-                }
-            }
-
-            redraw = true;
-        } else if(key == UI_KEY_RIGHT) {
-            if(option == -1) {
-                selectedKeyConfig++;
-                if(selectedKeyConfig >= keyConfigs.size()) {
-                    selectedKeyConfig = 0;
-                }
-            } else {
-                if(config->funcKeys[option] >= NUM_FUNC_KEYS - 1) {
-                    config->funcKeys[option] = FUNC_KEY_NONE;
-                } else {
-                    config->funcKeys[option]++;
-                }
-            }
-
-            redraw = true;
-        }
-    }
-
-    if(redraw) {
-        redrawKeyConfigChooser();
-    }
+std::string& configGetBorderPath() {
+    return borderPath;
 }
 
-void startKeyConfigChooser() {
-    keyConfigChooser_option = -1;
-    keyConfigChooser_cursor = -1;
-    keyConfigChooser_scrollY = 0;
-    displaySubMenu(updateKeyConfigChooser);
-    redrawKeyConfigChooser();
+void configSetBorderPath(std::string& path) {
+    borderPath = path;
+}
+
+u32 configGetKeyConfigCount() {
+    return (u32) keyConfigs.size();
+}
+
+KeyConfig* configGetKeyConfig(u32 num) {
+    return &keyConfigs[num];
+}
+
+void configAddKeyConfig(const std::string& name) {
+    keyConfigs.push_back(KeyConfig());
+    keyConfigs.back().name = name;
+
+    configValidateControls();
+}
+
+void configRemoveKeyConfig(u32 num) {
+    keyConfigs.erase(keyConfigs.begin() + num);
+
+    configValidateControls();
+}
+
+u32 configGetSelectedKeyConfig() {
+    return selectedKeyConfig;
+}
+
+void configSetSelectedKeyConfig(u32 config) {
+    selectedKeyConfig = config;
+
+    configValidateControls();
+}
+
+const char* configGetFuncKeyName(u8 funcKey) {
+    if(funcKey >= NUM_FUNC_KEYS) {
+        return "";
+    }
+
+    return funcKeyNames[funcKey];
 }

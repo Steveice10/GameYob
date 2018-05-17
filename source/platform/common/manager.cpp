@@ -6,12 +6,13 @@
 #include <fstream>
 #include <sstream>
 
+#include "libs/stb_image/stb_image.h"
+
 #include "platform/common/cheatengine.h"
 #include "platform/common/config.h"
-#include "platform/common/filechooser.h"
+#include "platform/common/menu/filechooser.h"
 #include "platform/common/manager.h"
-#include "platform/common/menu.h"
-#include "platform/common/stb_image.h"
+#include "platform/common/menu/menu.h"
 #include "platform/audio.h"
 #include "platform/gfx.h"
 #include "platform/input.h"
@@ -619,7 +620,7 @@ void mgrPowerOn(const char* romFile) {
         romStream.close();
         saveStream.close();
 
-        cheatEngine->loadCheats((romName + ".cht").c_str());
+        cheatEngine->loadCheats(romName + ".cht");
 
         if(mgrStateExists(-1)) {
             mgrLoadState(-1);
@@ -682,6 +683,7 @@ void mgrSelectRom() {
     if(!chooserInitialized) {
         chooserInitialized = true;
 
+        std::string& romPath = configGetRomPath();
         DIR* dir = opendir(romPath.c_str());
         if(dir) {
             closedir(dir);
@@ -911,7 +913,7 @@ void mgrRefreshBorder() {
 
     if(customBordersEnabled && gameboy != NULL && gameboy->cartridge != NULL) {
         if(!mgrTryBorderName(mgrGetRomName())) {
-            mgrTryBorderFile(borderPath);
+            mgrTryBorderFile(configGetBorderPath());
         }
     }
 }

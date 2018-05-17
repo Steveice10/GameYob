@@ -1,17 +1,13 @@
 #include <string.h>
 #include <stdlib.h>
 
-#include <sstream>
-
-#include <errno.h>
-#include <unistd.h>
-
+#include "platform/common/menu/cheatmenu.h"
+#include "platform/common/menu/filechooser.h"
+#include "platform/common/menu/keyconfigmenu.h"
+#include "platform/common/menu/menu.h"
 #include "platform/common/cheatengine.h"
-#include "platform/common/cheats.h"
 #include "platform/common/config.h"
-#include "platform/common/filechooser.h"
 #include "platform/common/manager.h"
-#include "platform/common/menu.h"
 #include "platform/input.h"
 #include "platform/system.h"
 #include "platform/ui.h"
@@ -129,7 +125,7 @@ void keyConfigFunc(int value) {
 
 void saveSettingsFunc(int value) {
     printMenuMessage("Saving settings...");
-    writeConfigFile();
+    configSave();
     printMenuMessage("Settings saved.");
 }
 
@@ -254,10 +250,11 @@ void gbColorizeFunc(int value) {
 }
 
 void selectBorderFunc(int value) {
-    char* filename = borderChooser.chooseFile();
-    if(filename != NULL) {
-        borderPath = filename;
-        free(filename);
+    char* cFile = borderChooser.chooseFile();
+    if(cFile != NULL) {
+        std::string file = cFile;
+        configSetBorderPath(file);
+        free(cFile);
 
         mgrRefreshBorder();
     }
@@ -321,239 +318,6 @@ void chan3Func(int value) {
 void chan4Func(int value) {
     setChanEnabled(3, value);
 }
-
-int listenSocket = -1;
-FILE* linkSocket = NULL;
-std::string linkIp = "";
-
-void listenUpdateFunc() {
-    UIKey key;
-    while((key = uiReadKey()) != UI_KEY_NONE) {
-        if(key == UI_KEY_A || key == UI_KEY_B) {
-            if(listenSocket != -1) {
-                close(listenSocket);
-                listenSocket = -1;
-            }
-
-            closeSubMenu();
-            return;
-        }
-    }
-
-    if(listenSocket != -1 && linkSocket == NULL) {
-        linkSocket = systemSocketAccept(listenSocket, &linkIp);
-        if(linkSocket != NULL) {
-            close(listenSocket);
-            listenSocket = -1;
-
-            uiClear();
-            uiPrint("Connected to %s.\n", linkIp.c_str());
-            uiPrint("Press A or B to continue.\n");
-            uiFlush();
-        }
-    }
-}
-
-void listenFunc(int value) {
-    displaySubMenu(listenUpdateFunc);
-
-    uiClear();
-
-    if(linkSocket != NULL) {
-        uiPrint("Already connected.\n");
-        uiPrint("Press A or B to continue.\n");
-    } else {
-        listenSocket = systemSocketListen(5000);
-        if(listenSocket >= 0) {
-            uiPrint("Listening for connection...\n");
-            uiPrint("Local IP: %s\n", systemGetIP().c_str());
-            uiPrint("Press A or B to cancel.\n");
-        } else {
-            uiPrint("Failed to open socket: %s\n", strerror(errno));
-            uiPrint("Press A or B to continue.\n");
-        }
-    }
-
-    uiFlush();
-}
-
-bool connectPerformed = false;
-std::string connectIp = "000.000.000.000";
-u32 connectSelection = 0;
-
-void drawConnectSelector() {
-    uiClear();
-    uiPrint("Input IP to connect to:\n");
-    uiPrint("%s\n", connectIp.c_str());
-    for(u32 i = 0; i < connectSelection; i++) {
-        uiPrint(" ");
-    }
-
-    uiPrint("^\n");
-    uiPrint("Press A to confirm, B to cancel.\n");
-    uiFlush();
-}
-
-void connectUpdateFunc() {
-    UIKey key;
-    while((key = uiReadKey()) != UI_KEY_NONE) {
-        if((connectPerformed && key == UI_KEY_A) || key == UI_KEY_B) {
-            connectPerformed = false;
-            connectIp = "000.000.000.000";
-            connectSelection = 0;
-
-            closeSubMenu();
-            return;
-        }
-
-        if(!connectPerformed) {
-            if(key == UI_KEY_A) {
-                std::string trimmedIp = connectIp;
-
-                bool removeZeros = true;
-                for(std::string::size_type i = 0; i < trimmedIp.length(); i++) {
-                    if(removeZeros && trimmedIp[i] == '0' && i != trimmedIp.length() - 1 && trimmedIp[i + 1] != '.') {
-                        trimmedIp.erase(i, 1);
-                        i--;
-                    } else {
-                        removeZeros = trimmedIp[i] == '.';
-                    }
-                }
-
-                connectPerformed = true;
-
-                uiClear();
-                uiPrint("Connecting to %s...\n", trimmedIp.c_str());
-
-                linkSocket = systemSocketConnect(trimmedIp, 5000);
-                if(linkSocket != NULL) {
-                    linkIp = trimmedIp;;
-                    uiPrint("Connected to %s.\n", linkIp.c_str());
-                } else {
-                    uiPrint("Failed to connect to socket: %s\n", strerror(errno));
-                }
-
-                uiPrint("Press A or B to continue.\n");
-                uiFlush();
-            }
-
-            bool redraw = false;
-            if(key == UI_KEY_LEFT && connectSelection > 0) {
-                connectSelection--;
-                if(connectIp[connectSelection] == '.') {
-                    connectSelection--;
-                }
-
-                redraw = true;
-            }
-
-            if(key == UI_KEY_RIGHT && connectSelection < connectIp.length() - 1) {
-                connectSelection++;
-                if(connectIp[connectSelection] == '.') {
-                    connectSelection++;
-                }
-
-                redraw = true;
-            }
-
-            if(key == UI_KEY_UP) {
-                connectIp[connectSelection]++;
-                if(connectIp[connectSelection] > '9') {
-                    connectIp[connectSelection] = '0';
-                }
-
-                redraw = true;
-            }
-
-            if(key == UI_KEY_DOWN) {
-                connectIp[connectSelection]--;
-                if(connectIp[connectSelection] < '0') {
-                    connectIp[connectSelection] = '9';
-                }
-
-                redraw = true;
-            }
-
-            if(redraw) {
-                drawConnectSelector();
-            }
-        }
-    }
-}
-
-void connectFunc(int value) {
-    displaySubMenu(connectUpdateFunc);
-    if(linkSocket != NULL) {
-        connectPerformed = true;
-
-        uiClear();
-        uiPrint("Already connected.\n");
-        uiPrint("Press A or B to continue.\n");
-        uiFlush();
-    } else {
-        drawConnectSelector();
-    }
-}
-
-void disconnectFunc(int value) {
-    displaySubMenu(subMenuGenericUpdateFunc);
-
-    uiClear();
-
-    if(linkSocket != NULL) {
-        fclose(linkSocket);
-        linkSocket = NULL;
-        linkIp = "";
-
-        uiPrint("Disconnected.\n");
-    } else {
-        uiPrint("Not connected.\n");
-    }
-
-    uiPrint("Press A or B to continue.\n");
-
-    uiFlush();
-}
-
-void connectionInfoFunc(int value) {
-    displaySubMenu(subMenuGenericUpdateFunc);
-
-    uiClear();
-
-    uiPrint("Status: ");
-    if(linkSocket != NULL) {
-        uiSetTextColor(TEXT_COLOR_GREEN);
-        uiPrint("Connected");
-        uiSetTextColor(TEXT_COLOR_NONE);
-    } else {
-        uiSetTextColor(TEXT_COLOR_RED);
-        uiPrint("Disconnected");
-        uiSetTextColor(TEXT_COLOR_NONE);
-    }
-
-    uiPrint("\n");
-    uiPrint("IP: %s\n", linkIp.c_str());
-    uiPrint("\n");
-    uiPrint("Press A or B to continue.\n");
-    uiFlush();
-}
-
-struct MenuOption {
-    const char* name;
-    void (* function)(int);
-    int numValues;
-    const char* values[15];
-    int defaultSelection;
-
-    bool enabled;
-    int selection;
-};
-
-struct SubMenu {
-    const char* name;
-    int numOptions;
-    MenuOption options[13];
-};
 
 SubMenu menuList[] = {
         {
@@ -621,17 +385,7 @@ SubMenu menuList[] = {
                         {"Channel 3", chan3Func, 2, {"Off", "On"}, 1},
                         {"Channel 4", chan4Func, 2, {"Off", "On"}, 1}
                 }
-        },
-        /*{
-                "Link",
-                4,
-                {
-                        {"Listen", listenFunc, 0, {}, 0},
-                        {"Connect", connectFunc, 0, {}, 0},
-                        {"Disconnect", disconnectFunc, 0, {}, 0},
-                        {"Connection Info", connectionInfoFunc, 0, {}, 0}
-                }
-        },*/
+        }
 };
 
 const int numMenus = sizeof(menuList) / sizeof(SubMenu);
@@ -841,10 +595,11 @@ void redrawMenu() {
 
 // Called each vblank while the menu is on
 void updateMenu() {
-    if(!menuOn)
+    if(!menuOn) {
         return;
+    }
 
-    if(subMenuUpdateFunc != 0) {
+    if(subMenuUpdateFunc != NULL) {
         subMenuUpdateFunc();
         return;
     }
@@ -921,7 +676,7 @@ void updateMenu() {
         }
     }
 
-    if(redraw && subMenuUpdateFunc == 0 && menuOn) {// The menu may have been closed by an option
+    if(redraw && subMenuUpdateFunc == NULL && menuOn) { // The menu may have been closed by an option
         redrawMenu();
     }
 }
@@ -1010,32 +765,6 @@ void disableMenuOption(const char* optionName) {
             }
         }
     }
-}
-
-void menuParseConfig(char* line) {
-    char* equalsPos = strchr(line, '=');
-    if(equalsPos == 0) {
-        return;
-    }
-
-    *equalsPos = '\0';
-    const char* option = line;
-    const char* value = equalsPos + 1;
-    int val = atoi(value);
-    setMenuOption(option, val);
-}
-
-const std::string menuPrintConfig() {
-    std::stringstream stream;
-    for(int i = 0; i < numMenus; i++) {
-        for(int j = 0; j < menuList[i].numOptions; j++) {
-            if(menuList[i].options[j].numValues != 0) {
-                stream << menuList[i].options[j].name << "=" << menuList[i].options[j].selection << "\n";
-            }
-        }
-    }
-
-    return stream.str();
 }
 
 bool showConsoleDebug() {

@@ -9,7 +9,7 @@
 
 #include "platform/common/config.h"
 #include "platform/common/manager.h"
-#include "platform/common/menu.h"
+#include "platform/common/menu/menu.h"
 #include "platform/audio.h"
 #include "platform/gfx.h"
 #include "platform/input.h"

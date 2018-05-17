@@ -12,7 +12,6 @@ INCLUDE_DIRS := include
 SOURCE_DIRS := source
 
 BUILD_FLAGS := -O3
-#-Wno-unused-function -Wno-unused-result
 
 VERSION_PARTS := $(subst ., ,$(shell git describe --tags --abbrev=0))
 

@@ -6,6 +6,26 @@
 
 #include "types.h"
 
+struct MenuOption {
+        const char* name;
+        void (* function)(int);
+        int numValues;
+        const char* values[15];
+        int defaultSelection;
+
+        bool enabled;
+        int selection;
+};
+
+struct SubMenu {
+    const char* name;
+    int numOptions;
+    MenuOption options[13];
+};
+
+extern SubMenu menuList[];
+extern const int numMenus;
+
 extern std::vector<std::string> supportedImages;
 
 extern bool menuOn;
@@ -21,7 +41,6 @@ extern int scaleFilter;
 extern bool fpsOutput;
 extern bool timeOutput;
 extern int fastForwardFrameSkip;
-extern FILE* linkSocket;
 
 void setMenuDefaults();
 
@@ -39,9 +58,6 @@ int getMenuOption(const char* name);
 void setMenuOption(const char* name, int value);
 void enableMenuOption(const char* name);
 void disableMenuOption(const char* name);
-
-void menuParseConfig(char* line);
-const std::string menuPrintConfig();
 
 bool showConsoleDebug();
 

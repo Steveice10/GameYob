@@ -6,7 +6,7 @@
 #include <vector>
 #include <platform/ui.h>
 
-#include "platform/common/filechooser.h"
+#include "platform/common/menu/filechooser.h"
 #include "platform/input.h"
 #include "platform/system.h"
 
@@ -28,8 +28,8 @@ FileChooser::FileChooser(std::string directory, std::vector<std::string> extensi
 
 int nameSortFunction(std::string &a, std::string &b) {
     // ".." sorts before everything except itself.
-    bool aIsParent = strcmp(a.c_str(), "..") == 0;
-    bool bIsParent = strcmp(b.c_str(), "..") == 0;
+    bool aIsParent = a == "..";
+    bool bIsParent = b == "..";
 
     if(aIsParent && bIsParent) {
         return 0;
@@ -261,7 +261,7 @@ void FileChooser::refreshContents() {
             }
 
             if(entry->d_type & DT_DIR || isValidExtension) {
-                if(strcmp(".", entry->d_name) != 0) {
+                if(strcmp(entry->d_name, ".") != 0) {
                     int flag = 0;
                     if(entry->d_type & DT_DIR) {
                         flag |= FLAG_DIRECTORY;
@@ -418,7 +418,7 @@ bool FileChooser::updateChooser(char** result) {
     while((key = uiReadKey()) != UI_KEY_NONE) {
         if(key == UI_KEY_A) {
             if(flags[selection] & FLAG_DIRECTORY) {
-                if(strcmp(filenames[selection].c_str(), "..") == 0) {
+                if(filenames[selection] == "..") {
                     navigateBack();
                 } else {
                     directory += filenames[selection] + "/";

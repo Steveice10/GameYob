@@ -8,7 +8,7 @@
 
 #include <switch.h>
 
-#include "platform/common/menu.h"
+#include "platform/common/menu/menu.h"
 #include "platform/gfx.h"
 #include "platform/system.h"
 

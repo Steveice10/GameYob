@@ -6,8 +6,8 @@
 #include <switch.h>
 
 #include "platform/common/config.h"
-#include "platform/common/filechooser.h"
-#include "platform/common/menu.h"
+#include "platform/common/menu/filechooser.h"
+#include "platform/common/menu/menu.h"
 #include "platform/input.h"
 #include "platform/ui.h"
 
@@ -124,8 +124,8 @@ void inputCleanup() {
 void inputUpdate() {
     hidScanInput();
 
-    u64 down = hidKeysDown(CONTROLLER_P1_AUTO);
-    u64 held = hidKeysHeld(CONTROLLER_P1_AUTO);
+    u64 down = hidKeysDown(CONTROLLER_HANDHELD);
+    u64 held = hidKeysHeld(CONTROLLER_HANDHELD);
 
     for(u32 i = 0; i < NUM_FUNC_KEYS; i++) {
         if(!(held & funcKeyMapping[i])) {
@@ -168,11 +168,11 @@ void inputUpdate() {
 }
 
 bool inputKeyHeld(int key) {
-    return key >= 0 && key < NUM_FUNC_KEYS && !forceReleased[key] && (hidKeysHeld(CONTROLLER_P1_AUTO) & funcKeyMapping[key]) != 0;
+    return key >= 0 && key < NUM_FUNC_KEYS && !forceReleased[key] && (hidKeysHeld(CONTROLLER_HANDHELD) & funcKeyMapping[key]) != 0;
 }
 
 bool inputKeyPressed(int key) {
-    return key >= 0 && key < NUM_FUNC_KEYS && !forceReleased[key] && (hidKeysDown(CONTROLLER_P1_AUTO) & funcKeyMapping[key]) != 0;
+    return key >= 0 && key < NUM_FUNC_KEYS && !forceReleased[key] && (hidKeysDown(CONTROLLER_HANDHELD) & funcKeyMapping[key]) != 0;
 }
 
 void inputKeyRelease(int key) {

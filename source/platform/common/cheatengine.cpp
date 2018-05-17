@@ -2,6 +2,9 @@
 
 #include <algorithm>
 #include <fstream>
+#include <sstream>
+
+#include "libs/inih/INIReader.h"
 
 #include "platform/common/cheatengine.h"
 #include "platform/system.h"
@@ -16,51 +19,92 @@ CheatEngine::CheatEngine(Gameboy* g) {
     numCheats = 0;
 }
 
-bool CheatEngine::addCheat(const char* str) {
-    int len;
-    int i = numCheats;
+void CheatEngine::loadCheats(const std::string& filename) {
+    numCheats = 0;
 
-    if(i == MAX_CHEATS) {
+    ini_parse(filename.c_str(), CheatEngine::parseCheats, this);
+}
+
+void CheatEngine::saveCheats(const std::string& filename) {
+    if(numCheats == 0) {
+        return;
+    }
+
+    std::ofstream stream(filename);
+    if(stream.is_open()) {
+        for(int i = 0; i < numCheats; i++) {
+            stream << "[" << cheats[i].name << "]\n";
+            stream << "value=" << cheats[i].cheatString << "\n";
+            stream << "enabled=" << ((cheats[i].flags & CHEAT_FLAG_ENABLED) != 0) << "\n";
+            stream << "\n";
+        }
+
+        stream.close();
+    }
+}
+
+int CheatEngine::parseCheats(void* user, const char* section, const char* name, const char* value) {
+    CheatEngine* engine = (CheatEngine*) user;
+
+    if(strcmp(name, "value") == 0) {
+        engine->addCheat(std::string(section), std::string(value));
+    } else if(strcmp(name, "enabled") == 0) {
+        for(int i = 0; i < engine->numCheats; i++) {
+            if(engine->cheats[i].name == section) {
+                engine->toggleCheat(i, strcmp(value, "1") == 0);
+                break;
+            }
+        }
+    }
+
+    return 1;
+}
+
+bool CheatEngine::addCheat(const std::string& name, const std::string& value) {
+    int cheat = numCheats;
+
+    if(cheat == MAX_CHEATS) {
         return false;
     }
 
+    cheats[cheat].name = name;
+    cheats[cheat].cheatString = value;
+
     // Clear all flags
-    cheats[i].flags = 0;
-    cheats[i].patchedBanks = std::vector<int>();
-    cheats[i].patchedValues = std::vector<int>();
+    cheats[cheat].flags = 0;
+    cheats[cheat].patchedBanks = std::vector<int>();
+    cheats[cheat].patchedValues = std::vector<int>();
 
-    len = strlen(str);
-    strncpy(cheats[i].cheatString, str, 12);
+    size_t len = value.length();
 
-    // GameGenie AAA-BBB-CCC
-    if(len == 11) {
-        cheats[i].flags |= CHEAT_FLAG_GAMEGENIE;
+    if(len == 11) { // GameGenie AAA-BBB-CCC
+        cheats[cheat].flags |= CHEAT_FLAG_GAMEGENIE;
 
-        cheats[i].data = (u8) (TO_INT(str[0]) << 4 | TO_INT(str[1]));
-        cheats[i].address = (u16) (TO_INT(str[6]) << 12 | TO_INT(str[2]) << 8 | TO_INT(str[4]) << 4 | TO_INT(str[5]));
-        cheats[i].compare = (u8) (TO_INT(str[8]) << 4 | TO_INT(str[10]));
+        cheats[cheat].data = (u8) (TO_INT(value[0]) << 4 | TO_INT(value[1]));
+        cheats[cheat].address = (u16) (TO_INT(value[6]) << 12 | TO_INT(value[2]) << 8 | TO_INT(value[4]) << 4 | TO_INT(value[5]));
+        cheats[cheat].compare = (u8) (TO_INT(value[8]) << 4 | TO_INT(value[10]));
 
-        cheats[i].address ^= 0xf000;
-        cheats[i].compare = (u8) ((cheats[i].compare >> 2) | (cheats[i].compare & 0x3) << 6);
-        cheats[i].compare ^= 0xba;
+        cheats[cheat].address ^= 0xf000;
+        cheats[cheat].compare = (u8) ((cheats[cheat].compare >> 2) | (cheats[cheat].compare & 0x3) << 6);
+        cheats[cheat].compare ^= 0xba;
 
-        systemPrintDebug("GG %04x / %02x -> %02x\n", cheats[i].address, cheats[i].data, cheats[i].compare);
+        systemPrintDebug("GG %04x / %02x -> %02x\n", cheats[cheat].address, cheats[cheat].data, cheats[cheat].compare);
     } else if(len == 7) { // GameGenie (6digit version) AAA-BBB
-        cheats[i].flags |= CHEAT_FLAG_GAMEGENIE1;
+        cheats[cheat].flags |= CHEAT_FLAG_GAMEGENIE1;
 
-        cheats[i].data = (u8) (TO_INT(str[0]) << 4 | TO_INT(str[1]));
-        cheats[i].address = (u16) (TO_INT(str[6]) << 12 | TO_INT(str[2]) << 8 | TO_INT(str[4]) << 4 | TO_INT(str[5]));
+        cheats[cheat].data = (u8) (TO_INT(value[0]) << 4 | TO_INT(value[1]));
+        cheats[cheat].address = (u16) (TO_INT(value[6]) << 12 | TO_INT(value[2]) << 8 | TO_INT(value[4]) << 4 | TO_INT(value[5]));
 
-        systemPrintDebug("GG1 %04x / %02x\n", cheats[i].address, cheats[i].data);
+        systemPrintDebug("GG1 %04x / %02x\n", cheats[cheat].address, cheats[cheat].data);
     } else if(len == 8) { // Gameshark AAAAAAAA
-        cheats[i].flags |= CHEAT_FLAG_GAMESHARK;
+        cheats[cheat].flags |= CHEAT_FLAG_GAMESHARK;
 
-        cheats[i].data = (u8) (TO_INT(str[2]) << 4 | TO_INT(str[3]));
-        cheats[i].bank = (u8) (TO_INT(str[0]) << 4 | TO_INT(str[1]));
-        cheats[i].address = (u16) (TO_INT(str[6]) << 12 | TO_INT(str[7]) << 8 | TO_INT(str[4]) << 4 | TO_INT(str[5]));
+        cheats[cheat].data = (u8) (TO_INT(value[2]) << 4 | TO_INT(value[3]));
+        cheats[cheat].bank = (u8) (TO_INT(value[0]) << 4 | TO_INT(value[1]));
+        cheats[cheat].address = (u16) (TO_INT(value[6]) << 12 | TO_INT(value[7]) << 8 | TO_INT(value[4]) << 4 | TO_INT(value[5]));
 
-        systemPrintDebug("GS (%02x)%04x/ %02x\n", cheats[i].bank, cheats[i].address, cheats[i].data);
-    } else { // dafuq did i just read ?
+        systemPrintDebug("GS (%02x)%04x/ %02x\n", cheats[cheat].bank, cheats[cheat].address, cheats[cheat].data);
+    } else { // Unknown
         return false;
     }
 
@@ -68,31 +112,19 @@ bool CheatEngine::addCheat(const char* str) {
     return true;
 }
 
-void CheatEngine::toggleCheat(int i, bool enabled) {
+void CheatEngine::toggleCheat(int cheat, bool enabled) {
     if(gameboy->cartridge != NULL) {
         if(enabled) {
-            cheats[i].flags |= CHEAT_FLAG_ENABLED;
-            if((cheats[i].flags & CHEAT_FLAG_TYPE_MASK) != CHEAT_FLAG_GAMESHARK) {
+            cheats[cheat].flags |= CHEAT_FLAG_ENABLED;
+            if((cheats[cheat].flags & CHEAT_FLAG_TYPE_MASK) != CHEAT_FLAG_GAMESHARK) {
                 for(int j = 0; j < gameboy->cartridge->getRomBanks(); j++) {
                     applyGGCheatsToBank(j);
                 }
             }
         } else {
-            unapplyGGCheat(i);
-            cheats[i].flags &= ~CHEAT_FLAG_ENABLED;
+            unapplyGGCheat(cheat);
+            cheats[cheat].flags &= ~CHEAT_FLAG_ENABLED;
         }
-    }
-}
-
-void CheatEngine::unapplyGGCheat(int cheat) {
-    if(gameboy->cartridge != NULL && (cheats[cheat].flags & CHEAT_FLAG_TYPE_MASK) != CHEAT_FLAG_GAMESHARK) {
-        for(unsigned int i = 0; i < cheats[cheat].patchedBanks.size(); i++) {
-            u8* bank = gameboy->cartridge->getRomBank(cheats[cheat].patchedBanks[i]);
-            bank[cheats[cheat].address & 0x3fff] = (u8) cheats[cheat].patchedValues[i];
-        }
-
-        cheats[cheat].patchedBanks = std::vector<int>();
-        cheats[cheat].patchedValues = std::vector<int>();
     }
 }
 
@@ -115,6 +147,18 @@ void CheatEngine::applyGGCheatsToBank(int bank) {
     }
 }
 
+void CheatEngine::unapplyGGCheat(int cheat) {
+    if(gameboy->cartridge != NULL && (cheats[cheat].flags & CHEAT_FLAG_TYPE_MASK) != CHEAT_FLAG_GAMESHARK) {
+        for(unsigned int i = 0; i < cheats[cheat].patchedBanks.size(); i++) {
+            u8* bank = gameboy->cartridge->getRomBank(cheats[cheat].patchedBanks[i]);
+            bank[cheats[cheat].address & 0x3fff] = (u8) cheats[cheat].patchedValues[i];
+        }
+
+        cheats[cheat].patchedBanks = std::vector<int>();
+        cheats[cheat].patchedValues = std::vector<int>();
+    }
+}
+
 void CheatEngine::applyGSCheats() {
     for(int i = 0; i < numCheats; i++) {
         if(cheats[i].flags & CHEAT_FLAG_ENABLED && ((cheats[i].flags & CHEAT_FLAG_TYPE_MASK) == CHEAT_FLAG_GAMESHARK)) {
@@ -134,59 +178,5 @@ void CheatEngine::applyGSCheats() {
                     break;
             }
         }
-    }
-}
-
-void CheatEngine::loadCheats(const char* filename) {
-    numCheats = 0;
-
-    // Begin loading new cheat file
-    std::ifstream stream(filename);
-    if(!stream.is_open()) {
-        return;
-    }
-
-    while(!stream.eof()) {
-        int i = numCheats;
-
-        std::string strLine;
-        std::getline(stream, strLine);
-
-        if(strLine.length() > 0) {
-            char line[strLine.size() + 1];
-            strncpy(line, strLine.c_str(), sizeof(line));
-
-            char* spacePos = strchr(line, ' ');
-            if(spacePos != NULL) {
-                *spacePos = '\0';
-                if(strlen(spacePos + 1) >= 1 && addCheat(line)) {
-                    strncpy(cheats[i].name, spacePos + 2, MAX_CHEAT_NAME_LEN);
-                    cheats[i].name[MAX_CHEAT_NAME_LEN] = '\0';
-                    char c;
-                    while((c = cheats[i].name[strlen(cheats[i].name) - 1]) == '\n' || c == '\r') {
-                        cheats[i].name[strlen(cheats[i].name) - 1] = '\0';
-                    }
-
-                    toggleCheat(i, *(spacePos + 1) == '1');
-                }
-            }
-        }
-    }
-
-    stream.close();
-}
-
-void CheatEngine::saveCheats(const char* filename) {
-    if(numCheats == 0) {
-        return;
-    }
-
-    std::ofstream stream(filename);
-    if(stream.is_open()) {
-        for(int i = 0; i < numCheats; i++) {
-            stream << cheats[i].cheatString << " " << ((cheats[i].flags & CHEAT_FLAG_ENABLED) != 0) << cheats[i].name << "\n";
-        }
-
-        stream.close();
     }
 }

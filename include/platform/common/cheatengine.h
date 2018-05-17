@@ -4,7 +4,6 @@
 
 #include <vector>
 
-#define MAX_CHEAT_NAME_LEN    24
 #define MAX_CHEATS            900
 #define CHEAT_FLAG_ENABLED    (1<<0)
 #define CHEAT_FLAG_TYPE_MASK  (3<<2)
@@ -13,18 +12,16 @@
 #define CHEAT_FLAG_GAMESHARK  (3<<2)
 
 typedef struct cheat_t {
-    char name[MAX_CHEAT_NAME_LEN + 1];
-    char cheatString[12];
+    std::string name;
+    std::string cheatString;
     u8 flags;
     u8 data;
     u16 address;
     union {
-        u8 compare;
-        /* For GameGenie codes */
-        u8 bank;/* For Gameshark codes */
+        u8 compare; /* For GameGenie codes */
+        u8 bank;    /* For Gameshark codes */
     };
-    std::vector<int> patchedBanks;
-    /* For GameGenie codes */
+    std::vector<int> patchedBanks;  /* For GameGenie codes */
     std::vector<int> patchedValues; /* For GameGenie codes */
 } cheat_t;
 
@@ -34,24 +31,26 @@ class CheatEngine {
 public:
     CheatEngine(Gameboy* g);
 
-    bool addCheat(const char* str);
-    void toggleCheat(int i, bool enabled);
-
-    void unapplyGGCheat(int cheat);
-    void applyGGCheatsToBank(int romBank);
-
-    void applyGSCheats();
-
-    void loadCheats(const char* filename);
-    void saveCheats(const char* filename);
+    void loadCheats(const std::string& filename);
+    void saveCheats(const std::string& filename);
 
     inline int getNumCheats() { return numCheats; }
 
-    inline bool isCheatEnabled(int c) { return cheats[c].flags & CHEAT_FLAG_ENABLED; }
+    inline const std::string& getCheatName(int cheat) { return cheats[cheat].name; }
+    inline bool isCheatEnabled(int cheat) { return (cheats[cheat].flags & CHEAT_FLAG_ENABLED) != 0; }
 
-    cheat_t cheats[MAX_CHEATS];
+    bool addCheat(const std::string& name, const std::string& value);
+    void toggleCheat(int cheat, bool enabled);
+
+    void applyGGCheatsToBank(int romBank);
+    void unapplyGGCheat(int cheat);
+
+    void applyGSCheats();
 private:
+    cheat_t cheats[MAX_CHEATS];
     int numCheats;
 
     Gameboy* gameboy;
+
+    static int parseCheats(void* user, const char* section, const char* name, const char* value);
 };
