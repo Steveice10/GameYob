@@ -12,7 +12,7 @@
 #include <citro3d.h>
 
 #include "platform/3ds/default_shbin.h"
-#include "platform/common/menu.h"
+#include "platform/common/menu/menu.h"
 #include "platform/gfx.h"
 #include "platform/system.h"
 

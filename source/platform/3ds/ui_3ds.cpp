@@ -8,7 +8,7 @@
 
 #include <3ds.h>
 
-#include "platform/common/menu.h"
+#include "platform/common/menu/menu.h"
 #include "platform/ui.h"
 
 static gfxScreen_t currConsole;
